@@ -9,4 +9,5 @@ Final Table including Glicko Rating (Total, Pitch) and various related entries
 
 Reach Goals: 
 - Website with Player-profiles; individual ratings for unique Player team pairings, etc
+- Interface for entering match results 
 - Matchmaker: Creates fair teams considering Glicko (Pitch), Position
