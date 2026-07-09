@@ -1,1 +1,5 @@
 #List of player IDs 
+#player_id, [player_cleannames] list of associated cleannames (:= lowercase connected by "_" of name entry)  
+#example: da_pe, [daniel, daniel_peters, da_pe]
+
+player_id, [player_cleannames]
