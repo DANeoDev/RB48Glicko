@@ -1,1 +1,0 @@
-print("RB48Glicko test")

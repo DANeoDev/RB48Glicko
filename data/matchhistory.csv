@@ -1,1 +1,7 @@
-#full matchhistory with matchids and results created from update_players_matchhistory.py
+match_id,pitch,team_a,team_b,goals_a,goals_b,winner
+2026-07-08-1,hf,"Stefan, Lance, Franz, Franz+1, Falk, Felix, Bernhard, Phil, Kevin","Mo, Samuel, Tim, Calvin, Fabian, Lars, Yannik, Immi, Aron",6,6,R
+2026-07-15-1,box,"Julian, Felix, Ingo, Tim, Malte, Bernhard","Konsti, Stefan, Fabian, Yannik, Rashad, Kevin",10,4,A
+2026-07-15-2,box,"Julian, Felix, Ingo, Tim, Malte, Bernhard","Konsti, Stefan, Fabian, Yannik, Rashad, Kevin",10,7,A
+2026-07-22-1,hf,"Julian, Lance, Felix, Kevin, Aron, Malte, Felix+1 glaube Max, Tim Don, Matthias","Bernhard, Ingo, Konsti, Mo, Yannik, Can (Andersson), Nik, Sebastian (Can+1), Lücke",5,2,A
+2026-07-29-1,box,"Lance, Paul, Aron, Mo, Phil, Kevin","Konsti, Nik, Yannik, Lücke, Can Andersson, Malte",12,10,A
+2026-07-29-2,box,"Lance, Paul, Aron, Mo, Phil, Kevin","Konsti, Nik, Yannik, Lücke, Can Andersson, Malte",10,7,A

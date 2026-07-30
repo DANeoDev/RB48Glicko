@@ -1,5 +1,0 @@
-TESTDATA
-match_id,pitch,team_a,team_b,goals_a,goals_b,winner
-
-2026-07-08-1,Box,"Daniel Peters,Bernhard Greven,Ingo Gassen,Konstantin Steuer,Philipp Reiter","Tim Birken,Moritz Regenstein,Stefan Metzger,Falk Bachmann,Lars Vanschelve",10,7,A
-2026-07-08-2,Box,"Daniel Peters,Bernhard Greven,Ingo Gassen,Konstantin Steuer,Philipp Reiter","Tim Birken,Moritz Regenstein,Stefan Metzger,Falk Bachmann,Lars Vanschelve",8,10,B

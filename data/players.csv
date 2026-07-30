@@ -1,5 +1,29 @@
-#List of player IDs 
-#[player_id, [player_cleannames] list of associated cleannames (:= lowercase connected by "_" of name entry)]
-#[example: da_pe, [daniel, daniel_peters, da_pe]]
-
-player_id, [player_cleannames]
+player_id,aliases,positions
+1,Can (Andersson);Can Andersson,mid*;att
+2,Falk,mid;att*
+3,Aron,gk*;def
+4,Stefan,def*
+5,Lance,mid*
+6,Franz,mid;att*
+7,Felix,def*;mid
+8,Bernhard,def*;mid
+9,Phil,def*;mid;att
+10,Kevin,def*;mid;att
+11,Mo,def*
+12,Samuel,mid*
+13,Tim,att*
+14,Calvin,
+15,Fabian,att*
+16,Lars,def;mid*
+17,Yannik,mid*
+18,Immi,def;mid*
+19,Julian,mid*;att
+20,Ingo,att*
+21,Malte,
+22,Konsti,def*;mid
+23,Rashad,mid*;att
+24,Felix+1 glaube Max,
+25,Matthias,def;mid*
+26,Nik,mid
+27,Lücke,
+28,Paul,def*
