@@ -51,7 +51,13 @@ def append_new_matches(
 
 def update_matchhistory():
     existing_ids = get_existing_match_ids()
+    count_existing = len(existing_ids)
+    print(f"Found {count_existing} existing matches in matchhistory.csv.")
     append_new_matches(existing_ids)
+    
+    # print the number of new matches added to matchhistory.csv
+    new_matches_count = len(existing_ids) - count_existing
+    print(f"Updated matchhistory.csv with {new_matches_count} new matches.")
 
 
 if __name__ == "__main__":
