@@ -27,5 +27,5 @@ player_id,aliases,positions
 26,Nik,mid
 27,Lücke,
 28,Paul,def*
-29,Micha,def*;mid
+29,Micha,def;mid*
 30,David L.,mid*;att
