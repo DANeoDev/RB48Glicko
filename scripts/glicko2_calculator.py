@@ -1,5 +1,5 @@
 # this will calculate Glicko rating for each player (using matchhistory.csv and players.csv) and update the ratings.csv
-from glicko2 import Glicko2, Rating, WIN, LOSS, DRAW
+from glicko2 import Glicko2, Rating, WIN, LOSS, DRAW, DEFAULT_RATING, DEFAULT_RD, DEFAULT_SIGMA
 from pathlib import Path
 from collections import defaultdict
 import math
@@ -89,9 +89,9 @@ def prepare_glicko_table(matchhistory, alias_lookup, glicko_table):
                 prepared_glicko[player_id] = glicko_table.get(
                     player_id,
                     {
-                        "rating":1500,
-                        "rd":161.80339,
-                        "sigma":0.06
+                        "rating": DEFAULT_RATING,
+                        "rd": DEFAULT_RD,
+                        "sigma": DEFAULT_SIGMA
                     }
                 )
 
@@ -252,6 +252,8 @@ def update_match(match, alias_lookup, ratings, engine, debug_player=10):
     for player_id in team1_ids:
 
         old_rating = ratings[player_id].rating
+        old_rd = ratings[player_id].rd
+        old_sigma = ratings[player_id].sigma
         
         virtual_player = create_virtual_rating(
             player_id,
@@ -284,18 +286,28 @@ def update_match(match, alias_lookup, ratings, engine, debug_player=10):
             print("Team:", "Team 1")
             print("Result:", team1_result)
             print("Personal rating before:", old_rating)
+            print("Personal RD before:", old_rd)
+            print("Personal Sigma before:", old_sigma)
             print("Team average:", team1_rating.rating)
             print("Opponent team average:", team2_rating.rating)
             print("Virtual rating before:", virtual_player.rating)
+            print("Virtual RD before:", virtual_player.rd)
+            print("Virtual Sigma before:", virtual_player.sigma)
             print("Virtual rating after:", updated_virtual.rating)
+            print("Virtual RD after:", updated_virtual.rd)
+            print("Virtual Sigma after:", updated_virtual.sigma)
             print("Rating delta:", rating_change)
             print("Personal rating after:", ratings[player_id].rating)
+            print("Personal RD after:", ratings[player_id].rd)
+            print("Personal Sigma after:", ratings[player_id].sigma)
 
 
 
     for player_id in team2_ids:
 
         old_rating = ratings[player_id].rating
+        old_rd = ratings[player_id].rd
+        old_sigma = ratings[player_id].sigma
 
         virtual_player = create_virtual_rating(
             player_id,
@@ -329,12 +341,20 @@ def update_match(match, alias_lookup, ratings, engine, debug_player=10):
             print("Team:", "Team 2")
             print("Result:", team2_result)
             print("Personal rating before:", old_rating)
+            print("Personal RD before:", old_rd)
+            print("Personal Sigma before:", old_sigma)
             print("Team average:", team2_rating.rating)
             print("Opponent team average:", team1_rating.rating)
             print("Virtual rating before:", virtual_player.rating)
+            print("Virtual RD before:", virtual_player.rd)
+            print("Virtual Sigma before:", virtual_player.sigma)
             print("Virtual rating after:", updated_virtual.rating)
+            print("Virtual RD after:", updated_virtual.rd)
+            print("Virtual Sigma after:", updated_virtual.sigma)
             print("Rating delta:", rating_change)
             print("Personal rating after:", ratings[player_id].rating)
+            print("Personal RD after:", ratings[player_id].rd)
+            print("Personal Sigma after:", ratings[player_id].sigma)
 
     for player_id in ratings:
 

@@ -15,7 +15,7 @@ import math
 # ---------------------------------------------------------------------------
 
 DEFAULT_RATING = 1500.0
-DEFAULT_RD = 350.0
+DEFAULT_RD = 161.80339
 DEFAULT_SIGMA = 0.06
 
 DEFAULT_TAU = 1.0
