@@ -1,92 +1,48 @@
 # this will calculate Glicko rating for each player (using matchhistory.csv and players.csv) and update the ratings.csv
-from glicko2 import Glicko2, Rating, WIN, LOSS, DRAW, DEFAULT_RATING, DEFAULT_RD, DEFAULT_SIGMA
+from glicko2 import Glicko2, Rating, DEFAULT_RATING, DEFAULT_RD, IGNORED_RD, DEFAULT_SIGMA
 from pathlib import Path
 from collections import defaultdict
+from loaders import (
+    load_matchhistory,
+    load_players,
+    create_alias_lookup,
+    get_ignored_aliases,
+    load_calibration_table
+)
+from helpers import (
+    get_match_result,
+    get_player_ids_from_team,
+    total_player_count,
+    get_match_dates
+)
+
 import math
 import csv
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+RATINGS_FOLDER = PROJECT_ROOT / "data" / "ratings"
 MATCHHISTORY_FILE = PROJECT_ROOT / "data" / "matchhistory.csv"
 PLAYERS_FILE = PROJECT_ROOT / "data" / "players.csv"
-RATINGS_FILE = PROJECT_ROOT / "data" / "ratings.csv"    
+CALIBRATION_FILE = PROJECT_ROOT / "data" / "calibrations.csv"    
 
-def load_matchhistory():
-    matchhistory = []
-    if MATCHHISTORY_FILE.exists():
-        with open(MATCHHISTORY_FILE, "r", newline="", encoding="utf-8") as h_file:
-            reader = csv.reader(h_file)
-            for row in reader:
-                if not row:
-                    continue
-                if row[0].startswith("#"):
-                    continue  # Skip comment lines
-                if row[0] == "match_id":
-                    continue  # Skip header row
 
-                matchhistory.append(row)
-    matchhistory.sort(key=lambda x: x[0])
-    return matchhistory
-
-def load_players():
-    players = {}
-    if PLAYERS_FILE.exists():
-        with open(PLAYERS_FILE, "r", newline="", encoding="utf-8") as p_file:
-            reader = csv.DictReader(p_file)
-            for row in reader:
-                if not row:
-                    continue
-                player_id = int(row["player_id"])
-                aliases = row["aliases"].split(";")
-                positions = row["positions"].split(";")
-                players[player_id] = {
-                    "aliases": aliases,
-                    "positions": positions
-                }
-    return players
-
-def create_alias_lookup(players):
-    alias_lookup = {}
-    for player_id, data in players.items():
-        for alias in data["aliases"]:
-            alias_lookup[alias] = player_id
-    return alias_lookup
-
-def load_glicko_table():
-    glicko_table = {}
-    if RATINGS_FILE.exists():
-        with open(RATINGS_FILE, "r", newline="", encoding="utf-8") as r_file:
-            reader = csv.DictReader(r_file)
-            for row in reader:
-                if not row:
-                    continue
-                player_id = int(row["player_id"])
-                rating = float(row["rating"])
-                rd = float(row["rd"])
-                sigma = float(row["sigma"])
-                glicko_table[player_id] = {
-                    "rating": rating,
-                    "rd": rd,
-                    "sigma": sigma
-                }
-    return glicko_table
-
-def prepare_glicko_table(matchhistory, alias_lookup, glicko_table):
+def prepare_glicko_table(matchhistory, alias_lookup, calibration_ratings):  # prepare a glicko table for all players in matchhistory.csv, using calibration ratings if available
 
     prepared_glicko = {}
 
     for match in matchhistory:
 
         team_ids = (
-            get_team_ids(match[2], alias_lookup)
+            get_player_ids_from_team(match[2], alias_lookup)
             +
-            get_team_ids(match[3], alias_lookup)
+            get_player_ids_from_team(match[3], alias_lookup)
         )
 
         for player_id in team_ids:
 
             if player_id not in prepared_glicko:
 
-                prepared_glicko[player_id] = glicko_table.get(
+                prepared_glicko[player_id] = calibration_ratings.get(
                     player_id,
                     {
                         "rating": DEFAULT_RATING,
@@ -97,66 +53,7 @@ def prepare_glicko_table(matchhistory, alias_lookup, glicko_table):
 
     return prepared_glicko
 
-def get_team_ids(team_string, alias_lookup):
-
-    aliases = team_string.split(",")
-
-    player_ids = []
-
-    for alias in aliases:
-
-        alias = alias.strip()
-
-        player_id = alias_lookup.get(alias)
-
-        if player_id is not None:
-            player_ids.append(player_id)
-
-    return player_ids
-
-def calculate_team_rating(player_ids, ratings):
-
-    if not player_ids:
-        return None
-
-    average_rating = sum(
-        ratings[player].rating
-        for player in player_ids
-    ) / len(player_ids)
-
-    average_rd = math.sqrt(
-        sum(
-            ratings[player].rd ** 2
-            for player in player_ids
-        ) / len(player_ids)
-    )
-    average_sigma = math.sqrt(
-        sum(
-            ratings[player].sigma ** 2
-            for player in player_ids
-        ) / len(player_ids)
-    )
-
-    return Rating(average_rating, average_rd, average_sigma)
-
-def get_match_result(match):
-
-    team1_goals = int(match[4])
-    team2_goals = int(match[5])
-
-    if team1_goals > team2_goals:
-        return WIN, LOSS
-
-    elif team1_goals < team2_goals:
-        return LOSS, WIN
-
-    else:
-        return DRAW, DRAW
-  
-
-
-            
-def convert_to_rating_objects(glicko_table):
+def glicko_table_to_ratings(glicko_table): # Convert Glicko table to rating objects
 
     ratings = {}
 
@@ -170,7 +67,8 @@ def convert_to_rating_objects(glicko_table):
 
     return ratings
 
-def convert_back(ratings):
+
+def ratings_to_glicko_table(ratings): # Convert rating objects back to Glicko table
 
     glicko_table = {}
 
@@ -182,15 +80,53 @@ def convert_back(ratings):
             "sigma": rating.sigma
         }
 
-    return glicko_table
+    return glicko_table 
+
+def calculate_team_rating(player_ids, total_players, ratings):
+
+    if not player_ids:
+        return None
+
+    ignored_players = total_players - len(player_ids)
+
+  
+    average_rating = sum(
+        ratings[player].rating
+        for player in player_ids
+    ) / len(player_ids)
+
+    average_rd = math.sqrt(
+        (
+        sum(
+            ratings[player].rd ** 2
+            for player in player_ids
+        )
+            + IGNORED_RD**2 * (ignored_players)
+        ) / total_players
+    )
+    
+    average_sigma = math.sqrt(
+        (
+        sum(
+            ratings[player].sigma ** 2
+            for player in player_ids
+        )
+            + DEFAULT_SIGMA**2 * (ignored_players)
+        ) / total_players
+    )
+
+    return Rating(average_rating, average_rd, average_sigma)
+
+            
 
 def create_virtual_rating(player_id, team_rating, ratings):
 
     player = ratings[player_id]
+    virtual_RD = math.sqrt((player.rd**2 + team_rating.rd**2)/2) # weighted average of the players RD and the team RD
 
     return Rating(
         team_rating.rating,
-        player.rd,
+        virtual_RD,
         player.sigma
     )
 
@@ -202,7 +138,7 @@ def calculate_glicko(
 
     engine = Glicko2()
 
-    ratings = convert_to_rating_objects(
+    ratings = glicko_table_to_ratings(
         prepared_glicko
     )
 
@@ -215,19 +151,22 @@ def calculate_glicko(
             engine
         )
 
-    return convert_back(ratings)
+    return ratings_to_glicko_table(ratings)
 
-def update_match(match, alias_lookup, ratings, engine, debug_player=10):
+def update_match(match, alias_lookup, ratings, engine, debug_player=29):
 
-    team1_ids = get_team_ids(
+    team1_ids = get_player_ids_from_team(
         match[2],
         alias_lookup
     )
 
-    team2_ids = get_team_ids(
+    team2_ids = get_player_ids_from_team(
         match[3],
         alias_lookup
     )
+
+    team1_total_players = total_player_count(match[2])
+    team2_total_players = total_player_count(match[3])
 
     active_players = set(team1_ids + team2_ids)
 
@@ -236,17 +175,19 @@ def update_match(match, alias_lookup, ratings, engine, debug_player=10):
 
     team1_rating = calculate_team_rating(
         team1_ids,
+        team1_total_players,
         ratings
     )
 
     team2_rating = calculate_team_rating(
         team2_ids,
+        team2_total_players,
         ratings
     )
 
     team1_result, team2_result = get_match_result(match)
 
-    # temporary old behaviour:
+    
     # update each player against opposing team average
 
     for player_id in team1_ids:
@@ -290,6 +231,7 @@ def update_match(match, alias_lookup, ratings, engine, debug_player=10):
             print("Personal Sigma before:", old_sigma)
             print("Team average:", team1_rating.rating)
             print("Opponent team average:", team2_rating.rating)
+            print("Opponent team RD:", team2_rating.rd)
             print("Virtual rating before:", virtual_player.rating)
             print("Virtual RD before:", virtual_player.rd)
             print("Virtual Sigma before:", virtual_player.sigma)
@@ -345,6 +287,7 @@ def update_match(match, alias_lookup, ratings, engine, debug_player=10):
             print("Personal Sigma before:", old_sigma)
             print("Team average:", team2_rating.rating)
             print("Opponent team average:", team1_rating.rating)
+            print("Opponent team RD:", team1_rating.rd)
             print("Virtual rating before:", virtual_player.rating)
             print("Virtual RD before:", virtual_player.rd)
             print("Virtual Sigma before:", virtual_player.sigma)
@@ -358,17 +301,34 @@ def update_match(match, alias_lookup, ratings, engine, debug_player=10):
 
     for player_id in ratings:
 
-        if player_id not in active_players:
+        if player_id not in active_players and ratings[player_id].rd < 161.80339:  #linear growth per match of RD for inactive players
             ratings[player_id].rd = min(
         ratings[player_id].rd + 0.6180339,
         161.80339,
     )
 
 def write_glicko(glickos):
-    with open(RATINGS_FILE, "w", newline="", encoding="utf-8") as r_file:
+    match_dates = get_match_dates()
+    latest_date = max(match_dates)
+
+    ratings_file = RATINGS_FOLDER / f"ratings_{latest_date}.csv"
+
+    if ratings_file.exists():
+        answer = input(
+            f"Rating file for {latest_date} already exists. "
+            "Do you want to overwrite it? (y/n): "
+        )
+
+        if answer.lower() != "y":
+            print("Rating file was not overwritten.")
+            return
+
+    with open(ratings_file, "w", newline="", encoding="utf-8") as r_file:
         fieldnames = ["player_id", "rating", "rd", "sigma"]
         writer = csv.DictWriter(r_file, fieldnames=fieldnames)
+
         writer.writeheader()
+
         for player_id, data in glickos.items():
             writer.writerow({
                 "player_id": player_id,
@@ -376,7 +336,6 @@ def write_glicko(glickos):
                 "rd": data["rd"],
                 "sigma": data["sigma"]
             })
-
 
 def main():
 
@@ -388,13 +347,13 @@ def main():
 
     alias_lookup = create_alias_lookup(players)
 
-    old_ratings = load_glicko_table()
-    print(f"Loaded {len(old_ratings)} ratings")
+    calibration_ratings = load_calibration_table()
+    print(f"Loaded {len(calibration_ratings)} ratings")
 
     prepared_glicko = prepare_glicko_table(
         matchhistory,
         alias_lookup,
-        old_ratings
+        calibration_ratings
     )
 
     print(
