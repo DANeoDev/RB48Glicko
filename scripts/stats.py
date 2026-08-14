@@ -1,3 +1,4 @@
+# ALPHA VERSION (TBD)
 # creates stats.csv, containing Player Alias, Rating, Conservative, RD, Matches, Wins, Draws, Losses, Win %
 from pathlib import Path
 import csv

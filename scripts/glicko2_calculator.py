@@ -1,23 +1,14 @@
 # this will calculate Glicko rating for each player (using matchhistory.csv and players.csv) and update the ratings.csv
-from glicko2 import Glicko2, Rating, DEFAULT_RATING, DEFAULT_RD, IGNORED_RD, DEFAULT_SIGMA
+from glicko2 import Glicko2, Rating, DEFAULT_RATING, DEFAULT_RD, IGNORED_RD, DEFAULT_SIGMA, WIN, LOSS, DRAW
 from pathlib import Path
-from collections import defaultdict
-from loaders import (
-    load_matchhistory,
-    load_players,
-    create_alias_lookup,
-    get_ignored_aliases,
-    load_calibration_table
-)
-from helpers import (
-    get_match_result,
-    get_player_ids_from_team,
-    total_player_count,
-    get_match_dates
-)
-
+from database import get_connection
+from db_matches import get_matches, get_match_teams
+from db_players import get_players
+from db_ratings import get_calibrations
 import math
-import csv
+import shutil
+from datetime import datetime
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RATINGS_FOLDER = PROJECT_ROOT / "data" / "ratings"
@@ -25,20 +16,35 @@ MATCHHISTORY_FILE = PROJECT_ROOT / "data" / "matchhistory.csv"
 PLAYERS_FILE = PROJECT_ROOT / "data" / "players.csv"
 CALIBRATION_FILE = PROJECT_ROOT / "data" / "calibrations.csv"    
 
+def backup_database():
+    database_file = PROJECT_ROOT / "data" / "rb48.db"
+    backup_folder = PROJECT_ROOT / "data" / "backups"
 
-def prepare_glicko_table(matchhistory, alias_lookup, calibration_ratings):  # prepare a glicko table for all players in matchhistory.csv, using calibration ratings if available
+    backup_folder.mkdir(exist_ok=True)
 
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    backup_file = backup_folder / f"rb48_{timestamp}.db"
+
+    shutil.copy2(database_file, backup_file)
+
+    print(f"Database backup created: {backup_file}")
+
+def clear_ratings(connection):
+    connection.execute("DELETE FROM match_ratings")
+    connection.execute("DELETE FROM ratings")
+    connection.commit()
+
+def prepare_glicko_table(connection, matches, calibration_ratings):
     prepared_glicko = {}
 
-    for match in matchhistory:
+    for match in matches.values():
 
-        team_ids = (
-            get_player_ids_from_team(match[2], alias_lookup)
-            +
-            get_player_ids_from_team(match[3], alias_lookup)
+        team_a, team_b = get_match_teams(
+            connection,
+            match["match_id"]
         )
 
-        for player_id in team_ids:
+        for player_id in team_a + team_b:
 
             if player_id not in prepared_glicko:
 
@@ -131,9 +137,10 @@ def create_virtual_rating(player_id, team_rating, ratings):
     )
 
 def calculate_glicko(
-    matchhistory,
-    alias_lookup,
-    prepared_glicko
+    connection,
+    matches,
+    prepared_glicko,
+    debug_player=None
 ):
 
     engine = Glicko2()
@@ -142,36 +149,99 @@ def calculate_glicko(
         prepared_glicko
     )
 
-    for match in matchhistory:
+    for match in matches.values():
+
+        current_glicko = ratings_to_glicko_table(ratings)
+
+        write_match_ratings(
+            connection,
+            match["match_id"],
+            current_glicko
+        )
 
         update_match(
+            connection,
             match,
-            alias_lookup,
             ratings,
-            engine
+            engine, 
+            debug_player
         )
 
     return ratings_to_glicko_table(ratings)
 
-def update_match(match, alias_lookup, ratings, engine, debug_player=29):
+def get_first_alias(connection, player_id):
+    row = connection.execute(
+        """
+        SELECT alias
+        FROM aliases
+        WHERE player_id = ?
+        ORDER BY alias
+        LIMIT 1
+        """,
+        (player_id,),
+    ).fetchone()
 
-    team1_ids = get_player_ids_from_team(
-        match[2],
-        alias_lookup
+    if row is None:
+        return f"Player {player_id}"
+
+    return row[0]
+
+
+def select_debug_player(connection):
+    answer = input(
+        "\nDebug a player? (y/n): "
     )
 
-    team2_ids = get_player_ids_from_team(
-        match[3],
-        alias_lookup
+    if answer.lower() != "y":
+        return None
+
+    players = get_players(connection)
+
+    print("\nPlayers:")
+
+    player_ids = sorted(players)
+
+    for number, player_id in enumerate(player_ids, start=1):
+        player = players[player_id]
+
+        print(
+            f"  {number}. {player['aliases'][0]}"
+        )
+
+    while True:
+        try:
+            choice = int(input("Select player: "))
+
+            if 1 <= choice <= len(player_ids):
+                return player_ids[choice - 1]
+
+        except ValueError:
+            pass
+
+        print("Please enter a valid player number.")
+
+
+
+def update_match(
+    connection,
+    match,
+    ratings,
+    engine,
+    debug_player=None,
+):
+
+    team1_ids, team2_ids = get_match_teams(
+        connection,
+        match["match_id"]
     )
-
-    team1_total_players = total_player_count(match[2])
-    team2_total_players = total_player_count(match[3])
-
-    active_players = set(team1_ids + team2_ids)
 
     if not team1_ids or not team2_ids:
         return
+
+    team1_total_players = match["players_a"]
+    team2_total_players = match["players_b"]
+
+    active_players = set(team1_ids + team2_ids)
 
     team1_rating = calculate_team_rating(
         team1_ids,
@@ -185,17 +255,28 @@ def update_match(match, alias_lookup, ratings, engine, debug_player=29):
         ratings
     )
 
-    team1_result, team2_result = get_match_result(match)
+    if match["goals_a"] > match["goals_b"]:
+        team1_result = WIN
+        team2_result = LOSS
 
-    
-    # update each player against opposing team average
+    elif match["goals_a"] < match["goals_b"]:
+        team1_result = LOSS
+        team2_result = WIN
+
+    else:
+        team1_result = DRAW
+        team2_result = DRAW
+
+    # ---------------------------------------------------------
+    # Update Team 1
+    # ---------------------------------------------------------
 
     for player_id in team1_ids:
 
         old_rating = ratings[player_id].rating
         old_rd = ratings[player_id].rd
         old_sigma = ratings[player_id].sigma
-        
+
         virtual_player = create_virtual_rating(
             player_id,
             team1_rating,
@@ -213,7 +294,7 @@ def update_match(match, alias_lookup, ratings, engine, debug_player=29):
         )
 
         rating_change = (
-            updated_virtual.rating 
+            updated_virtual.rating
             - virtual_player.rating
         )
 
@@ -222,28 +303,56 @@ def update_match(match, alias_lookup, ratings, engine, debug_player=29):
         ratings[player_id].sigma = updated_virtual.sigma
 
         if player_id == debug_player:
-            print("\nDEBUG PLAYER")
-            print("Match:", match[0])
-            print("Team:", "Team 1")
-            print("Result:", team1_result)
-            print("Personal rating before:", old_rating)
-            print("Personal RD before:", old_rd)
-            print("Personal Sigma before:", old_sigma)
-            print("Team average:", team1_rating.rating)
-            print("Opponent team average:", team2_rating.rating)
-            print("Opponent team RD:", team2_rating.rd)
-            print("Virtual rating before:", virtual_player.rating)
-            print("Virtual RD before:", virtual_player.rd)
-            print("Virtual Sigma before:", virtual_player.sigma)
-            print("Virtual rating after:", updated_virtual.rating)
-            print("Virtual RD after:", updated_virtual.rd)
-            print("Virtual Sigma after:", updated_virtual.sigma)
-            print("Rating delta:", rating_change)
-            print("Personal rating after:", ratings[player_id].rating)
-            print("Personal RD after:", ratings[player_id].rd)
-            print("Personal Sigma after:", ratings[player_id].sigma)
 
+            print(
+                f"\nDEBUG PLAYER: {get_first_alias(connection, player_id)}"
+            )
+            print(
+                f"Match: {match['match_id']}"
+            )
+            print(
+                f"Team: Team 1"
+            )
+            print(
+                f"Result: {team1_result}"
+            )
+            print(
+                f"Team rating: {team1_rating.rating:.3f}"
+            )
+            print(
+                f"Team RD: {team1_rating.rd:.3f}"
+            )
+            print(
+                f"Team Sigma: {team1_rating.sigma:.6f}"
+            )
+            print(
+                f"Opponent rating: {team2_rating.rating:.3f}"
+            )
+            print(
+                f"Opponent RD: {team2_rating.rd:.3f}"
+            )
+            print(
+                f"Opponent Sigma: {team2_rating.sigma:.6f}"
+            )
+            print(
+                f"Rating: "
+                f"{old_rating:.3f} -> "
+                f"{ratings[player_id].rating:.3f}"
+            )
+            print(
+                f"RD: "
+                f"{old_rd:.3f} -> "
+                f"{ratings[player_id].rd:.3f}"
+            )
+            print(
+                f"Sigma: "
+                f"{old_sigma:.6f} -> "
+                f"{ratings[player_id].sigma:.6f}"
+            )
 
+    # ---------------------------------------------------------
+    # Update Team 2
+    # ---------------------------------------------------------
 
     for player_id in team2_ids:
 
@@ -268,7 +377,7 @@ def update_match(match, alias_lookup, ratings, engine, debug_player=29):
         )
 
         rating_change = (
-            updated_virtual.rating 
+            updated_virtual.rating
             - virtual_player.rating
         )
 
@@ -276,106 +385,157 @@ def update_match(match, alias_lookup, ratings, engine, debug_player=29):
         ratings[player_id].rd = updated_virtual.rd
         ratings[player_id].sigma = updated_virtual.sigma
 
-
         if player_id == debug_player:
-            print("\nDEBUG PLAYER")
-            print("Match:", match[0])
-            print("Team:", "Team 2")
-            print("Result:", team2_result)
-            print("Personal rating before:", old_rating)
-            print("Personal RD before:", old_rd)
-            print("Personal Sigma before:", old_sigma)
-            print("Team average:", team2_rating.rating)
-            print("Opponent team average:", team1_rating.rating)
-            print("Opponent team RD:", team1_rating.rd)
-            print("Virtual rating before:", virtual_player.rating)
-            print("Virtual RD before:", virtual_player.rd)
-            print("Virtual Sigma before:", virtual_player.sigma)
-            print("Virtual rating after:", updated_virtual.rating)
-            print("Virtual RD after:", updated_virtual.rd)
-            print("Virtual Sigma after:", updated_virtual.sigma)
-            print("Rating delta:", rating_change)
-            print("Personal rating after:", ratings[player_id].rating)
-            print("Personal RD after:", ratings[player_id].rd)
-            print("Personal Sigma after:", ratings[player_id].sigma)
+
+            print(
+                f"\nDEBUG PLAYER: {get_first_alias(connection, player_id)}"
+            )
+            print(
+                f"Match: {match['match_id']}"
+            )
+            print(
+                f"Team: Team 2"
+            )
+            print(
+                f"Result: {team2_result}"
+            )
+            print(
+                f"Team rating: {team2_rating.rating:.3f}"
+            )
+            print(
+                f"Team RD: {team2_rating.rd:.3f}"
+            )
+            print(
+                f"Team Sigma: {team2_rating.sigma:.6f}"
+            )
+            print(
+                f"Opponent rating: {team1_rating.rating:.3f}"
+            )
+            print(
+                f"Opponent RD: {team1_rating.rd:.3f}"
+            )
+            print(
+                f"Opponent Sigma: {team1_rating.sigma:.6f}"
+            )
+            print(
+                f"Rating: "
+                f"{old_rating:.3f} -> "
+                f"{ratings[player_id].rating:.3f}"
+            )
+            print(
+                f"RD: "
+                f"{old_rd:.3f} -> "
+                f"{ratings[player_id].rd:.3f}"
+            )
+            print(
+                f"Sigma: "
+                f"{old_sigma:.6f} -> "
+                f"{ratings[player_id].sigma:.6f}"
+            )
+
+    # ---------------------------------------------------------
+    # Increase RD for inactive players
+    # ---------------------------------------------------------
 
     for player_id in ratings:
 
-        if player_id not in active_players and ratings[player_id].rd < 161.80339:  #linear growth per match of RD for inactive players
+        if (
+            player_id not in active_players
+            and ratings[player_id].rd < 161.80339
+        ):
             ratings[player_id].rd = min(
-        ratings[player_id].rd + 0.6180339,
-        161.80339,
-    )
+                ratings[player_id].rd + 0.6180339,
+                161.80339,
+            )        
 
-def write_glicko(glickos):
-    match_dates = get_match_dates()
-    latest_date = max(match_dates)
 
-    ratings_file = RATINGS_FOLDER / f"ratings_{latest_date}.csv"
 
-    if ratings_file.exists():
-        answer = input(
-            f"Rating file for {latest_date} already exists. "
-            "Do you want to overwrite it? (y/n): "
+            
+def write_match_ratings(connection, match_id, ratings):
+    for player_id, data in ratings.items():
+        connection.execute(
+            """
+            INSERT INTO match_ratings
+                (match_id, player_id, rating, rd, sigma)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(match_id, player_id) DO UPDATE SET
+                rating = excluded.rating,
+                rd = excluded.rd,
+                sigma = excluded.sigma
+            """,
+            (
+                match_id,
+                player_id,
+                data["rating"],
+                data["rd"],
+                data["sigma"],
+            ),
         )
 
-        if answer.lower() != "y":
-            print("Rating file was not overwritten.")
-            return
+    connection.commit()
 
-    with open(ratings_file, "w", newline="", encoding="utf-8") as r_file:
-        fieldnames = ["player_id", "rating", "rd", "sigma"]
-        writer = csv.DictWriter(r_file, fieldnames=fieldnames)
+def write_glicko(connection, glickos):    
+    for player_id, data in glickos.items():
+        connection.execute(
+            """
+            INSERT INTO ratings (player_id, rating, rd, sigma)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(player_id) DO UPDATE SET
+                rating = excluded.rating,
+                rd = excluded.rd,
+                sigma = excluded.sigma
+            """,
+            (
+                player_id,
+                data["rating"],
+                data["rd"],
+                data["sigma"],
+            ),
+        )
 
-        writer.writeheader()
+    connection.commit()
 
-        for player_id, data in glickos.items():
-            writer.writerow({
-                "player_id": player_id,
-                "rating": data["rating"],
-                "rd": data["rd"],
-                "sigma": data["sigma"]
-            })
 
 def main():
 
-    matchhistory = load_matchhistory()
-    print(f"Loaded {len(matchhistory)} matches")
+    backup_database()
 
-    players = load_players()
-    print(f"Loaded {len(players)} players")
+    connection = get_connection()
 
-    alias_lookup = create_alias_lookup(players)
+    matches = get_matches(connection)
+    print(f"Loaded {len(matches)} matches")
 
-    calibration_ratings = load_calibration_table()
-    print(f"Loaded {len(calibration_ratings)} ratings")
+    calibrations = get_calibrations(connection)
+    print(f"Loaded {len(calibrations)} calibrations")
+
+    clear_ratings(connection)
 
     prepared_glicko = prepare_glicko_table(
-        matchhistory,
-        alias_lookup,
-        calibration_ratings
+        connection,
+        matches,
+        calibrations
     )
 
     print(
         f"Prepared ratings for {len(prepared_glicko)} players"
     )
 
+    debug_player = select_debug_player(connection)
 
     glickos = calculate_glicko(
-        matchhistory,
-        alias_lookup,
-        prepared_glicko
+        connection,
+        matches,
+        prepared_glicko,
+        debug_player
     )
-
 
     print(
         f"Calculated ratings for {len(glickos)} players"
     )
 
+    write_glicko(connection, glickos)
 
-    write_glicko(glickos)
-
-    print("Finished")
+    connection.close()
 
 
 if __name__ == "__main__":
