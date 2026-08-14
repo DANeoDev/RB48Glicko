@@ -15,7 +15,7 @@ from glicko2_calculator import (
     calculate_team_rating,
     get_first_alias,
 )
-from glicko2 import Glicko2
+from glicko2 import Glicko2, TOTAL, BOX, HF
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -110,28 +110,77 @@ def print_match_debug(
     # Calculate team ratings before and after the match
     # ---------------------------------------------------------
 
-    team1_before = calculate_team_rating(
+    if match["pitch"] == "box":
+        pitch_rating_type = BOX
+    elif match["pitch"] == "hf":
+        pitch_rating_type = HF
+    else:
+        raise ValueError(
+            f"Unknown pitch type: {match['pitch']}"
+        )
+
+    # ---------------------------------------------------------
+    # TOTAL
+    # ---------------------------------------------------------
+
+    team1_total_before = calculate_team_rating(
         team1_ids,
         match["players_a"],
-        before_objects
+        before_objects,
+        TOTAL
     )
 
-    team2_before = calculate_team_rating(
+    team2_total_before = calculate_team_rating(
         team2_ids,
         match["players_b"],
-        before_objects
+        before_objects,
+        TOTAL
     )
 
-    team1_after = calculate_team_rating(
+    team1_total_after = calculate_team_rating(
         team1_ids,
         match["players_a"],
-        after_objects
+        after_objects,
+        TOTAL
     )
 
-    team2_after = calculate_team_rating(
+    team2_total_after = calculate_team_rating(
         team2_ids,
         match["players_b"],
-        after_objects
+        after_objects,
+        TOTAL
+    )
+
+    # ---------------------------------------------------------
+    # PITCH-SPECIFIC
+    # ---------------------------------------------------------
+
+    team1_pitch_before = calculate_team_rating(
+        team1_ids,
+        match["players_a"],
+        before_objects,
+        pitch_rating_type
+    )
+
+    team2_pitch_before = calculate_team_rating(
+        team2_ids,
+        match["players_b"],
+        before_objects,
+        pitch_rating_type
+    )
+
+    team1_pitch_after = calculate_team_rating(
+        team1_ids,
+        match["players_a"],
+        after_objects,
+        pitch_rating_type
+    )
+
+    team2_pitch_after = calculate_team_rating(
+        team2_ids,
+        match["players_b"],
+        after_objects,
+        pitch_rating_type
     )
 
     # ---------------------------------------------------------
@@ -149,9 +198,17 @@ def print_match_debug(
             for player_id in team1_ids
         )
     )
-    print(f"  Rating: {team1_before.rating:.0f}")
-    print(f"  RD:     {team1_before.rd:.1f}")
-    print(f"  Sigma:  {team1_before.sigma:.6f}")
+
+    print("\n  TOTAL:")
+    print(f"    Rating: {team1_total_before.rating:.0f}")
+    print(f"    RD:     {team1_total_before.rd:.1f}")
+    print(f"    Sigma:  {team1_total_before.sigma:.6f}")
+
+    print(f"\n  {pitch_rating_type.upper()}:")
+    print(f"    Rating: {team1_pitch_before.rating:.0f}")
+    print(f"    RD:     {team1_pitch_before.rd:.1f}")
+    print(f"    Sigma:  {team1_pitch_before.sigma:.6f}")
+
 
     print("\nTeam B:")
     print(
@@ -164,9 +221,16 @@ def print_match_debug(
             for player_id in team2_ids
         )
     )
-    print(f"  Rating: {team2_before.rating:.0f}")
-    print(f"  RD:     {team2_before.rd:.1f}")
-    print(f"  Sigma:  {team2_before.sigma:.6f}")
+
+    print("\n  TOTAL:")
+    print(f"    Rating: {team2_total_before.rating:.0f}")
+    print(f"    RD:     {team2_total_before.rd:.1f}")
+    print(f"    Sigma:  {team2_total_before.sigma:.6f}")
+
+    print(f"\n  {pitch_rating_type.upper()}:")
+    print(f"    Rating: {team2_pitch_before.rating:.0f}")
+    print(f"    RD:     {team2_pitch_before.rd:.1f}")
+    print(f"    Sigma:  {team2_pitch_before.sigma:.6f}")
 
     # ---------------------------------------------------------
     # Result
@@ -193,44 +257,89 @@ def print_match_debug(
     # Team deltas
     # ---------------------------------------------------------
 
-    team1_rating_delta = (
-        team1_after.rating
-        - team1_before.rating
+    team1_total_rating_delta = (
+        team1_total_after.rating
+        - team1_total_before.rating
     )
 
-    team1_rd_delta = (
-        team1_after.rd
-        - team1_before.rd
+    team1_total_rd_delta = (
+        team1_total_after.rd
+        - team1_total_before.rd
     )
 
-    team2_rating_delta = (
-        team2_after.rating
-        - team2_before.rating
+    team1_pitch_rating_delta = (
+        team1_pitch_after.rating
+        - team1_pitch_before.rating
     )
 
-    team2_rd_delta = (
-        team2_after.rd
-        - team2_before.rd
+    team1_pitch_rd_delta = (
+        team1_pitch_after.rd
+        - team1_pitch_before.rd
+    )
+
+    team2_total_rating_delta = (
+        team2_total_after.rating
+        - team2_total_before.rating
+    )
+
+    team2_total_rd_delta = (
+        team2_total_after.rd
+        - team2_total_before.rd
+    )
+
+    team2_pitch_rating_delta = (
+        team2_pitch_after.rating
+        - team2_pitch_before.rating
+    )
+
+    team2_pitch_rd_delta = (
+        team2_pitch_after.rd
+        - team2_pitch_before.rd
     )
 
     print("\nTeam A deltas:")
+
+    print("  TOTAL:")
     print(
-        f"  Rating: "
-        f"{format_delta(team1_rating_delta)}"
+        f"    Rating: "
+        f"{format_delta(team1_total_rating_delta)}"
     )
     print(
-        f"  RD:     "
-        f"{format_delta(team1_rd_delta, 1)}"
+        f"    RD:     "
+        f"{format_delta(team1_total_rd_delta, 1)}"
     )
 
-    print("\nTeam B deltas:")
+    print(f"\n  {pitch_rating_type.upper()}:")
     print(
-        f"  Rating: "
-        f"{format_delta(team2_rating_delta)}"
+        f"    Rating: "
+        f"{format_delta(team1_pitch_rating_delta)}"
     )
     print(
-        f"  RD:     "
-        f"{format_delta(team2_rd_delta, 1)}"
+        f"    RD:     "
+        f"{format_delta(team1_pitch_rd_delta, 1)}"
+    )
+
+
+    print("\nTeam B deltas:")
+
+    print("  TOTAL:")
+    print(
+        f"    Rating: "
+        f"{format_delta(team2_total_rating_delta)}"
+    )
+    print(
+        f"    RD:     "
+        f"{format_delta(team2_total_rd_delta, 1)}"
+    )
+
+    print(f"\n  {pitch_rating_type.upper()}:")
+    print(
+        f"    Rating: "
+        f"{format_delta(team2_pitch_rating_delta)}"
+    )
+    print(
+        f"    RD:     "
+        f"{format_delta(team2_pitch_rd_delta, 1)}"
     )
 
     # ---------------------------------------------------------
@@ -248,17 +357,30 @@ def print_match_debug(
 
     for player_id in team1_ids + team2_ids:
 
-        before = before_ratings[player_id]
-        after = after_ratings[player_id]
+        before_total = before_ratings[player_id][TOTAL]
+        after_total = after_ratings[player_id][TOTAL]
 
-        rating_delta = (
-            after["rating"]
-            - before["rating"]
+        before_pitch = before_ratings[player_id][pitch_rating_type]
+        after_pitch = after_ratings[player_id][pitch_rating_type]
+
+        total_rating_delta = (
+            after_total["rating"]
+            - before_total["rating"]
         )
 
-        rd_delta = (
-            after["rd"]
-            - before["rd"]
+        total_rd_delta = (
+            after_total["rd"]
+            - before_total["rd"]
+        )
+
+        pitch_rating_delta = (
+            after_pitch["rating"]
+            - before_pitch["rating"]
+        )
+
+        pitch_rd_delta = (
+            after_pitch["rd"]
+            - before_pitch["rd"]
         )
 
         alias = get_first_alias(
@@ -267,11 +389,20 @@ def print_match_debug(
         )
 
         print(
-            f"  {alias} ({player_id}): "
-            f"{format_delta(rating_delta)}, "
-            f"RD {format_delta(rd_delta, 1)}"
+            f"\n  {alias} ({player_id}):"
         )
 
+        print(
+            f"    TOTAL: "
+            f"{format_delta(total_rating_delta)}, "
+            f"RD {format_delta(total_rd_delta, 1)}"
+        )
+
+        print(
+            f"    {pitch_rating_type.upper()}: "
+            f"{format_delta(pitch_rating_delta)}, "
+            f"RD {format_delta(pitch_rd_delta, 1)}"
+        )
 
 def update_glicko(
     connection,

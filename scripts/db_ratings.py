@@ -17,14 +17,21 @@ def get_calibrations(connection):
 
 def get_ratings(connection):
     rows = connection.execute("""
-        SELECT player_id, rating, rd, sigma
+        SELECT player_id, rating_type, rating, rd, sigma
         FROM ratings
     """).fetchall()
 
     ratings = {}
 
     for row in rows:
-        ratings[row["player_id"]] = {
+
+        player_id = row["player_id"]
+        rating_type = row["rating_type"]
+
+        if player_id not in ratings:
+            ratings[player_id] = {}
+
+        ratings[player_id][rating_type] = {
             "rating": row["rating"],
             "rd": row["rd"],
             "sigma": row["sigma"]

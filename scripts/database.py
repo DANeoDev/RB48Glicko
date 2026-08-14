@@ -106,11 +106,12 @@ def create_match_ratings_table(connection): #ratings of ALL players in the DB at
         CREATE TABLE IF NOT EXISTS match_ratings (
             match_id TEXT NOT NULL,
             player_id INTEGER NOT NULL,
+            rating_type TEXT NOT NULL, 
             rating REAL NOT NULL,
             rd REAL NOT NULL,
             sigma REAL NOT NULL,
 
-            PRIMARY KEY (match_id, player_id),
+            PRIMARY KEY (match_id, player_id, rating_type),
             FOREIGN KEY (match_id) REFERENCES matches(match_id),
             FOREIGN KEY (player_id) REFERENCES players(player_id)
         )
@@ -123,10 +124,11 @@ def create_ratings_table(connection): # table of current ratings of all players 
         CREATE TABLE IF NOT EXISTS ratings (
             player_id INTEGER NOT NULL,
             rating REAL NOT NULL,
+            rating_type TEXT NOT NULL, 
             rd REAL NOT NULL,
             sigma REAL NOT NULL,
 
-            PRIMARY KEY (player_id),
+            PRIMARY KEY (player_id, rating_type),
 
             FOREIGN KEY (player_id) REFERENCES players(player_id)
         )

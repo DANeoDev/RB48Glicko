@@ -1,5 +1,5 @@
 # this will calculate Glicko rating for each player (using matchhistory.csv and players.csv) and update the ratings.csv
-from glicko2 import Glicko2, Rating, DEFAULT_RATING, DEFAULT_RD, IGNORED_RD, DEFAULT_SIGMA, WIN, LOSS, DRAW
+from glicko2 import (Glicko2, Rating, DEFAULT_RATING, DEFAULT_RD, IGNORED_RD, DEFAULT_SIGMA, WIN, LOSS, DRAW, TOTAL, BOX, HF, INACTIVITY_RD_TICK) 
 from pathlib import Path
 from database import get_connection
 from db_matches import get_matches, get_match_teams
@@ -48,7 +48,7 @@ def prepare_glicko_table(connection, matches, calibration_ratings):
 
             if player_id not in prepared_glicko:
 
-                prepared_glicko[player_id] = calibration_ratings.get(
+                initial_rating = calibration_ratings.get(
                     player_id,
                     {
                         "rating": DEFAULT_RATING,
@@ -57,38 +57,57 @@ def prepare_glicko_table(connection, matches, calibration_ratings):
                     }
                 )
 
+                prepared_glicko[player_id] = {
+                    TOTAL: initial_rating.copy(),
+                    BOX: initial_rating.copy(),
+                    HF: initial_rating.copy(),
+                }
+
     return prepared_glicko
 
-def glicko_table_to_ratings(glicko_table): # Convert Glicko table to rating objects
+def glicko_table_to_ratings(glicko_table):
 
     ratings = {}
 
-    for player_id, data in glicko_table.items():
+    for player_id, rating_types in glicko_table.items():
 
-        ratings[player_id] = Rating(
-            data["rating"],
-            data["rd"],
-            data["sigma"]
-        )
+        ratings[player_id] = {}
+
+        for rating_type, data in rating_types.items():
+
+            ratings[player_id][rating_type] = Rating(
+                data["rating"],
+                data["rd"],
+                data["sigma"]
+            )
 
     return ratings
 
 
-def ratings_to_glicko_table(ratings): # Convert rating objects back to Glicko table
+def ratings_to_glicko_table(ratings):
 
     glicko_table = {}
 
-    for player_id, rating in ratings.items():
+    for player_id, rating_types in ratings.items():
 
-        glicko_table[player_id] = {
-            "rating": rating.rating,
-            "rd": rating.rd,
-            "sigma": rating.sigma
-        }
+        glicko_table[player_id] = {}
 
-    return glicko_table 
+        for rating_type, rating in rating_types.items():
 
-def calculate_team_rating(player_ids, total_players, ratings):
+            glicko_table[player_id][rating_type] = {
+                "rating": rating.rating,
+                "rd": rating.rd,
+                "sigma": rating.sigma
+            }
+
+    return glicko_table
+
+def calculate_team_rating(
+    player_ids,
+    total_players,
+    ratings,
+    rating_type
+):
 
     if not player_ids:
         return None
@@ -97,14 +116,14 @@ def calculate_team_rating(player_ids, total_players, ratings):
 
   
     average_rating = sum(
-        ratings[player].rating
+        ratings[player][rating_type].rating
         for player in player_ids
     ) / len(player_ids)
 
     average_rd = math.sqrt(
         (
         sum(
-            ratings[player].rd ** 2
+            ratings[player][rating_type].rd ** 2
             for player in player_ids
         )
             + IGNORED_RD**2 * (ignored_players)
@@ -114,7 +133,7 @@ def calculate_team_rating(player_ids, total_players, ratings):
     average_sigma = math.sqrt(
         (
         sum(
-            ratings[player].sigma ** 2
+            ratings[player][rating_type].sigma ** 2
             for player in player_ids
         )
             + DEFAULT_SIGMA**2 * (ignored_players)
@@ -125,10 +144,18 @@ def calculate_team_rating(player_ids, total_players, ratings):
 
             
 
-def create_virtual_rating(player_id, team_rating, ratings):
+def create_virtual_rating(
+    player_id,
+    team_rating,
+    ratings,
+    rating_type
+):
 
-    player = ratings[player_id]
-    virtual_RD = math.sqrt((player.rd**2 + team_rating.rd**2)/2) # weighted average of the players RD and the team RD
+    player = ratings[player_id][rating_type]
+
+    virtual_RD = math.sqrt(
+        (player.rd**2 + team_rating.rd**2) / 2
+    )
 
     return Rating(
         team_rating.rating,
@@ -243,17 +270,43 @@ def update_match(
 
     active_players = set(team1_ids + team2_ids)
 
-    team1_rating = calculate_team_rating(
-        team1_ids,
-        team1_total_players,
-        ratings
+    if match["pitch"] == "box":
+        pitch_rating_type = BOX
+    elif match["pitch"] == "hf":
+        pitch_rating_type = HF
+    else:
+        raise ValueError(
+            f"Unknown pitch type: {match['pitch']}"
+    )
+    total_team1_rating = calculate_team_rating(
+    team1_ids,
+    team1_total_players,
+    ratings,
+    TOTAL
     )
 
-    team2_rating = calculate_team_rating(
+    total_team2_rating = calculate_team_rating(
         team2_ids,
         team2_total_players,
-        ratings
+        ratings,
+        TOTAL
     )
+
+    pitch_team1_rating = calculate_team_rating(
+        team1_ids,
+        team1_total_players,
+        ratings,
+        pitch_rating_type
+    )
+
+    pitch_team2_rating = calculate_team_rating(
+        team2_ids,
+        team2_total_players,
+        ratings,
+        pitch_rating_type
+    )
+
+
 
     if match["goals_a"] > match["goals_b"]:
         team1_result = WIN
@@ -271,84 +324,155 @@ def update_match(
     # Update Team 1
     # ---------------------------------------------------------
 
+  
     for player_id in team1_ids:
 
-        old_rating = ratings[player_id].rating
-        old_rd = ratings[player_id].rd
-        old_sigma = ratings[player_id].sigma
+        # -----------------------------------------------------
+        # TOTAL
+        # -----------------------------------------------------
 
-        virtual_player = create_virtual_rating(
+        total_player = ratings[player_id][TOTAL]
+        
+        old_total_rating = total_player.rating
+        old_total_rd = total_player.rd
+        old_total_sigma = total_player.sigma       
+
+        total_virtual_player = create_virtual_rating(
             player_id,
-            team1_rating,
-            ratings
+            total_team1_rating,
+            ratings,
+            TOTAL
         )
 
-        updated_virtual = engine.update_rating(
-            virtual_player,
+        total_updated_virtual = engine.update_rating(
+            total_virtual_player,
             [
                 (
                     team1_result,
-                    team2_rating
+                    total_team2_rating
                 )
             ]
         )
 
-        rating_change = (
-            updated_virtual.rating
-            - virtual_player.rating
+        total_rating_change = (
+            total_updated_virtual.rating
+            - total_virtual_player.rating
         )
 
-        ratings[player_id].rating += rating_change
-        ratings[player_id].rd = updated_virtual.rd
-        ratings[player_id].sigma = updated_virtual.sigma
+        total_player.rating += total_rating_change
+        total_player.rd = total_updated_virtual.rd
+        total_player.sigma = total_updated_virtual.sigma
+
+        # -----------------------------------------------------
+        # PITCH-SPECIFIC
+        # -----------------------------------------------------
+
+        pitch_player = ratings[player_id][pitch_rating_type]
+        
+        old_pitch_rating = pitch_player.rating
+        old_pitch_rd = pitch_player.rd
+        old_pitch_sigma = pitch_player.sigma
+        
+
+        pitch_virtual_player = create_virtual_rating(
+            player_id,
+            pitch_team1_rating,
+            ratings,
+            pitch_rating_type
+        )
+
+        pitch_updated_virtual = engine.update_rating(
+            pitch_virtual_player,
+            [
+                (
+                    team1_result,
+                    pitch_team2_rating
+                )
+            ]
+        )
+
+        pitch_rating_change = (
+            pitch_updated_virtual.rating
+            - pitch_virtual_player.rating
+        )
+
+        pitch_player.rating += pitch_rating_change
+        pitch_player.rd = pitch_updated_virtual.rd
+        pitch_player.sigma = pitch_updated_virtual.sigma
+
+
+    # DEBUG TEAM 1    
 
         if player_id == debug_player:
 
             print(
-                f"\nDEBUG PLAYER: {get_first_alias(connection, player_id)}"
+                f"\nDEBUG PLAYER: "
+                f"{get_first_alias(connection, player_id)}"
+            )
+
+            print(f"Match: {match['match_id']}")
+            print("Team: Team 1")
+            print(f"Result: {team1_result}")
+
+            print("\nTOTAL:")
+            print(
+                f"  Team rating: "
+                f"{total_team1_rating.rating:.3f}"
             )
             print(
-                f"Match: {match['match_id']}"
+                f"  Team RD: "
+                f"{total_team1_rating.rd:.3f}"
             )
             print(
-                f"Team: Team 1"
+                f"  Opponent rating: "
+                f"{total_team2_rating.rating:.3f}"
             )
             print(
-                f"Result: {team1_result}"
+                f"  Rating: "
+                f"{old_total_rating:.3f} -> "
+                f"{total_player.rating:.3f}"
             )
             print(
-                f"Team rating: {team1_rating.rating:.3f}"
+                f"  RD: "
+                f"{old_total_rd:.3f} -> "
+                f"{total_player.rd:.3f}"
             )
             print(
-                f"Team RD: {team1_rating.rd:.3f}"
+                f"  Sigma: "
+                f"{old_total_sigma:.6f} -> "
+                f"{total_player.sigma:.6f}"
+            )
+
+            print(f"\n{pitch_rating_type.upper()}:")
+
+            print(
+                f"  Team rating: "
+                f"{pitch_team1_rating.rating:.3f}"
             )
             print(
-                f"Team Sigma: {team1_rating.sigma:.6f}"
+                f"  Team RD: "
+                f"{pitch_team1_rating.rd:.3f}"
             )
             print(
-                f"Opponent rating: {team2_rating.rating:.3f}"
+                f"  Opponent rating: "
+                f"{pitch_team2_rating.rating:.3f}"
             )
             print(
-                f"Opponent RD: {team2_rating.rd:.3f}"
+                f"  Rating: "
+                f"{old_pitch_rating:.3f} -> "
+                f"{pitch_player.rating:.3f}"
             )
             print(
-                f"Opponent Sigma: {team2_rating.sigma:.6f}"
+                f"  RD: "
+                f"{old_pitch_rd:.3f} -> "
+                f"{pitch_player.rd:.3f}"
             )
             print(
-                f"Rating: "
-                f"{old_rating:.3f} -> "
-                f"{ratings[player_id].rating:.3f}"
+                f"  Sigma: "
+                f"{old_pitch_sigma:.6f} -> "
+                f"{pitch_player.sigma:.6f}"
             )
-            print(
-                f"RD: "
-                f"{old_rd:.3f} -> "
-                f"{ratings[player_id].rd:.3f}"
-            )
-            print(
-                f"Sigma: "
-                f"{old_sigma:.6f} -> "
-                f"{ratings[player_id].sigma:.6f}"
-            )
+
 
     # ---------------------------------------------------------
     # Update Team 2
@@ -356,81 +480,152 @@ def update_match(
 
     for player_id in team2_ids:
 
-        old_rating = ratings[player_id].rating
-        old_rd = ratings[player_id].rd
-        old_sigma = ratings[player_id].sigma
+        # -----------------------------------------------------
+        # TOTAL
+        # -----------------------------------------------------
 
-        virtual_player = create_virtual_rating(
+        total_player = ratings[player_id][TOTAL]
+        
+        old_total_rating = total_player.rating
+        old_total_rd = total_player.rd
+        old_total_sigma = total_player.sigma
+
+        
+
+        total_virtual_player = create_virtual_rating(
             player_id,
-            team2_rating,
-            ratings
+            total_team2_rating,
+            ratings,
+            TOTAL
         )
 
-        updated_virtual = engine.update_rating(
-            virtual_player,
+        total_updated_virtual = engine.update_rating(
+            total_virtual_player,
             [
                 (
                     team2_result,
-                    team1_rating
+                    total_team1_rating
                 )
             ]
         )
 
-        rating_change = (
-            updated_virtual.rating
-            - virtual_player.rating
+        total_rating_change = (
+            total_updated_virtual.rating
+            - total_virtual_player.rating
         )
 
-        ratings[player_id].rating += rating_change
-        ratings[player_id].rd = updated_virtual.rd
-        ratings[player_id].sigma = updated_virtual.sigma
+        total_player.rating += total_rating_change
+        total_player.rd = total_updated_virtual.rd
+        total_player.sigma = total_updated_virtual.sigma
+
+        # -----------------------------------------------------
+        # PITCH-SPECIFIC
+        # -----------------------------------------------------
+
+        pitch_player = ratings[player_id][pitch_rating_type]
+        
+        old_pitch_rating = pitch_player.rating
+        old_pitch_rd = pitch_player.rd
+        old_pitch_sigma = pitch_player.sigma
+
+     
+
+        pitch_virtual_player = create_virtual_rating(
+            player_id,
+            pitch_team2_rating,
+            ratings,
+            pitch_rating_type
+        )
+
+        pitch_updated_virtual = engine.update_rating(
+            pitch_virtual_player,
+            [
+                (
+                    team2_result,
+                    pitch_team1_rating
+                )
+            ]
+        )
+
+        pitch_rating_change = (
+            pitch_updated_virtual.rating
+            - pitch_virtual_player.rating
+        )
+
+        pitch_player.rating += pitch_rating_change
+        pitch_player.rd = pitch_updated_virtual.rd
+        pitch_player.sigma = pitch_updated_virtual.sigma
+
+        # DEBUG TEAM 2
 
         if player_id == debug_player:
 
             print(
-                f"\nDEBUG PLAYER: {get_first_alias(connection, player_id)}"
+                f"\nDEBUG PLAYER: "
+                f"{get_first_alias(connection, player_id)}"
+            )
+
+            print(f"Match: {match['match_id']}")
+            print("Team: Team 2")
+            print(f"Result: {team2_result}")
+
+            print("\nTOTAL:")
+            print(
+                f"  Team rating: "
+                f"{total_team2_rating.rating:.3f}"
             )
             print(
-                f"Match: {match['match_id']}"
+                f"  Team RD: "
+                f"{total_team2_rating.rd:.3f}"
             )
             print(
-                f"Team: Team 2"
+                f"  Opponent rating: "
+                f"{total_team1_rating.rating:.3f}"
             )
             print(
-                f"Result: {team2_result}"
+                f"  Rating: "
+                f"{old_total_rating:.3f} -> "
+                f"{total_player.rating:.3f}"
             )
             print(
-                f"Team rating: {team2_rating.rating:.3f}"
+                f"  RD: "
+                f"{old_total_rd:.3f} -> "
+                f"{total_player.rd:.3f}"
             )
             print(
-                f"Team RD: {team2_rating.rd:.3f}"
+                f"  Sigma: "
+                f"{old_total_sigma:.6f} -> "
+                f"{total_player.sigma:.6f}"
+            )
+
+            print(f"\n{pitch_rating_type.upper()}:")
+
+            print(
+                f"  Team rating: "
+                f"{pitch_team2_rating.rating:.3f}"
             )
             print(
-                f"Team Sigma: {team2_rating.sigma:.6f}"
+                f"  Team RD: "
+                f"{pitch_team2_rating.rd:.3f}"
             )
             print(
-                f"Opponent rating: {team1_rating.rating:.3f}"
+                f"  Opponent rating: "
+                f"{pitch_team1_rating.rating:.3f}"
             )
             print(
-                f"Opponent RD: {team1_rating.rd:.3f}"
+                f"  Rating: "
+                f"{old_pitch_rating:.3f} -> "
+                f"{pitch_player.rating:.3f}"
             )
             print(
-                f"Opponent Sigma: {team1_rating.sigma:.6f}"
+                f"  RD: "
+                f"{old_pitch_rd:.3f} -> "
+                f"{pitch_player.rd:.3f}"
             )
             print(
-                f"Rating: "
-                f"{old_rating:.3f} -> "
-                f"{ratings[player_id].rating:.3f}"
-            )
-            print(
-                f"RD: "
-                f"{old_rd:.3f} -> "
-                f"{ratings[player_id].rd:.3f}"
-            )
-            print(
-                f"Sigma: "
-                f"{old_sigma:.6f} -> "
-                f"{ratings[player_id].sigma:.6f}"
+                f"  Sigma: "
+                f"{old_pitch_sigma:.6f} -> "
+                f"{pitch_player.sigma:.6f}"
             )
 
     # ---------------------------------------------------------
@@ -439,59 +634,74 @@ def update_match(
 
     for player_id in ratings:
 
-        if (
-            player_id not in active_players
-            and ratings[player_id].rd < 161.80339
-        ):
-            ratings[player_id].rd = min(
-                ratings[player_id].rd + 0.6180339,
-                161.80339,
-            )        
+        if player_id not in active_players:
+
+            # Every missed match increases Total RD
+            ratings[player_id][TOTAL].rd = min(
+                ratings[player_id][TOTAL].rd + INACTIVITY_RD_TICK,
+                DEFAULT_RD
+            )
+
+            # Only the played pitch's rating gets the pitch-specific increase
+            ratings[player_id][pitch_rating_type].rd = min(
+                ratings[player_id][pitch_rating_type].rd + INACTIVITY_RD_TICK,
+                DEFAULT_RD
+            )    
 
 
 
-            
 def write_match_ratings(connection, match_id, ratings):
-    for player_id, data in ratings.items():
-        connection.execute(
-            """
-            INSERT INTO match_ratings
-                (match_id, player_id, rating, rd, sigma)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(match_id, player_id) DO UPDATE SET
-                rating = excluded.rating,
-                rd = excluded.rd,
-                sigma = excluded.sigma
-            """,
-            (
-                match_id,
-                player_id,
-                data["rating"],
-                data["rd"],
-                data["sigma"],
-            ),
-        )
+
+    for player_id, rating_types in ratings.items():
+
+        for rating_type, rating in rating_types.items():
+
+            connection.execute(
+                """
+                INSERT INTO match_ratings
+                    (match_id, player_id, rating_type, rating, rd, sigma)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(match_id, player_id, rating_type) DO UPDATE SET
+                    rating = excluded.rating,
+                    rd = excluded.rd,
+                    sigma = excluded.sigma
+                """,
+                (
+                    match_id,
+                    player_id,
+                    rating_type,
+                    rating["rating"],
+                    rating["rd"],
+                    rating["sigma"],
+                ),
+            )
 
     connection.commit()
 
-def write_glicko(connection, glickos):    
-    for player_id, data in glickos.items():
-        connection.execute(
-            """
-            INSERT INTO ratings (player_id, rating, rd, sigma)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(player_id) DO UPDATE SET
-                rating = excluded.rating,
-                rd = excluded.rd,
-                sigma = excluded.sigma
-            """,
-            (
-                player_id,
-                data["rating"],
-                data["rd"],
-                data["sigma"],
-            ),
-        )
+def write_glicko(connection, glickos):
+
+    for player_id, rating_types in glickos.items():
+
+        for rating_type, rating in rating_types.items():
+
+            connection.execute(
+                """
+                INSERT INTO ratings
+                    (player_id, rating_type, rating, rd, sigma)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(player_id, rating_type) DO UPDATE SET
+                    rating = excluded.rating,
+                    rd = excluded.rd,
+                    sigma = excluded.sigma
+                """,
+                (
+                    player_id,
+                    rating_type,
+                    rating["rating"],
+                    rating["rd"],
+                    rating["sigma"],
+                ),
+            )
 
     connection.commit()
 
