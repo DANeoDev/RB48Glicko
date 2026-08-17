@@ -1,14 +1,11 @@
 from database import get_connection
-from db_matches import get_match_teams
+from db_matches import get_match_teams, get_player_stats
 
 connection = get_connection()
 
-team_a, team_b = get_match_teams(
-    connection,
-    "2026-07-15-1"
-)
+stats = get_player_stats(connection)
 
-print("Team A:", team_a)
-print("Team B:", team_b)
+for player_id, player_stats in stats.items():
+    print(player_id, player_stats)
 
 connection.close()

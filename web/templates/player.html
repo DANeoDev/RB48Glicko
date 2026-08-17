@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <title>{{ player["aliases"][0] }} - RB48</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        .profile {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* =========================
+           Ratings table
+           ========================= */
+
+        table {
+            border-collapse: collapse;
+            margin: 20px auto;
+        }
+
+        th,
+        td {
+            text-align: center;
+            padding: 6px 12px;
+            border-bottom: 1px solid #ddd;
+            border-right: 1px solid #e5e5e5;
+        }
+
+        th {
+            font-weight: bold;
+        }
+
+        /* Alternating columns */
+
+        th:nth-child(2),
+        td:nth-child(2),
+        th:nth-child(4),
+        td:nth-child(4),
+        th:nth-child(6),
+        td:nth-child(6),
+        th:nth-child(8),
+        td:nth-child(8) {
+            background-color: #f7f7f7;
+        }
+
+        /* =========================
+           Graphs
+           ========================= */
+
+        .graphs {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 40px;
+        }
+
+        .graph {
+            width: 350px;
+        }
+
+        .graph canvas {
+            width: 100% !important;
+            height: 220px !important;
+        }
+
+        /* =========================
+           Match history
+           ========================= */
+
+        .match-history {
+            width: 800px;
+            max-width: 90%;
+            margin: 30px auto;
+        }
+
+        .match {
+            padding: 20px 10px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .match-header {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .match-info {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 40px;
+        }
+
+        .team {
+            width: 280px;
+        }
+
+        .team-a {
+            text-align: right;
+        }
+
+        .team-b {
+            text-align: left;
+        }
+
+        .score {
+            font-size: 24px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .players {
+            margin-top: 8px;
+            line-height: 1.6;
+        }
+
+        .highlight-player {
+            font-weight: bold;
+            color: #2563eb;
+}
+
+    </style>
+</head>
+
+
+<body>
+
+<div class="profile">
+
+    <!-- =========================
+         Player heading
+         ========================= -->
+
+    <h1>{{ player["aliases"][0] }}</h1>
+
+    <p>
+        <a href="{{ url_for('home') }}">
+            ← Back to Leaderboard
+        </a>
+    </p>
+
+
+    <!-- =========================
+         Ratings
+         ========================= -->
+
+    <h2>Ratings</h2>
+
+    <table>
+
+        <thead>
+
+            <tr>
+                <th></th>
+                <th>C Rating</th>
+                <th>E Rating</th>
+                <th>RD</th>
+                <th>Games</th>
+                <th>Ws</th>
+                <th>Ls</th>
+                <th>W%</th>
+            </tr>
+
+        </thead>
+
+
+        <tbody>
+
+            {% for rating_type in ["total", "box", "hf"] %}
+
+            <tr>
+
+                <th>
+                    {{ rating_type | upper }}
+                </th>
+
+                <td>
+                    {{
+                        (
+                            ratings[rating_type]["rating"]
+                            - 3 * ratings[rating_type]["rd"]
+                        ) | round(0)
+                    }}
+                </td>
+
+                <td>
+                    {{ ratings[rating_type]["rating"] | round(0) }}
+                </td>
+
+                <td>
+                    {{ ratings[rating_type]["rd"] | round(1) }}
+                </td>
+
+                <td>
+                    {{ stats[rating_type]["games"] }}
+                </td>
+
+                <td>
+                    {{ stats[rating_type]["wins"] }}
+                </td>
+
+                <td>
+                    {{ stats[rating_type]["losses"] }}
+                </td>
+
+                <td>
+                    {{ stats[rating_type]["win_percent"] | round(1) }}%
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+
+    <!-- =========================
+         Rating graphs
+         ========================= -->
+
+    <div class="graphs">
+
+        <div class="graph">
+
+            <h3>TOTAL</h3>
+
+            <canvas id="totalChart"></canvas>
+
+        </div>
+
+
+        <div class="graph">
+
+            <h3>BOX</h3>
+
+            <canvas id="boxChart"></canvas>
+
+        </div>
+
+
+        <div class="graph">
+
+            <h3>HF</h3>
+
+            <canvas id="hfChart"></canvas>
+
+        </div>
+
+    </div>
+
+
+    <!-- =========================
+         Match history
+         ========================= -->
+
+    <h2>Personal Match History</h2>
+
+    <div class="match-history">
+
+        {% for match in matches %}
+
+        <div class="match">
+
+            <div class="match-header">
+
+                {{ match["date"] }}
+                —
+                {{ match["pitch"] | upper }}
+
+            </div>
+
+
+            <div class="match-info">
+
+                <!-- Team A -->
+
+                <div class="team team-a">
+
+                    <strong>Team A</strong>
+
+                    <div class="players">
+
+                        {% for team_player in match["team_a"] %}
+
+                            {% if team_player == player["aliases"][0] %}
+                                <span class="highlight-player">
+                                    {{ team_player }}
+                                </span>
+                            {% else %}
+                                {{ team_player }}
+                            {% endif %}
+
+                            {% if not loop.last %}
+                                ,
+                            {% endif %}
+
+                        {% endfor %}
+
+
+                        {% if match["external_a"] > 0 %}
+
+                            {% if match["team_a"] %}
+                                ,
+                            {% endif %}
+
+                            + {{ match["external_a"] }}
+
+                            external player{% if match["external_a"] != 1 %}s{% endif %}
+
+                        {% endif %}
+
+                    </div>
+
+                </div>
+
+
+                <!-- Score -->
+
+                <div class="score">
+
+                    {{ match["goals_a"] }}
+                    -
+                    {{ match["goals_b"] }}
+
+                </div>
+
+
+                <!-- Team B -->
+
+                        {% for team_player in match["team_b"] %}
+
+                            {% if team_player == player["aliases"][0] %}
+                                <span class="highlight-player">
+                                    {{ team_player }}
+                                </span>
+                            {% else %}
+                                {{ team_player }}
+                            {% endif %}
+
+                            {% if not loop.last %}
+                                ,
+                            {% endif %}
+
+                        {% endfor %}
+
+
+                        {% if match["external_b"] > 0 %}
+
+                            {% if match["team_b"] %}
+                                ,
+                            {% endif %}
+
+                            + {{ match["external_b"] }}
+
+                            external player{% if match["external_b"] != 1 %}s{% endif %}
+
+                        {% endif %}
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+</div>
+
+
+<!-- =========================
+     Rating graph JavaScript
+     ========================= -->
+
+<script>
+
+    const ratingHistory = {{ rating_history | tojson }};
+
+
+    function createRatingChart(
+        elementId,
+        ratingType
+    ) {
+
+        const history = ratingHistory[ratingType];
+
+
+        const labels = history.map(
+            entry => entry.match_id
+        );
+
+
+        const ratings = history.map(
+            entry => entry.rating
+        );
+
+
+        new Chart(
+            document.getElementById(elementId),
+            {
+                type: "line",
+
+                data: {
+                    labels: labels,
+
+                    datasets: [{
+                        label: "Rating",
+                        data: ratings,
+                        tension: 0.2
+                    }]
+                },
+
+                options: {
+                    responsive: true,
+
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            }
+        );
+
+    }
+
+
+    createRatingChart(
+        "totalChart",
+        "total"
+    );
+
+
+    createRatingChart(
+        "boxChart",
+        "box"
+    );
+
+
+    createRatingChart(
+        "hfChart",
+        "hf"
+    );
+
+</script>
+
+</body>
+
+</html>
