@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RB48 Leaderboard</title>
+
+    <style>
+        th[data-column] {
+            cursor: pointer;
+        }
+
+        th[data-column]:hover {
+            background-color: #e8e8e8;
+        }
+        table {
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            text-align: center;
+            padding: 6px 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            font-weight: bold;
+        }
+
+        /* Rank and Player */
+        th:nth-child(1),
+        td:nth-child(1),
+        th:nth-child(2),
+        td:nth-child(2) {
+            background-color: #ffffff;
+        }
+
+        /*
+            Alternating columns within TOTAL
+            Columns 3-9
+        */
+        th:nth-child(3),
+        td:nth-child(3),
+        th:nth-child(5),
+        td:nth-child(5),
+        th:nth-child(7),
+        td:nth-child(7),
+        th:nth-child(9),
+        td:nth-child(9) {
+            background-color: #f7f7f7;
+        }
+
+        /*
+            Alternating columns within BOX
+            Columns 10-16
+        */
+        th:nth-child(10),
+        td:nth-child(10),
+        th:nth-child(12),
+        td:nth-child(12),
+        th:nth-child(14),
+        td:nth-child(14),
+        th:nth-child(16),
+        td:nth-child(16) {
+            background-color: #f7f7f7;
+        }
+
+        /*
+            Alternating columns within HF
+            Columns 17-23
+        */
+        th:nth-child(17),
+        td:nth-child(17),
+        th:nth-child(19),
+        td:nth-child(19),
+        th:nth-child(21),
+        td:nth-child(21),
+        th:nth-child(23),
+        td:nth-child(23) {
+            background-color: #f7f7f7;
+        }
+
+        /*
+            Strong separation between TOTAL / BOX / HF
+        */
+        th:nth-child(3),
+        td:nth-child(3),
+        th:nth-child(10),
+        td:nth-child(10),
+        th:nth-child(17),
+        td:nth-child(17) {
+            border-left: 12px solid white;
+        }
+
+        /*
+            Thin separator between every column
+        */
+        th:nth-child(n+3),
+        td:nth-child(n+3) {
+            border-right: 1px solid #e5e5e5;
+        }
+    </style>
+
+</head>
+
+
+<body>
+
+<h2>Leaderboard &nbsp <a href="{{ url_for('match_history') }}"> Match History</a></h2>
+
+
+
+<table id="leaderboard">
+    <thead>
+
+        <tr>
+            <th rowspan="2">Rank</th>
+            <th rowspan="2">Player</th>
+
+            <th colspan="7">TOTAL</th>
+            <th colspan="7">BOX</th>
+            <th colspan="7">HF</th>
+        </tr>
+
+        <tr>
+            <!-- TOTAL -->
+            <th data-column="total-conservative">C Rating</th>
+            <th data-column="total-rating">E Rating</th>
+            <th data-column="total-rd">RD</th>
+            <th data-column="total-games">Games</th>
+            <th data-column="total-wins">Ws</th>
+            <th data-column="total-losses">Ls</th>
+            <th data-column="total-win-percent">W%</th>
+
+            <!-- BOX -->
+            <th data-column="box-conservative">C Rating</th>
+            <th data-column="box-rating">E Rating</th>
+            <th data-column="box-rd">RD</th>
+            <th data-column="box-games">Games</th>
+            <th data-column="box-wins">Ws</th>
+            <th data-column="box-losses">Ls</th>
+            <th data-column="box-win-percent">W%</th>
+
+            <!-- HF -->
+            <th data-column="hf-conservative">C Rating</th>
+            <th data-column="hf-rating">E Rating</th>
+            <th data-column="hf-rd">RD</th>
+            <th data-column="hf-games">Games</th>
+            <th data-column="hf-wins">Ws</th>
+            <th data-column="hf-losses">Ls</th>
+            <th data-column="hf-win-percent">W%</th>
+        </tr>
+    </thead>
+
+    <tbody>
+
+        {% for player in leaderboard %}
+            
+
+        <tr
+            data-total-conservative="{{ player['total']['conservative'] }}"
+            data-total-rating="{{ player['total']['rating'] }}"
+            data-total-rd="{{ player['total']['rd'] }}"
+            data-total-games="{{ player['total']['games'] }}"
+            data-total-wins="{{ player['total']['wins'] }}"
+            data-total-losses="{{ player['total']['losses'] }}"
+            data-total-win-percent="{{ player['total']['win_percent'] }}"
+
+            data-box-conservative="{{ player['box']['conservative'] }}"
+            data-box-rating="{{ player['box']['rating'] }}"
+            data-box-rd="{{ player['box']['rd'] }}"
+            data-box-games="{{ player['box']['games'] }}"
+            data-box-wins="{{ player['box']['wins'] }}"
+            data-box-losses="{{ player['box']['losses'] }}"
+            data-box-win-percent="{{ player['box']['win_percent'] }}"
+
+            data-hf-conservative="{{ player['hf']['conservative'] }}"
+            data-hf-rating="{{ player['hf']['rating'] }}"
+            data-hf-rd="{{ player['hf']['rd'] }}"
+            data-hf-games="{{ player['hf']['games'] }}"
+            data-hf-wins="{{ player['hf']['wins'] }}"
+            data-hf-losses="{{ player['hf']['losses'] }}"
+            data-hf-win-percent="{{ player['hf']['win_percent'] }}"
+        >
+
+        
+
+            <td>{{ loop.index }}</td>
+
+            <td><a href="{{ url_for('player_profile', player_id=player['player_id']) }}">
+                {{ player["alias"] }}
+                </a>
+            </td>
+
+            <!-- TOTAL -->
+            <td>{{ player["total"]["conservative"] | round(0) }}</td>
+            <td>{{ player["total"]["rating"] | round(0) }}</td>
+            <td>{{ player["total"]["rd"] | round(1) }}</td>
+            <td>{{ player["total"]["games"] }}</td>
+            <td>{{ player["total"]["wins"] }}</td>
+            <td>{{ player["total"]["losses"] }}</td>
+            <td>{{ player["total"]["win_percent"] | round(1) }}%</td>
+
+            <!-- BOX -->
+            <td>{{ player["box"]["conservative"] | round(0) }}</td>
+            <td>{{ player["box"]["rating"] | round(0) }}</td>
+            <td>{{ player["box"]["rd"] | round(1) }}</td>
+            <td>{{ player["box"]["games"] }}</td>
+            <td>{{ player["box"]["wins"] }}</td>
+            <td>{{ player["box"]["losses"] }}</td>
+            <td>{{ player["box"]["win_percent"] | round(1) }}%</td>
+
+            <!-- HF -->
+            <td>{{ player["hf"]["conservative"] | round(0) }}</td>
+            <td>{{ player["hf"]["rating"] | round(0) }}</td>
+            <td>{{ player["hf"]["rd"] | round(1) }}</td>
+            <td>{{ player["hf"]["games"] }}</td>
+            <td>{{ player["hf"]["wins"] }}</td>
+            <td>{{ player["hf"]["losses"] }}</td>
+            <td>{{ player["hf"]["win_percent"] | round(1) }}%</td>
+
+        </tr>
+
+        {% endfor %}
+
+    </tbody>
+</table>
+<script>
+    const table = document.getElementById("leaderboard");
+    const tbody = table.querySelector("tbody");
+
+    const headers = table.querySelectorAll("th[data-column]");
+
+    headers.forEach(header => {
+
+    header.style.cursor = "pointer";
+
+    header.addEventListener("click", () => {
+
+        const column = header.dataset.column;
+
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+
+        rows.sort((a, b) => {
+
+            const valueA = Number(a.getAttribute("data-" + column));
+            const valueB = Number(b.getAttribute("data-" + column));
+
+            return valueB - valueA;
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+
+        // Update rank numbers
+        rows.forEach((row, index) => {
+            row.cells[0].textContent = index + 1;
+        });
+    });
+});
+</script>
+</body>
+</html>

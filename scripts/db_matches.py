@@ -1,3 +1,5 @@
+from scripts.glicko2 import TOTAL, HF, BOX
+
 def get_matches(connection):
     cursor = connection.execute("""
         SELECT match_id, date, pitch, players_a, players_b, goals_a, goals_b
@@ -125,3 +127,72 @@ def get_match_teams(connection, match_id):
             team_b.append(player["player_id"])
 
     return team_a, team_b
+
+def get_player_stats(connection):
+    cursor = connection.execute("""
+        SELECT
+            m.match_id,
+            m.pitch,
+            m.goals_a,
+            m.goals_b,
+            mp.player_id,
+            mp.team
+        FROM matches m
+        JOIN match_players mp
+            ON m.match_id = mp.match_id
+        ORDER BY m.match_id
+    """)
+
+    stats = {}
+
+    for row in cursor:
+        player_id = row["player_id"]
+        pitch = row["pitch"]
+        goals_a = row["goals_a"]
+        goals_b = row["goals_b"]
+        team = row["team"]
+
+        if player_id not in stats:
+            stats[player_id] = {
+                TOTAL: {"games": 0, "wins": 0, "draws": 0, "losses": 0},
+                BOX: {"games": 0, "wins": 0, "draws": 0, "losses": 0},
+                HF: {"games": 0, "wins": 0, "draws": 0, "losses": 0},
+            }
+
+        if goals_a == goals_b:
+            result = "draw"
+        elif (
+            team == "a" and goals_a > goals_b
+        ) or (
+            team == "b" and goals_b > goals_a
+        ):
+            result = "win"
+        else:
+            result = "loss"
+
+        stats[player_id][TOTAL]["games"] += 1
+        stats[player_id][pitch]["games"] += 1
+
+        if result == "win":
+            result_key = "wins"
+        elif result == "draw":
+            result_key = "draws"
+        else:
+            result_key = "losses"
+
+        stats[player_id][TOTAL][result_key] += 1
+        stats[player_id][pitch][result_key] += 1
+
+    for player_stats in stats.values():
+        for rating_type in (TOTAL, BOX, HF):
+            games = player_stats[rating_type]["games"]
+            wins = player_stats[rating_type]["wins"]
+
+            if games:
+                player_stats[rating_type]["win_percent"] = (
+                    wins / games * 100
+                )
+            else:
+                player_stats[rating_type]["win_percent"] = 0
+
+    return stats

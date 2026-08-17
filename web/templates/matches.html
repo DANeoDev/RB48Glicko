@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <title>Match History - RB48</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        .match-history {
+            width: 800px;
+            max-width: 90%;
+            margin: 30px auto;
+        }
+
+        .match {
+            padding: 20px 10px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .match-header {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .match-info {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 40px;
+        }
+
+        .team {
+            width: 280px;
+        }
+
+        .score {
+            font-size: 24px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .players {
+            margin-top: 8px;
+            line-height: 1.6;
+        }
+
+        .team-a {
+            text-align: right;
+        }
+
+        .team-b {
+            text-align: left;
+        }
+
+    </style>
+</head>
+
+
+<body>
+
+<h1>Match History</h1>
+
+<p>
+    <a href="{{ url_for('home') }}">
+        ← Back to Leaderboard
+    </a>
+</p>
+
+
+<div class="match-history">
+
+    {% for match in matches %}
+
+    <div class="match">
+
+        <div class="match-header">
+
+            {{ match["match_id"] }}
+            —
+            {{ match["pitch"] | upper }}
+
+        </div>
+
+
+        <div class="match-info">
+
+            <div class="team team-a">
+
+                <strong>Team A</strong>
+
+            <div class="players">
+
+                {% for player in match["team_a"] %}
+                    {{ player }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+
+                {% if match["external_a"] > 0 %}
+                    {% if match["team_a"] %}
+                        ,
+                    {% endif %}
+
+                    + {{ match["external_a"] }} external player{% if match["external_a"] != 1 %}s{% endif %}
+                {% endif %}
+
+            </div>
+
+            </div>
+
+
+            <div class="score">
+
+                {{ match["goals_a"] }}
+                -
+                {{ match["goals_b"] }}
+
+            </div>
+
+
+            <div class="team team-b">
+
+                <strong>Team B</strong>
+
+                <div class="players">
+
+                    {% for player in match["team_b"] %}
+                        {{ player }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+
+                    {% if match["external_b"] > 0 %}
+                        {% if match["team_b"] %}
+                            ,
+                        {% endif %}
+
+                        + {{ match["external_b"] }} external player{% if match["external_b"] != 1 %}s{% endif %}
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endfor %}
+
+</div>
+
+</body>
+</html>
