@@ -1,3 +1,14 @@
 __pycache__/
 *.py[cod]
 .venv/
+
+# Local database
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# Match input data
+data/matches/
+
+# Database backups
+data/backups/
