@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        {% block title %}
+            RB48
+        {% endblock %}
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+
+    {% block head %}
+    {% endblock %}
+
+</head>
+
+
+<body>
+
+<header class="site-header">
+
+    <nav class="navbar">
+
+        <a
+            class="logo"
+            href="{{ url_for('home') }}"
+        >
+            RB48
+        </a>
+
+<div class="nav-links">
+
+    <a
+        href="{{ url_for('home') }}"
+        class="{% if request.endpoint == 'home' %}active{% endif %}"
+    >
+        Stats
+    </a>
+
+    <a
+        href="{{ url_for('match_history') }}"
+        class="{% if request.endpoint == 'match_history' %}active{% endif %}"
+    >
+        Matches
+    </a>
+
+</div>
+
+    </nav>
+
+</header>
+
+
+<main>
+
+    {% block content %}
+    {% endblock %}
+
+</main>
+
+
+{% block scripts %}
+{% endblock %}
+
+</body>
+
+</html>

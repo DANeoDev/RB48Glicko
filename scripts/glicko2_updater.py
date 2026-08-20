@@ -2,11 +2,11 @@
 
 from pathlib import Path
 
-from database import get_connection
-from db_matches import get_matches, get_match_teams
-from db_ratings import get_ratings, get_processed_match_ids
+from scripts.database import get_connection
+from scripts.db_matches import get_matches, get_match_teams
+from scripts.db_ratings import get_ratings, get_processed_match_ids, get_calibrations
 
-from glicko2_calculator import (
+from scripts.glicko2_calculator import (
     glicko_table_to_ratings,
     ratings_to_glicko_table,
     update_match,
@@ -14,11 +14,9 @@ from glicko2_calculator import (
     write_glicko,
     calculate_team_rating,
     get_first_alias,
+    initialize_player_ratings
 )
-from glicko2 import Glicko2, TOTAL, BOX, HF
-
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+from scripts.glicko2 import Glicko2, TOTAL, BOX, HF
 
 
 def get_new_matches(matches, processed_match_ids):
@@ -407,7 +405,8 @@ def print_match_debug(
 def update_glicko(
     connection,
     matches,
-    ratings
+    ratings,
+    calibrations
 ):
     engine = Glicko2()
 
@@ -416,6 +415,18 @@ def update_glicko(
     )
 
     for match in matches:
+
+        team1_ids, team2_ids = get_match_teams(
+            connection,
+            match["match_id"]
+        )
+
+        for player_id in team1_ids + team2_ids:
+            initialize_player_ratings(
+                player_id,
+                rating_objects,
+                calibrations
+            )
 
         # -----------------------------------------------------
         # Ask whether this match should be debugged
@@ -488,6 +499,8 @@ def main():
 
     connection = get_connection()
 
+    calibrations = get_calibrations(connection)
+
     matches = get_matches(connection)
     print(f"Loaded {len(matches)} matches")
 
@@ -536,6 +549,7 @@ def main():
         connection,
         new_matches,
         ratings,
+        calibrations
     )
 
     write_glicko(

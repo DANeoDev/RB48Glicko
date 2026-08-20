@@ -1,148 +1,120 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
+{% block title %}
+RB48 — Matches
+{% endblock %}
 
-    <title>Match History - RB48</title>
+{% block content %}
 
-    <style>
+<div class="page-header">
 
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-        }
-
-        .match-history {
-            width: 800px;
-            max-width: 90%;
-            margin: 30px auto;
-        }
-
-        .match {
-            padding: 20px 10px;
-            margin-bottom: 30px;
-            border-bottom: 1px solid #ddd;
-        }
-
-        .match-header {
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
-
-        .match-info {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 40px;
-        }
-
-        .team {
-            width: 280px;
-        }
-
-        .score {
-            font-size: 24px;
-            font-weight: bold;
-            white-space: nowrap;
-        }
-
-        .players {
-            margin-top: 8px;
-            line-height: 1.6;
-        }
-
-        .team-a {
-            text-align: right;
-        }
-
-        .team-b {
-            text-align: left;
-        }
-
-    </style>
-</head>
-
-
-<body>
-
+```
 <h1>Match History</h1>
 
 <p>
-    <a href="{{ url_for('home') }}">
-        ← Back to Leaderboard
-    </a>
+    All recorded RB48 matches
 </p>
+```
 
+</div>
 
 <div class="match-history">
 
-    {% for match in matches %}
+```
+{% for match in matches %}
 
-    <div class="match">
-
-        <div class="match-header">
-
-            {{ match["match_id"] }}
-            —
-            {{ match["pitch"] | upper }}
-
-        </div>
+<div class="match">
 
 
-        <div class="match-info">
+    <!-- =========================
+         Match header
+         ========================= -->
 
-            <div class="team team-a">
+    <div class="match-header">
 
-                <strong>Team A</strong>
+        {{ match["match_id"] }}
+        —
+        {{ match["pitch"] | upper }}
+
+    </div>
+
+
+    <!-- =========================
+         Main match information
+         ========================= -->
+
+    <div class="match-info">
+
+
+        <!-- Team A -->
+
+        <div class="team team-a">
+
+            <strong>Team A</strong>
 
             <div class="players">
 
-                {% for player in match["team_a"] %}
-                    {{ player }}{% if not loop.last %}, {% endif %}
+                {% for player in match["team_a_players"] %}
+
+                    {{ player["name"] }}
+                    ({{ player["rating"] | round | int }})
+
+                    {% if not loop.last %}, {% endif %}
+
                 {% endfor %}
 
-                {% if match["external_a"] > 0 %}
-                    {% if match["team_a"] %}
-                        ,
-                    {% endif %}
 
-                    + {{ match["external_a"] }} external player{% if match["external_a"] != 1 %}s{% endif %}
+                {% if match["external_a"] > 0 %}
+
+                    {% if match["team_a_players"] %}, {% endif %}
+
+                    + {{ match["external_a"] }}
+                    external player{% if match["external_a"] != 1 %}s{% endif %}
+
                 {% endif %}
 
             </div>
 
-            </div>
+        </div>
 
 
-            <div class="score">
+        <!-- Score -->
 
-                {{ match["goals_a"] }}
-                -
-                {{ match["goals_b"] }}
+        <div class="score">
 
-            </div>
+            {{ match["goals_a"] }}
+            -
+            {{ match["goals_b"] }}
+
+        </div>
 
 
-            <div class="team team-b">
+        <!-- Team B -->
 
-                <strong>Team B</strong>
+        <div class="team team-b">
 
-                <div class="players">
+            <strong>Team B</strong>
 
-                    {% for player in match["team_b"] %}
-                        {{ player }}{% if not loop.last %}, {% endif %}
-                    {% endfor %}
+            <div class="players">
 
-                    {% if match["external_b"] > 0 %}
-                        {% if match["team_b"] %}
-                            ,
-                        {% endif %}
+                {% for player in match["team_b_players"] %}
 
-                        + {{ match["external_b"] }} external player{% if match["external_b"] != 1 %}s{% endif %}
-                    {% endif %}
+                    {{ player["name"] }}
+                    ({{ player["rating"] | round | int }})
 
-                </div>
+                    {% if not loop.last %}, {% endif %}
+
+                {% endfor %}
+
+
+                {% if match["external_b"] > 0 %}
+
+                    {% if match["team_b_players"] %}, {% endif %}
+
+                    + {{ match["external_b"] }}
+                    external player{% if match["external_b"] != 1 %}s{% endif %}
+
+                {% endif %}
 
             </div>
 
@@ -150,9 +122,159 @@
 
     </div>
 
-    {% endfor %}
+
+    <!-- =========================
+         Expandable match details
+         ========================= -->
+
+    <div class="match-details">
+
+
+        <!-- Team A details -->
+
+        <div class="team-details team-a">
+
+            <div class="team-stat">
+
+                <span class="stat-label">
+                    ⌀ Rating
+                </span>
+
+                <span>
+                    {{ match["team_a_rating"] | round | int }}
+                </span>
+
+            </div>
+
+
+            <div class="team-stat">
+
+                <span class="stat-label">
+                    ⌀ RD
+                </span>
+
+                <span>
+                    {{ match["team_a_rd"] | round(1) }}
+                </span>
+
+            </div>
+
+
+            <div class="team-stat">
+
+                <span class="stat-label">
+                    Win%
+                </span>
+
+                <span>
+                    —
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <!-- Rating change -->
+
+        <div class="rating-delta
+            {% if match['rating_delta'] > 0 %}
+                positive
+            {% elif match['rating_delta'] < 0 %}
+                negative
+            {% endif %}
+        ">
+
+            {% if match["rating_delta"] > 0 %}
+
+                ↑ {{ match["rating_delta"] | round(1) }}
+
+            {% elif match["rating_delta"] < 0 %}
+
+                ↓ {{ match["rating_delta"] | abs | round(1) }}
+
+            {% else %}
+
+                — 0.0
+
+            {% endif %}
+
+        </div>
+
+
+        <!-- Team B details -->
+
+        <div class="team-details team-b">
+
+            <div class="team-stat">
+
+                <span class="stat-label">
+                    ⌀ Rating
+                </span>
+
+                <span>
+                    {{ match["team_b_rating"] | round | int }}
+                </span>
+
+            </div>
+
+
+            <div class="team-stat">
+
+                <span class="stat-label">
+                    ⌀ RD
+                </span>
+
+                <span>
+                    {{ match["team_b_rd"] | round(1) }}
+                </span>
+
+            </div>
+
+
+            <div class="team-stat">
+
+                <span class="stat-label">
+                    Win%
+                </span>
+
+                <span>
+                    —
+                </span>
+
+            </div>
+
+        </div>
+
+    </div>
 
 </div>
 
-</body>
-</html>
+{% endfor %}
+```
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+
+<script>
+
+/* =========================
+   Match expansion
+   ========================= */
+
+document.querySelectorAll(".match").forEach(match => {
+
+    match.addEventListener("click", () => {
+
+        match.classList.toggle("expanded");
+
+    });
+
+});
+
+</script>
+
+{% endblock %}
