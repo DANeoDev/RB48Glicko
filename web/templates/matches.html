@@ -143,23 +143,39 @@
 
             <!-- Rating change -->
 
-            <div class="rating-delta
-                {% if match['rating_delta'] > 0 %}
-                    positive
-                {% elif match['rating_delta'] < 0 %}
-                    negative
-                {% endif %}
-            ">
+<div class="rating-delta">
 
-                {% if match["rating_delta"] > 0 %}
-                    ↑ {{ match["rating_delta"] | round(1) }}
-                {% elif match["rating_delta"] < 0 %}
-                    ↓ {{ match["rating_delta"] | abs | round(1) }}
-                {% else %}
-                    — 0.0
-                {% endif %}
+    {% if match["rating_delta"] > 0 %}
+        <span class="positive">
+            ↑ {{ match["rating_delta"] | round(1) }}
+        </span>
+    {% elif match["rating_delta"] < 0 %}
+        <span class="negative">
+            ↓ {{ match["rating_delta"] | abs | round(1) }}
+        </span>
+    {% else %}
+        <span>
+            — 0.0
+        </span>
+    {% endif %}
 
-            </div>
+    <span class="delta-separator">|</span>
+
+    {% if match["rating_delta"] < 0 %}
+        <span class="positive">
+            ↑ {{ match["rating_delta"] | abs | round(1) }}
+        </span>
+    {% elif match["rating_delta"] > 0 %}
+        <span class="negative">
+            ↓ {{ match["rating_delta"] | round(1) }}
+        </span>
+    {% else %}
+        <span>
+            — 0.0
+        </span>
+    {% endif %}
+
+</div>
 
 
             <!-- Team B details -->
