@@ -15,6 +15,7 @@ def get_calibrations(connection):
 
     return calibrations
 
+
 def get_ratings(connection):
     rows = connection.execute("""
         SELECT player_id, rating_type, rating, rd, sigma
@@ -39,6 +40,33 @@ def get_ratings(connection):
 
     return ratings
 
+
+def get_match_ratings(connection, match_id):
+    rows = connection.execute("""
+        SELECT player_id, rating_type, rating, rd, sigma
+        FROM match_ratings
+        WHERE match_id = ?
+    """, (match_id,)).fetchall()
+
+    ratings = {}
+
+    for row in rows:
+
+        player_id = row["player_id"]
+        rating_type = row["rating_type"]
+
+        if player_id not in ratings:
+            ratings[player_id] = {}
+
+        ratings[player_id][rating_type] = {
+            "rating": row["rating"],
+            "rd": row["rd"],
+            "sigma": row["sigma"]
+        }
+
+    return ratings
+
+
 def get_processed_match_ids(connection):
     rows = connection.execute("""
         SELECT DISTINCT match_id
@@ -49,6 +77,7 @@ def get_processed_match_ids(connection):
         row["match_id"]
         for row in rows
     }
+
 
 def get_player_rating_history(connection, player_id):
     rows = connection.execute("""
