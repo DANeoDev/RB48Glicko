@@ -2,8 +2,8 @@ import csv
 from pathlib import Path
 from datetime import date
 
-from database import get_connection
-from db_players import (
+from scripts.database import get_connection
+from scripts.db_players import (
     get_players,
     get_alias_lookup,
     get_ignored_aliases,
@@ -13,7 +13,7 @@ from db_players import (
     add_ignored_alias,
     get_next_player_id
 )
-from db_matches import (
+from scripts.db_matches import (
     match_exists,
     create_match,
     add_match_player,

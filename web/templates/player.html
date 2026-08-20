@@ -1,141 +1,118 @@
-<!DOCTYPE html>
-<html lang="en">
 
-<head>
-    <meta charset="UTF-8">
+{% extends "base.html" %}
 
-    <title>{{ player["aliases"][0] }} - RB48</title>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% block title %}
+    {{ player["aliases"][0] }} — RB48
+{% endblock %}
 
-    <style>
 
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-        }
+{% block head %}
 
-        .profile {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-        /* =========================
-           Ratings table
-           ========================= */
+<style>
 
-        table {
-            border-collapse: collapse;
-            margin: 20px auto;
-        }
+    /* =========================
+       Player profile
+       ========================= */
 
-        th,
-        td {
-            text-align: center;
-            padding: 6px 12px;
-            border-bottom: 1px solid #ddd;
-            border-right: 1px solid #e5e5e5;
-        }
+    .profile {
+        text-align: center;
+    }
 
-        th {
-            font-weight: bold;
-        }
 
-        /* Alternating columns */
+    /* =========================
+       Rating graphs
+       ========================= */
 
-        th:nth-child(2),
-        td:nth-child(2),
-        th:nth-child(4),
-        td:nth-child(4),
-        th:nth-child(6),
-        td:nth-child(6),
-        th:nth-child(8),
-        td:nth-child(8) {
-            background-color: #f7f7f7;
-        }
+    .graphs {
+        display: flex;
+        justify-content: center;
+        gap: 40px;
+        margin-top: 40px;
+    }
 
-        /* =========================
-           Graphs
-           ========================= */
+    .graph {
+        width: 350px;
+    }
 
-        .graphs {
-            display: flex;
-            justify-content: center;
-            gap: 40px;
-            margin-top: 40px;
-        }
+    .graph canvas {
+        width: 100% !important;
+        height: 220px !important;
+    }
 
-        .graph {
-            width: 350px;
-        }
 
-        .graph canvas {
-            width: 100% !important;
-            height: 220px !important;
-        }
+    /* =========================
+       Match history
+       ========================= */
 
-        /* =========================
-           Match history
-           ========================= */
+    .match-history {
+        width: 800px;
+        max-width: 90%;
+        margin: 30px auto;
+    }
 
-        .match-history {
-            width: 800px;
-            max-width: 90%;
-            margin: 30px auto;
-        }
+    .match {
+        padding: 20px 10px;
+        margin-bottom: 30px;
+        border-bottom: 1px solid var(--border);
+    }
 
-        .match {
-            padding: 20px 10px;
-            margin-bottom: 30px;
-            border-bottom: 1px solid #ddd;
-        }
+    .match-header {
+        margin-bottom: 10px;
+        font-weight: bold;
+        text-align: center;
+    }
 
-        .match-header {
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
+    .match-info {
+        display: grid;
+        grid-template-columns: 280px 80px 280px;
+        justify-content: center;
+        align-items: start;
+        column-gap: 40px;
+    }
 
-        .match-info {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 40px;
-        }
+    .team-a {
+        text-align: right;
+    }
 
-        .team {
-            width: 280px;
-        }
+    .team-b {
+        text-align: left;
+    }
 
-        .team-a {
-            text-align: right;
-        }
+    .score {
+        text-align: center;
+        font-size: 24px;
+        font-weight: bold;
+        white-space: nowrap;
+    }
 
-        .team-b {
-            text-align: left;
-        }
+    .players {
+        margin-top: 8px;
+        line-height: 1.6;
+    }
 
-        .score {
-            font-size: 24px;
-            font-weight: bold;
-            white-space: nowrap;
-        }
+    .highlight-player {
+        font-weight: bold;
+        color: var(--green-light);
+    }
 
-        .players {
-            margin-top: 8px;
-            line-height: 1.6;
-        }
+    /* =========================
+       Ratings Table
+       ========================= */
 
-        .highlight-player {
-            font-weight: bold;
-            color: #2563eb;
+    .ratings-table {
+    border-collapse: collapse;
+    margin: 20px auto;
 }
 
-    </style>
-</head>
+</style>
+
+{% endblock %}
 
 
-<body>
+{% block content %}
 
 <div class="profile">
 
@@ -143,13 +120,19 @@
          Player heading
          ========================= -->
 
-    <h1>{{ player["aliases"][0] }}</h1>
+    <div class="page-header">
 
-    <p>
-        <a href="{{ url_for('home') }}">
-            ← Back to Leaderboard
-        </a>
-    </p>
+        <h1>
+            {{ player["aliases"][0] }}
+        </h1>
+
+        <p>
+            <a href="{{ url_for('home') }}">
+                ← Back to Leaderboard
+            </a>
+        </p>
+
+    </div>
 
 
     <!-- =========================
@@ -158,7 +141,7 @@
 
     <h2>Ratings</h2>
 
-    <table>
+    <table class="ratings-table">
 
         <thead>
 
@@ -264,7 +247,7 @@
 
 
     <!-- =========================
-         Match history
+         Personal match history
          ========================= -->
 
     <h2>Personal Match History</h2>
@@ -297,28 +280,27 @@
                         {% for team_player in match["team_a"] %}
 
                             {% if team_player == player["aliases"][0] %}
+
                                 <span class="highlight-player">
                                     {{ team_player }}
                                 </span>
+
                             {% else %}
+
                                 {{ team_player }}
+
                             {% endif %}
 
-                            {% if not loop.last %}
-                                ,
-                            {% endif %}
+                            {% if not loop.last %}, {% endif %}
 
                         {% endfor %}
 
 
                         {% if match["external_a"] > 0 %}
 
-                            {% if match["team_a"] %}
-                                ,
-                            {% endif %}
+                            {% if match["team_a"] %}, {% endif %}
 
                             + {{ match["external_a"] }}
-
                             external player{% if match["external_a"] != 1 %}s{% endif %}
 
                         {% endif %}
@@ -341,31 +323,36 @@
 
                 <!-- Team B -->
 
+                <div class="team team-b">
+
+                    <strong>Team B</strong>
+
+                    <div class="players">
+
                         {% for team_player in match["team_b"] %}
 
                             {% if team_player == player["aliases"][0] %}
+
                                 <span class="highlight-player">
                                     {{ team_player }}
                                 </span>
+
                             {% else %}
+
                                 {{ team_player }}
+
                             {% endif %}
 
-                            {% if not loop.last %}
-                                ,
-                            {% endif %}
+                            {% if not loop.last %}, {% endif %}
 
                         {% endfor %}
 
 
                         {% if match["external_b"] > 0 %}
 
-                            {% if match["team_b"] %}
-                                ,
-                            {% endif %}
+                            {% if match["team_b"] %}, {% endif %}
 
                             + {{ match["external_b"] }}
-
                             external player{% if match["external_b"] != 1 %}s{% endif %}
 
                         {% endif %}
@@ -384,10 +371,10 @@
 
 </div>
 
+{% endblock %}
 
-<!-- =========================
-     Rating graph JavaScript
-     ========================= -->
+
+{% block scripts %}
 
 <script>
 
@@ -418,6 +405,7 @@
                 type: "line",
 
                 data: {
+
                     labels: labels,
 
                     datasets: [{
@@ -425,23 +413,31 @@
                         data: ratings,
                         tension: 0.2
                     }]
+
                 },
 
                 options: {
+
                     responsive: true,
 
                     plugins: {
+
                         legend: {
                             display: false
                         }
+
                     },
 
                     scales: {
+
                         y: {
                             beginAtZero: false
                         }
+
                     }
+
                 }
+
             }
         );
 
@@ -467,6 +463,5 @@
 
 </script>
 
-</body>
+{% endblock %}
 
-</html>

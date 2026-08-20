@@ -89,5 +89,11 @@ def match_history():
         matches=matches
     )
 
+
+@app.route("/glickofaq")
+def glicko_explainer():
+    return render_template("glickofaq.html")
+
+
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,10 +1,10 @@
 # this will calculate Glicko rating for each player (using matchhistory.csv and players.csv) and update the ratings.csv
-from glicko2 import (Glicko2, Rating, DEFAULT_RATING, DEFAULT_RD, IGNORED_RD, DEFAULT_SIGMA, WIN, LOSS, DRAW, TOTAL, BOX, HF, INACTIVITY_RD_TICK) 
+from scripts.glicko2 import (Glicko2, Rating, DEFAULT_RATING, DEFAULT_RD, IGNORED_RD, DEFAULT_SIGMA, WIN, LOSS, DRAW, TOTAL, BOX, HF, INACTIVITY_RD_TICK) 
 from pathlib import Path
-from database import get_connection
-from db_matches import get_matches, get_match_teams
-from db_players import get_players
-from db_ratings import get_calibrations
+from scripts.database import get_connection
+from scripts.db_matches import get_matches, get_match_teams
+from scripts.db_players import get_players
+from scripts.db_ratings import get_calibrations
 import math
 import shutil
 from datetime import datetime
@@ -33,6 +33,41 @@ def clear_ratings(connection):
     connection.execute("DELETE FROM match_ratings")
     connection.execute("DELETE FROM ratings")
     connection.commit()
+
+def initialize_player_ratings(
+    player_id,
+    ratings,
+    calibration=None,
+):
+    if player_id in ratings:
+        return
+
+    initial_rating = (calibration or {}).get(
+        player_id,
+        {
+            "rating": DEFAULT_RATING,
+            "rd": DEFAULT_RD,
+            "sigma": DEFAULT_SIGMA
+        }
+    )
+
+    ratings[player_id] = {
+        TOTAL: Rating(
+            initial_rating["rating"],
+            initial_rating["rd"],
+            initial_rating["sigma"]
+        ),
+        BOX: Rating(
+            initial_rating["rating"],
+            initial_rating["rd"],
+            initial_rating["sigma"]
+        ),
+        HF: Rating(
+            initial_rating["rating"],
+            initial_rating["rd"],
+            initial_rating["sigma"]
+        ),
+    }    
 
 def prepare_glicko_table(connection, matches, calibration_ratings):
     prepared_glicko = {}
