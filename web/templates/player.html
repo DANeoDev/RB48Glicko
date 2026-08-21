@@ -1,4 +1,4 @@
-
+```html
 {% extends "base.html" %}
 
 
@@ -33,79 +33,31 @@
         margin-top: 40px;
     }
 
+
     .graph {
         width: 350px;
     }
+
 
     .graph canvas {
         width: 100% !important;
         height: 220px !important;
     }
 
-
-    /* =========================
-       Match history
-       ========================= */
-
-    .match-history {
-        width: 800px;
-        max-width: 90%;
-        margin: 30px auto;
-    }
-
-    .match {
-        padding: 20px 10px;
-        margin-bottom: 30px;
-        border-bottom: 1px solid var(--border);
-    }
-
-    .match-header {
-        margin-bottom: 10px;
-        font-weight: bold;
-        text-align: center;
-    }
-
-    .match-info {
-        display: grid;
-        grid-template-columns: 280px 80px 280px;
-        justify-content: center;
-        align-items: start;
-        column-gap: 40px;
-    }
-
-    .team-a {
-        text-align: right;
-    }
-
-    .team-b {
-        text-align: left;
-    }
-
-    .score {
-        text-align: center;
-        font-size: 24px;
-        font-weight: bold;
-        white-space: nowrap;
-    }
-
-    .players {
-        margin-top: 8px;
-        line-height: 1.6;
-    }
-
     .highlight-player {
-        font-weight: bold;
-        color: var(--green-light);
-    }
+    font-weight: bold;
+    color: var(--green-light);
+}
+
 
     /* =========================
        Ratings Table
        ========================= */
 
     .ratings-table {
-    border-collapse: collapse;
-    margin: 20px auto;
-}
+        border-collapse: collapse;
+        margin: 20px auto;
+    }
 
 </style>
 
@@ -277,28 +229,13 @@
 
                     <div class="players">
 
-                        {% for team_player in match["team_a"] %}
-
-                            {% if team_player == player["aliases"][0] %}
-
-                                <span class="highlight-player">
-                                    {{ team_player }}
-                                </span>
-
-                            {% else %}
-
-                                {{ team_player }}
-
-                            {% endif %}
-
-                            {% if not loop.last %}, {% endif %}
-
+                        {% for team_player in match["team_a_players"] %}
+                            <span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}<span class="player-rating">({{ team_player["rating"] | round | int }})</span>{% if not loop.last %},{% endif %}</span>
                         {% endfor %}
-
 
                         {% if match["external_a"] > 0 %}
 
-                            {% if match["team_a"] %}, {% endif %}
+                            {% if match["team_a_players"] %}, {% endif %}
 
                             + {{ match["external_a"] }}
                             external player{% if match["external_a"] != 1 %}s{% endif %}
@@ -329,34 +266,123 @@
 
                     <div class="players">
 
-                        {% for team_player in match["team_b"] %}
-
-                            {% if team_player == player["aliases"][0] %}
-
-                                <span class="highlight-player">
-                                    {{ team_player }}
-                                </span>
-
-                            {% else %}
-
-                                {{ team_player }}
-
-                            {% endif %}
-
-                            {% if not loop.last %}, {% endif %}
-
+                        {% for team_player in match["team_b_players"] %}
+                            <span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}<span class="player-rating">({{ team_player["rating"] | round | int }})</span>{% if not loop.last %},{% endif %}</span>
                         {% endfor %}
 
 
                         {% if match["external_b"] > 0 %}
 
-                            {% if match["team_b"] %}, {% endif %}
+                            {% if match["team_b_players"] %}, {% endif %}
 
                             + {{ match["external_b"] }}
                             external player{% if match["external_b"] != 1 %}s{% endif %}
 
                         {% endif %}
 
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- =========================
+                 Expandable match details
+                 ========================= -->
+
+            <div class="match-details">
+
+                <!-- Team A details -->
+
+                <div class="team-details team-a">
+
+                    <div class="team-stat">
+                        <span class="stat-label">⌀ Rating</span>
+                        <span>{{ match["team_a_rating"] | round | int }}</span>
+                    </div>
+
+                    <div class="team-stat">
+                        <span class="stat-label">⌀ RD</span>
+                        <span>{{ match["team_a_rd"] | round(1) }}</span>
+                    </div>
+
+                    <div class="team-stat">
+                        <span class="stat-label">Win%</span>
+                        <span>—</span>
+                    </div>
+
+                </div>
+
+
+                <!-- Rating delta -->
+
+                <div class="rating-delta">
+
+                    {% if match["rating_delta"] > 0 %}
+
+                        <span class="positive">
+                            ↑ {{ match["rating_delta"] | round(1) }}
+                        </span>
+
+                    {% elif match["rating_delta"] < 0 %}
+
+                        <span class="negative">
+                            ↓ {{ match["rating_delta"] | abs | round(1) }}
+                        </span>
+
+                    {% else %}
+
+                        <span>
+                            — 0.0
+                        </span>
+
+                    {% endif %}
+
+
+                    <span class="delta-separator">|</span>
+
+
+                    {% if match["rating_delta"] < 0 %}
+
+                        <span class="positive">
+                            ↑ {{ match["rating_delta"] | abs | round(1) }}
+                        </span>
+
+                    {% elif match["rating_delta"] > 0 %}
+
+                        <span class="negative">
+                            ↓ {{ match["rating_delta"] | round(1) }}
+                        </span>
+
+                    {% else %}
+
+                        <span>
+                            — 0.0
+                        </span>
+
+                    {% endif %}
+
+                </div>
+
+
+                <!-- Team B details -->
+
+                <div class="team-details team-b">
+
+                    <div class="team-stat">
+                        <span class="stat-label">⌀ Rating</span>
+                        <span>{{ match["team_b_rating"] | round | int }}</span>
+                    </div>
+
+                    <div class="team-stat">
+                        <span class="stat-label">⌀ RD</span>
+                        <span>{{ match["team_b_rd"] | round(1) }}</span>
+                    </div>
+
+                    <div class="team-stat">
+                        <span class="stat-label">Win%</span>
+                        <span>—</span>
                     </div>
 
                 </div>
@@ -378,7 +404,12 @@
 
 <script>
 
-    const ratingHistory = {{ rating_history | tojson }};
+    /* =========================
+       Rating graphs
+       ========================= */
+
+    const ratingHistory =
+        {{ rating_history | tojson }};
 
 
     function createRatingChart(
@@ -386,17 +417,20 @@
         ratingType
     ) {
 
-        const history = ratingHistory[ratingType];
+        const history =
+            ratingHistory[ratingType];
 
 
-        const labels = history.map(
-            entry => entry.match_id
-        );
+        const labels =
+            history.map(
+                entry => entry.match_id
+            );
 
 
-        const ratings = history.map(
-            entry => entry.rating
-        );
+        const ratings =
+            history.map(
+                entry => entry.rating
+            );
 
 
         new Chart(
@@ -409,9 +443,13 @@
                     labels: labels,
 
                     datasets: [{
+
                         label: "Rating",
+
                         data: ratings,
+
                         tension: 0.2
+
                     }]
 
                 },
@@ -461,7 +499,29 @@
         "hf"
     );
 
+
+    /* =========================
+       Match expansion
+       ========================= */
+
+    document
+        .querySelectorAll(".match")
+        .forEach(match => {
+
+            match.addEventListener(
+                "click",
+                () => {
+
+                    match.classList.toggle(
+                        "expanded"
+                    );
+
+                }
+            );
+
+        });
+
 </script>
 
 {% endblock %}
-
+```

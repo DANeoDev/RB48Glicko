@@ -1,28 +1,577 @@
 {% extends "base.html" %}
 
-
-{% block title %}
-    RB48 — How the Rating Works
-{% endblock %}
-
+{% block title %}Glicko FAQ{% endblock %}
 
 {% block content %}
 
-<div class="page-header">
+<div class="faq-page">
 
-    <h1>How does the rating work?</h1>
+<div class="faq-page">
 
-    <p>
-        An explanation of the RB48 performance rating
+    <h1>Glicko FAQ</h1>
+
+    <p class="faq-intro">
+        So what is this number next to your name, and why does it keep changing?
+        This page explains where the rating comes from, what it actually means,
+        and how Glicko-2 is adapted for RB48.
     </p>
 
-</div>
+    <p>
+        If you want to dive deeper into the underlying system, the
+        <a href="https://de.wikipedia.org/wiki/Glicko-System" target="_blank" rel="noopener">
+            German Wikipedia article on the Glicko system
+        </a>
+        provides a more technical overview of Glicko and Glicko-2.
+    </p>
 
 
-<div class="card">
+    <h2>What is a Glicko rating?</h2>
 
     <p>
-        Coming soon.
+        A Glicko rating is a mathematical way of summarising the results of
+        previous matches and using them to estimate how likely a player is to
+        win future matches.
+    </p>
+
+    <p>
+        It is important to be precise about what that means:
+        <strong>the rating is a result-based performance measure, not a measurement
+        of a player's actual or intrinsic strength.</strong>
+    </p>
+
+    <p>
+        If someone has a high rating, it means that the results associated with
+        that rating have been strong relative to the opponents and teammates
+        involved. It does not mean that the number has discovered some objective
+        measure of how good that person "really" is.
+    </p>
+
+
+    <h2>Where does Glicko come from?</h2>
+
+    <p>
+        Glicko is part of a longer line of rating systems, with its roots
+        going back to the <strong>Elo rating system</strong>.
+    </p>
+
+    <p>
+        Elo was originally developed for chess. The basic idea is surprisingly
+        simple: instead of merely saying that one player is better than another,
+        a rating can be used to calculate the <strong>probability of a particular
+        result</strong>.
+    </p>
+
+    <p>
+        If two players have similar ratings, a roughly even result is expected.
+        If one player has a substantially higher rating, that player is expected
+        to win more often.
+    </p>
+
+    <p>
+        After an actual match, the result can then be compared with what was
+        expected. A player who performs better than expected gains rating;
+        a player who performs worse than expected loses rating.
+    </p>
+
+
+    <h3>So is Elo basically a win-probability system?</h3>
+
+    <p>
+        Yes. That's one of the most important ideas behind the whole family of
+        rating systems.
+    </p>
+
+    <p>
+        A rating difference can be converted into an expected score. The larger
+        the difference between two ratings, the more strongly the system expects
+        one side to win.
+    </p>
+
+    <p>
+        This creates a useful feedback loop:
+    </p>
+
+    <ol>
+        <li>Ratings produce an expected result.</li>
+        <li>The match produces an actual result.</li>
+        <li>The difference between expected and actual performance changes the ratings.</li>
+        <li>The new ratings produce new expectations for future matches.</li>
+    </ol>
+
+    <p>
+        Glicko keeps this basic idea, but adds information about how
+        <strong>uncertain</strong> a rating currently is.
+    </p>
+
+
+    <h2>So what does Glicko-2 add?</h2>
+
+    <h3>What is RD?</h3>
+
+    <p>
+        <strong>RD</strong> stands for <em>Rating Deviation</em>.
+    </p>
+
+    <p>
+        Think of it as an uncertainty indicator. A rating of 1600 with a low RD
+        represents a much more established estimate than a rating of 1600 with
+        a high RD.
+    </p>
+
+    <p>
+        This matters because the system should not treat ten matches of evidence
+        in exactly the same way as a single match.
+    </p>
+
+    <p>
+        A player with very little recent information has a less certain rating.
+        As more results accumulate, the system can become more confident.
+    </p>
+
+
+    <h3>Why does RD matter when looking at the stats page?</h3>
+
+    <p>
+        Imagine two players:
+    </p>
+
+    <ul>
+        <li>Player A: rating 1650, RD 20</li>
+        <li>Player B: rating 1700, RD 100</li>
+    </ul>
+
+    <p>
+        Player B has the higher raw rating, but there is considerably more
+        uncertainty around it.
+    </p>
+
+    <p>
+        For the ordering on the stats page, RB48 therefore uses a
+        <strong>conservative rating</strong>:
+    </p>
+
+    <p class="formula">
+        Conservative Rating = Rating − 3 × RD
+    </p>
+
+    <p>
+        This favours ratings that are both high and well established.
+        It is deliberately conservative: uncertainty is treated as a reason
+        not to assume that the player's current rating is fully representative.
+        <br><br>
+        Glicko 2 contains some other variables not present in the statspage, check the <a href="https://de.wikipedia.org/wiki/Glicko-System" target="_blank" rel="noopener"> Wikipedia article</a> for more details.
+    </p>
+
+
+    <h2>What exactly is the RB48 rating measuring?</h2>
+
+    <h3>Is a 1600-rated player "better" than a 1400-rated player?</h3>
+
+    <p>
+        Not in any absolute sense.
+    </p>
+
+    <p>
+        The rating is based on match results. It describes how a player's
+        observed results have translated into the rating model's expectations.
+    </p>
+
+    <p>
+        Football contains a huge number of things that a rating like this does
+        not directly measure: fitness, injuries, tactics, positioning,
+        communication, passing quality, finishing, defending, chemistry,
+        playing style, and simply what happened to occur during a particular
+        match.
+    </p>
+
+    <p>
+        None of those things needs to be converted into a number for the system
+        to work.
+    </p>
+
+    <p>
+        Consequently, a rating should not be treated as a verdict on a player.
+        It is better understood as:
+        <strong>"What does the match history currently imply according to this
+        particular model?"</strong>
+    </p>
+
+    <h3>Why not just use win%?</h3>
+
+    <p>
+        Win% tells us <strong>how often</strong> a player won, but not <strong>how difficult those wins were</strong>.
+    </p>
+
+    <p>
+        For example, imagine two players:
+    </p>
+
+    <ul>
+        <li>Player A wins 60% of their matches, but frequently beats teams rated much higher than their own.</li>
+        <li>Player B wins 75% of their matches, but mostly had expected wins.</li>
+    </ul>
+
+    <p>
+        A simple win% would rate Player B higher. Glicko can rate Player A higher because
+        <strong>beating a strong opponent is a more impressive result than an expected win</strong>.
+        The rating therefore considers not only the result itself, but also how that result compares
+        to what was expected.
+    </p>
+
+    <h2>Why are there three ratings?</h2>
+
+    <h3>What are TOTAL, BOX and HF?</h3>
+
+    <p>
+        RB48 keeps three separate rating streams:
+    </p>
+
+    <ul>
+        <li><strong>TOTAL</strong> — the overall rating across all relevant matches.</li>
+        <li><strong>BOX</strong> — the rating based on Box matches.</li>
+        <li><strong>HF</strong> — the rating based on Half-Field matches.</li>
+    </ul>
+
+    <p>
+        These are independent rating streams. A result in a Box match changes
+        the Box rating and the Total rating, while the Half-Field rating is
+        kept separate. Likewise, HF only affects HF and Total, but not BOX games.
+        The TOTAL rating stream takes all games into account. 
+    </p>
+
+    <p>
+        This allows the stats page to show how the results behave in the
+        different formats.
+    </p>
+
+      <h2>How does a team rating work?</h2>
+
+    <h3>Football is a team game, so how can an individual rating change?</h3>
+
+    <p>
+        This is one of the unavoidable compromises of applying an individual
+        rating system to team football.
+    </p>
+
+    <p>
+        A match gives us a team result, not an isolated result for every
+        individual player. RB48 therefore uses the ratings of the players on
+        each team to calculate a <strong>team rating</strong>.
+    </p>
+
+    <p>
+        The team ratings determine the expected result. The actual team result
+        is then compared with that expectation, and the individual players
+        receive rating updates based on the match.
+    </p>
+
+    <p>
+        In simplified terms:
+    </p>
+
+    <p class="formula">
+        players → team ratings → expected result → actual result → rating updates
+    </p>
+
+    <p>
+        This means that a player does not receive a rating update because the
+        system knows exactly how well they personally played. Instead, they receive
+        an update because they participated in a match whose result contained
+        information relevant to the rating model.
+    </p>
+
+    <p>
+        The individual rating change of each player on a team can differ based on
+        their personal <b>RD</b> at the time of the match.
+        For each player, the update therefore considers:
+    </p>
+
+    <ul>
+        <li><b>Player Team Rating</b></li>
+        <li><b>(Personal RD)*</b></li>
+        <li><b>Opponent Team Rating</b></li>
+        <li><b>Opponent Team RD</b></li>
+    </ul>
+
+    <p>
+        <b>Player Team Rating</b> is calculated as the arithmetic mean of the
+        ratings of the players on the team.
+    </p>
+
+    <p>
+        <b>Team RD</b> is calculated as the quadratic mean of the players' RDs.
+        This gives larger RD values more influence, reflecting the increased
+        uncertainty they introduce to the team rating.
+    </p>
+
+    <p>
+        <b>(Personal RD)*</b> combines the player's individual uncertainty with the
+        uncertainty of their team:
+    </p>
+
+    <p style="text-align: center;">
+        <b>(Personal RD)* = (Personal RD + Team RD) / 2</b>
+    </p>
+
+    <p>
+        This means that the rating update reflects both the uncertainty of the
+        individual player's rating and the uncertainty of the team as a whole.
+    </p>
+
+
+ <h3>How does the rating translate into a probability?</h3>
+
+<p>
+    The difference between two team ratings determines how strongly the model
+    favours one team over the other. The expected score can be calculated
+    precisely using the Glicko-2 formula:
+</p>
+
+<p style="text-align: center;">
+    <strong>
+        E = 1 / (1 + 10<sup>-g(RD) · (R<sub>1</sub> - R<sub>2</sub>) / 400</sup>)
+    </strong>
+</p>
+
+<p>
+    The function <strong>g(RD)</strong> accounts for the uncertainty of the
+    ratings:
+</p>
+
+<p style="text-align: center;">
+    <strong>
+        g(RD) = 1 / √(1 + 3q²RD² / π²)
+    </strong>
+    <br>
+    where <strong>q = ln(10) / 400</strong>.
+</p>
+
+<p>
+    In other words, the expected result depends not only on the difference
+    between the ratings, but also on how certain those ratings are.
+</p>
+
+<p>
+    For example:
+</p>
+
+<ul>
+    <li>Team A: <strong>1696 rating, RD 148</strong></li>
+    <li>Team B: <strong>1480 rating, RD 148</strong></li>
+</ul>
+
+<p>
+    The Glicko-2 model gives Team A an expected score of approximately
+    <strong>75.5%</strong>, leaving Team B with approximately
+    <strong>24.5%</strong>.
+</p>
+
+<p>
+    Now consider:
+</p>
+
+<ul>
+    <li>Team A: <strong>1480 rating, RD 48</strong></li>
+    <li>Team B: <strong>1700 rating, RD 148</strong></li>
+</ul>
+
+<p>
+    Team B is again strongly favoured, with an expected score of approximately
+    <strong>75.9%</strong>.
+</p>
+
+<p>
+    As RB48's database grows, we will test how accurately these model
+    probabilities predict actual match results. That gives us a way to evaluate
+    the model empirically rather than simply assuming that the mathematical
+    model must be accurate.
+</p>
+
+    <h3>Does winning against a stronger team give more rating?</h3>
+
+    <p>
+        Generally, yes.
+    </p>
+
+    <p>
+        A result that was already strongly expected contains less new information
+        than a result that was unlikely according to the current ratings.
+    </p>
+
+    <p>
+        Beating a team that the model expected to beat you is therefore more
+        informative than beating a team that was already heavily favoured.
+    </p>
+
+
+    <h2>What happens when someone doesn't play?</h2>
+
+    <h3>Does my rating decrease if I don't play?</h3>
+
+    <p>
+        No. Missing a match does not directly lower the rating itself.
+    </p>
+
+    <p>
+        However, the system becomes less certain about an old rating as time
+        passes without new evidence. Glicko represents this by increasing RD.
+    </p>
+
+    <p>
+        RB48 implements this through a match-based inactivity rule rather than
+        simply using calendar time.
+    </p>
+
+
+    <h3>How does inactivity work in RB48?</h3>
+
+    <p>
+        RD increases linearly for missed matches.
+    </p>
+
+    <p>
+        The three rating streams have slightly different inactivity rules:
+    </p>
+
+    <ul>
+        <li>
+            <strong>TOTAL RD</strong> increases for every missed match,
+            regardless of whether it was Box or Half-Field.
+        </li>
+        <li>
+            <strong>BOX RD</strong> increases when a player misses a Box match.
+        </li>
+        <li>
+            <strong>HF RD</strong> increases when a player misses a Half-Field match.
+        </li>
+    </ul>
+
+    <p>
+        This means that inactivity increases uncertainty rather than simply
+        punishing someone with lost rating points.
+    </p>
+
+
+    <h2>What happens when a new player joins?</h2>
+
+    <h3>Why doesn't everyone start with a completely arbitrary rating?</h3>
+
+    <p>
+        New players have very little information available, so their initial
+        rating is necessarily an assumption.
+    </p>
+
+    <p>
+        RB48 starts new ratings from the standard Glicko-2 starting point and
+        deliberately gives new ratings a relatively large RD.
+    </p>
+
+    <p>
+        In other words, the system starts with the attitude:
+        <strong>"We have very little evidence about this player yet."</strong>
+    </p>
+
+    <p>
+        Actual match results can then move the rating and reduce the uncertainty
+        as more information becomes available.
+    </p>
+
+
+    <h2>How does RB48 handle calibration?</h2>
+
+    <p>
+        New ratings begin with a relatively large RD because there is little
+        evidence about a new player. This allows the first few results to have
+        an appropriately large influence on the rating while the system is still
+        uncertain.
+    </p>
+
+    <p>
+        In exceptional cases, RB48 can also set calibration values manually.
+        This is intended only for extreme performance outliers where starting
+        from the ordinary initial rating would create an unnecessarily large
+        disturbance in the rating system.
+    </p>
+
+    <p>
+        <strong>No manual calibration is used for regular players.</strong>
+        The normal process is simply to start with the standard initial values
+        and let the match results establish the rating.
+    </p>
+
+
+    <h2>What about external players?</h2>
+
+    <h3>Why do some matches show an "External Player"?</h3>
+
+    <p>
+        Not every person appearing in a match is necessarily part of the RB48
+        player pool.
+    </p>
+
+    <p>
+        When an alias is marked as ignored, RB48 does not create or maintain a
+        normal player rating for that person. Instead, their participation can
+        still be represented in the match as an
+        <strong>External Player</strong>. The external player contributes a larger amount of uncertainty to the Team's RD value. 
+    </p>
+
+    <p>
+        This means the historical match information remains complete without
+        introducing an unrated person into the normal player statistics.
+    </p>
+
+
+    <h2>Why do ratings sometimes change by a surprisingly large amount?</h2>
+
+    <p>
+        A rating change is not simply a fixed number of points for a win or loss.
+        It depends on the circumstances of the match.
+    </p>
+
+    <p>
+        Among other things, the calculation considers:
+    </p>
+
+    <ul>
+        <li>the player's current rating,</li>
+        <li>the player's RD,</li>
+        <li>the ratings and uncertainty of the opposing players,</li>
+        <li>the expected result,</li>
+        <li>and the actual result.</li>
+    </ul>
+
+    <p>
+        Consequently, the same win can produce different rating changes at
+        different points in a player's rating history.
+    </p>
+
+
+    <h2>So what should I actually take away from my rating?</h2>
+
+    <p>
+        Probably this:
+    </p>
+
+    <blockquote>
+        <strong>Your rating is a statistical summary of your match results,
+        interpreted through the Glicko-2 model.</strong>
+    </blockquote>
+
+    <p>
+        It is useful for comparing historical results, estimating expected
+        outcomes, tracking how those estimates change over time, and creating
+        balanced teams.
+    </p>
+
+    <p>
+        It is not a judgement, a skill certificate, or a measure of personal
+        worth.
+    </p>
+
+    <p>
+        The number is there because statistics are useful.
+        <strong>You do not need to take it personally.</strong>
     </p>
 
 </div>

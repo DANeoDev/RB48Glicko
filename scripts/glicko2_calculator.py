@@ -394,9 +394,18 @@ def update_match(
             - total_virtual_player.rating
         )
 
+        total_rd_change =(
+            total_updated_virtual.rd
+            - total_virtual_player.rd
+        )
+        total_sigma_change =(
+                    total_updated_virtual.sigma
+                    - total_virtual_player.sigma
+                )
+
         total_player.rating += total_rating_change
-        total_player.rd = total_updated_virtual.rd
-        total_player.sigma = total_updated_virtual.sigma
+        total_player.rd += total_rd_change
+        total_player.sigma += total_sigma_change
 
         # -----------------------------------------------------
         # PITCH-SPECIFIC
@@ -549,9 +558,18 @@ def update_match(
             - total_virtual_player.rating
         )
 
+        total_rd_change =(
+            total_updated_virtual.rd
+            - total_virtual_player.rd
+        )
+        total_sigma_change =(
+                    total_updated_virtual.sigma
+                    - total_virtual_player.sigma
+                )
+
         total_player.rating += total_rating_change
-        total_player.rd = total_updated_virtual.rd
-        total_player.sigma = total_updated_virtual.sigma
+        total_player.rd += total_rd_change
+        total_player.sigma += total_sigma_change
 
         # -----------------------------------------------------
         # PITCH-SPECIFIC
