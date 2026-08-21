@@ -4,7 +4,7 @@ def get_matches(connection):
     cursor = connection.execute("""
         SELECT match_id, date, pitch, players_a, players_b, goals_a, goals_b
         FROM matches
-        ORDER BY match_id
+        ORDER BY match_id 
     """)
 
     matches = {}

@@ -45,15 +45,9 @@
                 <div class="players">
 
                     {% for player in match["team_a_players"] %}
-
-                        <span class="match-player">
-                            {{ player["name"] }}
-                            <span class="player-rating">
-                                ({{ player["rating"] | round | int }})
-                            </span>
-                        </span>{% if not loop.last %}, {% endif %}
-
+                        <span class="match-player">{{ player["name"] }}<span class="player-rating">({{ player["rating"] | round | int }})</span>{% if not loop.last %}, {% endif %}</span>
                     {% endfor %}
+                                    
 
                     {% if match["external_a"] > 0 %}
 
@@ -89,15 +83,10 @@
                 <div class="players">
 
                     {% for player in match["team_b_players"] %}
-
-                        <span class="match-player">
-                            {{ player["name"] }}
-                            <span class="player-rating">
-                                ({{ player["rating"] | round | int }})
-                            </span>
-                        </span>{% if not loop.last %}, {% endif %}
-
+                        <span class="match-player">{{ player["name"] }}<span class="player-rating">({{ player["rating"] | round | int }})</span>{% if not loop.last %}, {% endif %}</span>
                     {% endfor %}
+
+
 
                     {% if match["external_b"] > 0 %}
 

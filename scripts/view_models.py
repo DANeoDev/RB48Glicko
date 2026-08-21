@@ -245,9 +245,6 @@ def build_match_history(connection, players, player_id=None):
             **details,
         })
 
-    history.sort(
-        key=lambda match: match["date"],
-        reverse=True
-    )
+    
 
     return history

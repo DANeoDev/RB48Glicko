@@ -81,7 +81,7 @@ def match_history():
         connection,
         players
     )
-
+    matches.reverse()
     connection.close()
 
     return render_template(

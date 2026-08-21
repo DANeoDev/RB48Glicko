@@ -8,7 +8,7 @@ data/*.sqlite
 data/*.sqlite3
 
 # Match input data
-data/matches/
+matches/
 
 # Database backups
 data/backups/
