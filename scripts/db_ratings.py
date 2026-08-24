@@ -16,6 +16,18 @@ def get_calibrations(connection):
     return calibrations
 
 
+def set_calibration(connection, player_id, rating, rd, sigma):
+    connection.execute("""
+        INSERT INTO calibrations (player_id, rating, rd, sigma)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(player_id) DO UPDATE SET
+            rating = excluded.rating,
+            rd = excluded.rd,
+            sigma = excluded.sigma
+    """, (player_id, rating, rd, sigma))
+    connection.commit()
+
+
 def get_ratings(connection):
     rows = connection.execute("""
         SELECT player_id, rating_type, rating, rd, sigma
@@ -25,7 +37,6 @@ def get_ratings(connection):
     ratings = {}
 
     for row in rows:
-
         player_id = row["player_id"]
         rating_type = row["rating_type"]
 
@@ -51,7 +62,6 @@ def get_match_ratings(connection, match_id):
     ratings = {}
 
     for row in rows:
-
         player_id = row["player_id"]
         rating_type = row["rating_type"]
 
@@ -114,7 +124,6 @@ def get_player_rating_history(connection, player_id):
             "rating": row["rating"]
         })
 
-    # Append the player's current rating as the final point
     current_ratings = connection.execute("""
         SELECT
             rating_type,
