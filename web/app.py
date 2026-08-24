@@ -4,7 +4,7 @@ from scripts.database import get_connection
 from scripts.db_ratings import get_ratings, get_player_rating_history
 from scripts.db_players import get_players
 from scripts.db_matches import get_player_stats, get_matches, get_match_teams
-from scripts.view_models import build_leaderboard, build_match_history
+from scripts.view_models import build_leaderboard, build_match_history, build_model_analysis
 
 
 app = Flask(__name__)
@@ -45,8 +45,8 @@ def player_profile(player_id):
     stats = get_player_stats(connection)
 
     rating_history = get_player_rating_history(
-    connection,
-    player_id
+        connection,
+        player_id
     )
 
     rating_extremes = {}
@@ -111,6 +111,28 @@ def match_history():
     return render_template(
         "matches.html",
         matches=matches
+    )
+
+
+@app.route("/model-analysis")
+def model_analysis():
+
+    connection = get_connection()
+
+    players = get_players(connection)
+
+    matches = build_match_history(
+        connection,
+        players
+    )
+
+    connection.close()
+
+    analysis = build_model_analysis(matches)
+
+    return render_template(
+        "model_analysis.html",
+        analysis=analysis
     )
 
 
