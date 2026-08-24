@@ -45,9 +45,14 @@
                 <div class="players">
 
                     {% for player in match["team_a_players"] %}
-                        <span class="match-player">{{ player["name"] }}<span class="player-rating">({{ player["rating"] | round | int }})</span>{% if not loop.last %}, {% endif %}</span>
+                        <span class="match-player">
+                            {{ player["name"] }}
+                            {% if player["rating"] is not none %}
+                                <span class="player-rating">({{ player["rating"] | round | int }})</span>
+                            {% endif %}
+                            {% if not loop.last %}, {% endif %}
+                        </span>
                     {% endfor %}
-                                    
 
                     {% if match["external_a"] > 0 %}
 
@@ -83,10 +88,14 @@
                 <div class="players">
 
                     {% for player in match["team_b_players"] %}
-                        <span class="match-player">{{ player["name"] }}<span class="player-rating">({{ player["rating"] | round | int }})</span>{% if not loop.last %}, {% endif %}</span>
+                        <span class="match-player">
+                            {{ player["name"] }}
+                            {% if player["rating"] is not none %}
+                                <span class="player-rating">({{ player["rating"] | round | int }})</span>
+                            {% endif %}
+                            {% if not loop.last %}, {% endif %}
+                        </span>
                     {% endfor %}
-
-
 
                     {% if match["external_b"] > 0 %}
 
@@ -108,85 +117,95 @@
 
         <div class="match-details">
 
-            <!-- Team A details -->
+            {% if match["team_a_rating"] is not none %}
 
-            <div class="team-details team-a">
+                <!-- Team A details -->
 
-                <div class="team-stat">
-                    <span class="stat-label">⌀ Rating</span>
-                    <span>{{ match["team_a_rating"] | round | int }}</span>
+                <div class="team-details team-a">
+
+                    <div class="team-stat">
+                        <span class="stat-label">⌀ Rating</span>
+                        <span>{{ match["team_a_rating"] | round | int }}</span>
+                    </div>
+
+                    <div class="team-stat">
+                        <span class="stat-label">⌀ RD</span>
+                        <span>{{ match["team_a_rd"] | round(1) }}</span>
+                    </div>
+
+                    <div class="team-stat">
+                        <span class="stat-label">Expected</span>
+                        <span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span>
+                    </div>
+
                 </div>
 
-                <div class="team-stat">
-                    <span class="stat-label">⌀ RD</span>
-                    <span>{{ match["team_a_rd"] | round(1) }}</span>
+
+                <!-- Rating change -->
+
+                <div class="rating-delta">
+
+                    {% if match["rating_delta"] > 0 %}
+                        <span class="positive">
+                            ↑ {{ match["rating_delta"] | round(1) }}
+                        </span>
+                    {% elif match["rating_delta"] < 0 %}
+                        <span class="negative">
+                            ↓ {{ match["rating_delta"] | abs | round(1) }}
+                        </span>
+                    {% else %}
+                        <span>
+                            — 0.0
+                        </span>
+                    {% endif %}
+
+                    <span class="delta-separator">|</span>
+
+                    {% if match["rating_delta"] < 0 %}
+                        <span class="positive">
+                            ↑ {{ match["rating_delta"] | abs | round(1) }}
+                        </span>
+                    {% elif match["rating_delta"] > 0 %}
+                        <span class="negative">
+                            ↓ {{ match["rating_delta"] | round(1) }}
+                        </span>
+                    {% else %}
+                        <span>
+                            — 0.0
+                        </span>
+                    {% endif %}
+
                 </div>
 
-                <div class="team-stat">
-                    <span class="stat-label">Expected</span>
-                    <span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span>
+
+                <!-- Team B details -->
+
+                <div class="team-details team-b">
+
+                    <div class="team-stat">
+                        <span class="stat-label">⌀ Rating</span>
+                        <span>{{ match["team_b_rating"] | round | int }}</span>
+                    </div>
+
+                    <div class="team-stat">
+                        <span class="stat-label">⌀ RD</span>
+                        <span>{{ match["team_b_rd"] | round(1) }}</span>
+                    </div>
+
+                    <div class="team-stat">
+                        <span class="stat-label">Expected</span>
+                        <span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span>
+                    </div>
+
                 </div>
 
-            </div>
+            {% else %}
 
-
-            <!-- Rating change -->
-
-<div class="rating-delta">
-
-    {% if match["rating_delta"] > 0 %}
-        <span class="positive">
-            ↑ {{ match["rating_delta"] | round(1) }}
-        </span>
-    {% elif match["rating_delta"] < 0 %}
-        <span class="negative">
-            ↓ {{ match["rating_delta"] | abs | round(1) }}
-        </span>
-    {% else %}
-        <span>
-            — 0.0
-        </span>
-    {% endif %}
-
-    <span class="delta-separator">|</span>
-
-    {% if match["rating_delta"] < 0 %}
-        <span class="positive">
-            ↑ {{ match["rating_delta"] | abs | round(1) }}
-        </span>
-    {% elif match["rating_delta"] > 0 %}
-        <span class="negative">
-            ↓ {{ match["rating_delta"] | round(1) }}
-        </span>
-    {% else %}
-        <span>
-            — 0.0
-        </span>
-    {% endif %}
-
-</div>
-
-
-            <!-- Team B details -->
-
-            <div class="team-details team-b">
-
-                <div class="team-stat">
-                    <span class="stat-label">⌀ Rating</span>
-                    <span>{{ match["team_b_rating"] | round | int }}</span>
+                <div class="team-details">
+                    <span>Ratings for this match have not been calculated yet.</span>
                 </div>
 
-                <div class="team-stat">
-                    <span class="stat-label">⌀ RD</span>
-                    <span>{{ match["team_b_rd"] | round(1) }}</span>
-                </div>
-
-                <div class="team-stat">
-                    <span class="stat-label">Expected</span>
-                    <span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span>
-                </div>
-
-            </div>
+            {% endif %}
 
         </div>
 
