@@ -1,10 +1,11 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 
 from scripts.database import get_connection
 from scripts.db_ratings import get_ratings, get_player_rating_history
 from scripts.db_players import get_players
 from scripts.db_matches import get_player_stats, get_matches, get_match_teams
 from scripts.view_models import build_leaderboard, build_match_history
+from scripts.model_analysis import analyze_model
 
 
 app = Flask(__name__)
@@ -111,6 +112,24 @@ def match_history():
     return render_template(
         "matches.html",
         matches=matches
+    )
+
+
+@app.route("/model-analysis")
+def model_analysis():
+    mode = request.args.get("mode", "total")
+
+    if mode not in ("total", "pitch"):
+        mode = "total"
+
+    connection = get_connection()
+    analysis = analyze_model(connection, mode)
+    connection.close()
+
+    return render_template(
+        "model_analysis.html",
+        analysis=analysis,
+        mode=mode
     )
 
 
