@@ -6,6 +6,28 @@
 {% endblock %}
 
 
+{% block head %}
+<style>
+.match-entry-button-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 18px 0 26px;
+}
+
+.match-entry-button {
+    display: inline-block;
+    padding: 11px 22px;
+    border-radius: var(--radius);
+    background: var(--green-dark);
+    color: var(--text-main);
+    border: 1px solid var(--green-dark);
+    font-weight: 700;
+    text-decoration: none;
+}
+</style>
+{% endblock %}
+
+
 {% block content %}
 
 <div class="page-header">
@@ -16,6 +38,13 @@
         All recorded RB48 matches
     </p>
 
+</div>
+
+
+<div class="match-entry-button-wrap">
+    <a class="match-entry-button" href="{{ url_for('match_entry') }}">
+        ＋ Enter Match
+    </a>
 </div>
 
 
@@ -183,18 +212,22 @@
                 <div class="team-details team-b">
 
                     <div class="team-stat">
-                        <span class="stat-label">⌀ Rating</span>
-                        <span>{{ match["team_b_rating"] | round | int }}</span>
-                    </div>
 
-                    <div class="team-stat">
-                        <span class="stat-label">⌀ RD</span>
-                        <span>{{ match["team_b_rd"] | round(1) }}</span>
-                    </div>
+                        <div class="team-stat">
+                            <span class="stat-label">⌀ Rating</span>
+                            <span>{{ match["team_b_rating"] | round | int }}</span>
+                        </div>
 
-                    <div class="team-stat">
-                        <span class="stat-label">Expected</span>
-                        <span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span>
+                        <div class="team-stat">
+                            <span class="stat-label">⌀ RD</span>
+                            <span>{{ match["team_b_rd"] | round(1) }}</span>
+                        </div>
+
+                        <div class="team-stat">
+                            <span class="stat-label">Expected</span>
+                            <span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span>
+                        </div>
+
                     </div>
 
                 </div>
