@@ -12,9 +12,6 @@ from scripts.db_matches import get_match_teams, get_matches
 from scripts.db_ratings import get_match_ratings
 
 
-CALIBRATION_BUCKETS = 10
-
-
 def _expected_score(team_a, team_b):
     """Return Glicko-2 expected score for two team ratings."""
     mu_a = (team_a["rating"] - 1500.0) / GLICKO2_SCALE
@@ -66,27 +63,74 @@ def _log_loss(prediction, actual):
     return -(actual * math.log(prediction) + (1 - actual) * math.log(1 - prediction))
 
 
-def _calibration(predictions):
-    buckets = []
+def _quantile_baskets(predictions):
+    """Create equal-count prediction baskets (deciles, or ventiles for larger sets)."""
+    count = len(predictions)
+    basket_count = 20 if count >= 200 else 10
+    ordered = sorted(predictions, key=lambda item: item["prediction"])
+    baskets = []
 
-    for bucket_index in range(CALIBRATION_BUCKETS):
-        lower = bucket_index / CALIBRATION_BUCKETS
-        upper = (bucket_index + 1) / CALIBRATION_BUCKETS
-        values = [
-            item for item in predictions
-            if lower <= item["prediction"] < upper
-            or (bucket_index == CALIBRATION_BUCKETS - 1 and item["prediction"] == upper)
-        ]
+    for index in range(basket_count):
+        start = index * count // basket_count
+        end = (index + 1) * count // basket_count
+        values = ordered[start:end]
+        if not values:
+            continue
 
-        if values:
-            buckets.append({
-                "label": f"{lower:.1f}–{upper:.1f}",
-                "count": len(values),
-                "predicted": sum(item["prediction"] for item in values) / len(values),
-                "actual": sum(item["actual"] for item in values) / len(values),
-            })
+        predictions_only = [item["prediction"] for item in values]
+        actuals = [item["actual"] for item in values]
+        baskets.append({
+            "label": f"{min(predictions_only) * 100:.1f}–{max(predictions_only) * 100:.1f}%",
+            "count": len(values),
+            "predicted": sum(predictions_only) / len(values),
+            "actual": sum(actuals) / len(values),
+        })
 
-    return buckets
+    return baskets
+
+
+def _lowess(predictions, points=50, fraction=0.35):
+    """Return a LOWESS calibration curve using tricube weights and local linear fits."""
+    if len(predictions) < 10:
+        return []
+
+    ordered = sorted(predictions, key=lambda item: item["prediction"])
+    xs = [item["prediction"] for item in ordered]
+    ys = [item["actual"] for item in ordered]
+    n = len(xs)
+    span = max(3, int(math.ceil(fraction * n)))
+
+    curve = []
+    for step in range(points):
+        x0 = step / (points - 1)
+        distances = [abs(x - x0) for x in xs]
+        bandwidth = sorted(distances)[min(span - 1, n - 1)]
+
+        if bandwidth == 0:
+            weights = [1.0 if distance == 0 else 0.0 for distance in distances]
+        else:
+            weights = [
+                (1 - (distance / bandwidth) ** 3) ** 3
+                if distance <= bandwidth else 0.0
+                for distance in distances
+            ]
+
+        weight_sum = sum(weights)
+        if weight_sum == 0:
+            continue
+
+        # Weighted local linear regression around x0.
+        mean_x = sum(weight * x for weight, x in zip(weights, xs)) / weight_sum
+        mean_y = sum(weight * y for weight, y in zip(weights, ys)) / weight_sum
+        sxx = sum(weight * (x - mean_x) ** 2 for weight, x in zip(weights, xs))
+        sxy = sum(weight * (x - mean_x) * (y - mean_y) for weight, x, y in zip(weights, xs, ys))
+
+        slope = sxy / sxx if sxx > 1e-12 else 0.0
+        fitted = mean_y + slope * (x0 - mean_x)
+        fitted = min(1.0, max(0.0, fitted))
+        curve.append({"predicted": x0, "actual": fitted})
+
+    return curve
 
 
 def analyze_model(connection, mode=TOTAL):
@@ -153,6 +197,7 @@ def analyze_model(connection, mode=TOTAL):
             "mean_absolute_error": None,
             "accuracy": None,
             "calibration": [],
+            "lowess": [],
         }
 
     brier = sum((item["prediction"] - item["actual"]) ** 2 for item in predictions) / count
@@ -172,5 +217,6 @@ def analyze_model(connection, mode=TOTAL):
         "log_loss": log_loss,
         "mean_absolute_error": mean_absolute_error,
         "accuracy": accuracy,
-        "calibration": _calibration(predictions),
+        "calibration": _quantile_baskets(predictions),
+        "lowess": _lowess(predictions),
     }
