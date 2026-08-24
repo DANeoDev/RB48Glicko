@@ -123,8 +123,8 @@
                 </div>
 
                 <div class="team-stat">
-                    <span class="stat-label">Win%</span>
-                    <span>—</span>
+                    <span class="stat-label">Expected</span>
+                    <span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span>
                 </div>
 
             </div>
@@ -182,8 +182,8 @@
                 </div>
 
                 <div class="team-stat">
-                    <span class="stat-label">Win%</span>
-                    <span>—</span>
+                    <span class="stat-label">Expected</span>
+                    <span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span>
                 </div>
 
             </div>

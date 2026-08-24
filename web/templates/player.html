@@ -1,4 +1,3 @@
-```html
 {% extends "base.html" %}
 
 
@@ -47,7 +46,18 @@
     .highlight-player {
     font-weight: bold;
     color: var(--green-light);
-}
+    }
+
+    .rating-extremes {
+    margin-top: 8px;
+    font-size: 0.85em;
+    line-height: 1.5;
+    }
+
+    .rating-extremes strong {
+        display: inline-block;
+        width: 42px;
+    }
 
 
     /* =========================
@@ -80,7 +90,7 @@
 
         <p>
             <a href="{{ url_for('home') }}">
-                ← Back to Leaderboard
+                ← Back to Stats
             </a>
         </p>
 
@@ -167,35 +177,56 @@
          Rating graphs
          ========================= -->
 
-    <div class="graphs">
+<div class="graphs">
 
-        <div class="graph">
+    {% for rating_type in ["total", "box", "hf"] %}
 
-            <h3>TOTAL</h3>
+    <div class="graph">
 
-            <canvas id="totalChart"></canvas>
+        <h3>{{ rating_type | upper }}</h3>
 
-        </div>
+        <canvas id="{{ rating_type }}Chart"></canvas>
 
+        <div class="rating-extremes">
 
-        <div class="graph">
+            <div>
+                <strong>Peak</strong>
 
-            <h3>BOX</h3>
+                {% if rating_extremes[rating_type]["peak"] %}
+                    {{ rating_extremes[rating_type]["peak"]["rating"] | round | int }}
 
-            <canvas id="boxChart"></canvas>
+                    {% if rating_extremes[rating_type]["peak"]["date"] %}
+                        ·
+                        {{ rating_extremes[rating_type]["peak"]["date"][:10] }}
+                    {% endif %}
 
-        </div>
+                {% else %}
+                    —
+                {% endif %}
+            </div>
+            <div>
+                <strong>Low</strong>
 
+                {% if rating_extremes[rating_type]["low"] %}
+                    {{ rating_extremes[rating_type]["low"]["rating"] | round | int }}
 
-        <div class="graph">
+                    {% if rating_extremes[rating_type]["low"]["date"] %}
+                        ·
+                        {{ rating_extremes[rating_type]["low"]["date"][:10] }}
+                    {% endif %}
 
-            <h3>HF</h3>
-
-            <canvas id="hfChart"></canvas>
+                {% else %}
+                    —
+                {% endif %}
+            </div>
 
         </div>
 
     </div>
+
+    {% endfor %}
+
+</div>
 
 
     <!-- =========================
@@ -212,7 +243,7 @@
 
             <div class="match-header">
 
-                {{ match["date"] }}
+                {{ match["match_id"] }}
                 —
                 {{ match["pitch"] | upper }}
 
@@ -421,16 +452,38 @@
             ratingHistory[ratingType];
 
 
-        const labels =
-            history.map(
-                entry => entry.match_id
-            );
+const labels = history.map(
+    (entry, index) => {
+
+        const lastIndex = history.length - 1;
+
+        if (
+            index === 0 ||
+            index === Math.round(lastIndex / 3) ||
+            index === Math.round(lastIndex * 2 / 3) ||
+            index === lastIndex
+        ) {
+            return entry.date
+                ? entry.date.substring(0, 7)
+                : "";
+        }
+
+        return "";
+    }
+);
 
 
         const ratings =
             history.map(
                 entry => entry.rating
             );
+
+        console.log(
+        ratingType,
+        history.length,
+        history
+        );
+        
 
 
         new Chart(

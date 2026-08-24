@@ -84,12 +84,20 @@ def get_player_rating_history(connection, player_id):
         SELECT
             match_ratings.match_id,
             matches.date,
+            matches.pitch,
             match_ratings.rating_type,
             match_ratings.rating
         FROM match_ratings
         JOIN matches
             ON match_ratings.match_id = matches.match_id
+        JOIN match_players
+            ON match_ratings.match_id = match_players.match_id
+            AND match_ratings.player_id = match_players.player_id
         WHERE match_ratings.player_id = ?
+        AND (
+            match_ratings.rating_type = 'total'
+            OR match_ratings.rating_type = matches.pitch
+        )
         ORDER BY matches.date, match_ratings.match_id
     """, (player_id,)).fetchall()
 
@@ -103,6 +111,28 @@ def get_player_rating_history(connection, player_id):
         history[row["rating_type"]].append({
             "match_id": row["match_id"],
             "date": row["date"],
+            "rating": row["rating"]
+        })
+
+    # Append the player's current rating as the final point
+    current_ratings = connection.execute("""
+        SELECT
+            rating_type,
+            rating
+        FROM ratings
+        WHERE player_id = ?
+    """, (player_id,)).fetchall()
+
+    for row in current_ratings:
+        last_entry = (
+            history[row["rating_type"]][-1]
+            if history[row["rating_type"]]
+            else None
+        )
+
+        history[row["rating_type"]].append({
+            "match_id": None,
+            "date": last_entry["date"] if last_entry else None,
             "rating": row["rating"]
         })
 

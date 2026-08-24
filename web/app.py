@@ -45,21 +45,44 @@ def player_profile(player_id):
     stats = get_player_stats(connection)
 
     rating_history = get_player_rating_history(
-        connection,
-        player_id
+    connection,
+    player_id
     )
+
+    rating_extremes = {}
+
+    for rating_type in ["total", "box", "hf"]:
+        history = rating_history[rating_type]
+
+        if history:
+            peak = max(history, key=lambda entry: entry["rating"])
+            low = min(history, key=lambda entry: entry["rating"])
+
+            rating_extremes[rating_type] = {
+                "peak": peak,
+                "low": low
+            }
+        else:
+            rating_extremes[rating_type] = {
+                "peak": None,
+                "low": None
+            }
 
     matches = build_match_history(
         connection,
         players,
         player_id
     )
-
+    
     connection.close()
 
     player = players[player_id]
     player_ratings = ratings[player_id]
     player_stats = stats[player_id]
+
+    matches.reverse()
+
+
 
     return render_template(
         "player.html",
@@ -67,6 +90,7 @@ def player_profile(player_id):
         ratings=player_ratings,
         stats=player_stats,
         rating_history=rating_history,
+        rating_extremes=rating_extremes,
         matches=matches
     )
 

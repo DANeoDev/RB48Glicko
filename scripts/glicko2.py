@@ -445,3 +445,29 @@ class Glicko2:
             0.5
             - abs(0.5 - expected)
         )
+
+
+# Win-Expectation
+
+
+Q = math.log(10) / 400
+
+
+def g(rd):
+    """Glicko-2 g(RD) function."""
+    return 1 / math.sqrt(1 + (3 * Q**2 * rd**2) / math.pi**2)
+
+
+def expected_score(rating, opponent_rating, opponent_rd):
+    """Expected score against an opponent.
+
+    Returns a value between 0 and 1:
+    1.0 = expected win
+    0.5 = expected draw
+    0.0 = expected loss
+    """
+    g_value = g(opponent_rd)
+
+    return 1 / (
+        1 + 10 ** (-g_value * (rating - opponent_rating) / 400)
+    )
