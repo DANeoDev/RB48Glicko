@@ -15,13 +15,6 @@
 .mode-button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
 .mode-button.active { background: var(--green-dark); border-color: var(--green-dark); color: var(--text-main); }
 .pitch-options { margin: 12px 0 20px; color: var(--text-muted); }
-.import-box { width: 100%; min-height: 180px; box-sizing: border-box; padding: 12px; background: var(--bg-surface-alt); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--radius); font: inherit; resize: vertical; }
-.import-actions { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.import-file { max-width: 100%; }
-.import-error { margin-top: 14px; padding: 12px; border-left: 3px solid var(--red, #c44); background: var(--bg-surface-alt); }
-.import-events { margin-top: 18px; }
-.import-event { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
-.import-unknown { margin-top: 12px; color: var(--text-muted); }
 .player-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px; }
 .player-option { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
 .player-option:hover { background: var(--bg-surface-alt); }
@@ -51,62 +44,18 @@
 <div class="matchmaker-page">
     <h1>Matchmaker</h1>
     <p class="matchmaker-description">
-        Import your Nuudel attendance, adjust the selection if necessary, and RB48 will split everyone
-        into two evenly sized teams while balancing rating strength and positional capabilities.
+        Select the players who are available and RB48 will split them into two teams,
+        balancing rating strength and positional capabilities.
     </p>
 
-    <section class="matchmaker-card">
-        <h2>Attendance accelerator</h2>
-        <p class="matchmaker-description">
-            Paste the copied Nuudel table below, or upload a screenshot. The AI will identify the
-            attendance columns and preselect the players who answered <strong>Ja</strong>.
-        </p>
-        <form method="post" enctype="multipart/form-data">
-            <input type="hidden" name="action" value="import_attendance">
-            <textarea class="import-box" name="attendance_text" placeholder="Paste the Nuudel table here..."></textarea>
-            <div class="import-actions">
-                <input class="import-file" type="file" name="attendance_image" accept="image/*">
-                <button class="primary-button" type="submit">Parse attendance with AI</button>
-            </div>
-        </form>
-        {% if import_error %}
-        <div class="import-error">{{ import_error }}</div>
-        {% endif %}
-
-        {% if import_events %}
-        <div class="import-events">
-            <h3>Detected matchdays</h3>
-            <form method="post">
-                <input type="hidden" name="action" value="use_import">
-                <input type="hidden" name="import_events" value='{{ import_events|tojson|forceescape }}'>
-                {% for event in import_events %}
-                <label class="import-event">
-                    <input type="radio" name="event_index" value="{{ loop.index0 }}" {% if loop.first %}checked{% endif %}>
-                    <span><strong>{{ event.label }}</strong> · {{ event.attendees|length }} attending</span>
-                </label>
-                {% endfor %}
-                <div class="import-actions">
-                    <button class="secondary-button" type="submit">Use selected attendance</button>
-                </div>
-            </form>
-            {% if import_unknown %}
-            <div class="import-unknown">
-                <strong>Names not matched to the database:</strong> {{ import_unknown|join(', ') }}<br>
-                You can still add/select players manually below.
-            </div>
-            {% endif %}
-        </div>
-        {% endif %}
-    </section>
-
     <form method="post">
-        <input type="hidden" name="action" value="generate">
         <section class="matchmaker-card">
             <h2>Rating model</h2>
             <div class="mode-switch">
                 <button type="submit" name="mode" value="total" class="mode-button {% if mode == 'total' %}active{% endif %}">Total rating</button>
                 <button type="submit" name="mode" value="pitch" class="mode-button {% if mode == 'pitch' %}active{% endif %}">Pitch-specific</button>
             </div>
+
             {% if mode == 'pitch' %}
             <div class="pitch-options">
                 <label><input type="radio" name="pitch" value="box" {% if pitch == 'box' %}checked{% endif %}> Box</label>
@@ -115,7 +64,10 @@
             {% endif %}
 
             <h2>Players</h2>
-            <p class="matchmaker-description">{{ selected_ids|length }} selected · {{ players|length }} players in database</p>
+            <p class="matchmaker-description">
+                {{ selected_ids|length }} selected · {{ players|length }} players in database
+            </p>
+
             <div class="player-grid">
                 {% for player_id, player in players.items() %}
                 <label class="player-option">
@@ -127,9 +79,9 @@
             </div>
 
             <div class="actions">
-                <button class="primary-button" type="submit">Generate teams</button>
+                <button class="primary-button" type="submit" name="action" value="generate">Generate teams</button>
                 {% if result %}
-                <button class="secondary-button" type="submit" name="action" value="reroll" >↻ Reroll</button>
+                <button class="secondary-button" type="submit" name="action" value="reroll">↻ Reroll</button>
                 <input type="hidden" name="seed" value="{{ (seed or 0) + 1 }}">
                 {% endif %}
             </div>
@@ -144,26 +96,42 @@
                 <h3>Team A</h3>
                 <ul>
                     {% for player_id in result.team_a %}
-                    <li>{{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }}
-                        <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_a[player_id] }})</span></li>
+                    <li>
+                        {{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }}
+                        <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_a[player_id] }})</span>
+                    </li>
                     {% endfor %}
                 </ul>
-                <div class="team-rating">Rating <strong>{{ "%.1f"|format(result.rating_a.rating) }}</strong><br>RD <strong>{{ "%.1f"|format(result.rating_a.rd) }}</strong></div>
+                <div class="team-rating">
+                    Rating <strong>{{ "%.1f"|format(result.rating_a.rating) }}</strong><br>
+                    RD <strong>{{ "%.1f"|format(result.rating_a.rd) }}</strong>
+                </div>
             </div>
+
             <div class="team">
                 <h3>Team B</h3>
                 <ul>
                     {% for player_id in result.team_b %}
-                    <li>{{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }}
-                        <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_b[player_id] }})</span></li>
+                    <li>
+                        {{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }}
+                        <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_b[player_id] }})</span>
+                    </li>
                     {% endfor %}
                 </ul>
-                <div class="team-rating">Rating <strong>{{ "%.1f"|format(result.rating_b.rating) }}</strong><br>RD <strong>{{ "%.1f"|format(result.rating_b.rd) }}</strong></div>
+                <div class="team-rating">
+                    Rating <strong>{{ "%.1f"|format(result.rating_b.rating) }}</strong><br>
+                    RD <strong>{{ "%.1f"|format(result.rating_b.rd) }}</strong>
+                </div>
             </div>
         </div>
+
         <div class="result-summary">
             <strong>Rating difference: {{ "%.1f"|format(result.rating_difference) }}</strong>
-            {% if result.position_penalty == 0 %}<br>Position balance: Excellent{% else %}<br>Position imbalance score: {{ result.position_penalty }}{% endif %}
+            {% if result.position_penalty == 0 %}
+                <br>Position balance: Excellent
+            {% else %}
+                <br>Position imbalance score: {{ result.position_penalty }}
+            {% endif %}
         </div>
     </section>
     {% elif selected_ids|length == 1 %}
