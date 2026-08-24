@@ -440,9 +440,19 @@ def update_match(
             - pitch_virtual_player.rating
         )
 
+        pitch_rd_change = (
+            pitch_updated_virtual.rd
+            - pitch_virtual_player.rd
+        )
+
+        pitch_sigma_change = (
+            pitch_updated_virtual.sigma
+            - pitch_virtual_player.sigma
+        )
+
         pitch_player.rating += pitch_rating_change
-        pitch_player.rd = pitch_updated_virtual.rd
-        pitch_player.sigma = pitch_updated_virtual.sigma
+        pitch_player.rd += pitch_rd_change
+        pitch_player.sigma += pitch_sigma_change
 
 
     # DEBUG TEAM 1    

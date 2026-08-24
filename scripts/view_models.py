@@ -2,7 +2,7 @@ import math
 
 from scripts.db_matches import get_matches, get_match_teams
 from scripts.db_ratings import get_match_ratings
-from scripts.glicko2 import Glicko2, Rating, TOTAL, BOX, HF, IGNORED_RD, DEFAULT_SIGMA
+from scripts.glicko2 import Glicko2, Rating, TOTAL, BOX, HF, IGNORED_RD, DEFAULT_SIGMA, g, expected_score
 
 
 def build_leaderboard(ratings, players, stats):
@@ -64,6 +64,8 @@ def calculate_match_details(match, team_a, team_b, match_ratings):
             "team_a_rd": None,
             "team_b_rating": None,
             "team_b_rd": None,
+            "team_a_expected": None,
+            "team_b_expected": None,
             "rating_delta": None,
         }
 
@@ -129,6 +131,20 @@ def calculate_match_details(match, team_a, team_b, match_ratings):
         total_players_b
     )
 
+    team_a_expected = expected_score(
+        team_a_rating.rating,
+        team_b_rating.rating,
+        team_b_rating.rd
+    )
+
+    team_b_expected = expected_score(
+        team_b_rating.rating,
+        team_a_rating.rating,
+        team_a_rating.rd
+    )
+
+
+
     if match["goals_a"] > match["goals_b"]:
         team_a_result = 1.0
         team_b_result = 0.0
@@ -160,6 +176,8 @@ def calculate_match_details(match, team_a, team_b, match_ratings):
         "team_a_rd": team_a_rating.rd,
         "team_b_rating": team_b_rating.rating,
         "team_b_rd": team_b_rating.rd,
+        "team_a_expected": team_a_expected,
+        "team_b_expected": team_b_expected,
         "rating_delta": rating_delta_a,
     }
 
@@ -215,6 +233,16 @@ def build_match_history(connection, players, player_id=None):
             }
             for player_id in team_b
         ]
+
+        team_a_players.sort(
+        key=lambda player: player["rating"],
+        reverse=True
+    )
+
+        team_b_players.sort(
+        key=lambda player: player["rating"],
+        reverse=True
+    )
 
         history.append({
             "match_id": match_id,
