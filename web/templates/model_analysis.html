@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+
+{% block title %}
+    RB48 — Model Analysis
+{% endblock %}
+
+
+{% block content %}
+
+<div class="page-header">
+
+    <h1>Model Analysis</h1>
+
+    <p>
+        Calibration of Glicko's pre-match win expectations
+    </p>
+
+</div>
+
+
+<div class="analysis-summary">
+
+    <div class="analysis-card">
+        <span class="analysis-card-label">Predictions analyzed</span>
+        <strong>{{ analysis["analyzed_matches"] }}</strong>
+    </div>
+
+    <div class="analysis-card">
+        <span class="analysis-card-label">Average expected</span>
+        <strong>
+            {% if analysis["average_expected"] is not none %}
+                {{ analysis["average_expected"] | round(1) }}%
+            {% else %}
+                —
+            {% endif %}
+        </strong>
+    </div>
+
+    <div class="analysis-card">
+        <span class="analysis-card-label">Actual favourite wins</span>
+        <strong>
+            {% if analysis["actual_win_percent"] is not none %}
+                {{ analysis["actual_win_percent"] | round(1) }}%
+            {% else %}
+                —
+            {% endif %}
+        </strong>
+    </div>
+
+    <div class="analysis-card">
+        <span class="analysis-card-label">Excluded 50/50</span>
+        <strong>{{ analysis["excluded_matches"] }}</strong>
+    </div>
+
+</div>
+
+
+<div class="analysis-section">
+
+    <h2>Calibration</h2>
+
+    <p class="analysis-description">
+        Each match is counted once using the predicted favourite. Exact 50/50
+        predictions are excluded because they contain no directional
+        information. A perfectly calibrated model would follow the diagonal.
+    </p>
+
+    <div class="calibration-chart">
+
+        <svg viewBox="0 0 800 420" role="img" aria-label="Calibration chart">
+
+            <!-- Grid -->
+            <line class="chart-grid" x1="40" y1="360" x2="760" y2="360"></line>
+            <line class="chart-grid" x1="40" y1="280" x2="760" y2="280"></line>
+            <line class="chart-grid" x1="40" y1="200" x2="760" y2="200"></line>
+            <line class="chart-grid" x1="40" y1="120" x2="760" y2="120"></line>
+            <line class="chart-grid" x1="40" y1="40" x2="760" y2="40"></line>
+
+            <!-- Axes -->
+            <line class="chart-axis" x1="40" y1="360" x2="760" y2="360"></line>
+            <line class="chart-axis" x1="40" y1="360" x2="40" y2="40"></line>
+
+            <!-- Perfect calibration -->
+            <line
+                class="calibration-line"
+                x1="40"
+                y1="200"
+                x2="760"
+                y2="40"
+            ></line>
+
+            <!-- Calibration points -->
+            {% for point in analysis["calibration_points"] %}
+                <circle
+                    class="calibration-point"
+                    cx="{{ 40 + ((point["expected"] - 50) / 50 * 720) }}"
+                    cy="{{ 360 - (point["actual"] / 100 * 320) }}"
+                    r="{{ 4 + min(point["matches"] / 20, 5) }}"
+                >
+                    <title>
+                        Expected {{ point["expected"] | round(1) }}%,
+                        actual {{ point["actual"] | round(1) }}%,
+                        {{ point["matches"] }} matches
+                    </title>
+                </circle>
+            {% endfor %}
+
+            <!-- Y-axis labels -->
+            <text class="chart-label" x="32" y="365" text-anchor="end">0%</text>
+            <text class="chart-label" x="32" y="285" text-anchor="end">25%</text>
+            <text class="chart-label" x="32" y="205" text-anchor="end">50%</text>
+            <text class="chart-label" x="32" y="125" text-anchor="end">75%</text>
+            <text class="chart-label" x="32" y="45" text-anchor="end">100%</text>
+
+            <!-- X-axis labels -->
+            <text class="chart-label" x="40" y="382" text-anchor="middle">50%</text>
+            <text class="chart-label" x="184" y="382" text-anchor="middle">60%</text>
+            <text class="chart-label" x="328" y="382" text-anchor="middle">70%</text>
+            <text class="chart-label" x="472" y="382" text-anchor="middle">80%</text>
+            <text class="chart-label" x="616" y="382" text-anchor="middle">90%</text>
+            <text class="chart-label" x="760" y="382" text-anchor="middle">100%</text>
+
+            <text class="chart-axis-title" x="400" y="412" text-anchor="middle">
+                Expected favourite win probability
+            </text>
+
+            <text
+                class="chart-axis-title"
+                x="-200"
+                y="16"
+                text-anchor="middle"
+                transform="rotate(-90)"
+            >
+                Actual favourite win rate
+            </text>
+
+        </svg>
+
+    </div>
+
+</div>
+
+
+<div class="analysis-section">
+
+    <h2>Prediction buckets</h2>
+
+    <div class="analysis-table-wrapper">
+
+        <table class="analysis-table">
+
+            <thead>
+                <tr>
+                    <th>Expected</th>
+                    <th>Games</th>
+                    <th>Avg. expected</th>
+                    <th>Favourite wins</th>
+                    <th>Draws</th>
+                    <th>Favourite losses</th>
+                    <th>Actual win %</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for bucket in analysis["buckets"] %}
+                    <tr class="{% if not bucket["matches"] %}empty-bucket{% endif %}">
+                        <td>
+                            {{ bucket["lower"] + 0.1 | round(1) }}–{{ bucket["upper"] | round(1) }}%
+                        </td>
+                        <td>{{ bucket["matches"] }}</td>
+                        <td>
+                            {% if bucket["average_expected"] is not none %}
+                                {{ bucket["average_expected"] | round(1) }}%
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td>{{ bucket["wins"] }}</td>
+                        <td>{{ bucket["draws"] }}</td>
+                        <td>{{ bucket["losses"] }}</td>
+                        <td>
+                            {% if bucket["actual_win_percent"] is not none %}
+                                {{ bucket["actual_win_percent"] | round(1) }}%
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<div class="analysis-section analysis-notes">
+
+    <p>
+        <strong>Results:</strong>
+        {{ analysis["wins"] }} favourite wins,
+        {{ analysis["draws"] }} draws and
+        {{ analysis["losses"] }} favourite losses.
+    </p>
+
+    <p>
+        The expectation is based on the pitch-specific pre-match Glicko
+        ratings and opponent RD for each match.
+    </p>
+
+</div>
+
+{% endblock %}
