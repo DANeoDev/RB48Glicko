@@ -10,7 +10,7 @@
 .model-analysis-page h1 { margin-bottom: 8px; }
 .page-intro, .analysis-description { color: var(--text-muted); line-height: 1.6; }
 .analysis-switch { display: flex; justify-content: center; margin: 28px 0; }
-.analysis-switch-button { padding: 10px 24px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-muted); font-weight: 600; }
+.analysis-switch-button { padding: 10px 24px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-muted); font-weight: 600; text-decoration: none; }
 .analysis-switch-button:first-child { border-radius: var(--radius) 0 0 var(--radius); }
 .analysis-switch-button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
 .analysis-switch-button.active { background: var(--green-dark); border-color: var(--green-dark); color: var(--text-main); }
@@ -19,12 +19,23 @@
 .analysis-card h2 { margin-top: 0; }
 .analysis-metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 24px; }
 .analysis-metric { padding: 16px 12px; border: 1px solid var(--border); border-radius: var(--radius); text-align: center; }
-.analysis-metric-label { display: block; color: var(--text-muted); font-size: 13px; margin-bottom: 8px; }
+.analysis-metric-label { display: block; color: var(--text-muted); font-size: 13px; margin-bottom: 8px; cursor: help; }
 .analysis-metric-value { display: block; font-size: 22px; font-weight: 600; }
 .analysis-note { margin-top: 20px; padding: 12px 14px; border-left: 3px solid var(--green); background: var(--bg-surface-alt); color: var(--text-muted); line-height: 1.5; font-size: 14px; }
 .analysis-table-wrapper { overflow-x: auto; }
 .analysis-table { width: 100%; margin-top: 18px; }
 .analysis-table th, .analysis-table td { padding: 10px 14px; }
+.analysis-graph { margin: 28px 0 10px; }
+.calibration-graph { width: 100%; height: auto; display: block; overflow: visible; }
+.calibration-graph .grid-line { stroke: var(--border); stroke-width: 1; }
+.calibration-graph .reference-line { stroke: var(--text-muted); stroke-width: 1.5; stroke-dasharray: 6 5; }
+.calibration-graph .actual-line { fill: none; stroke: var(--green); stroke-width: 3; }
+.calibration-graph .actual-point { fill: var(--green); stroke: var(--bg-surface); stroke-width: 2; cursor: help; }
+.calibration-graph text { fill: var(--text-muted); font-size: 12px; }
+.graph-legend { display: flex; justify-content: center; gap: 24px; margin-top: 8px; color: var(--text-muted); font-size: 13px; }
+.graph-legend-item { display: inline-flex; align-items: center; gap: 7px; }
+.graph-legend-line { width: 24px; border-top: 3px solid var(--green); }
+.graph-legend-reference { width: 24px; border-top: 2px dashed var(--text-muted); }
 @media (max-width: 800px) { .analysis-metrics { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 500px) { .analysis-switch-button { padding: 10px 14px; } .analysis-metrics { grid-template-columns: 1fr; } }
 </style>
@@ -57,11 +68,26 @@
         </p>
 
         <div class="analysis-metrics">
-            <div class="analysis-metric"><span class="analysis-metric-label">Games analysed</span><span class="analysis-metric-value">{{ analysis.games }}</span></div>
-            <div class="analysis-metric"><span class="analysis-metric-label">Brier score</span><span class="analysis-metric-value">{{ "%.4f"|format(analysis.brier) if analysis.brier is not none else "—" }}</span></div>
-            <div class="analysis-metric"><span class="analysis-metric-label">Log loss</span><span class="analysis-metric-value">{{ "%.4f"|format(analysis.log_loss) if analysis.log_loss is not none else "—" }}</span></div>
-            <div class="analysis-metric"><span class="analysis-metric-label">Mean absolute error</span><span class="analysis-metric-value">{{ "%.4f"|format(analysis.mean_absolute_error) if analysis.mean_absolute_error is not none else "—" }}</span></div>
-            <div class="analysis-metric"><span class="analysis-metric-label">Directional accuracy</span><span class="analysis-metric-value">{{ "%.1f%%"|format(analysis.accuracy * 100) if analysis.accuracy is not none else "—" }}</span></div>
+            <div class="analysis-metric">
+                <span class="analysis-metric-label" title="The average squared difference between the predicted probability and the actual result. Lower is better; 0 is perfect.">Brier score</span>
+                <span class="analysis-metric-value">{{ "%.4f"|format(analysis.brier) if analysis.brier is not none else "—" }}</span>
+            </div>
+            <div class="analysis-metric">
+                <span class="analysis-metric-label" title="Measures how strongly the model is penalized for confident wrong predictions. Lower is better; a very confident mistake is penalized heavily.">Log loss</span>
+                <span class="analysis-metric-value">{{ "%.4f"|format(analysis.log_loss) if analysis.log_loss is not none else "—" }}</span>
+            </div>
+            <div class="analysis-metric">
+                <span class="analysis-metric-label" title="The average absolute difference between the predicted probability and the actual result. Lower is better; 0 is perfect.">Mean absolute error</span>
+                <span class="analysis-metric-value">{{ "%.4f"|format(analysis.mean_absolute_error) if analysis.mean_absolute_error is not none else "—" }}</span>
+            </div>
+            <div class="analysis-metric">
+                <span class="analysis-metric-label" title="The percentage of matches where the model correctly identifies which team is more likely to win. Higher is better.">Directional accuracy</span>
+                <span class="analysis-metric-value">{{ "%.1f%%"|format(analysis.accuracy * 100) if analysis.accuracy is not none else "—" }}</span>
+            </div>
+            <div class="analysis-metric">
+                <span class="analysis-metric-label" title="The number of matches included in the statistical analysis after excluding predictions with no useful information.">Games analysed</span>
+                <span class="analysis-metric-value">{{ analysis.games }}</span>
+            </div>
         </div>
 
         <div class="analysis-note">
@@ -72,10 +98,52 @@
     <section class="analysis-card">
         <h2>Calibration</h2>
         <p class="analysis-description">
-            For each prediction range, the table shows the average predicted score and the average actual score. A well-calibrated model should keep these values close together.
+            The graph shows how closely the actual results follow the model's predicted probabilities. Each point represents one prediction interval from the table below. A perfectly calibrated model would follow the dashed diagonal.
         </p>
 
         {% if analysis.calibration %}
+        {% set graph_left = 70 %}
+        {% set graph_right = 950 %}
+        {% set graph_top = 25 %}
+        {% set graph_bottom = 335 %}
+        <div class="analysis-graph">
+            <svg class="calibration-graph" viewBox="0 0 1000 380" role="img" aria-label="Calibration graph showing predicted probability against actual result">
+                {% for tick in [0, 0.25, 0.5, 0.75, 1] %}
+                    {% set x = graph_left + tick * (graph_right - graph_left) %}
+                    {% set y = graph_bottom - tick * (graph_bottom - graph_top) %}
+                    <line class="grid-line" x1="{{ x }}" y1="{{ graph_top }}" x2="{{ x }}" y2="{{ graph_bottom }}" />
+                    <line class="grid-line" x1="{{ graph_left }}" y1="{{ y }}" x2="{{ graph_right }}" y2="{{ y }}" />
+                    <text x="{{ x }}" y="355" text-anchor="middle">{{ (tick * 100)|int }}%</text>
+                    <text x="58" y="{{ y + 4 }}" text-anchor="end">{{ (tick * 100)|int }}%</text>
+                {% endfor %}
+
+                <line class="reference-line" x1="{{ graph_left }}" y1="{{ graph_bottom }}" x2="{{ graph_right }}" y2="{{ graph_top }}" />
+
+                {% set ns = namespace(points=[]) %}
+                {% for bucket in analysis.calibration %}
+                    {% set x = graph_left + bucket.predicted * (graph_right - graph_left) %}
+                    {% set y = graph_bottom - bucket.actual * (graph_bottom - graph_top) %}
+                    {% set ns.points = ns.points + [x|string ~ ',' ~ y|string] %}
+                {% endfor %}
+                <polyline class="actual-line" points="{{ ns.points|join(' ') }}" />
+
+                {% for bucket in analysis.calibration %}
+                    {% set x = graph_left + bucket.predicted * (graph_right - graph_left) %}
+                    {% set y = graph_bottom - bucket.actual * (graph_bottom - graph_top) %}
+                    <circle class="actual-point" cx="{{ x }}" cy="{{ y }}" r="6">
+                        <title>{{ bucket.label }}: {{ "%.1f%%"|format(bucket.predicted * 100) }} predicted, {{ "%.1f%%"|format(bucket.actual * 100) }} actual ({{ bucket.count }} games)</title>
+                    </circle>
+                {% endfor %}
+
+                <text x="510" y="378" text-anchor="middle">Average predicted probability</text>
+                <text x="14" y="180" text-anchor="middle" transform="rotate(-90 14 180)">Actual result</text>
+            </svg>
+            <div class="graph-legend">
+                <span class="graph-legend-item"><span class="graph-legend-line"></span>Actual results</span>
+                <span class="graph-legend-item"><span class="graph-legend-reference"></span>Perfect calibration</span>
+            </div>
+        </div>
+
         <div class="analysis-table-wrapper">
             <table class="analysis-table">
                 <thead><tr><th>Prediction</th><th>Games</th><th>Predicted</th><th>Actual</th></tr></thead>
