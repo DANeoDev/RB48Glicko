@@ -78,6 +78,25 @@ def calculate_match_details(match, team_a, team_b, match_ratings):
             f"Unknown pitch type: {match['pitch']}"
         )
 
+    # A match can legitimately exist before its ratings have been
+    # calculated (for example, a newly entered or retrospective match).
+    # Match history must still be renderable in that state.
+    required_players = team_a + team_b
+    if any(
+        player_id not in match_ratings
+        or rating_type not in match_ratings[player_id]
+        for player_id in required_players
+    ):
+        return {
+            "team_a_rating": None,
+            "team_a_rd": None,
+            "team_b_rating": None,
+            "team_b_rd": None,
+            "team_a_expected": None,
+            "team_b_expected": None,
+            "rating_delta": None,
+        }
+
     total_players_a = match["players_a"]
     total_players_b = match["players_b"]
 
@@ -142,8 +161,6 @@ def calculate_match_details(match, team_a, team_b, match_ratings):
         team_a_rating.rating,
         team_a_rating.rd
     )
-
-
 
     if match["goals_a"] > match["goals_b"]:
         team_a_result = 1.0
@@ -218,31 +235,48 @@ def build_match_history(connection, players, player_id=None):
             BOX if match["pitch"] == "box" else HF
         )
 
-        team_a_players = [
-            {
+        def player_entry(player_id):
+            rating = None
+
+            if (
+                player_id in match_ratings
+                and rating_type in match_ratings[player_id]
+            ):
+                rating = match_ratings[player_id][rating_type]["rating"]
+
+            return {
                 "name": players[player_id]["aliases"][0],
-                "rating": match_ratings[player_id][rating_type]["rating"]
+                "rating": rating
             }
+
+        team_a_players = [
+            player_entry(player_id)
             for player_id in team_a
         ]
 
         team_b_players = [
-            {
-                "name": players[player_id]["aliases"][0],
-                "rating": match_ratings[player_id][rating_type]["rating"]
-            }
+            player_entry(player_id)
             for player_id in team_b
         ]
 
+        # Processed matches have ratings and retain the original rating
+        # based ordering. Unprocessed matches are still shown, but without
+        # pretending that a rating exists.
         team_a_players.sort(
-        key=lambda player: player["rating"],
-        reverse=True
-    )
+            key=lambda player: (
+                player["rating"] is not None,
+                player["rating"] if player["rating"] is not None else 0
+            ),
+            reverse=True
+        )
 
         team_b_players.sort(
-        key=lambda player: player["rating"],
-        reverse=True
-    )
+            key=lambda player: (
+                player["rating"] is not None,
+                player["rating"] if player["rating"] is not None else 0
+            ),
+            reverse=True
+        )
 
         history.append({
             "match_id": match_id,
@@ -272,7 +306,5 @@ def build_match_history(connection, players, player_id=None):
 
             **details,
         })
-
-    
 
     return history
