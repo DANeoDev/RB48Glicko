@@ -11,6 +11,7 @@ from scripts.model_analysis import analyze_model
 from scripts.match_entry import add_match, next_match_id, import_uploaded_matches, create_new_player, CALIBRATION_LEVELS
 from scripts.matchhistory_sync import sync_matchhistory_csv
 from scripts.matchmaker import generate_match
+from scripts.glicko2 import TOTAL, BOX, HF
 
 
 app = Flask(__name__)
@@ -77,6 +78,7 @@ def model_analysis():
     connection.close()
     return render_template("model_analysis.html", analysis=analysis, mode=mode)
 
+
 @app.route("/matchmaker", methods=["GET", "POST"])
 def matchmaker():
     connection = get_connection()
@@ -88,26 +90,17 @@ def matchmaker():
         mode = "total"
 
     rating_type = TOTAL
-
     if mode == "pitch":
-        pitch = request.form.get(
-            "pitch",
-            request.args.get("pitch", "box")
-        )
-
+        pitch = request.form.get("pitch", request.args.get("pitch", "box"))
         if pitch not in ("box", "hf"):
             pitch = "box"
-
         rating_type = BOX if pitch == "box" else HF
-
     else:
         pitch = None
 
     selected_ids = request.form.getlist("players")
-
     if not selected_ids:
         selected_ids = request.args.getlist("players")
-
     selected_ids = [
         int(player_id)
         for player_id in selected_ids
@@ -115,25 +108,15 @@ def matchmaker():
     ]
 
     result = None
-
-    if len(selected_ids) >= 2:
-        seed = request.form.get("seed")
-
-        if seed is None:
-            seed = request.args.get("seed")
-
+    seed = None
+    if request.method == "POST" and request.form.get("action") in ("generate", "reroll"):
+        seed_value = request.form.get("seed")
         try:
-            seed = int(seed) if seed is not None else None
+            seed = int(seed_value) if seed_value is not None else None
         except ValueError:
             seed = None
-
-        result = generate_match(
-            selected_ids,
-            players,
-            ratings,
-            rating_type,
-            seed=seed
-        )
+        if len(selected_ids) >= 2:
+            result = generate_match(selected_ids, players, ratings, rating_type, seed=seed)
 
     connection.close()
 
@@ -145,7 +128,7 @@ def matchmaker():
         result=result,
         mode=mode,
         pitch=pitch,
-        seed=seed if "seed" in locals() else None,
+        seed=seed,
     )
 
 
