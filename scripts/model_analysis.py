@@ -2,18 +2,16 @@ import math
 
 from scripts.glicko2 import (
     BOX,
-    DEFAULT_RD,
     DEFAULT_SIGMA,
     GLICKO2_SCALE,
     HF,
     IGNORED_RD,
     TOTAL,
 )
-from scripts.db_matches import get_match_teams
-from scripts.db_ratings import get_match_ratings, get_matches
+from scripts.db_matches import get_match_teams, get_matches
+from scripts.db_ratings import get_match_ratings
 
 
-RATING_TYPES = (TOTAL, BOX, HF)
 CALIBRATION_BUCKETS = 10
 
 
@@ -23,10 +21,7 @@ def _expected_score(team_a, team_b):
     mu_b = (team_b["rating"] - 1500.0) / GLICKO2_SCALE
     phi_b = team_b["rd"] / GLICKO2_SCALE
 
-    impact = 1 / math.sqrt(
-        1 + (3 * phi_b**2) / (math.pi**2)
-    )
-
+    impact = 1 / math.sqrt(1 + (3 * phi_b**2) / (math.pi**2))
     return 1 / (1 + math.exp(-impact * (mu_a - mu_b)))
 
 
@@ -38,8 +33,7 @@ def _team_rating(player_ids, total_players, ratings, rating_type):
     ignored_players = total_players - len(player_ids)
 
     average_rating = sum(
-        ratings[player][rating_type]["rating"]
-        for player in player_ids
+        ratings[player][rating_type]["rating"] for player in player_ids
     ) / len(player_ids)
 
     average_rd = math.sqrt(
@@ -56,11 +50,7 @@ def _team_rating(player_ids, total_players, ratings, rating_type):
         ) / total_players
     )
 
-    return {
-        "rating": average_rating,
-        "rd": average_rd,
-        "sigma": average_sigma,
-    }
+    return {"rating": average_rating, "rd": average_rd, "sigma": average_sigma}
 
 
 def _actual_score(match):
@@ -72,12 +62,8 @@ def _actual_score(match):
 
 
 def _log_loss(prediction, actual):
-    # Clamp only for numerical safety; Glicko predictions are already in (0, 1).
     prediction = min(max(prediction, 1e-15), 1 - 1e-15)
-    return -(
-        actual * math.log(prediction)
-        + (1 - actual) * math.log(1 - prediction)
-    )
+    return -(actual * math.log(prediction) + (1 - actual) * math.log(1 - prediction))
 
 
 def _calibration(predictions):
@@ -86,17 +72,10 @@ def _calibration(predictions):
     for bucket_index in range(CALIBRATION_BUCKETS):
         lower = bucket_index / CALIBRATION_BUCKETS
         upper = (bucket_index + 1) / CALIBRATION_BUCKETS
-
         values = [
-            item
-            for item in predictions
-            if (
-                lower <= item["prediction"] < upper
-                or (
-                    bucket_index == CALIBRATION_BUCKETS - 1
-                    and item["prediction"] == upper
-                )
-            )
+            item for item in predictions
+            if lower <= item["prediction"] < upper
+            or (bucket_index == CALIBRATION_BUCKETS - 1 and item["prediction"] == upper)
         ]
 
         if values:
@@ -124,6 +103,7 @@ def analyze_model(connection, mode=TOTAL):
 
     matches = get_matches(connection)
     predictions = []
+    excluded = 0
 
     for match in matches.values():
         rating_type = TOTAL
@@ -133,59 +113,41 @@ def analyze_model(connection, mode=TOTAL):
             elif match["pitch"] == HF:
                 rating_type = HF
             else:
+                excluded += 1
                 continue
 
-        team_a_ids, team_b_ids = get_match_teams(
-            connection,
-            match["match_id"]
-        )
-
+        team_a_ids, team_b_ids = get_match_teams(connection, match["match_id"])
         if not team_a_ids or not team_b_ids:
+            excluded += 1
             continue
 
         ratings = get_match_ratings(connection, match["match_id"])
-
         if any(
             player_id not in ratings or rating_type not in ratings[player_id]
             for player_id in team_a_ids + team_b_ids
         ):
+            excluded += 1
             continue
 
-        team_a = _team_rating(
-            team_a_ids,
-            match["players_a"],
-            ratings,
-            rating_type
-        )
-        team_b = _team_rating(
-            team_b_ids,
-            match["players_b"],
-            ratings,
-            rating_type
-        )
-
+        team_a = _team_rating(team_a_ids, match["players_a"], ratings, rating_type)
+        team_b = _team_rating(team_b_ids, match["players_b"], ratings, rating_type)
         if team_a is None or team_b is None:
+            excluded += 1
             continue
 
         prediction = _expected_score(team_a, team_b)
-
-        # The very first ratings carry no information, so a 50/50 prediction
-        # from that state is not useful for evaluating the model.
         if math.isclose(prediction, 0.5, abs_tol=1e-12):
+            excluded += 1
             continue
 
-        predictions.append({
-            "prediction": prediction,
-            "actual": _actual_score(match),
-        })
+        predictions.append({"prediction": prediction, "actual": _actual_score(match)})
 
     count = len(predictions)
-
     if not count:
         return {
             "mode": mode,
             "games": 0,
-            "excluded": len(matches),
+            "excluded": excluded,
             "brier": None,
             "log_loss": None,
             "mean_absolute_error": None,
@@ -193,33 +155,19 @@ def analyze_model(connection, mode=TOTAL):
             "calibration": [],
         }
 
-    brier = sum(
-        (item["prediction"] - item["actual"]) ** 2
-        for item in predictions
-    ) / count
-
-    log_loss = sum(
-        _log_loss(item["prediction"], item["actual"])
-        for item in predictions
-    ) / count
-
-    mean_absolute_error = sum(
-        abs(item["prediction"] - item["actual"])
-        for item in predictions
-    ) / count
-
+    brier = sum((item["prediction"] - item["actual"]) ** 2 for item in predictions) / count
+    log_loss = sum(_log_loss(item["prediction"], item["actual"]) for item in predictions) / count
+    mean_absolute_error = sum(abs(item["prediction"] - item["actual"]) for item in predictions) / count
     accuracy = sum(
-        (
-            (item["prediction"] > 0.5 and item["actual"] == 1.0)
-            or (item["prediction"] < 0.5 and item["actual"] == 0.0)
-        )
+        (item["prediction"] > 0.5 and item["actual"] == 1.0)
+        or (item["prediction"] < 0.5 and item["actual"] == 0.0)
         for item in predictions
     ) / count
 
     return {
         "mode": mode,
         "games": count,
-        "excluded": len(matches) - count,
+        "excluded": excluded,
         "brier": brier,
         "log_loss": log_loss,
         "mean_absolute_error": mean_absolute_error,
