@@ -10,6 +10,7 @@ from scripts.view_models import build_leaderboard, build_match_history
 from scripts.model_analysis import analyze_model
 from scripts.match_entry import add_match, next_match_id, import_uploaded_matches, create_new_player, CALIBRATION_LEVELS
 from scripts.matchhistory_sync import sync_matchhistory_csv
+from scripts.matchmaker import generate_match
 
 
 app = Flask(__name__)
@@ -75,6 +76,77 @@ def model_analysis():
     analysis = analyze_model(connection, mode)
     connection.close()
     return render_template("model_analysis.html", analysis=analysis, mode=mode)
+
+@app.route("/matchmaker", methods=["GET", "POST"])
+def matchmaker():
+    connection = get_connection()
+    players = get_players(connection)
+    ratings = get_ratings(connection)
+
+    mode = request.form.get("mode", request.args.get("mode", "total"))
+    if mode not in ("total", "pitch"):
+        mode = "total"
+
+    rating_type = TOTAL
+
+    if mode == "pitch":
+        pitch = request.form.get(
+            "pitch",
+            request.args.get("pitch", "box")
+        )
+
+        if pitch not in ("box", "hf"):
+            pitch = "box"
+
+        rating_type = BOX if pitch == "box" else HF
+
+    else:
+        pitch = None
+
+    selected_ids = request.form.getlist("players")
+
+    if not selected_ids:
+        selected_ids = request.args.getlist("players")
+
+    selected_ids = [
+        int(player_id)
+        for player_id in selected_ids
+        if player_id.isdigit() and int(player_id) in players
+    ]
+
+    result = None
+
+    if len(selected_ids) >= 2:
+        seed = request.form.get("seed")
+
+        if seed is None:
+            seed = request.args.get("seed")
+
+        try:
+            seed = int(seed) if seed is not None else None
+        except ValueError:
+            seed = None
+
+        result = generate_match(
+            selected_ids,
+            players,
+            ratings,
+            rating_type,
+            seed=seed
+        )
+
+    connection.close()
+
+    return render_template(
+        "matchmaker.html",
+        players=players,
+        ratings=ratings,
+        selected_ids=selected_ids,
+        result=result,
+        mode=mode,
+        pitch=pitch,
+        seed=seed if "seed" in locals() else None,
+    )
 
 
 @app.route("/match-entry", methods=["GET", "POST"])

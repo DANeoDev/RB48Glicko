@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Matchmaker · RB48{% endblock %}
+
+{% block head %}
+<style>
+.matchmaker-page { max-width: 1100px; margin: 0 auto; }
+.matchmaker-page h1 { margin-bottom: 8px; }
+.matchmaker-description { color: var(--text-muted); line-height: 1.6; }
+.matchmaker-card { margin-top: 24px; padding: 24px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.matchmaker-card h2 { margin-top: 0; }
+.mode-switch { display: flex; margin: 18px 0; }
+.mode-button { padding: 9px 20px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-muted); font-weight: 600; cursor: pointer; }
+.mode-button:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.mode-button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.mode-button.active { background: var(--green-dark); border-color: var(--green-dark); color: var(--text-main); }
+.pitch-options { margin: 12px 0 20px; color: var(--text-muted); }
+.import-box { width: 100%; min-height: 180px; box-sizing: border-box; padding: 12px; background: var(--bg-surface-alt); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--radius); font: inherit; resize: vertical; }
+.import-actions { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.import-file { max-width: 100%; }
+.import-error { margin-top: 14px; padding: 12px; border-left: 3px solid var(--red, #c44); background: var(--bg-surface-alt); }
+.import-events { margin-top: 18px; }
+.import-event { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
+.import-unknown { margin-top: 12px; color: var(--text-muted); }
+.player-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px; }
+.player-option { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+.player-option:hover { background: var(--bg-surface-alt); }
+.player-name { flex: 1; }
+.positions { color: var(--text-muted); font-size: 12px; }
+.actions { margin-top: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.primary-button, .secondary-button { padding: 10px 18px; border-radius: var(--radius); border: 1px solid var(--border); font-weight: 600; cursor: pointer; text-decoration: none; }
+.primary-button { background: var(--green-dark); color: var(--text-main); border-color: var(--green-dark); }
+.secondary-button { background: var(--bg-surface); color: var(--text-main); }
+.result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+.team { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius); }
+.team h3 { margin-top: 0; }
+.team ul { list-style: none; padding: 0; margin-bottom: 0; }
+.team li { padding: 7px 0; border-bottom: 1px solid var(--border); }
+.team li:last-child { border-bottom: 0; }
+.considered-position { color: var(--text-muted); font-size: 12px; border-bottom: 1px dotted var(--text-muted); cursor: help; }
+.team-rating { margin-top: 16px; color: var(--text-muted); }
+.team-rating strong { color: var(--text-main); }
+.result-summary { margin-top: 20px; padding: 14px; background: var(--bg-surface-alt); border-left: 3px solid var(--green); }
+.empty-note { color: var(--text-muted); margin-top: 16px; }
+@media (max-width: 750px) { .player-grid { grid-template-columns: repeat(2, 1fr); } .result-grid { grid-template-columns: 1fr; } }
+@media (max-width: 500px) { .player-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="matchmaker-page">
+    <h1>Matchmaker</h1>
+    <p class="matchmaker-description">
+        Import your Nuudel attendance, adjust the selection if necessary, and RB48 will split everyone
+        into two evenly sized teams while balancing rating strength and positional capabilities.
+    </p>
+
+    <section class="matchmaker-card">
+        <h2>Attendance accelerator</h2>
+        <p class="matchmaker-description">
+            Paste the copied Nuudel table below, or upload a screenshot. The AI will identify the
+            attendance columns and preselect the players who answered <strong>Ja</strong>.
+        </p>
+        <form method="post" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="import_attendance">
+            <textarea class="import-box" name="attendance_text" placeholder="Paste the Nuudel table here..."></textarea>
+            <div class="import-actions">
+                <input class="import-file" type="file" name="attendance_image" accept="image/*">
+                <button class="primary-button" type="submit">Parse attendance with AI</button>
+            </div>
+        </form>
+        {% if import_error %}
+        <div class="import-error">{{ import_error }}</div>
+        {% endif %}
+
+        {% if import_events %}
+        <div class="import-events">
+            <h3>Detected matchdays</h3>
+            <form method="post">
+                <input type="hidden" name="action" value="use_import">
+                <input type="hidden" name="import_events" value='{{ import_events|tojson|forceescape }}'>
+                {% for event in import_events %}
+                <label class="import-event">
+                    <input type="radio" name="event_index" value="{{ loop.index0 }}" {% if loop.first %}checked{% endif %}>
+                    <span><strong>{{ event.label }}</strong> · {{ event.attendees|length }} attending</span>
+                </label>
+                {% endfor %}
+                <div class="import-actions">
+                    <button class="secondary-button" type="submit">Use selected attendance</button>
+                </div>
+            </form>
+            {% if import_unknown %}
+            <div class="import-unknown">
+                <strong>Names not matched to the database:</strong> {{ import_unknown|join(', ') }}<br>
+                You can still add/select players manually below.
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </section>
+
+    <form method="post">
+        <input type="hidden" name="action" value="generate">
+        <section class="matchmaker-card">
+            <h2>Rating model</h2>
+            <div class="mode-switch">
+                <button type="submit" name="mode" value="total" class="mode-button {% if mode == 'total' %}active{% endif %}">Total rating</button>
+                <button type="submit" name="mode" value="pitch" class="mode-button {% if mode == 'pitch' %}active{% endif %}">Pitch-specific</button>
+            </div>
+            {% if mode == 'pitch' %}
+            <div class="pitch-options">
+                <label><input type="radio" name="pitch" value="box" {% if pitch == 'box' %}checked{% endif %}> Box</label>
+                <label><input type="radio" name="pitch" value="hf" {% if pitch == 'hf' %}checked{% endif %}> HF</label>
+            </div>
+            {% endif %}
+
+            <h2>Players</h2>
+            <p class="matchmaker-description">{{ selected_ids|length }} selected · {{ players|length }} players in database</p>
+            <div class="player-grid">
+                {% for player_id, player in players.items() %}
+                <label class="player-option">
+                    <input type="checkbox" name="players" value="{{ player_id }}" {% if player_id in selected_ids %}checked{% endif %}>
+                    <span class="player-name">{{ player.aliases[0] if player.aliases else 'Player ' ~ player_id }}</span>
+                    <span class="positions">{{ player.positions|join(', ') if player.positions else 'Any' }}</span>
+                </label>
+                {% endfor %}
+            </div>
+
+            <div class="actions">
+                <button class="primary-button" type="submit">Generate teams</button>
+                {% if result %}
+                <button class="secondary-button" type="submit" name="action" value="reroll" >↻ Reroll</button>
+                <input type="hidden" name="seed" value="{{ (seed or 0) + 1 }}">
+                {% endif %}
+            </div>
+        </section>
+    </form>
+
+    {% if result %}
+    <section class="matchmaker-card">
+        <h2>Suggested teams</h2>
+        <div class="result-grid">
+            <div class="team">
+                <h3>Team A</h3>
+                <ul>
+                    {% for player_id in result.team_a %}
+                    <li>{{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }}
+                        <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_a[player_id] }})</span></li>
+                    {% endfor %}
+                </ul>
+                <div class="team-rating">Rating <strong>{{ "%.1f"|format(result.rating_a.rating) }}</strong><br>RD <strong>{{ "%.1f"|format(result.rating_a.rd) }}</strong></div>
+            </div>
+            <div class="team">
+                <h3>Team B</h3>
+                <ul>
+                    {% for player_id in result.team_b %}
+                    <li>{{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }}
+                        <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_b[player_id] }})</span></li>
+                    {% endfor %}
+                </ul>
+                <div class="team-rating">Rating <strong>{{ "%.1f"|format(result.rating_b.rating) }}</strong><br>RD <strong>{{ "%.1f"|format(result.rating_b.rd) }}</strong></div>
+            </div>
+        </div>
+        <div class="result-summary">
+            <strong>Rating difference: {{ "%.1f"|format(result.rating_difference) }}</strong>
+            {% if result.position_penalty == 0 %}<br>Position balance: Excellent{% else %}<br>Position imbalance score: {{ result.position_penalty }}{% endif %}
+        </div>
+    </section>
+    {% elif selected_ids|length == 1 %}
+    <p class="empty-note">Select at least two players to generate teams.</p>
+    {% endif %}
+</div>
+{% endblock %}
