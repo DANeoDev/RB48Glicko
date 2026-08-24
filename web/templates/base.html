@@ -56,6 +56,13 @@
         Matches
     </a>
 
+    <a
+        href="{{ url_for('model_analysis') }}"
+        class="{% if request.endpoint == 'model_analysis' %}active{% endif %}"
+    >
+        Model Analysis
+    </a>
+
 </div>
 
     </nav>
