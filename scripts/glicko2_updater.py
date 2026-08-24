@@ -1,7 +1,5 @@
 # Update Glicko ratings only for matches that have not been processed yet.
 
-from pathlib import Path
-
 from scripts.database import get_connection
 from scripts.db_matches import get_matches, get_match_teams
 from scripts.db_ratings import get_ratings, get_processed_match_ids, get_calibrations
@@ -40,39 +38,35 @@ def get_new_matches(matches, processed_match_ids):
     return new_matches
 
 
-def validate_new_matches(matches, processed_match_ids):
+def split_incremental_matches(matches, processed_match_ids):
     """
-    Make sure all unprocessed matches come after the already
-    processed matches.
+    Split unprocessed matches into matches that can safely be handled by
+    the incremental updater and retrospective matches that require a full
+    recalculation.
 
-    The incremental updater assumes that matches are only added
-    chronologically. If an old match is inserted later, the existing
-    current ratings would no longer be a valid starting point.
+    A retrospective match must never be applied on top of current ratings,
+    because doing so would apply it at the wrong point in the rating history.
+    Importantly, however, retrospective matches are still allowed to exist
+    in the database and therefore do not block match entry.
     """
+
+    new_matches = get_new_matches(matches, processed_match_ids)
 
     if not processed_match_ids:
-        return
+        return new_matches, []
 
     latest_processed_match_id = max(processed_match_ids)
 
-    for match in matches:
+    incremental = []
+    retrospective = []
 
-        match_id = match["match_id"]
+    for match in new_matches:
+        if match["match_id"] < latest_processed_match_id:
+            retrospective.append(match)
+        else:
+            incremental.append(match)
 
-        # Already processed → nothing to validate
-        if match_id in processed_match_ids:
-            continue
-
-        # New match must come after the latest processed match
-        if match_id < latest_processed_match_id:
-            raise ValueError(
-                f"Match {match_id} has not been processed, "
-                f"but a later match ({latest_processed_match_id}) "
-                "has already been processed. "
-                "Run the full Glicko recalculation instead."
-            )
-
-
+    return incremental, retrospective
 
 
 def format_delta(delta, decimals=0):
@@ -104,10 +98,6 @@ def print_match_debug(
         match["match_id"]
     )
 
-    # ---------------------------------------------------------
-    # Calculate team ratings before and after the match
-    # ---------------------------------------------------------
-
     if match["pitch"] == "box":
         pitch_rating_type = BOX
     elif match["pitch"] == "hf":
@@ -116,10 +106,6 @@ def print_match_debug(
         raise ValueError(
             f"Unknown pitch type: {match['pitch']}"
         )
-
-    # ---------------------------------------------------------
-    # TOTAL
-    # ---------------------------------------------------------
 
     team1_total_before = calculate_team_rating(
         team1_ids,
@@ -149,10 +135,6 @@ def print_match_debug(
         TOTAL
     )
 
-    # ---------------------------------------------------------
-    # PITCH-SPECIFIC
-    # ---------------------------------------------------------
-
     team1_pitch_before = calculate_team_rating(
         team1_ids,
         match["players_a"],
@@ -181,18 +163,11 @@ def print_match_debug(
         pitch_rating_type
     )
 
-    # ---------------------------------------------------------
-    # Teams
-    # ---------------------------------------------------------
-
     print("\nTeam A:")
     print(
         "  Players:",
         ", ".join(
-            get_first_alias(
-                connection,
-                player_id
-            )
+            get_first_alias(connection, player_id)
             for player_id in team1_ids
         )
     )
@@ -207,15 +182,11 @@ def print_match_debug(
     print(f"    RD:     {team1_pitch_before.rd:.1f}")
     print(f"    Sigma:  {team1_pitch_before.sigma:.6f}")
 
-
     print("\nTeam B:")
     print(
         "  Players:",
         ", ".join(
-            get_first_alias(
-                connection,
-                player_id
-            )
+            get_first_alias(connection, player_id)
             for player_id in team2_ids
         )
     )
@@ -230,10 +201,6 @@ def print_match_debug(
     print(f"    RD:     {team2_pitch_before.rd:.1f}")
     print(f"    Sigma:  {team2_pitch_before.sigma:.6f}")
 
-    # ---------------------------------------------------------
-    # Result
-    # ---------------------------------------------------------
-
     print(
         f"\nResult: "
         f"A {match['goals_a']} - {match['goals_b']} B"
@@ -242,111 +209,56 @@ def print_match_debug(
     if match["goals_a"] > match["goals_b"]:
         print("  A: WIN")
         print("  B: LOSS")
-
     elif match["goals_a"] < match["goals_b"]:
         print("  A: LOSS")
         print("  B: WIN")
-
     else:
         print("  A: DRAW")
         print("  B: DRAW")
 
-    # ---------------------------------------------------------
-    # Team deltas
-    # ---------------------------------------------------------
-
     team1_total_rating_delta = (
-        team1_total_after.rating
-        - team1_total_before.rating
+        team1_total_after.rating - team1_total_before.rating
     )
-
     team1_total_rd_delta = (
-        team1_total_after.rd
-        - team1_total_before.rd
+        team1_total_after.rd - team1_total_before.rd
     )
-
     team1_pitch_rating_delta = (
-        team1_pitch_after.rating
-        - team1_pitch_before.rating
+        team1_pitch_after.rating - team1_pitch_before.rating
     )
-
     team1_pitch_rd_delta = (
-        team1_pitch_after.rd
-        - team1_pitch_before.rd
+        team1_pitch_after.rd - team1_pitch_before.rd
     )
 
     team2_total_rating_delta = (
-        team2_total_after.rating
-        - team2_total_before.rating
+        team2_total_after.rating - team2_total_before.rating
     )
-
     team2_total_rd_delta = (
-        team2_total_after.rd
-        - team2_total_before.rd
+        team2_total_after.rd - team2_total_before.rd
     )
-
     team2_pitch_rating_delta = (
-        team2_pitch_after.rating
-        - team2_pitch_before.rating
+        team2_pitch_after.rating - team2_pitch_before.rating
     )
-
     team2_pitch_rd_delta = (
-        team2_pitch_after.rd
-        - team2_pitch_before.rd
+        team2_pitch_after.rd - team2_pitch_before.rd
     )
 
     print("\nTeam A deltas:")
-
     print("  TOTAL:")
-    print(
-        f"    Rating: "
-        f"{format_delta(team1_total_rating_delta)}"
-    )
-    print(
-        f"    RD:     "
-        f"{format_delta(team1_total_rd_delta, 1)}"
-    )
-
+    print(f"    Rating: {format_delta(team1_total_rating_delta)}")
+    print(f"    RD:     {format_delta(team1_total_rd_delta, 1)}")
     print(f"\n  {pitch_rating_type.upper()}:")
-    print(
-        f"    Rating: "
-        f"{format_delta(team1_pitch_rating_delta)}"
-    )
-    print(
-        f"    RD:     "
-        f"{format_delta(team1_pitch_rd_delta, 1)}"
-    )
-
+    print(f"    Rating: {format_delta(team1_pitch_rating_delta)}")
+    print(f"    RD:     {format_delta(team1_pitch_rd_delta, 1)}")
 
     print("\nTeam B deltas:")
-
     print("  TOTAL:")
-    print(
-        f"    Rating: "
-        f"{format_delta(team2_total_rating_delta)}"
-    )
-    print(
-        f"    RD:     "
-        f"{format_delta(team2_total_rd_delta, 1)}"
-    )
-
+    print(f"    Rating: {format_delta(team2_total_rating_delta)}")
+    print(f"    RD:     {format_delta(team2_total_rd_delta, 1)}")
     print(f"\n  {pitch_rating_type.upper()}:")
-    print(
-        f"    Rating: "
-        f"{format_delta(team2_pitch_rating_delta)}"
-    )
-    print(
-        f"    RD:     "
-        f"{format_delta(team2_pitch_rd_delta, 1)}"
-    )
+    print(f"    Rating: {format_delta(team2_pitch_rating_delta)}")
+    print(f"    RD:     {format_delta(team2_pitch_rd_delta, 1)}")
 
-    # ---------------------------------------------------------
-    # Player deltas
-    # ---------------------------------------------------------
-
-    answer = input(
-        "\nShow player deltas? (y/n): "
-    )
+    answer = input("\nShow player deltas? (y/n): ")
 
     if answer.lower() != "y":
         return
@@ -354,53 +266,29 @@ def print_match_debug(
     print("\nPlayer deltas:")
 
     for player_id in team1_ids + team2_ids:
-
         before_total = before_ratings[player_id][TOTAL]
         after_total = after_ratings[player_id][TOTAL]
-
         before_pitch = before_ratings[player_id][pitch_rating_type]
         after_pitch = after_ratings[player_id][pitch_rating_type]
 
-        total_rating_delta = (
-            after_total["rating"]
-            - before_total["rating"]
-        )
+        total_rating_delta = after_total["rating"] - before_total["rating"]
+        total_rd_delta = after_total["rd"] - before_total["rd"]
+        pitch_rating_delta = after_pitch["rating"] - before_pitch["rating"]
+        pitch_rd_delta = after_pitch["rd"] - before_pitch["rd"]
 
-        total_rd_delta = (
-            after_total["rd"]
-            - before_total["rd"]
-        )
+        alias = get_first_alias(connection, player_id)
 
-        pitch_rating_delta = (
-            after_pitch["rating"]
-            - before_pitch["rating"]
-        )
-
-        pitch_rd_delta = (
-            after_pitch["rd"]
-            - before_pitch["rd"]
-        )
-
-        alias = get_first_alias(
-            connection,
-            player_id
-        )
-
+        print(f"\n  {alias} ({player_id}):")
         print(
-            f"\n  {alias} ({player_id}):"
-        )
-
-        print(
-            f"    TOTAL: "
-            f"{format_delta(total_rating_delta)}, "
+            f"    TOTAL: {format_delta(total_rating_delta)}, "
             f"RD {format_delta(total_rd_delta, 1)}"
         )
-
         print(
             f"    {pitch_rating_type.upper()}: "
             f"{format_delta(pitch_rating_delta)}, "
             f"RD {format_delta(pitch_rd_delta, 1)}"
         )
+
 
 def update_glicko(
     connection,
@@ -415,7 +303,6 @@ def update_glicko(
     )
 
     for match in matches:
-
         team1_ids, team2_ids = get_match_teams(
             connection,
             match["match_id"]
@@ -428,17 +315,9 @@ def update_glicko(
                 calibrations
             )
 
-        # -----------------------------------------------------
-        # Ask whether this match should be debugged
-        # -----------------------------------------------------
-
         debug = input(
             f"\nDebug match {match['match_id']}? (y/n): "
         )
-
-        # -----------------------------------------------------
-        # Save ratings BEFORE the match
-        # -----------------------------------------------------
 
         before_ratings = None
 
@@ -446,10 +325,6 @@ def update_glicko(
             before_ratings = ratings_to_glicko_table(
                 rating_objects
             )
-
-        # -----------------------------------------------------
-        # Store pre-match ratings
-        # -----------------------------------------------------
 
         current_glicko = ratings_to_glicko_table(
             rating_objects
@@ -461,10 +336,6 @@ def update_glicko(
             current_glicko,
         )
 
-        # -----------------------------------------------------
-        # Apply the match
-        # -----------------------------------------------------
-
         update_match(
             connection,
             match,
@@ -472,12 +343,7 @@ def update_glicko(
             engine,
         )
 
-        # -----------------------------------------------------
-        # Debug AFTER the match
-        # -----------------------------------------------------
-
         if debug.lower() == "y":
-
             after_ratings = ratings_to_glicko_table(
                 rating_objects
             )
@@ -494,9 +360,7 @@ def update_glicko(
     )
 
 
-
 def main():
-
     connection = get_connection()
 
     calibrations = get_calibrations(connection)
@@ -506,29 +370,33 @@ def main():
 
     processed_match_ids = get_processed_match_ids(connection)
 
-
     print(
         f"\nFound {len(processed_match_ids)} processed matches"
     )
 
-
-
-    validate_new_matches(
-        matches.values(),
-        processed_match_ids,
-    )
-
-    new_matches = get_new_matches(
+    incremental_matches, retrospective_matches = split_incremental_matches(
         matches,
         processed_match_ids,
     )
 
-    if not new_matches:
-        print("No new matches to process.")
+    if retrospective_matches:
+        print(
+            "\nFound retrospective match(es) that are not processed "
+            "incrementally:"
+        )
+        for match in retrospective_matches:
+            print(f"  - {match['match_id']}")
+        print(
+            "These matches remain in the database but require the full "
+            "Glicko recalculation. They will not block match entry."
+        )
+
+    if not incremental_matches:
+        print("No safely incremental matches to process.")
         connection.close()
         return
 
-    print(f"Found {len(new_matches)} new matches")
+    print(f"Found {len(incremental_matches)} new matches")
 
     ratings = get_ratings(connection)
 
@@ -547,7 +415,7 @@ def main():
 
     final_ratings = update_glicko(
         connection,
-        new_matches,
+        incremental_matches,
         ratings,
         calibrations
     )
@@ -558,7 +426,7 @@ def main():
     )
 
     print(
-        f"Updated ratings using {len(new_matches)} new matches"
+        f"Updated ratings using {len(incremental_matches)} new matches"
     )
 
     connection.close()
