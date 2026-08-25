@@ -2,8 +2,8 @@ import csv
 from pathlib import Path
 from datetime import date
 
-from scripts.database import get_connection
-from scripts.db_players import (
+from scripts.database.database import get_connection
+from scripts.database.db_players import (
     get_players,
     get_alias_lookup,
     get_ignored_aliases,
@@ -13,14 +13,14 @@ from scripts.db_players import (
     add_ignored_alias,
     get_next_player_id
 )
-from scripts.db_matches import (
+from scripts.database.db_matches import (
     match_exists,
     create_match,
     add_match_player,
 )
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MATCHES_FOLDER = PROJECT_ROOT / "matches"
 
 
@@ -248,12 +248,7 @@ def import_match(
         team_a_ids = []
         team_b_ids = []
 
-        # ---------------------------------------------------------
-        # Resolve Team A
-        # ---------------------------------------------------------
-
         for alias in team_a:
-
             player_id = resolve_alias(
                 connection,
                 alias,
@@ -261,16 +256,10 @@ def import_match(
                 alias_lookup,
                 ignored_aliases
             )
-
             if player_id is not None:
                 team_a_ids.append(player_id)
 
-        # ---------------------------------------------------------
-        # Resolve Team B
-        # ---------------------------------------------------------
-
         for alias in team_b:
-
             player_id = resolve_alias(
                 connection,
                 alias,
@@ -278,13 +267,8 @@ def import_match(
                 alias_lookup,
                 ignored_aliases
             )
-
             if player_id is not None:
                 team_b_ids.append(player_id)
-
-        # ---------------------------------------------------------
-        # Validate players
-        # ---------------------------------------------------------
 
         all_player_ids = team_a_ids + team_b_ids
 
@@ -293,7 +277,6 @@ def import_match(
                 f"Invalid match {match_id}: "
                 "a player appears more than once."
             )
-
             connection.rollback()
             return False
 
@@ -302,13 +285,8 @@ def import_match(
                 f"Invalid match {match_id}: "
                 "a player appears on both teams."
             )
-
             connection.rollback()
             return False
-
-        # ---------------------------------------------------------
-        # Write match
-        # ---------------------------------------------------------
 
         create_match(
             connection,
@@ -321,35 +299,11 @@ def import_match(
             goals_b
         )
 
-        # ---------------------------------------------------------
-        # Write Team A players
-        # ---------------------------------------------------------
-
         for player_id in team_a_ids:
-
-            add_match_player(
-                connection,
-                match_id,
-                player_id,
-                "a"
-            )
-
-        # ---------------------------------------------------------
-        # Write Team B players
-        # ---------------------------------------------------------
+            add_match_player(connection, match_id, player_id, "a")
 
         for player_id in team_b_ids:
-
-            add_match_player(
-                connection,
-                match_id,
-                player_id,
-                "b"
-            )
-
-        # ---------------------------------------------------------
-        # Everything succeeded
-        # ---------------------------------------------------------
+            add_match_player(connection, match_id, player_id, "b")
 
         connection.commit()
         return True
