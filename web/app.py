@@ -36,6 +36,12 @@ def _rebuild_parser_result(form, players):
     return _build_parse_result(parsed_names, match_date, players)
 
 
+def _remove_resolved_name(parse_result, name):
+    key = normalize_player_name(name).casefold()
+    parse_result["conflicts"] = [c for c in parse_result["conflicts"] if c.get("name", "").casefold() != key]
+    parse_result["unmatched"] = [u for u in parse_result["unmatched"] if u.get("name", "").casefold() != key]
+
+
 @app.route("/")
 def home():
     connection = get_connection()
@@ -154,14 +160,16 @@ def matchmaker():
             if len(candidates) == 1:
                 if candidates[0] not in selected_ids:
                     selected_ids.append(candidates[0])
-            else:
+            elif len(candidates) > 1:
                 remaining_conflicts.append({"name": conflict["name"], "candidate_ids": candidates, "detail": detail})
+            else:
+                # The user has supplied enough detail to identify this attendance
+                # entry. It is now a candidate for a new player rather than another conflict.
+                parse_result["unmatched"].append({"name": detail, "verified": False})
 
         parse_result["conflicts"] = remaining_conflicts
         if not remaining_conflicts:
-            parser_success = "Name conflicts resolved. All resolved players are now selected."
-        else:
-            parser_modal = "conflict"
+            parser_success = "Name conflicts resolved. All resolved identities are now trusted."
 
     elif request.method == "POST" and action == "add_parser_alias":
         parse_result = _rebuild_parser_result(request.form, players)
@@ -179,7 +187,8 @@ def matchmaker():
             connection.commit()
             players = get_players(connection)
             selected_ids = list(dict.fromkeys(selected_ids + [player_id]))
-            parse_result = _rebuild_parse_result(request.form, players)
+            parse_result = _rebuild_parser_result(request.form, players)
+            _remove_resolved_name(parse_result, alias)
             parser_success = f"Added '{alias}' as an alias and selected the player."
         except (ValueError, TypeError) as exc:
             parse_error = str(exc)
@@ -191,11 +200,9 @@ def matchmaker():
         try:
             created_id, _ = create_new_player(connection, alias, calibration_level="average")
             players = get_players(connection)
-            selected_ids.append(created_id)
+            selected_ids = list(dict.fromkeys(selected_ids + [created_id]))
             parse_result = _rebuild_parser_result(request.form, players)
-            if created_id not in parse_result["verified_ids"]:
-                parse_result["verified_ids"].append(created_id)
-            selected_ids = list(dict.fromkeys(selected_ids + parse_result["verified_ids"]))
+            _remove_resolved_name(parse_result, alias)
             parser_success = f"Created {alias} and selected them."
         except ValueError as exc:
             parse_error = str(exc)
