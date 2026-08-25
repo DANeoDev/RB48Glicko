@@ -86,6 +86,8 @@ There are two useful kinds of input:
 1. An attendance/availability list: people attending, but no completed result. Return kind=attendance, put every attending person in players, and leave team_a/team_b/goals empty/null.
 2. A completed match report: identify the two sides, their players, and the result if present. Return kind=match, preserve the two sides in team_a and team_b, and put the numeric goals in goals_a/goals_b. Also put all detected names in players.
 
+If the source contains multiple results, scores, or score-like sequences, use ONLY THE FIRST actual match result in the source. Never add scores together and never combine multiple games into one result. The first result means the first complete result that actually describes a match, not a date, player count, or unrelated number.
+
 Identity/name rules:
 - Preserve [M] exactly when it appears before a name. [M] is a verified identity marker and will be handled by the application.
 - Preserve useful human detail such as `Konsti+1 (Jens)` or `Jan (Sprenger)` rather than simplifying it to `Konsti` or `Jan`.
