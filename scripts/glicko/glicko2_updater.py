@@ -1,10 +1,10 @@
 # Update Glicko ratings only for matches that have not been processed yet.
 
-from scripts.database import get_connection
-from scripts.db_matches import get_matches, get_match_teams
-from scripts.db_ratings import get_ratings, get_processed_match_ids, get_calibrations
+from scripts.database.database import get_connection
+from scripts.database.db_matches import get_matches, get_match_teams
+from scripts.database.db_ratings import get_ratings, get_processed_match_ids, get_calibrations
 
-from scripts.glicko2_calculator import (
+from scripts.glicko.glicko2_calculator import (
     glicko_table_to_ratings,
     ratings_to_glicko_table,
     update_match,
@@ -12,7 +12,7 @@ from scripts.glicko2_calculator import (
     write_glicko,
     initialize_player_ratings
 )
-from scripts.glicko2 import Glicko2
+from scripts.glicko.glicko2 import Glicko2
 
 
 def get_new_matches(matches, processed_match_ids):
