@@ -11,22 +11,47 @@ from scripts.analysis.model_analysis import analyze_model
 from scripts.matches.match_entry import add_match, next_match_id, import_uploaded_matches, create_new_player, CALIBRATION_LEVELS, process_new_matches
 from scripts.matches.matchhistory_sync import sync_matchhistory_csv
 from scripts.matchmaking.matchmaker import generate_match
-from scripts.matchmaking.image_parser import parse_match_image, resolve_player_names, normalize_player_name, MatchImageParserError
+from scripts.matchmaking.match_parser import parse_match_image, parse_match_text, resolve_player_names, normalize_player_name, MatchParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 
-def _build_parse_result(parsed_names, match_date, players):
+def _build_parse_result(parsed, players):
+    parsed_names = parsed.get("players", [])
     verified_ids, conflicts, unmatched = resolve_player_names(parsed_names, players)
-    return {"match_date": match_date, "players": parsed_names, "verified_ids": verified_ids, "conflicts": conflicts, "unmatched": unmatched}
+    return {
+        "kind": parsed.get("kind", "unknown"),
+        "match_date": parsed.get("match_date"),
+        "players": parsed_names,
+        "team_a": parsed.get("team_a", []),
+        "team_b": parsed.get("team_b", []),
+        "goals_a": parsed.get("goals_a"),
+        "goals_b": parsed.get("goals_b"),
+        "verified_ids": verified_ids,
+        "conflicts": conflicts,
+        "unmatched": unmatched,
+    }
 
 
 def _rebuild_parser_result(form, players):
-    parsed_names = form.getlist("parsed_player")
-    match_date = form.get("parsed_match_date") or None
-    return _build_parse_result(parsed_names, match_date, players)
+    team_a = [x for x in form.get("parsed_team_a", "").split("||") if x]
+    team_b = [x for x in form.get("parsed_team_b", "").split("||") if x]
+    def integer_or_none(value):
+        try:
+            return int(value) if value not in (None, "") else None
+        except (TypeError, ValueError):
+            return None
+    return _build_parse_result({
+        "kind": form.get("parsed_kind", "unknown"),
+        "match_date": form.get("parsed_match_date") or None,
+        "players": form.getlist("parsed_player"),
+        "team_a": team_a,
+        "team_b": team_b,
+        "goals_a": integer_or_none(form.get("parsed_goals_a")),
+        "goals_b": integer_or_none(form.get("parsed_goals_b")),
+    }, players)
 
 
 def _remove_resolved_name(parse_result, name):
@@ -88,15 +113,24 @@ def matchmaker():
     result = None; seed = None; parse_result = None; parse_error = None; parser_success = None
     action = request.form.get("action") if request.method == "POST" else None
 
-    if request.method == "POST" and action == "parse_image":
-        upload = request.files.get("match_image")
-        if not upload or not upload.filename: parse_error = "Please choose or paste an image first."
-        else:
-            try:
-                parsed = parse_match_image(upload.read(), upload.mimetype)
-                parse_result = _build_parse_result(parsed["players"], parsed["match_date"], players)
+    if request.method == "POST" and action in ("parse_image", "parse_source"):
+        try:
+            if action == "parse_source" and request.form.get("match_text", "").strip():
+                parsed = parse_match_text(request.form["match_text"])
+            else:
+                upload = request.files.get("match_image")
+                if not upload or not upload.filename:
+                    parse_error = "Please paste a WhatsApp message or choose/paste an image first."
+                    parsed = None
+                else:
+                    parsed = parse_match_image(upload.read(), upload.mimetype)
+            if parsed is not None:
+                parse_result = _build_parse_result(parsed, players)
                 selected_ids = parse_result["verified_ids"]
-            except MatchImageParserError as exc: parse_error = str(exc)
+                if parse_result["kind"] == "match":
+                    parser_success = "This looks like an already played match. You can use the detected facts for Match Entry, or check the same players for fairer teams."
+        except MatchParserError as exc:
+            parse_error = str(exc)
 
     elif request.method == "POST" and action == "resolve_conflicts":
         parse_result = _rebuild_parser_result(request.form, players)
@@ -107,17 +141,15 @@ def matchmaker():
         remaining_conflicts = []
         for index, conflict in enumerate(parse_result["conflicts"]):
             detail = normalize_player_name(request.form.get(f"conflict_detail_{index}", ""))
-            if not detail:
-                remaining_conflicts.append(conflict); continue
-            candidates = alias_lookup.get(detail.casefold(), [])
+            candidates = alias_lookup.get((detail or conflict["name"]).casefold(), [])
             if len(candidates) == 1:
                 if candidates[0] not in selected_ids: selected_ids.append(candidates[0])
             elif len(candidates) > 1:
                 remaining_conflicts.append({"name": conflict["name"], "candidate_ids": candidates, "detail": detail})
             else:
-                parse_result["unmatched"].append({"name": detail, "verified": False})
+                parse_result["unmatched"].append({"name": detail or conflict["name"], "verified": False})
         parse_result["conflicts"] = remaining_conflicts
-        parser_success = "Name conflicts resolved. All uniquely identified identities are now trusted." if not remaining_conflicts else None
+        parser_success = "Name conflicts resolved. The confirmed identities are now selected." if not remaining_conflicts else None
 
     elif request.method == "POST" and action == "add_parser_alias":
         parse_result = _rebuild_parser_result(request.form, players); alias = normalize_player_name(request.form.get("new_alias", ""))
@@ -146,7 +178,7 @@ def matchmaker():
         except ValueError: seed = None
         if len(selected_ids) >= 2: result = generate_match(selected_ids, players, ratings, rating_type, seed=seed)
 
-    matchmaker_date = request.form.get("parsed_match_date") or date.today().isoformat()
+    matchmaker_date = request.form.get("parsed_match_date") or request.args.get("date", date.today().isoformat())
     connection.close()
     return render_template("matchmaker.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, mode=mode, pitch=pitch, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success, calibration_levels=CALIBRATION_LEVELS, matchmaker_date=matchmaker_date)
 
@@ -156,11 +188,9 @@ def match_entry():
     connection = get_connection(); players = get_players(connection)
     match_date = request.form.get("date", request.args.get("date", date.today().isoformat())); pitch = request.form.get("pitch", request.args.get("pitch", "box")); pitch = pitch if pitch in ("box", "hf") else "box"
     if request.method == "POST":
-        team_a = _get_prefilled_team_ids(request.form, "team_a", players)
-        team_b = _get_prefilled_team_ids(request.form, "team_b", players)
+        team_a = _get_prefilled_team_ids(request.form, "team_a", players); team_b = _get_prefilled_team_ids(request.form, "team_b", players)
     else:
-        team_a = _get_prefilled_team_ids(request.args, "team_a", players)
-        team_b = _get_prefilled_team_ids(request.args, "team_b", players)
+        team_a = _get_prefilled_team_ids(request.args, "team_a", players); team_b = _get_prefilled_team_ids(request.args, "team_b", players)
     goals_a = request.form.get("goals_a", "0"); goals_b = request.form.get("goals_b", "0"); success = error = calibration_message = None
     if request.method == "POST" and request.form.get("action") == "create_player":
         try:
