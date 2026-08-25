@@ -27,7 +27,7 @@
 .parse-unmatched { color: var(--text-muted); }
 .conflict-list, .new-player-list { margin-top: 14px; }
 .conflict-row, .new-player-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; }
-.conflict-row input[type="text"] { flex: 1; min-width: 220px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-surface); color: var(--text-main); }
+.name-button { border: 0; background: none; color: var(--green); font: inherit; font-weight: 600; cursor: pointer; padding: 2px 0; text-decoration: underline; }
 .player-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px; }
 .player-option { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
 .player-option:hover { background: var(--bg-surface-alt); }
@@ -49,6 +49,14 @@
 .team-rating strong { color: var(--text-main); }
 .result-summary { margin-top: 20px; padding: 14px; background: var(--bg-surface-alt); border-left: 3px solid var(--green); }
 .empty-note { color: var(--text-muted); margin-top: 16px; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: center; justify-content: center; z-index: 1000; }
+.modal { width: min(560px, calc(100% - 32px)); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+.modal h3 { margin-top: 0; }
+.modal-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+.modal input[type="text"], .modal select { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-surface); color: var(--text-main); font: inherit; }
+.modal-option { display: block; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); margin-top: 10px; cursor: pointer; }
+.modal-option:hover { background: var(--bg-surface-alt); }
+.modal .muted { color: var(--text-muted); font-size: 13px; }
 @media (max-width: 750px) { .player-grid { grid-template-columns: repeat(2, 1fr); } .result-grid { grid-template-columns: 1fr; } }
 @media (max-width: 500px) { .player-grid { grid-template-columns: 1fr; } }
 </style>
@@ -97,18 +105,15 @@
                     {% if parse_result.conflicts %}
                     <div class="conflict-list">
                         <strong>Possible name conflicts</strong>
-                        <p class="parse-unmatched">These names already exist in the database, but an unmarked name might still belong to a different person. Enter a more detailed version if necessary.</p>
+                        <p class="parse-unmatched">These names are unmarked. Click each name to enter more detail. Once confirmed, we will trust that identity.</p>
                         {% for conflict in parse_result.conflicts %}
                         <div class="conflict-row">
-                            <strong>{{ conflict.name }}</strong><span>→</span>
-                            <input type="text" name="conflict_detail_{{ loop.index0 }}" value="{{ conflict.detail if conflict.detail is defined else '' }}" placeholder="e.g. Konsti Müller">
-                            {% if conflict.detail is defined and conflict.detail %}
-                            <button class="secondary-button small-button" type="submit" name="action" value="create_parser_player" formaction="/matchmaker" formmethod="post" formnovalidate>Add as new player</button>
-                            {% endif %}
+                            <button type="button" class="name-button" onclick="openConflictModal('{{ loop.index0 }}', {{ conflict.name|tojson }})">{{ conflict.name }}</button>
                         </div>
+                        <input type="hidden" name="conflict_detail_{{ loop.index0 }}" id="conflict-detail-{{ loop.index0 }}" value="{{ conflict.detail if conflict.detail is defined else '' }}">
                         {% endfor %}
-                        <button class="secondary-button" type="submit" name="action" value="resolve_conflicts">Resolve name conflicts</button>
                     </div>
+                    <button class="secondary-button small-button" type="submit" name="action" value="resolve_conflicts">Finish name resolution</button>
                     {% endif %}
 
                     {% if parse_result.unmatched %}
@@ -117,7 +122,7 @@
                         {% for item in parse_result.unmatched %}
                         <div class="new-player-row">
                             <span>{{ item.name }}</span>
-                            <button class="secondary-button small-button" type="submit" name="action" value="create_parser_player" formaction="/matchmaker" formmethod="post" formnovalidate>Add player</button>
+                            <button class="secondary-button small-button" type="button" onclick="openAddPlayerModal({{ item.name|tojson }})">Add player</button>
                         </div>
                         {% endfor %}
                     </div>
@@ -159,6 +164,56 @@
     {% elif selected_ids|length == 1 %}<p class="empty-note">Select at least two players to generate teams.</p>{% endif %}
 </div>
 
+<!-- Change-details modal -->
+<div class="modal-backdrop" id="conflict-modal">
+    <div class="modal">
+        <h3>Change name details</h3>
+        <p class="muted">The screenshot contains <strong id="conflict-raw-name"></strong>. Enter a more detailed identity, e.g. <em>Konsti Müller</em>.</p>
+        <input type="text" id="conflict-detail-input" placeholder="More detailed name">
+        <div class="modal-actions">
+            <button type="button" class="primary-button" onclick="saveConflictDetail()">Use this identity</button>
+            <button type="button" class="secondary-button" onclick="closeConflictModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add-player choice / creation modal -->
+<div class="modal-backdrop" id="add-player-modal">
+    <div class="modal">
+        <h3>Add player</h3>
+        <p class="muted">Detected name: <strong id="add-player-detected-name"></strong></p>
+        <div id="add-player-choice">
+            <p>Should this name be added as an alias to an existing player, or is this a new player?</p>
+            <div class="modal-actions">
+                <button type="button" class="primary-button" onclick="showAliasChoice()">Add alias to existing ID</button>
+                <button type="button" class="secondary-button" onclick="showNewPlayerForm()">Add new player</button>
+            </div>
+        </div>
+        <div id="alias-choice" style="display:none">
+            <label for="alias-player-select">Existing player</label>
+            <select id="alias-player-select">
+                {% for player_id, player in players.items() %}
+                <option value="{{ player_id }}">#{{ player_id }} — {{ player.aliases[0] if player.aliases else 'Player ' ~ player_id }}</option>
+                {% endfor %}
+            </select>
+            <div class="modal-actions">
+                <button type="button" class="primary-button" onclick="submitAliasPlayer()">Add alias &amp; select</button>
+                <button type="button" class="secondary-button" onclick="showAddChoice()">Back</button>
+            </div>
+        </div>
+        <div id="new-player-form" style="display:none">
+            <label for="parser-new-alias">Alias / name</label>
+            <input type="text" id="parser-new-alias">
+            <p class="muted" style="margin-top:10px">The player will use the standard average calibration and can be edited later.</p>
+            <div class="modal-actions">
+                <button type="button" class="primary-button" onclick="submitNewParserPlayer()">Create &amp; select</button>
+                <button type="button" class="secondary-button" onclick="showAddChoice()">Back</button>
+            </div>
+        </div>
+        <div class="modal-actions"><button type="button" class="secondary-button" onclick="closeAddPlayerModal()">Cancel</button></div>
+    </div>
+</div>
+
 <script>
 (() => {
     const input = document.getElementById("match-image");
@@ -181,6 +236,69 @@
         }
     });
     input.addEventListener("change", () => { if (input.files.length) status.textContent = `Selected: ${input.files[0].name}`; });
+})();
+
+let conflictIndex = null;
+let addPlayerName = "";
+
+function openConflictModal(index, rawName) {
+    conflictIndex = index;
+    document.getElementById("conflict-raw-name").textContent = rawName;
+    document.getElementById("conflict-detail-input").value = document.getElementById(`conflict-detail-${index}`).value || rawName;
+    document.getElementById("conflict-modal").style.display = "flex";
+    document.getElementById("conflict-detail-input").focus();
+}
+function closeConflictModal() { document.getElementById("conflict-modal").style.display = "none"; conflictIndex = null; }
+function saveConflictDetail() {
+    const value = document.getElementById("conflict-detail-input").value.trim();
+    if (!value || conflictIndex === null) return;
+    document.getElementById(`conflict-detail-${conflictIndex}`).value = value;
+    const button = document.querySelector(`.conflict-row:nth-of-type(${Number(conflictIndex) + 1}) .name-button`);
+    closeConflictModal();
+}
+
+function showAddChoice() {
+    document.getElementById("add-player-choice").style.display = "block";
+    document.getElementById("alias-choice").style.display = "none";
+    document.getElementById("new-player-form").style.display = "none";
+}
+function showAliasChoice() {
+    document.getElementById("add-player-choice").style.display = "none";
+    document.getElementById("alias-choice").style.display = "block";
+    document.getElementById("new-player-form").style.display = "none";
+}
+function showNewPlayerForm() {
+    document.getElementById("add-player-choice").style.display = "none";
+    document.getElementById("alias-choice").style.display = "none";
+    document.getElementById("new-player-form").style.display = "block";
+    document.getElementById("parser-new-alias").value = addPlayerName;
+    document.getElementById("parser-new-alias").focus();
+}
+function openAddPlayerModal(name) {
+    addPlayerName = name;
+    document.getElementById("add-player-detected-name").textContent = name;
+    document.getElementById("parser-new-alias").value = name;
+    showAddChoice();
+    document.getElementById("add-player-modal").style.display = "flex";
+}
+function closeAddPlayerModal() { document.getElementById("add-player-modal").style.display = "none"; }
+
+function addHidden(form, name, value) {
+    const input = document.createElement("input"); input.type = "hidden"; input.name = name; input.value = value; form.appendChild(input);
+}
+function submitAliasPlayer() {
+    const form = document.getElementById("matchmaker-form");
+    addHidden(form, "action", "add_parser_alias");
+    addHidden(form, "new_alias", addPlayerName);
+    addHidden(form, "target_player_id", document.getElementById("alias-player-select").value);
+    form.submit();
+}
+function submitNewParserPlayer() {
+    const form = document.getElementById("matchmaker-form");
+    addHidden(form, "action", "create_parser_player");
+    addHidden(form, "new_alias", document.getElementById("parser-new-alias").value.trim());
+    form.submit();
+}
 })();
 </script>
 {% endblock %}
