@@ -47,12 +47,12 @@ def _call_gemini(parts, model=None):
                 "type": "OBJECT",
                 "properties": {
                     "kind": {"type": "STRING", "enum": ["attendance", "match", "unknown"]},
-                    "match_date": {"type": ["STRING", "NULL"]},
+                    "match_date": {"type": "STRING"},
                     "players": {"type": "ARRAY", "items": {"type": "STRING"}},
                     "team_a": {"type": "ARRAY", "items": {"type": "STRING"}},
                     "team_b": {"type": "ARRAY", "items": {"type": "STRING"}},
-                    "goals_a": {"type": ["INTEGER", "NULL"]},
-                    "goals_b": {"type": ["INTEGER", "NULL"]}
+                    "goals_a": {"type": "INTEGER"},
+                    "goals_b": {"type": "INTEGER"}
                 },
                 "required": ["kind", "match_date", "players", "team_a", "team_b", "goals_a", "goals_b"]
             }
@@ -91,10 +91,11 @@ Identity/name rules:
 - Preserve useful human detail such as `Konsti+1 (Jens)` or `Jan (Sprenger)` rather than simplifying it to `Konsti` or `Jan`.
 - Do not invent names or infer missing players.
 - For attendance screenshots, an entry marked `(✓)` is WAITING LIST, not attending. Exclude it even if it has an orange background. The `(✓)` marker is the primary signal.
-- Dates should be YYYY-MM-DD only when unambiguous; otherwise null.
+- Dates should be YYYY-MM-DD only when unambiguous; otherwise use an empty string.
 - Do not confuse scores, headings, labels, or other text with player names.
 - If the content is not sufficiently recognizable as attendance or a match, use kind=unknown and extract only clearly identifiable names.
 
+For fields that are not present, use an empty string for match_date and 0 for goals. The application will interpret these as missing values where appropriate.
 Return valid JSON matching the supplied schema.
 """.strip()
 
@@ -130,6 +131,8 @@ def _normalize(parsed):
     parsed["team_b"] = names(parsed.get("team_b"))
     if not parsed["players"]:
         parsed["players"] = parsed["team_a"] + parsed["team_b"]
+    if parsed.get("match_date") == "":
+        parsed["match_date"] = None
     return parsed
 
 
