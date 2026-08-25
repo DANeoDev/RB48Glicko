@@ -1,6 +1,6 @@
 import math
 
-from flask import request
+from flask import has_request_context, request
 
 from scripts.glicko.glicko2 import (
     BOX,
@@ -129,7 +129,7 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
     """Analyse historical match predictions using pre-match rating snapshots."""
     if mode not in (TOTAL, "pitch"):
         raise ValueError("mode must be 'total' or 'pitch'")
-    if pitch is None and mode == "pitch":
+    if pitch is None and mode == "pitch" and has_request_context():
         pitch = request.args.get("pitch", BOX)
     if pitch not in (None, BOX, HF):
         raise ValueError("pitch must be None, BOX, or HF")
