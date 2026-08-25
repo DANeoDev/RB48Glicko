@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const enterMatch = document.getElementById('enter-match');
     if (!enterMatch) return;
 
-    // Keep the parser's detected facts when the Matchmaker form is submitted.
     const parserForm = document.getElementById('mc-form');
     const parserStateKey = 'rb48_match_center_parser_state';
     const matchmakerForm = [...document.querySelectorAll('form')].find(form =>
@@ -25,8 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Restore imported match facts after generating teams. The server-side
-    // Matchmaker result remains authoritative for the generated teams.
+    // Restore imported facts after generating teams. The generated Matchmaker
+    // result remains separate until the user explicitly chooses to use it.
     const saved = sessionStorage.getItem(parserStateKey);
     if (saved) {
         try {
@@ -39,6 +38,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (date && state.date) date.value = state.date;
                 if (goalsA && state.goalsA !== '') goalsA.value = state.goalsA;
                 if (goalsB && state.goalsB !== '') goalsB.value = state.goalsB;
+
+                const restoreTeam = (key, team) => {
+                    const names = String(state[key] || '').split('||').filter(Boolean);
+                    names.forEach(rawName => {
+                        const wanted = rawName.trim().toLowerCase();
+                        const player = [...document.querySelectorAll('.player')].find(box =>
+                            box.querySelector('span')?.textContent?.trim().toLowerCase() === wanted
+                        );
+                        const checkbox = player?.querySelector('input[type="checkbox"]');
+                        if (checkbox && typeof window.addPlayer === 'function') {
+                            window.addPlayer(team, checkbox.value, player.querySelector('span').textContent.trim());
+                        }
+                    });
+                };
+                restoreTeam('teamA', 'a');
+                restoreTeam('teamB', 'b');
             }
             sessionStorage.removeItem(parserStateKey);
         } catch (_) {
@@ -46,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Possible conflicts are deliberately compact: clickable names in one row.
+    // Possible conflicts are compact: clickable names in one row.
     const conflictList = document.querySelector('.conflict-list');
     if (conflictList) {
         conflictList.style.display = 'flex';
@@ -65,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
         conflictList.querySelectorAll('.conflict-row .muted').forEach(status => status.style.display = 'none');
     }
 
-    // "Use these teams" applies the generated teams only when explicitly requested.
+    // "Use these teams" changes the Enter a Match teams only on explicit action.
     const generated = document.getElementById('generated-teams');
     const useTeams = [...document.querySelectorAll('a.primary')].find(a =>
         a.textContent.trim() === 'Use these teams in Enter a Match'
