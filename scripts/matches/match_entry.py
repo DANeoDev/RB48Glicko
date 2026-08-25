@@ -3,13 +3,13 @@ import io
 import re
 from pathlib import Path
 
-from scripts.db_matches import create_match, add_match_player, get_matches, get_match_teams, match_exists
-from scripts.db_ratings import get_ratings, get_processed_match_ids, get_calibrations, set_calibration
-from scripts.db_players import get_alias_lookup, get_ignored_aliases, get_next_player_id, create_player, add_alias, add_position
-from scripts.glicko2 import Glicko2, DEFAULT_RATING, DEFAULT_RD, DEFAULT_SIGMA
-from scripts.glicko2_calculator import glicko_table_to_ratings, ratings_to_glicko_table, update_match, write_match_ratings, write_glicko, initialize_player_ratings
+from scripts.database.db_matches import create_match, add_match_player, get_matches, get_match_teams, match_exists
+from scripts.database.db_ratings import get_ratings, get_processed_match_ids, get_calibrations, set_calibration
+from scripts.database.db_players import get_alias_lookup, get_ignored_aliases, get_next_player_id, create_player, add_alias, add_position
+from scripts.glicko.glicko2 import Glicko2, DEFAULT_RATING, DEFAULT_RD, DEFAULT_SIGMA
+from scripts.glicko.glicko2_calculator import glicko_table_to_ratings, ratings_to_glicko_table, update_match, write_match_ratings, write_glicko, initialize_player_ratings
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MATCHES_DIR = PROJECT_ROOT / "matches"
 CALIBRATION_LEVELS = {"extremely_weak": (0.15, "Extremely weak"), "weak": (0.35, "Weak"), "average": (None, "Average (standard)"), "strong": (0.65, "Strong"), "extremely_strong": (0.85, "Extremely strong")}
 
