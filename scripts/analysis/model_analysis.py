@@ -1,6 +1,6 @@
 import math
 
-from scripts.glicko2 import (
+from scripts.glicko.glicko2 import (
     BOX,
     DEFAULT_SIGMA,
     GLICKO2_SCALE,
@@ -8,8 +8,8 @@ from scripts.glicko2 import (
     IGNORED_RD,
     TOTAL,
 )
-from scripts.db_matches import get_match_teams, get_matches
-from scripts.db_ratings import get_match_ratings
+from scripts.database.db_matches import get_match_teams, get_matches
+from scripts.database.db_ratings import get_match_ratings
 
 
 def _expected_score(team_a, team_b):
@@ -119,7 +119,6 @@ def _lowess(predictions, points=50, fraction=0.35):
         if weight_sum == 0:
             continue
 
-        # Weighted local linear regression around x0.
         mean_x = sum(weight * x for weight, x in zip(weights, xs)) / weight_sum
         mean_y = sum(weight * y for weight, y in zip(weights, ys)) / weight_sum
         sxx = sum(weight * (x - mean_x) ** 2 for weight, x in zip(weights, xs))
