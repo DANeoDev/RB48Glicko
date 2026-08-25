@@ -4,7 +4,7 @@ from flask import Flask, render_template, request
 
 from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_ratings, get_player_rating_history
-from scripts.database.db_players import get_players
+from scripts.database.db_players import get_players, get_alias_lookup, add_alias
 from scripts.database.db_matches import get_player_stats
 from scripts.frontend.view_models import build_leaderboard, build_match_history
 from scripts.analysis.model_analysis import analyze_model
@@ -28,6 +28,12 @@ def _build_parse_result(parsed_names, match_date, players):
         "conflicts": conflicts,
         "unmatched": unmatched,
     }
+
+
+def _rebuild_parser_result(form, players):
+    parsed_names = form.getlist("parsed_player")
+    match_date = form.get("parsed_match_date") or None
+    return _build_parse_result(parsed_names, match_date, players)
 
 
 @app.route("/")
@@ -113,6 +119,8 @@ def matchmaker():
     parse_result = None
     parse_error = None
     parser_success = None
+    parser_modal = None
+    parser_modal_name = None
 
     action = request.form.get("action") if request.method == "POST" else None
 
@@ -129,11 +137,8 @@ def matchmaker():
                 parse_error = str(exc)
 
     elif request.method == "POST" and action == "resolve_conflicts":
-        parsed_names = request.form.getlist("parsed_player")
-        match_date = request.form.get("parsed_match_date") or None
-        parse_result = _build_parse_result(parsed_names, match_date, players)
+        parse_result = _rebuild_parser_result(request.form, players)
         selected_ids = parse_result["verified_ids"]
-
         remaining_conflicts = []
         alias_lookup = {}
         for player_id, player in players.items():
@@ -153,26 +158,50 @@ def matchmaker():
                 remaining_conflicts.append({"name": conflict["name"], "candidate_ids": candidates, "detail": detail})
 
         parse_result["conflicts"] = remaining_conflicts
-        parse_result["unmatched"] = [item for item in parse_result["unmatched"] if item["name"].casefold() not in {c.get("detail", "").casefold() for c in remaining_conflicts}]
         if not remaining_conflicts:
-            parser_success = "Name conflicts resolved."
+            parser_success = "Name conflicts resolved. All resolved players are now selected."
+        else:
+            parser_modal = "conflict"
+
+    elif request.method == "POST" and action == "add_parser_alias":
+        parse_result = _rebuild_parser_result(request.form, players)
+        alias = normalize_player_name(request.form.get("new_alias", ""))
+        try:
+            player_id = int(request.form.get("target_player_id", ""))
+            if player_id not in players:
+                raise ValueError("Selected player does not exist.")
+            if not alias:
+                raise ValueError("Alias cannot be empty.")
+            lookup = get_alias_lookup(connection)
+            if alias in lookup:
+                raise ValueError(f"The alias '{alias}' already exists.")
+            add_alias(connection, alias, player_id)
+            connection.commit()
+            players = get_players(connection)
+            selected_ids = list(dict.fromkeys(selected_ids + [player_id]))
+            parse_result = _rebuild_parse_result(request.form, players)
+            parser_success = f"Added '{alias}' as an alias and selected the player."
+        except (ValueError, TypeError) as exc:
+            parse_error = str(exc)
+            parser_modal = "add_player"
+            parser_modal_name = alias
 
     elif request.method == "POST" and action == "create_parser_player":
         alias = normalize_player_name(request.form.get("new_alias", ""))
-        parsed_names = request.form.getlist("parsed_player")
-        match_date = request.form.get("parsed_match_date") or None
         try:
             created_id, _ = create_new_player(connection, alias, calibration_level="average")
             players = get_players(connection)
             selected_ids.append(created_id)
-            parse_result = _build_parse_result(parsed_names, match_date, players)
+            parse_result = _rebuild_parser_result(request.form, players)
             if created_id not in parse_result["verified_ids"]:
                 parse_result["verified_ids"].append(created_id)
             selected_ids = list(dict.fromkeys(selected_ids + parse_result["verified_ids"]))
             parser_success = f"Created {alias} and selected them."
         except ValueError as exc:
             parse_error = str(exc)
-            parse_result = _build_parse_result(parsed_names, match_date, players)
+            parse_result = _rebuild_parser_result(request.form, players)
+            parser_modal = "add_player"
+            parser_modal_name = alias
 
     elif request.method == "POST" and action in ("generate", "reroll"):
         seed_value = request.form.get("seed")
@@ -185,7 +214,7 @@ def matchmaker():
 
     connection.close()
 
-    return render_template("matchmaker.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, mode=mode, pitch=pitch, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success)
+    return render_template("matchmaker.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, mode=mode, pitch=pitch, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success, parser_modal=parser_modal, parser_modal_name=parser_modal_name)
 
 
 @app.route("/match-entry", methods=["GET", "POST"])
