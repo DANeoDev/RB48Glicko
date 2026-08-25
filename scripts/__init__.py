@@ -3,6 +3,10 @@
 The project was reorganized into functional subpackages. The aliases below
 keep older internal imports working while the codebase is migrated to the
 canonical package paths. They are module aliases, not duplicate source files.
+
+Maintenance scripts are deliberately not imported here: some of them are
+standalone destructive utilities and importing them must never modify the
+ database as a side effect.
 """
 
 import importlib
@@ -24,8 +28,6 @@ _ALIAS_ORDER = [
     ("matchmaker", "scripts.matchmaking.matchmaker"),
     ("model_analysis", "scripts.analysis.model_analysis"),
     ("view_models", "scripts.frontend.view_models"),
-    ("wipe_matchdata", "scripts.database.maintenance.wipe_matchdata"),
-    ("wipe_ratings", "scripts.database.maintenance.wipe_ratings"),
 ]
 
 for _old_name, _new_name in _ALIAS_ORDER:
