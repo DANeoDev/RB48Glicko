@@ -65,6 +65,11 @@ IMPORTANT:
 - [M] is meaningful: it marks a verified association member and may be used by the
   application as an identity confirmation.
 - Do not remove [M] from the returned names.
+- IMPORTANT VISUAL RULE: players shown on the WAITING LIST must NOT be returned as attending.
+  In this attendance list, a waiting-list entry is visually marked by an ORANGE BACKGROUND
+  together with a hook/check symbol. Those orange hook/check entries are waiting, not attending,
+  even though their names are present in the list. Ignore them completely.
+- Only return players who are actually attending/participating according to the visual status.
 - Do not interpret match results, scores, teams, ratings, positions, or other unrelated text.
 - Do not invent names. Preserve each player name as it appears in the image as closely as possible.
 - If the date is visible and can be determined unambiguously, return it as YYYY-MM-DD;
