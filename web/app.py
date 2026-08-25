@@ -35,6 +35,13 @@ def _remove_resolved_name(parse_result, name):
     parse_result["unmatched"] = [u for u in parse_result["unmatched"] if u.get("name", "").casefold() != key]
 
 
+def _get_prefilled_team_ids(form, team_name, players):
+    values = form.getlist(team_name)
+    if len(values) == 1 and "," in values[0]:
+        values = values[0].split(",")
+    return [int(pid) for pid in values if pid.isdigit() and int(pid) in players]
+
+
 @app.route("/")
 def home():
     connection = get_connection(); ratings = get_ratings(connection); players = get_players(connection); stats = get_player_stats(connection); connection.close()
@@ -147,7 +154,12 @@ def matchmaker():
 def match_entry():
     connection = get_connection(); players = get_players(connection)
     match_date = request.form.get("date", request.args.get("date", date.today().isoformat())); pitch = request.form.get("pitch", request.args.get("pitch", "box")); pitch = pitch if pitch in ("box", "hf") else "box"
-    team_a = [int(pid) for pid in request.form.getlist("team_a") if pid.isdigit() and int(pid) in players]; team_b = [int(pid) for pid in request.form.getlist("team_b") if pid.isdigit() and int(pid) in players]
+    if request.method == "POST":
+        team_a = _get_prefilled_team_ids(request.form, "team_a", players)
+        team_b = _get_prefilled_team_ids(request.form, "team_b", players)
+    else:
+        team_a = _get_prefilled_team_ids(request.args, "team_a", players)
+        team_b = _get_prefilled_team_ids(request.args, "team_b", players)
     goals_a = request.form.get("goals_a", "0"); goals_b = request.form.get("goals_b", "0"); success = error = calibration_message = None
     if request.method == "POST" and request.form.get("action") == "create_player":
         try:
