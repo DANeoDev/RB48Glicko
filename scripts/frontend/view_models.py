@@ -1,8 +1,8 @@
 import math
 
-from scripts.db_matches import get_matches, get_match_teams
-from scripts.db_ratings import get_match_ratings
-from scripts.glicko2 import Glicko2, Rating, TOTAL, BOX, HF, IGNORED_RD, DEFAULT_SIGMA, g, expected_score
+from scripts.database.db_matches import get_matches, get_match_teams
+from scripts.database.db_ratings import get_match_ratings
+from scripts.glicko.glicko2 import Glicko2, Rating, TOTAL, BOX, HF, IGNORED_RD, DEFAULT_SIGMA, g, expected_score
 
 
 def build_leaderboard(ratings, players, stats):
@@ -16,34 +16,22 @@ def build_leaderboard(ratings, players, stats):
         leaderboard.append({
             "player_id": player_id,
             "alias": players[player_id]["aliases"][0],
-
             "total": {
                 "rating": rating["total"]["rating"],
                 "rd": rating["total"]["rd"],
-                "conservative": (
-                    rating["total"]["rating"]
-                    - 3 * rating["total"]["rd"]
-                ),
+                "conservative": rating["total"]["rating"] - 3 * rating["total"]["rd"],
                 **player_stats.get("total", {}),
             },
-
             "box": {
                 "rating": rating["box"]["rating"],
                 "rd": rating["box"]["rd"],
-                "conservative": (
-                    rating["box"]["rating"]
-                    - 3 * rating["box"]["rd"]
-                ),
+                "conservative": rating["box"]["rating"] - 3 * rating["box"]["rd"],
                 **player_stats.get("box", {}),
             },
-
             "hf": {
                 "rating": rating["hf"]["rating"],
                 "rd": rating["hf"]["rd"],
-                "conservative": (
-                    rating["hf"]["rating"]
-                    - 3 * rating["hf"]["rd"]
-                ),
+                "conservative": rating["hf"]["rating"] - 3 * rating["hf"]["rd"],
                 **player_stats.get("hf", {}),
             },
         })
@@ -74,13 +62,8 @@ def calculate_match_details(match, team_a, team_b, match_ratings):
     elif match["pitch"] == "hf":
         rating_type = HF
     else:
-        raise ValueError(
-            f"Unknown pitch type: {match['pitch']}"
-        )
+        raise ValueError(f"Unknown pitch type: {match['pitch']}")
 
-    # A match can legitimately exist before its ratings have been
-    # calculated (for example, a newly entered or retrospective match).
-    # Match history must still be renderable in that state.
     required_players = team_a + team_b
     if any(
         player_id not in match_ratings
@@ -101,61 +84,36 @@ def calculate_match_details(match, team_a, team_b, match_ratings):
     total_players_b = match["players_b"]
 
     def team_rating(player_ids, total_players):
-
         active_ratings = [
             match_ratings[player_id][rating_type]
             for player_id in player_ids
         ]
 
-        average_rating = sum(
-            rating["rating"]
-            for rating in active_ratings
-        ) / len(active_ratings)
-
+        average_rating = sum(rating["rating"] for rating in active_ratings) / len(active_ratings)
         ignored_players = total_players - len(player_ids)
-
         average_rd = math.sqrt(
             (
-                sum(
-                    rating["rd"] ** 2
-                    for rating in active_ratings
-                )
+                sum(rating["rd"] ** 2 for rating in active_ratings)
                 + IGNORED_RD ** 2 * ignored_players
             ) / total_players
         )
-
         average_sigma = math.sqrt(
             (
-                sum(
-                    rating["sigma"] ** 2
-                    for rating in active_ratings
-                )
+                sum(rating["sigma"] ** 2 for rating in active_ratings)
                 + DEFAULT_SIGMA ** 2 * ignored_players
             ) / total_players
         )
 
-        return Rating(
-            average_rating,
-            average_rd,
-            average_sigma
-        )
+        return Rating(average_rating, average_rd, average_sigma)
 
-    team_a_rating = team_rating(
-        team_a,
-        total_players_a
-    )
-
-    team_b_rating = team_rating(
-        team_b,
-        total_players_b
-    )
+    team_a_rating = team_rating(team_a, total_players_a)
+    team_b_rating = team_rating(team_b, total_players_b)
 
     team_a_expected = expected_score(
         team_a_rating.rating,
         team_b_rating.rating,
         team_b_rating.rd
     )
-
     team_b_expected = expected_score(
         team_b_rating.rating,
         team_a_rating.rating,
@@ -173,20 +131,9 @@ def calculate_match_details(match, team_a, team_b, match_ratings):
         team_b_result = 0.5
 
     engine = Glicko2()
-
-    updated_team_a = engine.update_rating(
-        team_a_rating,
-        [(team_a_result, team_b_rating)]
-    )
-
-    updated_team_b = engine.update_rating(
-        team_b_rating,
-        [(team_b_result, team_a_rating)]
-    )
-
-    rating_delta_a = (
-        updated_team_a.rating - team_a_rating.rating
-    )
+    updated_team_a = engine.update_rating(team_a_rating, [(team_a_result, team_b_rating)])
+    updated_team_b = engine.update_rating(team_b_rating, [(team_b_result, team_a_rating)])
+    rating_delta_a = updated_team_a.rating - team_a_rating.rating
 
     return {
         "team_a_rating": team_a_rating.rating,
@@ -202,66 +149,33 @@ def calculate_match_details(match, team_a, team_b, match_ratings):
 def build_match_history(connection, players, player_id=None):
 
     matches = get_matches(connection)
-
     history = []
 
     for match_id, match in matches.items():
+        team_a, team_b = get_match_teams(connection, match_id)
 
-        team_a, team_b = get_match_teams(
-            connection,
-            match_id
-        )
-
-        if player_id is not None:
-            if player_id not in team_a and player_id not in team_b:
-                continue
+        if player_id is not None and player_id not in team_a and player_id not in team_b:
+            continue
 
         external_a = match["players_a"] - len(team_a)
         external_b = match["players_b"] - len(team_b)
+        match_ratings = get_match_ratings(connection, match_id)
 
-        match_ratings = get_match_ratings(
-            connection,
-            match_id
-        )
-
-        details = calculate_match_details(
-            match,
-            team_a,
-            team_b,
-            match_ratings
-        )
-
-        rating_type = (
-            BOX if match["pitch"] == "box" else HF
-        )
+        details = calculate_match_details(match, team_a, team_b, match_ratings)
+        rating_type = BOX if match["pitch"] == "box" else HF
 
         def player_entry(player_id):
             rating = None
-
-            if (
-                player_id in match_ratings
-                and rating_type in match_ratings[player_id]
-            ):
+            if player_id in match_ratings and rating_type in match_ratings[player_id]:
                 rating = match_ratings[player_id][rating_type]["rating"]
-
             return {
                 "name": players[player_id]["aliases"][0],
                 "rating": rating
             }
 
-        team_a_players = [
-            player_entry(player_id)
-            for player_id in team_a
-        ]
+        team_a_players = [player_entry(player_id) for player_id in team_a]
+        team_b_players = [player_entry(player_id) for player_id in team_b]
 
-        team_b_players = [
-            player_entry(player_id)
-            for player_id in team_b
-        ]
-
-        # Processed matches have ratings and retain the original rating
-        # based ordering. Unprocessed matches are still shown, but without
-        # pretending that a rating exists.
         team_a_players.sort(
             key=lambda player: (
                 player["rating"] is not None,
@@ -269,7 +183,6 @@ def build_match_history(connection, players, player_id=None):
             ),
             reverse=True
         )
-
         team_b_players.sort(
             key=lambda player: (
                 player["rating"] is not None,
@@ -284,26 +197,14 @@ def build_match_history(connection, players, player_id=None):
             "pitch": match["pitch"],
             "goals_a": match["goals_a"],
             "goals_b": match["goals_b"],
-
-            "team_a": [
-                players[player_id]["aliases"][0]
-                for player_id in team_a
-            ],
-
-            "team_b": [
-                players[player_id]["aliases"][0]
-                for player_id in team_b
-            ],
-
+            "team_a": [players[player_id]["aliases"][0] for player_id in team_a],
+            "team_b": [players[player_id]["aliases"][0] for player_id in team_b],
             "team_a_players": team_a_players,
             "team_b_players": team_b_players,
-
             "external_a": external_a,
             "external_b": external_b,
-
             "team_a_ids": team_a,
             "team_b_ids": team_b,
-
             **details,
         })
 
