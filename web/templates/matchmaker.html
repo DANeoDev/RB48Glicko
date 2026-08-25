@@ -21,9 +21,13 @@
 .file-input { max-width: 100%; }
 .paste-note { font-size: 13px; }
 .parse-error { margin-top: 12px; color: var(--text-muted); border-left: 3px solid var(--green); padding-left: 10px; }
+.parse-success { margin-top: 12px; color: var(--text-main); border-left: 3px solid var(--green); padding-left: 10px; }
 .parse-result { margin-top: 14px; padding: 12px; border-left: 3px solid var(--green); background: var(--bg-surface); }
 .parse-result ul { margin: 8px 0 0 20px; }
 .parse-unmatched { color: var(--text-muted); }
+.conflict-list, .new-player-list { margin-top: 14px; }
+.conflict-row, .new-player-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; }
+.conflict-row input[type="text"] { flex: 1; min-width: 220px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-surface); color: var(--text-main); }
 .player-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px; }
 .player-option { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
 .player-option:hover { background: var(--bg-surface-alt); }
@@ -33,6 +37,7 @@
 .primary-button, .secondary-button { padding: 10px 18px; border-radius: var(--radius); border: 1px solid var(--border); font-weight: 600; cursor: pointer; text-decoration: none; }
 .primary-button { background: var(--green-dark); color: var(--text-main); border-color: var(--green-dark); }
 .secondary-button { background: var(--bg-surface); color: var(--text-main); }
+.small-button { padding: 6px 10px; }
 .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
 .team { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius); }
 .team h3 { margin-top: 0; }
@@ -78,26 +83,73 @@
                 <strong>Import players from a match screenshot</strong>
                 <p>
                     Upload a screenshot/photo of the match list, or copy an image and paste it here.
-                    The parser will extract the match date and visible player names.
+                    <strong>[M]</strong> names are treated as verified members; unmarked names are never
+                    assumed to be a particular player.
                 </p>
                 <div class="image-parser-controls">
                     <input class="file-input" id="match-image" type="file" name="match_image" accept="image/*">
                     <button class="secondary-button" type="submit" name="action" value="parse_image">Parse image</button>
                 </div>
                 <p class="paste-note" id="paste-status">Tip: click this page and press Ctrl+V to paste a copied screenshot.</p>
+
                 {% if parse_error %}
                 <div class="parse-error">{{ parse_error }}</div>
                 {% endif %}
+                {% if parser_success %}
+                <div class="parse-success">{{ parser_success }}</div>
+                {% endif %}
+
                 {% if parse_result %}
                 <div class="parse-result">
                     <strong>Detected match date:</strong>
                     {{ parse_result.match_date or 'Not found' }}
                     <br>
                     <strong>Detected players:</strong> {{ parse_result.players|length }}
-                    {% if parse_result.unmatched %}
-                    <div class="parse-unmatched">
-                        Not matched to a database player: {{ parse_result.unmatched|join(', ') }}
+
+                    {% for name in parse_result.players %}
+                    <input type="hidden" name="parsed_player" value="{{ name }}">
+                    {% endfor %}
+                    <input type="hidden" name="parsed_match_date" value="{{ parse_result.match_date or '' }}">
+
+                    {% if parse_result.conflicts %}
+                    <div class="conflict-list">
+                        <strong>Possible name conflicts</strong>
+                        <p class="parse-unmatched">
+                            These names already exist in the database, but an unmarked name might still belong
+                            to a different person. Enter a more detailed version if necessary.
+                        </p>
+                        {% for conflict in parse_result.conflicts %}
+                        <div class="conflict-row">
+                            <strong>{{ conflict.name }}</strong>
+                            <span>→</span>
+                            <input type="text" name="conflict_detail_{{ loop.index0 }}" value="{{ conflict.detail if conflict.detail is defined else '' }}" placeholder="e.g. Konsti Müller">
+                            {% if conflict.detail is defined and conflict.detail %}
+                            <button class="secondary-button small-button" type="submit" name="action" value="create_parser_player" formaction="/matchmaker" formmethod="post">
+                                Add as new player
+                            </button>
+                            <input type="hidden" name="new_alias" value="{{ conflict.detail }}">
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        <button class="secondary-button" type="submit" name="action" value="resolve_conflicts">Resolve name conflicts</button>
                     </div>
+                    {% endif %}
+
+                    {% if parse_result.unmatched %}
+                    <div class="new-player-list">
+                        <strong>Players not in the database</strong>
+                        {% for item in parse_result.unmatched %}
+                        <div class="new-player-row">
+                            <span>{{ item.name }}</span>
+                            <button class="secondary-button small-button" type="submit" name="action" value="create_parser_player">Add player</button>
+                            <input type="hidden" name="new_alias" value="{{ item.name }}">
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if not parse_result.conflicts and not parse_result.unmatched %}
+                    <div class="parse-success">All detected players have been resolved. Verified <strong>[M]</strong> names were selected automatically.</div>
                     {% endif %}
                 </div>
                 {% endif %}
@@ -135,42 +187,24 @@
                 <h3>Team A</h3>
                 <ul>
                     {% for player_id in result.team_a %}
-                    <li>
-                        {{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }}
-                        <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_a[player_id] }})</span>
-                    </li>
+                    <li>{{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }} <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_a[player_id] }})</span></li>
                     {% endfor %}
                 </ul>
-                <div class="team-rating">
-                    Rating <strong>{{ "%.1f"|format(result.rating_a.rating) }}</strong><br>
-                    RD <strong>{{ "%.1f"|format(result.rating_a.rd) }}</strong>
-                </div>
+                <div class="team-rating">Rating <strong>{{ "%.1f"|format(result.rating_a.rating) }}</strong><br>RD <strong>{{ "%.1f"|format(result.rating_a.rd) }}</strong></div>
             </div>
-
             <div class="team">
                 <h3>Team B</h3>
                 <ul>
                     {% for player_id in result.team_b %}
-                    <li>
-                        {{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }}
-                        <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_b[player_id] }})</span>
-                    </li>
+                    <li>{{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }} <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_b[player_id] }})</span></li>
                     {% endfor %}
                 </ul>
-                <div class="team-rating">
-                    Rating <strong>{{ "%.1f"|format(result.rating_b.rating) }}</strong><br>
-                    RD <strong>{{ "%.1f"|format(result.rating_b.rd) }}</strong>
-                </div>
+                <div class="team-rating">Rating <strong>{{ "%.1f"|format(result.rating_b.rating) }}</strong><br>RD <strong>{{ "%.1f"|format(result.rating_b.rd) }}</strong></div>
             </div>
         </div>
-
         <div class="result-summary">
             <strong>Rating difference: {{ "%.1f"|format(result.rating_difference) }}</strong>
-            {% if result.position_penalty == 0 %}
-                <br>Position balance: Excellent
-            {% else %}
-                <br>Position imbalance score: {{ result.position_penalty }}
-            {% endif %}
+            {% if result.position_penalty == 0 %}<br>Position balance: Excellent{% else %}<br>Position imbalance score: {{ result.position_penalty }}{% endif %}
         </div>
     </section>
     {% elif selected_ids|length == 1 %}
@@ -183,7 +217,6 @@
     const input = document.getElementById("match-image");
     const status = document.getElementById("paste-status");
     if (!input || !status) return;
-
     document.addEventListener("paste", (event) => {
         const items = event.clipboardData?.items || [];
         for (const item of items) {
@@ -200,11 +233,8 @@
             return;
         }
     });
-
     input.addEventListener("change", () => {
-        if (input.files.length) {
-            status.textContent = `Selected: ${input.files[0].name}`;
-        }
+        if (input.files.length) status.textContent = `Selected: ${input.files[0].name}`;
     });
 })();
 </script>
