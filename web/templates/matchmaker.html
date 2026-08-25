@@ -15,6 +15,15 @@
 .mode-button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
 .mode-button.active { background: var(--green-dark); border-color: var(--green-dark); color: var(--text-main); }
 .pitch-options { margin: 12px 0 20px; color: var(--text-muted); }
+.image-parser { margin: 12px 0 24px; padding: 16px; border: 1px dashed var(--border); border-radius: var(--radius); background: var(--bg-surface-alt); }
+.image-parser p { margin: 5px 0 12px; color: var(--text-muted); }
+.image-parser-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.file-input { max-width: 100%; }
+.paste-note { font-size: 13px; }
+.parse-error { margin-top: 12px; color: var(--text-muted); border-left: 3px solid var(--green); padding-left: 10px; }
+.parse-result { margin-top: 14px; padding: 12px; border-left: 3px solid var(--green); background: var(--bg-surface); }
+.parse-result ul { margin: 8px 0 0 20px; }
+.parse-unmatched { color: var(--text-muted); }
 .player-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px; }
 .player-option { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
 .player-option:hover { background: var(--bg-surface-alt); }
@@ -48,7 +57,7 @@
         balancing rating strength and positional capabilities.
     </p>
 
-    <form method="post">
+    <form method="post" enctype="multipart/form-data" id="matchmaker-form">
         <section class="matchmaker-card">
             <h2>Rating model</h2>
             <div class="mode-switch">
@@ -64,6 +73,36 @@
             {% endif %}
 
             <h2>Players</h2>
+
+            <div class="image-parser">
+                <strong>Import players from a match screenshot</strong>
+                <p>
+                    Upload a screenshot/photo of the match list, or copy an image and paste it here.
+                    The parser will extract the match date and visible player names.
+                </p>
+                <div class="image-parser-controls">
+                    <input class="file-input" id="match-image" type="file" name="match_image" accept="image/*">
+                    <button class="secondary-button" type="submit" name="action" value="parse_image">Parse image</button>
+                </div>
+                <p class="paste-note" id="paste-status">Tip: click this page and press Ctrl+V to paste a copied screenshot.</p>
+                {% if parse_error %}
+                <div class="parse-error">{{ parse_error }}</div>
+                {% endif %}
+                {% if parse_result %}
+                <div class="parse-result">
+                    <strong>Detected match date:</strong>
+                    {{ parse_result.match_date or 'Not found' }}
+                    <br>
+                    <strong>Detected players:</strong> {{ parse_result.players|length }}
+                    {% if parse_result.unmatched %}
+                    <div class="parse-unmatched">
+                        Not matched to a database player: {{ parse_result.unmatched|join(', ') }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
             <p class="matchmaker-description">
                 {{ selected_ids|length }} selected · {{ players|length }} players in database
             </p>
@@ -138,4 +177,35 @@
     <p class="empty-note">Select at least two players to generate teams.</p>
     {% endif %}
 </div>
+
+<script>
+(() => {
+    const input = document.getElementById("match-image");
+    const status = document.getElementById("paste-status");
+    if (!input || !status) return;
+
+    document.addEventListener("paste", (event) => {
+        const items = event.clipboardData?.items || [];
+        for (const item of items) {
+            if (!item.type.startsWith("image/")) continue;
+            const blob = item.getAsFile();
+            if (!blob) continue;
+            const extension = blob.type.split("/")[1] || "png";
+            const file = new File([blob], `pasted-screenshot.${extension}`, { type: blob.type });
+            const transfer = new DataTransfer();
+            transfer.items.add(file);
+            input.files = transfer.files;
+            status.textContent = "Screenshot pasted and ready to parse.";
+            event.preventDefault();
+            return;
+        }
+    });
+
+    input.addEventListener("change", () => {
+        if (input.files.length) {
+            status.textContent = `Selected: ${input.files[0].name}`;
+        }
+    });
+})();
+</script>
 {% endblock %}
