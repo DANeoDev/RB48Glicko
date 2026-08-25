@@ -58,9 +58,42 @@ def _actual_score(match):
     return 0.5
 
 
+def _favourite_observation(prediction, actual):
+    """Orient a match toward the team the model predicts to be stronger."""
+    if prediction > 0.5:
+        return prediction, actual
+    return 1.0 - prediction, 1.0 - actual
+
+
 def _log_loss(prediction, actual):
     prediction = min(max(prediction, 1e-15), 1 - 1e-15)
     return -(actual * math.log(prediction) + (1 - actual) * math.log(1 - prediction))
+
+
+def _goal_diff_percentiles(observations):
+    """Assign an empirical, pitch-specific percentile to each goal difference.
+
+    Mid-ranks are used for ties so that discrete goal differences do not become
+    artificially concentrated at a single percentile boundary.
+    """
+    by_pitch = {}
+    for item in observations:
+        by_pitch.setdefault(item["pitch"], []).append(item["goal_diff"])
+
+    percentile_by_pitch = {}
+    for pitch, values in by_pitch.items():
+        values = sorted(values)
+        count = len(values)
+        percentile_by_pitch[pitch] = {
+            value: (
+                sum(other < value for other in values)
+                + 0.5 * sum(other == value for other in values)
+            ) / count
+            for value in set(values)
+        }
+
+    for item in observations:
+        item["goal_diff_percentile"] = percentile_by_pitch[item["pitch"]][item["goal_diff"]]
 
 
 def _quantile_baskets(predictions):
@@ -79,24 +112,26 @@ def _quantile_baskets(predictions):
 
         predictions_only = [item["prediction"] for item in values]
         actuals = [item["actual"] for item in values]
+        goal_diff_percentiles = [item["goal_diff_percentile"] for item in values]
         baskets.append({
             "label": f"{min(predictions_only) * 100:.1f}–{max(predictions_only) * 100:.1f}%",
             "count": len(values),
             "predicted": sum(predictions_only) / len(values),
             "actual": sum(actuals) / len(values),
+            "goal_diff_percentile": sum(goal_diff_percentiles) / len(values),
         })
 
     return baskets
 
 
-def _lowess(predictions, points=50, fraction=0.35):
-    """Return a LOWESS calibration curve using tricube weights and local linear fits."""
+def _lowess(predictions, value_key="actual", points=50, fraction=0.35):
+    """Return a LOWESS curve for one observation field against prediction."""
     if len(predictions) < 10:
         return []
 
     ordered = sorted(predictions, key=lambda item: item["prediction"])
     xs = [item["prediction"] for item in ordered]
-    ys = [item["actual"] for item in ordered]
+    ys = [item[value_key] for item in ordered]
     n = len(xs)
     span = max(3, int(math.ceil(fraction * n)))
 
@@ -127,7 +162,7 @@ def _lowess(predictions, points=50, fraction=0.35):
         slope = sxy / sxx if sxx > 1e-12 else 0.0
         fitted = mean_y + slope * (x0 - mean_x)
         fitted = min(1.0, max(0.0, fitted))
-        curve.append({"predicted": x0, "actual": fitted})
+        curve.append({"predicted": x0, value_key: fitted})
 
     return curve
 
@@ -136,16 +171,19 @@ def analyze_model(connection, mode=TOTAL):
     """
     Analyse historical match predictions using pre-match rating snapshots.
 
+    Predictions are always oriented toward the model's predicted favourite.
     mode='total' uses TOTAL ratings for every match.
     mode='pitch' uses BOX ratings for Box matches and HF ratings for HF matches.
-    Matches with an exactly 50% prediction are excluded because the initial
-    rating state contains no useful information for those observations.
+
+    Matches with an exactly 50% prediction are excluded because there is no
+    meaningful predicted favourite. Goal-difference percentiles are normalized
+    separately within each pitch using the empirical historical distribution.
     """
     if mode not in (TOTAL, "pitch"):
         raise ValueError("mode must be 'total' or 'pitch'")
 
     matches = get_matches(connection)
-    predictions = []
+    observations = []
     excluded = 0
 
     for match in matches.values():
@@ -178,14 +216,20 @@ def analyze_model(connection, mode=TOTAL):
             excluded += 1
             continue
 
-        prediction = _expected_score(team_a, team_b)
-        if math.isclose(prediction, 0.5, abs_tol=1e-12):
+        raw_prediction = _expected_score(team_a, team_b)
+        if math.isclose(raw_prediction, 0.5, abs_tol=1e-12):
             excluded += 1
             continue
 
-        predictions.append({"prediction": prediction, "actual": _actual_score(match)})
+        prediction, actual = _favourite_observation(raw_prediction, _actual_score(match))
+        observations.append({
+            "prediction": prediction,
+            "actual": actual,
+            "pitch": match["pitch"],
+            "goal_diff": abs(match["goals_a"] - match["goals_b"]),
+        })
 
-    count = len(predictions)
+    count = len(observations)
     if not count:
         return {
             "mode": mode,
@@ -197,16 +241,19 @@ def analyze_model(connection, mode=TOTAL):
             "accuracy": None,
             "calibration": [],
             "lowess": [],
+            "goal_diff_lowess": [],
         }
 
-    brier = sum((item["prediction"] - item["actual"]) ** 2 for item in predictions) / count
-    log_loss = sum(_log_loss(item["prediction"], item["actual"]) for item in predictions) / count
-    mean_absolute_error = sum(abs(item["prediction"] - item["actual"]) for item in predictions) / count
-    accuracy = sum(
-        (item["prediction"] > 0.5 and item["actual"] == 1.0)
-        or (item["prediction"] < 0.5 and item["actual"] == 0.0)
-        for item in predictions
-    ) / count
+    _goal_diff_percentiles(observations)
+
+    brier = sum((item["prediction"] - item["actual"]) ** 2 for item in observations) / count
+    log_loss = sum(_log_loss(item["prediction"], item["actual"]) for item in observations) / count
+    mean_absolute_error = sum(abs(item["prediction"] - item["actual"]) for item in observations) / count
+    decisive = [item for item in observations if item["actual"] in (0.0, 1.0)]
+    accuracy = (
+        sum(item["actual"] == 1.0 for item in decisive) / len(decisive)
+        if decisive else None
+    )
 
     return {
         "mode": mode,
@@ -216,6 +263,7 @@ def analyze_model(connection, mode=TOTAL):
         "log_loss": log_loss,
         "mean_absolute_error": mean_absolute_error,
         "accuracy": accuracy,
-        "calibration": _quantile_baskets(predictions),
-        "lowess": _lowess(predictions),
+        "calibration": _quantile_baskets(observations),
+        "lowess": _lowess(observations, "actual"),
+        "goal_diff_lowess": _lowess(observations, "goal_diff_percentile"),
     }
