@@ -1,6 +1,6 @@
 from datetime import date
 
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 
 from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_ratings, get_player_rating_history
@@ -10,7 +10,7 @@ from scripts.frontend.view_models import build_leaderboard, build_match_history
 from scripts.analysis.model_analysis import analyze_model
 from scripts.matches.match_entry import add_match, next_match_id, import_uploaded_matches, create_new_player, CALIBRATION_LEVELS, process_new_matches
 from scripts.matches.matchhistory_sync import sync_matchhistory_csv
-from scripts.matchmaking.matchmaker import generate_match
+from scripts.matchmaking.matchmaker import generate_match, _team_rating, _position_penalty, _considered_positions
 from scripts.matchmaking.match_parser import parse_match_image, parse_match_text, resolve_player_names, normalize_player_name, MatchParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
 
@@ -190,6 +190,29 @@ def match_center():
     next_id = next_match_id(connection, match_date)
     connection.close()
     return render_template("match_center_v2.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, mode=mode, pitch=pitch, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success, calibration_levels=CALIBRATION_LEVELS, matchmaker_date=match_date, match_date=match_date, team_a=team_a, team_b=team_b, goals_a=goals_a, goals_b=goals_b, player_names=player_names, player_search_data=player_search_data, next_match_id=next_id, success=success, error=error, calibration_message=calibration_message)
+
+
+@app.route("/match-center/team-details")
+def match_center_team_details():
+    try:
+        team_a = [int(x) for x in request.args.getlist("team_a")]
+        team_b = [int(x) for x in request.args.getlist("team_b")]
+    except ValueError:
+        return jsonify({"error": "Invalid team player IDs."}), 400
+    connection = get_connection(); players = get_players(connection); ratings = get_ratings(connection)
+    if not team_a or not team_b or any(pid not in players for pid in team_a + team_b):
+        connection.close(); return jsonify({"error": "Invalid team composition."}), 400
+    rating_type = TOTAL
+    rating_a = _team_rating(team_a, ratings, rating_type); rating_b = _team_rating(team_b, ratings, rating_type)
+    details = {
+        "rating_a": round(rating_a.rating, 1), "rd_a": round(rating_a.rd, 1),
+        "rating_b": round(rating_b.rating, 1), "rd_b": round(rating_b.rd, 1),
+        "rating_difference": round(abs(rating_a.rating - rating_b.rating), 1),
+        "position_penalty": _position_penalty(team_a, team_b, players),
+        "positions_a": _considered_positions(team_a, players),
+        "positions_b": _considered_positions(team_b, players),
+    }
+    connection.close(); return jsonify(details)
 
 
 @app.route("/matchmaker", methods=["GET", "POST"])
