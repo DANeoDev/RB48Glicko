@@ -105,20 +105,22 @@
             <svg class="calibration-graph" viewBox="0 0 1000 350" role="img" aria-label="Favourite win calibration graph">
                 {% for tick in [0.5, 0.625, 0.75, 0.875, 1] %}
                     {% set x = graph_left + ((tick - x_min) / (x_max - x_min)) * (graph_right - graph_left) %}
-                    {% set y = graph_bottom - ((tick - x_min) / (x_max - x_min)) * (graph_bottom - graph_top) %}
                     <line class="grid-line" x1="{{ x }}" y1="{{ graph_top }}" x2="{{ x }}" y2="{{ graph_bottom }}" />
-                    <line class="grid-line" x1="{{ graph_left }}" y1="{{ y }}" x2="{{ graph_right }}" y2="{{ y }}" />
                     <text x="{{ x }}" y="325" text-anchor="middle">{{ "%.1f%%"|format(tick * 100) }}</text>
-                    <text x="58" y="{{ y + 4 }}" text-anchor="end">{{ "%.1f%%"|format(tick * 100) }}</text>
+                {% endfor %}
+                {% for tick in [0, 0.25, 0.5, 0.75, 1] %}
+                    {% set y = graph_bottom - tick * (graph_bottom - graph_top) %}
+                    <line class="grid-line" x1="{{ graph_left }}" y1="{{ y }}" x2="{{ graph_right }}" y2="{{ y }}" />
+                    <text x="58" y="{{ y + 4 }}" text-anchor="end">{{ (tick * 100)|int }}%</text>
                 {% endfor %}
 
-                <line class="reference-line" x1="{{ graph_left }}" y1="{{ graph_bottom }}" x2="{{ graph_right }}" y2="{{ graph_top }}" />
+                <line class="reference-line" x1="{{ graph_left }}" y1="{{ graph_bottom - 0.5 * (graph_bottom - graph_top) }}" x2="{{ graph_right }}" y2="{{ graph_top }}" />
 
                 {% set ns = namespace(lowess_points=[]) %}
                 {% for point in analysis.lowess %}
                     {% if point.predicted >= x_min and point.predicted <= x_max %}
                         {% set x = graph_left + ((point.predicted - x_min) / (x_max - x_min)) * (graph_right - graph_left) %}
-                        {% set y = graph_bottom - ((point.actual - x_min) / (x_max - x_min)) * (graph_bottom - graph_top) %}
+                        {% set y = graph_bottom - point.actual * (graph_bottom - graph_top) %}
                         {% set ns.lowess_points = ns.lowess_points + [x|string ~ ',' ~ y|string] %}
                     {% endif %}
                 {% endfor %}
@@ -126,7 +128,7 @@
 
                 {% for bucket in analysis.calibration %}
                     {% set x = graph_left + ((bucket.predicted - x_min) / (x_max - x_min)) * (graph_right - graph_left) %}
-                    {% set y = graph_bottom - ((bucket.actual - x_min) / (x_max - x_min)) * (graph_bottom - graph_top) %}
+                    {% set y = graph_bottom - bucket.actual * (graph_bottom - graph_top) %}
                     <circle class="basket-point" cx="{{ x }}" cy="{{ y }}" r="6">
                         <title>{{ bucket.label }}: {{ "%.1f%%"|format(bucket.predicted * 100) }} predicted, {{ "%.1f%%"|format(bucket.actual * 100) }} actual ({{ bucket.count }} games)</title>
                     </circle>
@@ -145,7 +147,6 @@
             <svg class="calibration-graph" viewBox="0 0 1000 350" role="img" aria-label="Goal-difference percentile by predicted favourite probability">
                 {% for tick in [0.5, 0.625, 0.75, 0.875, 1] %}
                     {% set x = graph_left + ((tick - x_min) / (x_max - x_min)) * (graph_right - graph_left) %}
-                    {% set y = graph_bottom - (tick - 0.5) / 0.5 * (graph_bottom - graph_top) %}
                     <line class="grid-line" x1="{{ x }}" y1="{{ graph_top }}" x2="{{ x }}" y2="{{ graph_bottom }}" />
                 {% endfor %}
                 {% for tick in [0, 0.25, 0.5, 0.75, 1] %}
