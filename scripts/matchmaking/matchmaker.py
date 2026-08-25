@@ -1,8 +1,8 @@
 import itertools
 import random
 
-from scripts.glicko2 import TOTAL, BOX, HF, Rating
-from scripts.glicko2_calculator import calculate_team_rating
+from scripts.glicko.glicko2 import TOTAL, BOX, HF, Rating
+from scripts.glicko.glicko2_calculator import calculate_team_rating
 
 
 POSITION_GROUPS = {
@@ -58,8 +58,6 @@ def _considered_positions(team, players):
     assigned = {}
     counts = {group: 0 for group in POSITION_GROUPS}
 
-    # Scarce specialists are assigned first. GK is deliberately treated as a
-    # capability rather than a permanent role, but is shown when appropriate.
     for group in ("gk", "def", "mid", "att"):
         capable = [p for p in team if p not in assigned and group in _normalized_positions(players[p])]
         if group == "gk":
@@ -70,7 +68,6 @@ def _considered_positions(team, players):
             assigned[capable[0]] = group.upper()
             counts[group] += 1
 
-    # Multi-position players go where they provide the most positional balance.
     for player_id in team:
         if player_id in assigned:
             continue
