@@ -85,8 +85,9 @@ def model_analysis():
     return render_template("model_analysis.html", analysis=analysis, mode=mode)
 
 
+@app.route("/match-center", methods=["GET", "POST"])
 @app.route("/matchmaker", methods=["GET", "POST"])
-def matchmaker():
+def match_center():
     connection = get_connection(); players = get_players(connection); ratings = get_ratings(connection)
     mode = request.form.get("mode", request.args.get("mode", "total")); mode = mode if mode in ("total", "pitch") else "total"
     pitch = request.form.get("pitch", request.args.get("pitch", "box")); pitch = pitch if pitch in ("box", "hf") else "box"
