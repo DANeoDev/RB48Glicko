@@ -2,16 +2,16 @@ from datetime import date
 
 from flask import Flask, render_template, request
 
-from scripts.database import get_connection
-from scripts.db_ratings import get_ratings, get_player_rating_history
-from scripts.db_players import get_players
-from scripts.db_matches import get_player_stats
-from scripts.view_models import build_leaderboard, build_match_history
-from scripts.model_analysis import analyze_model
-from scripts.match_entry import add_match, next_match_id, import_uploaded_matches, create_new_player, CALIBRATION_LEVELS
-from scripts.matchhistory_sync import sync_matchhistory_csv
-from scripts.matchmaker import generate_match
-from scripts.glicko2 import TOTAL, BOX, HF
+from scripts.database.database import get_connection
+from scripts.database.db_ratings import get_ratings, get_player_rating_history
+from scripts.database.db_players import get_players
+from scripts.database.db_matches import get_player_stats
+from scripts.frontend.view_models import build_leaderboard, build_match_history
+from scripts.analysis.model_analysis import analyze_model
+from scripts.matches.match_entry import add_match, next_match_id, import_uploaded_matches, create_new_player, CALIBRATION_LEVELS, process_new_matches
+from scripts.matches.matchhistory_sync import sync_matchhistory_csv
+from scripts.matchmaking.matchmaker import generate_match
+from scripts.glicko.glicko2 import TOTAL, BOX, HF
 
 
 app = Flask(__name__)
@@ -191,7 +191,6 @@ def match_entry():
             except ValueError:
                 raise ValueError("Invalid match date.")
             match_id = add_match(connection, match_date, pitch, team_a, team_b, goals_a_int, goals_b_int)
-            from scripts.match_entry import process_new_matches
             processed = process_new_matches(connection)
             sync_matchhistory_csv(connection)
             success = f"Saved {match_id} and updated Glicko ({processed} match processed)."
