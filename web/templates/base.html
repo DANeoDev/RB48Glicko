@@ -13,20 +13,15 @@
 <header class="site-header">
     <nav class="navbar">
         <a class="logo" href="{{ url_for('home') }}">RB48</a>
-
         <div class="nav-links">
             <a href="{{ url_for('home') }}" class="{% if request.endpoint == 'home' %}active{% endif %}">Stats</a>
             <a href="{{ url_for('match_history') }}" class="{% if request.endpoint == 'match_history' %}active{% endif %}">Matches</a>
-            <a href="{{ url_for('matchmaker') }}" class="{% if request.endpoint == 'matchmaker' %}active{% endif %}">Matchmaker</a>
+            <a href="{{ url_for('matchmaker') }}" class="{% if request.endpoint == 'matchmaker' %}active{% endif %}">Match Center</a>
             <a href="{{ url_for('model_analysis') }}" class="{% if request.endpoint == 'model_analysis' %}active{% endif %}">Model Analysis</a>
         </div>
     </nav>
 </header>
-
-<main>
-    {% block content %}{% endblock %}
-</main>
-
+<main>{% block content %}{% endblock %}</main>
 {% block scripts %}{% endblock %}
 </body>
 </html>
