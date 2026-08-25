@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 
@@ -59,15 +60,20 @@ Analyze this screenshot/photo of a football attendance/player list.
 Your task is ONLY to identify the people who are visibly listed as attending/participating
 and, if visible, the date of the attendance list.
 
-Do not interpret match results, scores, teams, ratings, positions, or other unrelated text.
-Do not invent names. Preserve each player name as it appears in the image as closely as possible.
-If the date is visible and can be determined unambiguously, return it as YYYY-MM-DD;
-otherwise return null.
+IMPORTANT:
+- Preserve the [M] prefix exactly when it appears before a player name.
+- [M] is meaningful: it marks a verified association member and may be used by the
+  application as an identity confirmation.
+- Do not remove [M] from the returned names.
+- Do not interpret match results, scores, teams, ratings, positions, or other unrelated text.
+- Do not invent names. Preserve each player name as it appears in the image as closely as possible.
+- If the date is visible and can be determined unambiguously, return it as YYYY-MM-DD;
+  otherwise return null.
 
 Return ONLY valid JSON with this exact shape:
 {
   "match_date": "YYYY-MM-DD" or null,
-  "players": ["name 1", "name 2"]
+  "players": ["[M] name 1", "name 2"]
 }
 """.strip()
 
@@ -114,9 +120,7 @@ Return ONLY valid JSON with this exact shape:
             raise MatchImageParserError(
                 f"Image parser API error ({exc.code}): {message}"
             ) from exc
-        raise MatchImageParserError(
-            f"Image parser API error ({exc.code})."
-        ) from exc
+        raise MatchImageParserError(f"Image parser API error ({exc.code}).") from exc
     except (urllib.error.URLError, TimeoutError) as exc:
         raise MatchImageParserError("Could not reach the image parser API.") from exc
 
@@ -134,24 +138,48 @@ Return ONLY valid JSON with this exact shape:
     }
 
 
-def resolve_player_names(parsed_names, players):
-    """Resolve parsed names against every known player alias.
+def _normalize_detected_name(name):
+    name = re.sub(r"^\s*\[M\]\s*", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"\s*\[M\]\s*$", "", name, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", name).strip()
 
-    Matching is deliberately exact after whitespace/case normalization for now.
-    Fuzzy matching can be added once we have real screenshots to evaluate.
+
+def resolve_player_names(parsed_names, players):
+    """Classify detected names without assuming that an unmarked name is unique.
+
+    [M] is an explicit identity confirmation. Unmarked names are never selected
+    automatically, even if an identical alias exists in the database.
     """
     lookup = {}
     for player_id, player in players.items():
         for alias in player.get("aliases", []):
-            lookup[alias.strip().casefold()] = player_id
+            lookup.setdefault(alias.strip().casefold(), []).append(player_id)
 
-    resolved_ids = []
+    verified_ids = []
+    conflicts = []
     unmatched = []
-    for name in parsed_names:
-        player_id = lookup.get(name.strip().casefold())
-        if player_id is None:
-            unmatched.append(name)
-        elif player_id not in resolved_ids:
-            resolved_ids.append(player_id)
 
-    return resolved_ids, unmatched
+    for raw_name in parsed_names:
+        verified = bool(re.match(r"^\s*\[M\](?:\s|$)", raw_name, flags=re.IGNORECASE))
+        name = _normalize_detected_name(raw_name)
+        if not name:
+            continue
+
+        candidates = lookup.get(name.casefold(), [])
+        if verified:
+            if candidates:
+                for player_id in candidates:
+                    if player_id not in verified_ids:
+                        verified_ids.append(player_id)
+            else:
+                unmatched.append({"name": name, "verified": True})
+        elif candidates:
+            conflicts.append({"name": name, "candidate_ids": candidates})
+        else:
+            unmatched.append({"name": name, "verified": False})
+
+    return verified_ids, conflicts, unmatched
+
+
+def normalize_player_name(name):
+    return _normalize_detected_name(name)
