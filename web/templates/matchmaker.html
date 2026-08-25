@@ -57,10 +57,7 @@
 {% block content %}
 <div class="matchmaker-page">
     <h1>Matchmaker</h1>
-    <p class="matchmaker-description">
-        Select the players who are available and RB48 will split them into two teams,
-        balancing rating strength and positional capabilities.
-    </p>
+    <p class="matchmaker-description">Select the players who are available and RB48 will split them into two teams, balancing rating strength and positional capabilities.</p>
 
     <form method="post" enctype="multipart/form-data" id="matchmaker-form">
         <section class="matchmaker-card">
@@ -78,56 +75,35 @@
             {% endif %}
 
             <h2>Players</h2>
-
             <div class="image-parser">
                 <strong>Import players from a match screenshot</strong>
-                <p>
-                    Upload a screenshot/photo of the match list, or copy an image and paste it here.
-                    <strong>[M]</strong> names are treated as verified members; unmarked names are never
-                    assumed to be a particular player.
-                </p>
+                <p>Upload a screenshot/photo of the match list, or copy an image and paste it here. <strong>[M]</strong> names are treated as verified members; unmarked names are never assumed to be a particular player.</p>
                 <div class="image-parser-controls">
                     <input class="file-input" id="match-image" type="file" name="match_image" accept="image/*">
                     <button class="secondary-button" type="submit" name="action" value="parse_image">Parse image</button>
                 </div>
                 <p class="paste-note" id="paste-status">Tip: click this page and press Ctrl+V to paste a copied screenshot.</p>
 
-                {% if parse_error %}
-                <div class="parse-error">{{ parse_error }}</div>
-                {% endif %}
-                {% if parser_success %}
-                <div class="parse-success">{{ parser_success }}</div>
-                {% endif %}
+                {% if parse_error %}<div class="parse-error">{{ parse_error }}</div>{% endif %}
+                {% if parser_success %}<div class="parse-success">{{ parser_success }}</div>{% endif %}
 
                 {% if parse_result %}
                 <div class="parse-result">
-                    <strong>Detected match date:</strong>
-                    {{ parse_result.match_date or 'Not found' }}
-                    <br>
+                    <strong>Detected match date:</strong> {{ parse_result.match_date or 'Not found' }}<br>
                     <strong>Detected players:</strong> {{ parse_result.players|length }}
-
-                    {% for name in parse_result.players %}
-                    <input type="hidden" name="parsed_player" value="{{ name }}">
-                    {% endfor %}
+                    {% for name in parse_result.players %}<input type="hidden" name="parsed_player" value="{{ name }}">{% endfor %}
                     <input type="hidden" name="parsed_match_date" value="{{ parse_result.match_date or '' }}">
 
                     {% if parse_result.conflicts %}
                     <div class="conflict-list">
                         <strong>Possible name conflicts</strong>
-                        <p class="parse-unmatched">
-                            These names already exist in the database, but an unmarked name might still belong
-                            to a different person. Enter a more detailed version if necessary.
-                        </p>
+                        <p class="parse-unmatched">These names already exist in the database, but an unmarked name might still belong to a different person. Enter a more detailed version if necessary.</p>
                         {% for conflict in parse_result.conflicts %}
                         <div class="conflict-row">
-                            <strong>{{ conflict.name }}</strong>
-                            <span>→</span>
+                            <strong>{{ conflict.name }}</strong><span>→</span>
                             <input type="text" name="conflict_detail_{{ loop.index0 }}" value="{{ conflict.detail if conflict.detail is defined else '' }}" placeholder="e.g. Konsti Müller">
                             {% if conflict.detail is defined and conflict.detail %}
-                            <button class="secondary-button small-button" type="submit" name="action" value="create_parser_player" formaction="/matchmaker" formmethod="post">
-                                Add as new player
-                            </button>
-                            <input type="hidden" name="new_alias" value="{{ conflict.detail }}">
+                            <button class="secondary-button small-button" type="submit" name="action" value="create_parser_player" formaction="/matchmaker" formmethod="post" formnovalidate>Add as new player</button>
                             {% endif %}
                         </div>
                         {% endfor %}
@@ -141,8 +117,7 @@
                         {% for item in parse_result.unmatched %}
                         <div class="new-player-row">
                             <span>{{ item.name }}</span>
-                            <button class="secondary-button small-button" type="submit" name="action" value="create_parser_player">Add player</button>
-                            <input type="hidden" name="new_alias" value="{{ item.name }}">
+                            <button class="secondary-button small-button" type="submit" name="action" value="create_parser_player" formaction="/matchmaker" formmethod="post" formnovalidate>Add player</button>
                         </div>
                         {% endfor %}
                     </div>
@@ -155,10 +130,7 @@
                 {% endif %}
             </div>
 
-            <p class="matchmaker-description">
-                {{ selected_ids|length }} selected · {{ players|length }} players in database
-            </p>
-
+            <p class="matchmaker-description">{{ selected_ids|length }} selected · {{ players|length }} players in database</p>
             <div class="player-grid">
                 {% for player_id, player in players.items() %}
                 <label class="player-option">
@@ -168,13 +140,9 @@
                 </label>
                 {% endfor %}
             </div>
-
             <div class="actions">
                 <button class="primary-button" type="submit" name="action" value="generate">Generate teams</button>
-                {% if result %}
-                <button class="secondary-button" type="submit" name="action" value="reroll">↻ Reroll</button>
-                <input type="hidden" name="seed" value="{{ (seed or 0) + 1 }}">
-                {% endif %}
+                {% if result %}<button class="secondary-button" type="submit" name="action" value="reroll">↻ Reroll</button><input type="hidden" name="seed" value="{{ (seed or 0) + 1 }}">{% endif %}
             </div>
         </section>
     </form>
@@ -183,33 +151,12 @@
     <section class="matchmaker-card">
         <h2>Suggested teams</h2>
         <div class="result-grid">
-            <div class="team">
-                <h3>Team A</h3>
-                <ul>
-                    {% for player_id in result.team_a %}
-                    <li>{{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }} <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_a[player_id] }})</span></li>
-                    {% endfor %}
-                </ul>
-                <div class="team-rating">Rating <strong>{{ "%.1f"|format(result.rating_a.rating) }}</strong><br>RD <strong>{{ "%.1f"|format(result.rating_a.rd) }}</strong></div>
-            </div>
-            <div class="team">
-                <h3>Team B</h3>
-                <ul>
-                    {% for player_id in result.team_b %}
-                    <li>{{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }} <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_b[player_id] }})</span></li>
-                    {% endfor %}
-                </ul>
-                <div class="team-rating">Rating <strong>{{ "%.1f"|format(result.rating_b.rating) }}</strong><br>RD <strong>{{ "%.1f"|format(result.rating_b.rd) }}</strong></div>
-            </div>
+            <div class="team"><h3>Team A</h3><ul>{% for player_id in result.team_a %}<li>{{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }} <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_a[player_id] }})</span></li>{% endfor %}</ul><div class="team-rating">Rating <strong>{{ "%.1f"|format(result.rating_a.rating) }}</strong><br>RD <strong>{{ "%.1f"|format(result.rating_a.rd) }}</strong></div></div>
+            <div class="team"><h3>Team B</h3><ul>{% for player_id in result.team_b %}<li>{{ players[player_id].aliases[0] if players[player_id].aliases else 'Player ' ~ player_id }} <span class="considered-position" title="Position considered by the matchmaker">({{ result.considered_positions_b[player_id] }})</span></li>{% endfor %}</ul><div class="team-rating">Rating <strong>{{ "%.1f"|format(result.rating_b.rating) }}</strong><br>RD <strong>{{ "%.1f"|format(result.rating_b.rd) }}</strong></div></div>
         </div>
-        <div class="result-summary">
-            <strong>Rating difference: {{ "%.1f"|format(result.rating_difference) }}</strong>
-            {% if result.position_penalty == 0 %}<br>Position balance: Excellent{% else %}<br>Position imbalance score: {{ result.position_penalty }}{% endif %}
-        </div>
+        <div class="result-summary"><strong>Rating difference: {{ "%.1f"|format(result.rating_difference) }}</strong>{% if result.position_penalty == 0 %}<br>Position balance: Excellent{% else %}<br>Position imbalance score: {{ result.position_penalty }}{% endif %}</div>
     </section>
-    {% elif selected_ids|length == 1 %}
-    <p class="empty-note">Select at least two players to generate teams.</p>
-    {% endif %}
+    {% elif selected_ids|length == 1 %}<p class="empty-note">Select at least two players to generate teams.</p>{% endif %}
 </div>
 
 <script>
@@ -233,9 +180,7 @@
             return;
         }
     });
-    input.addEventListener("change", () => {
-        if (input.files.length) status.textContent = `Selected: ${input.files[0].name}`;
-    });
+    input.addEventListener("change", () => { if (input.files.length) status.textContent = `Selected: ${input.files[0].name}`; });
 })();
 </script>
 {% endblock %}
