@@ -5,8 +5,8 @@ import urllib.error
 import urllib.request
 
 
-OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
-DEFAULT_MODEL = "gpt-5.6-luna"
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+DEFAULT_MODEL = "gemini-2.5-flash-lite"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 
@@ -16,9 +16,10 @@ class MatchImageParserError(RuntimeError):
 
 def _extract_output_text(response_data):
     texts = []
-    for item in response_data.get("output", []):
-        for content in item.get("content", []):
-            text = content.get("text")
+    for candidate in response_data.get("candidates", []):
+        content = candidate.get("content", {})
+        for part in content.get("parts", []):
+            text = part.get("text")
             if text:
                 texts.append(text)
     return "\n".join(texts).strip()
@@ -46,18 +47,21 @@ def parse_match_image(image_bytes, mime_type, model=None):
     if not mime_type or not mime_type.startswith("image/"):
         raise MatchImageParserError("Please upload an image file.")
 
-    api_key = os.environ.get("OPENAI_API_KEY")
+    api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise MatchImageParserError("OPENAI_API_KEY is not configured on the server.")
+        raise MatchImageParserError("GEMINI_API_KEY is not configured on the server.")
 
     encoded = base64.b64encode(image_bytes).decode("ascii")
-    data_url = f"data:{mime_type};base64,{encoded}"
 
     prompt = """
-Analyze this screenshot/photo of a football match/player list.
-Extract the match date and every player name that is visibly listed as participating.
-Do not invent names. Preserve names as they appear in the image as closely as possible.
-If the date is visible, return it as YYYY-MM-DD when you can determine it unambiguously;
+Analyze this screenshot/photo of a football attendance/player list.
+
+Your task is ONLY to identify the people who are visibly listed as attending/participating
+and, if visible, the date of the attendance list.
+
+Do not interpret match results, scores, teams, ratings, positions, or other unrelated text.
+Do not invent names. Preserve each player name as it appears in the image as closely as possible.
+If the date is visible and can be determined unambiguously, return it as YYYY-MM-DD;
 otherwise return null.
 
 Return ONLY valid JSON with this exact shape:
@@ -68,21 +72,29 @@ Return ONLY valid JSON with this exact shape:
 """.strip()
 
     payload = {
-        "model": model or os.environ.get("RB48_IMAGE_PARSER_MODEL", DEFAULT_MODEL),
-        "input": [{
-            "role": "user",
-            "content": [
-                {"type": "input_text", "text": prompt},
-                {"type": "input_image", "image_url": data_url},
-            ],
+        "contents": [{
+            "parts": [
+                {
+                    "inlineData": {
+                        "mimeType": mime_type,
+                        "data": encoded,
+                    }
+                },
+                {"text": prompt},
+            ]
         }],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+        },
     }
 
+    selected_model = model or os.environ.get("RB48_IMAGE_PARSER_MODEL", DEFAULT_MODEL)
+    url = GEMINI_API_URL.format(model=selected_model)
     request = urllib.request.Request(
-        OPENAI_RESPONSES_URL,
+        url,
         data=json.dumps(payload).encode("utf-8"),
         headers={
-            "Authorization": f"Bearer {api_key}",
+            "x-goog-api-key": api_key,
             "Content-Type": "application/json",
         },
         method="POST",
@@ -93,7 +105,18 @@ Return ONLY valid JSON with this exact shape:
             response_data = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         details = exc.read().decode("utf-8", errors="replace")
-        raise MatchImageParserError(f"Image parser API error ({exc.code}).") from exc
+        try:
+            error_data = json.loads(details)
+            message = error_data.get("error", {}).get("message")
+        except json.JSONDecodeError:
+            message = None
+        if message:
+            raise MatchImageParserError(
+                f"Image parser API error ({exc.code}): {message}"
+            ) from exc
+        raise MatchImageParserError(
+            f"Image parser API error ({exc.code})."
+        ) from exc
     except (urllib.error.URLError, TimeoutError) as exc:
         raise MatchImageParserError("Could not reach the image parser API.") from exc
 
