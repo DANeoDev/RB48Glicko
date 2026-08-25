@@ -18,6 +18,12 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 
+class _EmptyParseResult(dict):
+    """Falsey parse-result placeholder so templates can safely access its fields."""
+    def __bool__(self):
+        return False
+
+
 def _alias_candidates(players):
     lookup = {}
     for player_id, player in players.items():
@@ -94,7 +100,7 @@ def match_center():
     rating_type = BOX if mode == "pitch" and pitch == "box" else HF if mode == "pitch" else TOTAL
     selected_ids = request.form.getlist("players") or request.args.getlist("players")
     selected_ids = [int(pid) for pid in selected_ids if pid.isdigit() and int(pid) in players]
-    result = None; seed = None; parse_result = None; parse_error = None; parser_success = None; success = error = calibration_message = None
+    result = None; seed = None; parse_result = _EmptyParseResult(kind="", match_date=None, players=[], team_a=[], team_b=[], team_a_ids=[], team_b_ids=[], goals_a=None, goals_b=None, verified_ids=[], conflicts=[], unmatched=[]); parse_error = None; parser_success = None; success = error = calibration_message = None
     action = request.form.get("action") if request.method == "POST" else None
 
     if request.method == "POST" and action in ("parse_image", "parse_source"):
