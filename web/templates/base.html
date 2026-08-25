@@ -23,5 +23,6 @@
 </header>
 <main>{% block content %}{% endblock %}</main>
 {% block scripts %}{% endblock %}
+{% if request.endpoint == 'match_center' %}<script src="{{ url_for('static', filename='match_center.js') }}"></script>{% endif %}
 </body>
 </html>
