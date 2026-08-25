@@ -1,10 +1,10 @@
-from scripts.glicko2 import TOTAL, HF, BOX
+from scripts.glicko.glicko2 import TOTAL, HF, BOX
 
 def get_matches(connection):
     cursor = connection.execute("""
         SELECT match_id, date, pitch, players_a, players_b, goals_a, goals_b
         FROM matches
-        ORDER BY match_id 
+        ORDER BY match_id
     """)
 
     matches = {}
@@ -114,6 +114,7 @@ def get_match_players(connection, match_id):
         for player_id, team in cursor
     ]
 
+
 def get_match_teams(connection, match_id):
     players = get_match_players(connection, match_id)
 
@@ -127,6 +128,7 @@ def get_match_teams(connection, match_id):
             team_b.append(player["player_id"])
 
     return team_a, team_b
+
 
 def get_player_stats(connection):
     cursor = connection.execute("""
