@@ -1,9 +1,9 @@
 import csv
 from pathlib import Path
 
-from scripts.db_matches import get_matches, get_match_teams
+from scripts.database.db_matches import get_matches, get_match_teams
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MATCHHISTORY_FILE = PROJECT_ROOT / "data" / "matchhistory.csv"
 
 
