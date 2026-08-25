@@ -1,7 +1,10 @@
 # CAUTION THIS WILL WIPE RATING TABLES DUH, intended for testing
 
-from database import get_connection,create_ratings_table, create_match_ratings_table
-
+from scripts.database.database import (
+    get_connection,
+    create_ratings_table,
+    create_match_ratings_table,
+)
 
 
 connection = get_connection()
