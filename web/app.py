@@ -1,6 +1,6 @@
 from datetime import date
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect, url_for
 
 from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_ratings, get_player_rating_history
@@ -92,7 +92,6 @@ def model_analysis():
 
 
 @app.route("/match-center", methods=["GET", "POST"])
-@app.route("/matchmaker", methods=["GET", "POST"])
 def match_center():
     connection = get_connection(); players = get_players(connection); ratings = get_ratings(connection)
     mode = request.form.get("mode", request.args.get("mode", "total")); mode = mode if mode in ("total", "pitch") else "total"
@@ -191,6 +190,13 @@ def match_center():
     next_id = next_match_id(connection, match_date)
     connection.close()
     return render_template("match_center_v2.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, mode=mode, pitch=pitch, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success, calibration_levels=CALIBRATION_LEVELS, matchmaker_date=match_date, match_date=match_date, team_a=team_a, team_b=team_b, goals_a=goals_a, goals_b=goals_b, player_names=player_names, player_search_data=player_search_data, next_match_id=next_id, success=success, error=error, calibration_message=calibration_message)
+
+
+@app.route("/matchmaker", methods=["GET", "POST"])
+def legacy_matchmaker():
+    if request.method == "GET":
+        return redirect(url_for("match_center", **request.args.to_dict(flat=False)))
+    return redirect(url_for("match_center"), code=307)
 
 
 @app.route("/match-entry", methods=["GET", "POST"])
