@@ -11,10 +11,12 @@ from scripts.analysis.model_analysis import analyze_model
 from scripts.matches.match_entry import add_match, next_match_id, import_uploaded_matches, create_new_player, CALIBRATION_LEVELS, process_new_matches
 from scripts.matches.matchhistory_sync import sync_matchhistory_csv
 from scripts.matchmaking.matchmaker import generate_match
+from scripts.matchmaking.image_parser import parse_match_image, resolve_player_names, MatchImageParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
 
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 
 @app.route("/")
@@ -109,7 +111,28 @@ def matchmaker():
 
     result = None
     seed = None
-    if request.method == "POST" and request.form.get("action") in ("generate", "reroll"):
+    parse_result = None
+    parse_error = None
+
+    action = request.form.get("action") if request.method == "POST" else None
+    if request.method == "POST" and action == "parse_image":
+        upload = request.files.get("match_image")
+        if not upload or not upload.filename:
+            parse_error = "Please choose or paste an image first."
+        else:
+            try:
+                parsed = parse_match_image(upload.read(), upload.mimetype)
+                resolved_ids, unmatched = resolve_player_names(parsed["players"], players)
+                selected_ids = resolved_ids
+                parse_result = {
+                    "match_date": parsed["match_date"],
+                    "players": parsed["players"],
+                    "unmatched": unmatched,
+                }
+            except MatchImageParserError as exc:
+                parse_error = str(exc)
+
+    elif request.method == "POST" and action in ("generate", "reroll"):
         seed_value = request.form.get("seed")
         try:
             seed = int(seed_value) if seed_value is not None else None
@@ -129,6 +152,8 @@ def matchmaker():
         mode=mode,
         pitch=pitch,
         seed=seed,
+        parse_result=parse_result,
+        parse_error=parse_error,
     )
 
 
