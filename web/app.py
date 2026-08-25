@@ -146,8 +146,9 @@ def matchmaker():
         except ValueError: seed = None
         if len(selected_ids) >= 2: result = generate_match(selected_ids, players, ratings, rating_type, seed=seed)
 
+    matchmaker_date = request.form.get("parsed_match_date") or date.today().isoformat()
     connection.close()
-    return render_template("matchmaker.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, mode=mode, pitch=pitch, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success, calibration_levels=CALIBRATION_LEVELS)
+    return render_template("matchmaker.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, mode=mode, pitch=pitch, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success, calibration_levels=CALIBRATION_LEVELS, matchmaker_date=matchmaker_date)
 
 
 @app.route("/match-entry", methods=["GET", "POST"])
