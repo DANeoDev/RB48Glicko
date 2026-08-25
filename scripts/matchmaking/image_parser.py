@@ -6,7 +6,7 @@ import urllib.request
 
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-DEFAULT_MODEL = "gemini-2.5-flash-lite"
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 
