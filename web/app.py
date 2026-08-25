@@ -11,12 +11,23 @@ from scripts.analysis.model_analysis import analyze_model
 from scripts.matches.match_entry import add_match, next_match_id, import_uploaded_matches, create_new_player, CALIBRATION_LEVELS, process_new_matches
 from scripts.matches.matchhistory_sync import sync_matchhistory_csv
 from scripts.matchmaking.matchmaker import generate_match
-from scripts.matchmaking.image_parser import parse_match_image, resolve_player_names, MatchImageParserError
+from scripts.matchmaking.image_parser import parse_match_image, resolve_player_names, normalize_player_name, MatchImageParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
 
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+
+
+def _build_parse_result(parsed_names, match_date, players):
+    verified_ids, conflicts, unmatched = resolve_player_names(parsed_names, players)
+    return {
+        "match_date": match_date,
+        "players": parsed_names,
+        "verified_ids": verified_ids,
+        "conflicts": conflicts,
+        "unmatched": unmatched,
+    }
 
 
 @app.route("/")
@@ -49,15 +60,7 @@ def player_profile(player_id):
     matches = build_match_history(connection, players, player_id)
     connection.close()
     matches.reverse()
-    return render_template(
-        "player.html",
-        player=players[player_id],
-        ratings=ratings[player_id],
-        stats=stats[player_id],
-        rating_history=rating_history,
-        rating_extremes=rating_extremes,
-        matches=matches
-    )
+    return render_template("player.html", player=players[player_id], ratings=ratings[player_id], stats=stats[player_id], rating_history=rating_history, rating_extremes=rating_extremes, matches=matches)
 
 
 @app.route("/matches")
@@ -103,18 +106,16 @@ def matchmaker():
     selected_ids = request.form.getlist("players")
     if not selected_ids:
         selected_ids = request.args.getlist("players")
-    selected_ids = [
-        int(player_id)
-        for player_id in selected_ids
-        if player_id.isdigit() and int(player_id) in players
-    ]
+    selected_ids = [int(player_id) for player_id in selected_ids if player_id.isdigit() and int(player_id) in players]
 
     result = None
     seed = None
     parse_result = None
     parse_error = None
+    parser_success = None
 
     action = request.form.get("action") if request.method == "POST" else None
+
     if request.method == "POST" and action == "parse_image":
         upload = request.files.get("match_image")
         if not upload or not upload.filename:
@@ -122,15 +123,56 @@ def matchmaker():
         else:
             try:
                 parsed = parse_match_image(upload.read(), upload.mimetype)
-                resolved_ids, unmatched = resolve_player_names(parsed["players"], players)
-                selected_ids = resolved_ids
-                parse_result = {
-                    "match_date": parsed["match_date"],
-                    "players": parsed["players"],
-                    "unmatched": unmatched,
-                }
+                parse_result = _build_parse_result(parsed["players"], parsed["match_date"], players)
+                selected_ids = parse_result["verified_ids"]
             except MatchImageParserError as exc:
                 parse_error = str(exc)
+
+    elif request.method == "POST" and action == "resolve_conflicts":
+        parsed_names = request.form.getlist("parsed_player")
+        match_date = request.form.get("parsed_match_date") or None
+        parse_result = _build_parse_result(parsed_names, match_date, players)
+        selected_ids = parse_result["verified_ids"]
+
+        remaining_conflicts = []
+        alias_lookup = {}
+        for player_id, player in players.items():
+            for alias in player.get("aliases", []):
+                alias_lookup.setdefault(alias.strip().casefold(), []).append(player_id)
+
+        for index, conflict in enumerate(parse_result["conflicts"]):
+            detail = normalize_player_name(request.form.get(f"conflict_detail_{index}", ""))
+            if not detail:
+                remaining_conflicts.append(conflict)
+                continue
+            candidates = alias_lookup.get(detail.casefold(), [])
+            if len(candidates) == 1:
+                if candidates[0] not in selected_ids:
+                    selected_ids.append(candidates[0])
+            else:
+                remaining_conflicts.append({"name": conflict["name"], "candidate_ids": candidates, "detail": detail})
+
+        parse_result["conflicts"] = remaining_conflicts
+        parse_result["unmatched"] = [item for item in parse_result["unmatched"] if item["name"].casefold() not in {c.get("detail", "").casefold() for c in remaining_conflicts}]
+        if not remaining_conflicts:
+            parser_success = "Name conflicts resolved."
+
+    elif request.method == "POST" and action == "create_parser_player":
+        alias = normalize_player_name(request.form.get("new_alias", ""))
+        parsed_names = request.form.getlist("parsed_player")
+        match_date = request.form.get("parsed_match_date") or None
+        try:
+            created_id, _ = create_new_player(connection, alias, calibration_level="average")
+            players = get_players(connection)
+            selected_ids.append(created_id)
+            parse_result = _build_parse_result(parsed_names, match_date, players)
+            if created_id not in parse_result["verified_ids"]:
+                parse_result["verified_ids"].append(created_id)
+            selected_ids = list(dict.fromkeys(selected_ids + parse_result["verified_ids"]))
+            parser_success = f"Created {alias} and selected them."
+        except ValueError as exc:
+            parse_error = str(exc)
+            parse_result = _build_parse_result(parsed_names, match_date, players)
 
     elif request.method == "POST" and action in ("generate", "reroll"):
         seed_value = request.form.get("seed")
@@ -143,18 +185,7 @@ def matchmaker():
 
     connection.close()
 
-    return render_template(
-        "matchmaker.html",
-        players=players,
-        ratings=ratings,
-        selected_ids=selected_ids,
-        result=result,
-        mode=mode,
-        pitch=pitch,
-        seed=seed,
-        parse_result=parse_result,
-        parse_error=parse_error,
-    )
+    return render_template("matchmaker.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, mode=mode, pitch=pitch, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success)
 
 
 @app.route("/match-entry", methods=["GET", "POST"])
@@ -177,11 +208,9 @@ def match_entry():
             calibration = request.form.get("calibration", "average")
             created_id, values = create_new_player(connection, alias, positions, calibration)
             if request.form.get("target_team") == "b":
-                team_b.append(created_id)
-                target = "B"
+                team_b.append(created_id); target = "B"
             else:
-                team_a.append(created_id)
-                target = "A"
+                team_a.append(created_id); target = "A"
             success = f"Created {alias.strip()} and added them to Team {target}."
             calibration_message = f"Calibration rating: {values['rating']:.1f} (RD {values['rd']:.1f})."
             players = get_players(connection)
@@ -202,19 +231,13 @@ def match_entry():
 
     elif request.method == "POST" and request.form.get("action") == "save":
         try:
-            if not team_a or not team_b:
-                raise ValueError("Both teams need at least one player.")
-            if len(team_a) != len(set(team_a)) or len(team_b) != len(set(team_b)):
-                raise ValueError("A player cannot appear more than once on the same team.")
-            if set(team_a) & set(team_b):
-                raise ValueError("A player cannot be on both teams.")
+            if not team_a or not team_b: raise ValueError("Both teams need at least one player.")
+            if len(team_a) != len(set(team_a)) or len(team_b) != len(set(team_b)): raise ValueError("A player cannot appear more than once on the same team.")
+            if set(team_a) & set(team_b): raise ValueError("A player cannot be on both teams.")
             goals_a_int, goals_b_int = int(goals_a), int(goals_b)
-            if goals_a_int < 0 or goals_b_int < 0:
-                raise ValueError("Goals cannot be negative.")
-            try:
-                date.fromisoformat(match_date)
-            except ValueError:
-                raise ValueError("Invalid match date.")
+            if goals_a_int < 0 or goals_b_int < 0: raise ValueError("Goals cannot be negative.")
+            try: date.fromisoformat(match_date)
+            except ValueError: raise ValueError("Invalid match date.")
             match_id = add_match(connection, match_date, pitch, team_a, team_b, goals_a_int, goals_b_int)
             processed = process_new_matches(connection)
             sync_matchhistory_csv(connection)
@@ -227,23 +250,7 @@ def match_entry():
     player_search_data = [{"id": pid, "name": player_names[pid]} for pid in players]
     next_id = next_match_id(connection, match_date)
     connection.close()
-    return render_template(
-        "match_entry_v3.html",
-        players=players,
-        player_names=player_names,
-        player_search_data=player_search_data,
-        team_a=team_a,
-        team_b=team_b,
-        match_date=match_date,
-        pitch=pitch,
-        goals_a=goals_a,
-        goals_b=goals_b,
-        next_match_id=next_id,
-        success=success,
-        error=error,
-        calibration_message=calibration_message,
-        calibration_levels=CALIBRATION_LEVELS
-    )
+    return render_template("match_entry_v3.html", players=players, player_names=player_names, player_search_data=player_search_data, team_a=team_a, team_b=team_b, match_date=match_date, pitch=pitch, goals_a=goals_a, goals_b=goals_b, next_match_id=next_id, success=success, error=error, calibration_message=calibration_message, calibration_levels=CALIBRATION_LEVELS)
 
 
 @app.route("/glickofaq")
