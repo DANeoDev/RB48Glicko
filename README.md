@@ -2,89 +2,172 @@
 
 A Glicko-2 based rating system for recreational football.
 
-RB48Glicko tracks players, match results, ratings and player statistics in a
-SQLite database. The system is designed around match-by-match rating updates
-and will eventually provide player profiles and automated team matchmaking.
+RB48Glicko tracks players, match results, ratings and statistics in a SQLite
+database and provides a web interface for exploring and interacting with the
+resulting data.
+
+The project combines a customized Glicko-2 implementation with a database
+backend, match-data processing, statistical analysis and a Flask-based web
+interface. A separate simulation environment is also being developed to test
+the rating system against matches generated from known, hidden player
+strengths.
 
 ---
 
 ## Current Status
 
-The core rating system is functional.
+The core rating system and web application are functional and under active
+development.
 
 Currently implemented:
 
-- SQLite database for players, matches and ratings
-- Player IDs and multiple aliases per player
-- Player positions
-- Match import from CSV files
-- Glicko-2 rating calculation
-- Custom team-based Glicko-2 calculation
-- Pre-match rating snapshots for every match
-- Full Glicko recalculation
-- Incremental Glicko updates for newly imported matches
-- Database backups before full recalculation
-- Player statistics
-- Calibration ratings
-- Debugging tools for inspecting rating changes
+Currently implemented:
 
-The next major step is a user interface / website for viewing and interacting
-with the data.
+- SQLite database for players, matches, ratings and statistics
+- Player management with unique IDs, aliases and positions
+- Match entry through the web interface, including AI-assisted extraction from images and text via an external AI API
+- Manual match import via CSV files
+- Customized Glicko-2 rating system adapted for recreational team football
+- Team-based rating calculation with separate ratings for different match types / pitches
+- Custom inactivity handling and initial player rating calibration
+- Full historical rating recalculation and incremental updates for new matches
+- Player profiles with rating history, match history and statistics
+- Match Center for viewing and managing match data
+- Matchmaker for creating balanced teams
+- Model-analysis tools for evaluating rating predictions and calibration
+- Separate simulation environment for testing the rating system with synthetic match data
+
+The project is still evolving, particularly in the areas of matchmaking,
+model analysis and simulation.
 
 ---
 
-## Project Structure
+## Demo / Simulation
 
-The project is roughly divided into three layers:
+RB48Glicko includes a separate `demo-simulation` version of the project.
 
-Match CSV files
-      │
-      ▼
-import_matches.py
-      │
-      ▼
-   SQLite DB
-      │
-      ├── Players
-      ├── Matches
-      ├── Match Players
-      ├── Ratings
-      ├── Match Ratings
-      └── Calibrations
-      │
-      ▼
-Glicko calculation / statistics / future UI
+The purpose of the simulation is to provide a reproducible environment in
+which the rating system can be evaluated without exposing or depending on
+the project's real match database.
+
+The simulation generates synthetic players and matches from predefined,
+hidden player strengths. The generated results are then processed through
+the same general rating pipeline used by RB48Glicko.
+
+This makes it possible to compare:
+
+- the hidden "true" player strength
+- the strength estimated by Glicko-2
+- predicted match probabilities
+- actual match outcomes
+- rating convergence over time
+- calibration of predicted probabilities
+
+The demo uses a separate SQLite database and simulation-specific scripts.
+These files are kept separate from the normal application workflow.
+
+A simulated dataset will be available in the `demo-simulation` branch once
+the demo environment is complete.
+
+---
+
+## Project Architecture
+
+At a high level, RB48Glicko follows this data flow:
+
+    Match input
+          │
+          ├── Web interface
+          │     ├── Manual entry
+          │     ├── Image parsing ──► AI API
+          │     └── Text parsing  ──► AI API
+          │
+          └── CSV files
+                 │
+                 ▼
+           Match processing
+                 │
+                 ▼
+              SQLite
+                 │
+                 ├── Players
+                 ├── Aliases
+                 ├── Positions
+                 ├── Matches
+                 ├── Match Players
+                 ├── Ratings
+                 ├── Match Ratings
+                 └── Calibrations
+                 │
+                 ▼
+          Glicko calculation
+                 │
+                 ├── Rating history
+                 ├── Player statistics
+                 ├── Model analysis
+                 └── Web interface
 
 
-## 1. Current Workflow
+The codebase is roughly organized into the following areas:
 
-### Adding matches
+- `scripts/database/` — database access and maintenance
+- `scripts/glicko/` — Glicko-2 implementation and rating calculations
+- `scripts/matches/` — match import and match-data processing
+- `scripts/matchmaking/` — team balancing and matchmaker functionality
+- `scripts/analysis/` — statistical and model analysis
+- `scripts/frontend/` — data preparation for the web interface
+- `web/` — Flask application, templates and frontend assets
+- `scripts/simulation/` — synthetic data generation and simulation tools
 
-Match result files are imported into the SQLite database using:
+---
 
-`import_matches.py`
+## 1. Match Data Workflow
 
-### Calculating ratings
+Match results can enter the system through several different workflows.
 
-For a complete recalculation:
+### Manual entry
 
-`glicko2_calculator.py`
+Matches can be entered directly through the web interface. This provides
+full control over the players, teams, result and other match information.
 
-For normal incremental updates after adding new matches:
+### AI-assisted entry
 
-`glicko2_updater.py`
+The web interface can also use an external AI API to parse match information
+from images or text.
 
-### Statistics
+For example, a match result can be provided as an image containing the
+recorded teams and result, or as unstructured text. The AI parser extracts
+the relevant information and converts it into structured match data.
 
-Statistics are generated from the database and combine player, match, rating and result data.
+This is intended as an accelerator of the input process. The parsed information can 
+be reviewed and corrected through the
+interface before it is stored.
+
+This makes it possible to enter matches from existing records without having
+to manually transcribe every player and result.
+
+### CSV import
+
+Match data can also be imported directly from CSV files.
+
+CSV files provide a convenient structured format for bulk imports and for
+reproducible data processing.
+
+Regardless of how a match enters the system, the resulting structured match
+data is stored in the SQLite database and becomes available to the rating,
+statistics and web application layers.
+
+---
 
 ## 2. Database
 
-The SQLite database is the central data source:
+The SQLite database stores the persistent application data.
 
-`data/rb48.db`
+The default local database is:
 
-Main tables:
+    data/rb48.db
+
+The main tables are:
 
 - `players` — unique players
 - `aliases` — aliases belonging to players
@@ -92,55 +175,83 @@ Main tables:
 - `matches` — match information and results
 - `match_players` — players participating in each match
 - `ratings` — current rating of each player
-- `match_ratings` — rating state before each match
+- `match_ratings` — rating state immediately before each match
 - `calibrations` — initial rating adjustments
 
-Different types of information are stored separately and connected through IDs and foreign keys.
+Player, match and rating information are kept separate and connected through
+IDs and foreign keys.
+
+---
 
 ## 3. Player Data
 
 Each player has a unique `player_id`.
 
-Aliases are stored separately, allowing multiple names to refer to the same player.
+Aliases are stored separately, allowing multiple names to refer to the same
+player.
 
 For example:
 
-Player 1:
-- Daniel
-- Daniel Peters
-- Da_Pe
+    Player 1
+    ├── Daniel
+    ├── Daniel Peters
+    └── Da_Pe
 
-Positions are also stored separately, allowing players to have multiple positions while marking one as their preferred position.
+Positions are also stored separately. A player can have multiple positions
+while one position can be marked as the preferred position.
+
+This separation allows player identity to remain independent from the names
+used in individual match records.
+
+---
 
 ## 4. Match Data
 
 Each match has a unique `match_id`.
 
-The `matches` table stores the match itself, including:
+The `matches` table stores information about the match itself, including:
 
 - date
-- pitch
+- pitch / match type
 - number of players
 - goals
 - result
 
-The `match_players` table connects individual players to a match and records which team they played for.
+The `match_players` table connects individual players to each match and
+records which team they played for.
 
-This keeps match information independent from the rating calculations.
+This keeps match information independent from the rating calculations and
+allows the rating system to be recalculated from the underlying match
+history.
+
+---
 
 ## 5. Glicko-2 Rating System
 
-## 5. Glicko-2 Rating System
+RB48Glicko uses a customized implementation of the Glicko-2 rating system
+adapted for recreational football.
 
-RB48Glicko uses a customized implementation of the Glicko-2 rating system adapted for recreational football.
+Each player has three Glicko-2 values:
 
-Each player has three rating values:
+### Rating
 
-- Rating — The player's estimated playing strength. Higher ratings indicate stronger expected performance.
+The estimated playing strength of the player.
 
-- Rating Deviation (RD) — The system's uncertainty about the player's rating. Lower RD means the rating is more reliable; higher RD means greater uncertainty.
+A higher rating indicates stronger expected performance.
 
-- Volatility (Sigma) — How much the player's performance is expected to fluctuate over time. Higher volatility means the player is expected to have less consistent performances.
+### Rating Deviation (RD)
+
+The uncertainty associated with the player's rating.
+
+A lower RD means that the rating is considered more reliable, while a higher
+RD indicates greater uncertainty.
+
+### Volatility (Sigma)
+
+The expected degree of variation in a player's performances.
+
+A higher volatility means that the player's performance is expected to vary
+more substantially between rating periods.
 
 ### Initial Values
 
@@ -150,32 +261,87 @@ Players start with:
 - RD: `161.8`
 - Sigma: `0.06`
 
-The standard Glicko-2 starting RD of 350 was reduced to 161.8 because RB48Glicko is intended for a recreational football group where players starting uncertainty is assumed to be a lot lower than in the intended Glicko2 chess context.
-(A player showing up for a match in this group already provides a lot more information than a random player playing his first competitive chess game)
+The standard Glicko-2 starting RD of 350 was reduced to 161.8 because the
+context of RB48Glicko differs substantially from the original competitive
+rating scenarios for which Glicko was designed.
 
-The Sigma value of `0.06` is the standard Glicko-2 default and is currently left unchanged. It may be adjusted in the future if more match data suggests that a different level of performance volatility is more appropriate for recreational football.
+In this recreational football environment, participating in a match already
+provides considerably more information about a player's playing level than
+the initial uncertainty assumed by the standard Glicko-2 configuration.
 
-### Rating Updates
+The Sigma value of `0.06` is the standard Glicko-2 default and is currently
+left unchanged. It can be adjusted in the future if additional match data
+suggests that a different level of performance volatility is appropriate.
 
-Teams are represented by their average rating.
+---
 
-For each player, a virtual player is created using the team's rating together with the player's individual RD and Sigma. The Glicko-2 calculation then determines the rating change against the opposing team.
+## 6. Team-Based Rating Calculation
 
-The resulting change is applied to the player's actual rating.
+Unlike a conventional one-versus-one rating system, RB48Glicko evaluates
+matches between teams.
 
-RD decreases as information about a player accumulates. Players who do not participate receive a small custom RD increase between matches, reflecting increasing uncertainty during inactivity.
+A team's rating is calculated from the ratings of its participating players.
 
-## 6. Rating History
+The team rating is represented by the arithmetic mean of the players'
+ratings.
 
-The `match_ratings` table stores the rating state of every player immediately before each match.
+The team RD uses a quadratic mean of the participating players' RDs. This
+gives players with greater rating uncertainty a proportionally larger
+influence on the team's uncertainty.
 
-This makes it possible to reconstruct the rating situation at any point in the match history.
+For the individual update, a virtual player is constructed using the team's
+rating together with the individual player's RD and Sigma.
 
-The `ratings` table contains only the current rating of each player.
+The Glicko-2 calculation is then performed against the opposing team's
+virtual rating, and the resulting change is applied to the individual
+player's actual rating.
 
-## 7. Full Recalculation
+This allows a team-based match to update individual player ratings while
+still accounting for differences in individual rating uncertainty.
 
-`glicko2_calculator.py` recalculates the complete rating history from the beginning.
+---
+
+## 7. Rating Updates and Inactivity
+
+RB48Glicko supports both complete recalculation and incremental rating
+updates.
+
+Rating deviation decreases as information about a player accumulates.
+
+Players who do not participate in matches receive a custom RD increase
+between matches. This reflects the increasing uncertainty about a player's
+current ability during periods of inactivity.
+
+Different rating categories can track inactivity separately depending on
+the type of match in which the player participates.
+
+---
+
+## 8. Rating History
+
+The `match_ratings` table stores the rating state of every relevant player
+immediately before each match.
+
+This provides a historical snapshot of the rating system and makes it
+possible to reconstruct the rating situation at any point in the match
+history.
+
+The current rating is stored separately in the `ratings` table.
+
+This distinction is important because it allows the application to answer
+questions such as:
+
+- What rating did a player have before a particular match?
+- What win probability did the rating system imply at that time?
+- How did a match change the player's rating?
+- How did rating uncertainty evolve over time?
+
+---
+
+## 9. Full Recalculation
+
+`glicko2_calculator.py` recalculates the complete rating history from the
+beginning of the available match data.
 
 A full recalculation is useful when:
 
@@ -184,30 +350,156 @@ A full recalculation is useful when:
 - the rating algorithm is modified
 - historical match data is corrected
 
-The existing database is backed up before the rating data is rebuilt.
+Before destructive recalculation, the existing database is backed up so that
+the previous state can be restored if necessary.
 
-## 8. Incremental Update
+---
 
-`glicko2_updater.py` processes only matches that have not yet been rated.
+## 10. Incremental Updates
 
-This is the normal workflow after importing new matches.
+`glicko2_updater.py` processes matches that have not yet been rated.
 
-The updater uses the current ratings as its starting point and adds the new matches to the existing rating history.
+This is the normal workflow after new matches have been imported.
 
-## 9. Backups
+Instead of recalculating the complete history, the updater uses the current
+ratings as its starting point and processes only the newly available matches.
 
-Before destructive operations such as a full Glicko recalculation, the complete SQLite database is backed up.
+This makes normal updates considerably faster while retaining the same
+rating history structure.
 
-This allows the previous state of the project to be restored if something goes wrong.
+---
 
-## 9. Planned Features
+## 11. Calibration and Model Analysis
 
-- Web interface with player profiles
-- Rating history and statistics
-- Individual player/team combinations
-- Interface for entering match results
-- Automatic statistics pages
-- Matchmaker for balanced teams
-- Position-aware team balancing
-- Separate ratings for different pitches
-- Further tuning of Glicko parameters as more match data becomes available
+RB48Glicko includes tools for evaluating how well the rating system reflects
+actual match outcomes.
+
+The system can compare predicted match probabilities with observed results
+and analyze the calibration of those predictions.
+
+This is particularly useful because a rating system should not only produce
+an ordering of players, but should also produce meaningful estimates of
+relative win probabilities.
+
+Model-analysis tools are being developed to investigate:
+
+- predicted versus observed win rates
+- calibration of favourite predictions
+- rating differences
+- goal-difference distributions
+- performance across different pitch types
+- convergence of ratings
+- other properties of the rating model
+
+The simulation environment provides an additional way to evaluate these
+properties because the underlying player strengths are known.
+
+---
+
+## 12. Web Application
+
+RB48Glicko includes a Flask-based web application for interacting with the
+rating system.
+
+The current interface provides functionality for:
+
+- viewing player rankings
+- viewing player profiles
+- exploring rating history
+- viewing player statistics
+- viewing match history
+- entering match results
+- parsing match information from images or text
+- managing match data
+- using the matchmaker
+- exploring model-analysis results
+
+The web application is intended to provide both a practical interface for
+the football group and a visual way of exploring the behavior of the rating
+system.
+
+---
+
+## 13. Matchmaker
+
+RB48Glicko includes a matchmaker for creating balanced teams.
+
+The matchmaker uses player ratings and additional player information to
+construct teams intended to have similar expected playing strength.
+
+Position information can also be used when balancing teams.
+
+The matchmaker is an ongoing area of development, particularly with regard
+to evaluating how "fair" generated teams actually are.
+
+---
+
+## 14. Simulation Environment
+
+The simulation environment is designed as a controlled test environment for
+the rating system.
+
+Synthetic players are assigned hidden underlying strengths. Matches are then
+generated from those strengths, producing a dataset where the true
+properties of the players are known even though the rating system itself
+does not receive that information.
+
+The rating system can then be run on the generated matches and compared
+against the hidden ground truth.
+
+This allows experiments that would be difficult or impossible with real
+football data alone, including testing:
+
+- rating convergence
+- rating accuracy
+- probability calibration
+- effects of different starting conditions
+- effects of inactivity
+- behavior with different player-strength distributions
+- behavior over large numbers of matches
+
+The simulation code lives under:
+
+    scripts/simulation/
+
+The simulation uses a separate database so that generated data does not
+interfere with the real RB48Glicko dataset.
+
+---
+
+## 15. Backups and Data Safety
+
+Before destructive operations such as a full Glicko recalculation, the
+complete SQLite database is backed up.
+
+This provides a recovery point if a recalculation or database operation
+produces an unexpected result.
+
+Generated data and local databases are intentionally kept outside the public
+source history.
+
+---
+
+## Project Goals
+
+The long-term goal of RB48Glicko is to provide a complete rating and
+matchmaking system for recreational football while also serving as a
+practical environment for experimenting with rating algorithms and
+statistical model evaluation.
+
+The project combines:
+
+- Python
+- Flask
+- SQLite
+- Glicko-2
+- external AI API integration
+- data processing
+- statistical analysis
+- visualization
+- team matchmaking
+- synthetic simulation
+
+The system is being developed iteratively, with real match data providing
+the practical use case and the simulation environment providing a controlled
+way to test and evaluate the underlying rating model.
