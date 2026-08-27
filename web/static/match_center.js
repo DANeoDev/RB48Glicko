@@ -7,58 +7,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const matchmakerDetails = document.getElementById('matchmaker-details');
     const matchmakerForm = [...document.querySelectorAll('form')].find(form => form.querySelector('button[name="action"][value="generate"]'));
 
-    const positionCache = new Map();
     const positionTooltip = 'Positional balance compares how many players on each team can cover GK, DEF, MID and ATT. Lower scores are better; 0 means the teams are perfectly balanced by this evaluation. Goalkeeper imbalance receives an additional heavy penalty.';
 
-    async function getConsideredPosition(playerId, otherId) {
-        const key = String(playerId);
-        if (positionCache.has(key)) return positionCache.get(key);
-        if (playerId === otherId) return null;
-        const params = new URLSearchParams();
-        params.append('team_a', playerId);
-        params.append('team_b', otherId);
-        try {
-            const response = await fetch(`/match-center/team-details?${params.toString()}`);
-            if (!response.ok) throw new Error('team details unavailable');
-            const data = await response.json();
-            const position = data.positions_a?.[String(playerId)] || data.positions_a?.[playerId] || null;
-            if (position) positionCache.set(key, position);
-            return position;
-        } catch (_) {
-            return null;
-        }
-    }
-
-    function addPositionBadge(box, position, className = 'player-position') {
-        if (!box || !position || box.querySelector(`.${className}`)) return;
+    function addPositionBadge(box, positionText, className = 'player-position') {
+        if (!box || !positionText || box.querySelector(`.${className}`)) return;
         const badge = document.createElement('span');
         badge.className = className;
-        badge.textContent = position;
-        badge.style.cssText = 'color:var(--text-muted);font-size:12px;margin-left:4px;';
+        badge.textContent = `(${positionText})`;
+        badge.style.cssText = 'color:var(--text-muted);font-size:12px;margin-left:6px;';
         box.appendChild(badge);
     }
 
-    async function restorePlayerPositions() {
-        const boxes = [...document.querySelectorAll('.players .player')];
-        const ids = boxes.map(box => Number(box.querySelector('input[type="checkbox"]')?.value)).filter(Number.isFinite);
-        if (ids.length < 2) return;
-        const fallbackOther = ids[0];
-        await Promise.all(boxes.map(async box => {
+    function restorePlayerPositions() {
+        document.querySelectorAll('.players .player').forEach(box => {
             const checkbox = box.querySelector('input[type="checkbox"]');
-            const name = box.querySelector('span');
             const playerId = Number(checkbox?.value);
-            if (!Number.isFinite(playerId) || !name) return;
-            const otherId = playerId === fallbackOther ? ids[1] : fallbackOther;
-            const position = await getConsideredPosition(playerId, otherId);
-            if (position) addPositionBadge(box, position);
-        }));
+            const player = players.find(p => Number(p.id) === playerId);
+            if (!player) return;
+            const positions = Array.isArray(player.positions) ? player.positions.filter(Boolean) : [];
+            addPositionBadge(box, positions.length ? positions.join(', ') : 'Any');
+        });
     }
 
     if (parserForm && matchmakerForm && parserForm.querySelector('[name="parsed_kind"]')) {
         matchmakerForm.addEventListener('submit', () => {
             const get = name => parserForm.querySelector(`[name="${name}"]`)?.value || '';
-            const players = [...parserForm.querySelectorAll('[name="parsed_player"]')].map(x => x.value);
-            sessionStorage.setItem(parserStateKey, JSON.stringify({kind:get('parsed_kind'),date:get('parsed_match_date'),teamA:get('parsed_team_a'),teamB:get('parsed_team_b'),goalsA:get('parsed_goals_a'),goalsB:get('parsed_goals_b'),players}));
+            const parsedPlayers = [...parserForm.querySelectorAll('[name="parsed_player"]')].map(x => x.value);
+            sessionStorage.setItem(parserStateKey, JSON.stringify({kind:get('parsed_kind'),date:get('parsed_match_date'),teamA:get('parsed_team_a'),teamB:get('parsed_team_b'),goalsA:get('parsed_goals_a'),goalsB:get('parsed_goals_b'),players:parsedPlayers}));
         });
     }
 
@@ -161,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 badge.className = 'considered-position';
                                 badge.textContent = ` (${position})`;
                                 badge.title = 'Position considered by the matchmaker for this suggested team.';
+                                badge.style.cursor = 'help';
                                 rows[index].appendChild(badge);
                             }
                         });
