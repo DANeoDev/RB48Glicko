@@ -186,7 +186,7 @@ def match_center():
     if parse_result and parse_result.get("kind") == "match" and not team_a and not team_b:
         team_a = parse_result.get("team_a_ids", []); team_b = parse_result.get("team_b_ids", []); goals_a = parse_result.get("goals_a") if parse_result.get("goals_a") is not None else 0; goals_b = parse_result.get("goals_b") if parse_result.get("goals_b") is not None else 0
     player_names = {pid: (data["aliases"][0] if data["aliases"] else f"Player {pid}") for pid, data in players.items()}
-    player_search_data = [{"id": pid, "name": player_names[pid]} for pid in players]
+    player_search_data = [{"id": pid, "name": player_names[pid], "positions": data.get("positions", [])} for pid, data in players.items()]
     next_id = next_match_id(connection, match_date)
     connection.close()
     return render_template("match_center_v2.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, mode=mode, pitch=pitch, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success, calibration_levels=CALIBRATION_LEVELS, matchmaker_date=match_date, match_date=match_date, team_a=team_a, team_b=team_b, goals_a=goals_a, goals_b=goals_b, player_names=player_names, player_search_data=player_search_data, next_match_id=next_id, success=success, error=error, calibration_message=calibration_message)
