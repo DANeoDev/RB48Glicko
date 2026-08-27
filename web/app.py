@@ -189,7 +189,7 @@ def match_center():
     player_search_data = [{"id": pid, "name": player_names[pid], "positions": data.get("positions", [])} for pid, data in players.items()]
     next_id = next_match_id(connection, match_date)
     connection.close()
-    return render_template("match_center_v2.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, mode=mode, pitch=pitch, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success, calibration_levels=CALIBRATION_LEVELS, matchmaker_date=match_date, match_date=match_date, team_a=team_a, team_b=team_b, goals_a=goals_a, goals_b=goals_b, player_names=player_names, player_search_data=player_search_data, next_match_id=next_id, success=success, error=error, calibration_message=calibration_message)
+    return render_template("match_center.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, mode=mode, pitch=pitch, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success, calibration_levels=CALIBRATION_LEVELS, matchmaker_date=match_date, match_date=match_date, team_a=team_a, team_b=team_b, goals_a=goals_a, goals_b=goals_b, player_names=player_names, player_search_data=player_search_data, next_match_id=next_id, success=success, error=error, calibration_message=calibration_message)
 
 
 @app.route("/match-center/team-details")
@@ -220,36 +220,6 @@ def legacy_matchmaker():
     if request.method == "GET":
         return redirect(url_for("match_center", **request.args.to_dict(flat=False)))
     return redirect(url_for("match_center"), code=307)
-
-
-@app.route("/match-entry", methods=["GET", "POST"])
-def match_entry():
-    connection = get_connection(); players = get_players(connection); match_date = request.form.get("date", request.args.get("date", date.today().isoformat())); pitch = request.form.get("pitch", request.args.get("pitch", "box")); pitch = pitch if pitch in ("box", "hf") else "box"
-    if request.method == "POST": team_a = _get_prefilled_team_ids(request.form, "team_a", players); team_b = _get_prefilled_team_ids(request.form, "team_b", players)
-    else: team_a = _get_prefilled_team_ids(request.args, "team_a", players); team_b = _get_prefilled_team_ids(request.args, "team_b", players)
-    goals_a = request.form.get("goals_a", request.args.get("goals_a", "0")); goals_b = request.form.get("goals_b", request.args.get("goals_b", "0")); success = error = calibration_message = None
-    if request.method == "POST" and request.form.get("action") == "create_player":
-        try:
-            alias = request.form.get("new_alias", ""); positions = request.form.getlist("new_positions"); calibration = request.form.get("calibration", "average"); created_id, values = create_new_player(connection, alias, positions, calibration); (team_b if request.form.get("target_team") == "b" else team_a).append(created_id); target = "B" if request.form.get("target_team") == "b" else "A"; success = f"Created {alias.strip()} and added them to Team {target}."; calibration_message = f"Calibration rating: {values['rating']:.1f} (RD {values['rd']:.1f})."; players = get_players(connection)
-        except ValueError as exc: error = str(exc)
-    elif request.method == "POST" and request.form.get("action") == "upload":
-        upload = request.files.get("match_file")
-        if not upload or not upload.filename: error = "Please choose a CSV file."
-        else:
-            try: imported, processed = import_uploaded_matches(connection, upload.read()); sync_matchhistory_csv(connection); success = f"Imported {len(imported)} match{'es' if len(imported) != 1 else ''} and updated Glicko for {processed} new match{'es' if processed != 1 else ''}."
-            except (ValueError, RuntimeError) as exc: error = str(exc)
-    elif request.method == "POST" and request.form.get("action") == "save":
-        try:
-            if not team_a or not team_b: raise ValueError("Both teams need at least one player.")
-            if len(team_a) != len(set(team_a)) or len(team_b) != len(set(team_b)): raise ValueError("A player cannot appear more than once on the same team.")
-            if set(team_a) & set(team_b): raise ValueError("A player cannot be on both teams.")
-            goals_a_int, goals_b_int = int(goals_a), int(goals_b)
-            if goals_a_int < 0 or goals_b_int < 0: raise ValueError("Goals cannot be negative.")
-            date.fromisoformat(match_date); match_id = add_match(connection, match_date, pitch, team_a, team_b, goals_a_int, goals_b_int); processed = process_new_matches(connection); sync_matchhistory_csv(connection); success = f"Saved {match_id} and updated Glicko ({processed} match processed)."; goals_a, goals_b = "0", "0"
-        except (ValueError, RuntimeError) as exc: error = str(exc)
-    player_names = {pid: (data["aliases"][0] if data["aliases"] else f"Player {pid}") for pid, data in players.items()}; player_search_data = [{"id": pid, "name": player_names[pid]} for pid in players]; next_id = next_match_id(connection, match_date); connection.close()
-    return render_template("match_entry_v3.html", players=players, player_names=player_names, player_search_data=player_search_data, team_a=team_a, team_b=team_b, match_date=match_date, pitch=pitch, goals_a=goals_a, goals_b=goals_b, next_match_id=next_id, success=success, error=error, calibration_message=calibration_message, calibration_levels=CALIBRATION_LEVELS)
-
 
 @app.route("/glickofaq")
 def glicko_explainer(): return render_template("glickofaq.html")
