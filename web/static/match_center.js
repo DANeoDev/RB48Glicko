@@ -29,13 +29,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function addPositionBadge(container, position, className = 'player-position') {
-        if (!container || !position || container.querySelector(`.${className}`)) return;
+    function addPositionBadge(box, position, className = 'player-position') {
+        if (!box || !position || box.querySelector(`.${className}`)) return;
         const badge = document.createElement('span');
         badge.className = className;
         badge.textContent = position;
         badge.style.cssText = 'color:var(--text-muted);font-size:12px;margin-left:4px;';
-        container.appendChild(badge);
+        box.appendChild(badge);
     }
 
     async function restorePlayerPositions() {
@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!Number.isFinite(playerId) || !name) return;
             const otherId = playerId === fallbackOther ? ids[1] : fallbackOther;
             const position = await getConsideredPosition(playerId, otherId);
-            if (position) addPositionBadge(name, position);
+            if (position) addPositionBadge(box, position);
         }));
     }
 
