@@ -7,6 +7,53 @@ document.addEventListener('DOMContentLoaded', () => {
     const matchmakerDetails = document.getElementById('matchmaker-details');
     const matchmakerForm = [...document.querySelectorAll('form')].find(form => form.querySelector('button[name="action"][value="generate"]'));
 
+    const positionCache = new Map();
+    const positionTooltip = 'Positional balance compares how many players on each team can cover GK, DEF, MID and ATT. Lower scores are better; 0 means the teams are perfectly balanced by this evaluation. Goalkeeper imbalance receives an additional heavy penalty.';
+
+    async function getConsideredPosition(playerId, otherId) {
+        const key = String(playerId);
+        if (positionCache.has(key)) return positionCache.get(key);
+        if (playerId === otherId) return null;
+        const params = new URLSearchParams();
+        params.append('team_a', playerId);
+        params.append('team_b', otherId);
+        try {
+            const response = await fetch(`/match-center/team-details?${params.toString()}`);
+            if (!response.ok) throw new Error('team details unavailable');
+            const data = await response.json();
+            const position = data.positions_a?.[String(playerId)] || data.positions_a?.[playerId] || null;
+            if (position) positionCache.set(key, position);
+            return position;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function addPositionBadge(container, position, className = 'player-position') {
+        if (!container || !position || container.querySelector(`.${className}`)) return;
+        const badge = document.createElement('span');
+        badge.className = className;
+        badge.textContent = position;
+        badge.style.cssText = 'color:var(--text-muted);font-size:12px;margin-left:4px;';
+        container.appendChild(badge);
+    }
+
+    async function restorePlayerPositions() {
+        const boxes = [...document.querySelectorAll('.players .player')];
+        const ids = boxes.map(box => Number(box.querySelector('input[type="checkbox"]')?.value)).filter(Number.isFinite);
+        if (ids.length < 2) return;
+        const fallbackOther = ids[0];
+        await Promise.all(boxes.map(async box => {
+            const checkbox = box.querySelector('input[type="checkbox"]');
+            const name = box.querySelector('span');
+            const playerId = Number(checkbox?.value);
+            if (!Number.isFinite(playerId) || !name) return;
+            const otherId = playerId === fallbackOther ? ids[1] : fallbackOther;
+            const position = await getConsideredPosition(playerId, otherId);
+            if (position) addPositionBadge(name, position);
+        }));
+    }
+
     if (parserForm && matchmakerForm && parserForm.querySelector('[name="parsed_kind"]')) {
         matchmakerForm.addEventListener('submit', () => {
             const get = name => parserForm.querySelector(`[name="${name}"]`)?.value || '';
@@ -97,11 +144,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 const quality=document.createElement('div'); quality.className='notice team-quality'; quality.textContent='Loading team details…'; suggested.querySelector('.actions')?.before(quality);
                 const params=new URLSearchParams(); teams.a.forEach(id=>params.append('team_a',id)); teams.b.forEach(id=>params.append('team_b',id));
                 fetch(`/match-center/team-details?${params.toString()}`).then(r=>r.ok?r.json():Promise.reject()).then(d=>{
-                    quality.innerHTML=`<strong>Team rating:</strong> ${d.rating_a} (RD ${d.rd_a}) vs ${d.rating_b} (RD ${d.rd_b}) · <strong>Rating difference:</strong> ${d.rating_difference}<br><strong>Positional balance:</strong> ${d.position_penalty===0?'balanced':`penalty ${d.position_penalty}`}<br><span class="muted">Team A: ${Object.values(d.positions_a).join(', ')} · Team B: ${Object.values(d.positions_b).join(', ')}</span>`;
+                    quality.innerHTML=`<strong>Team rating:</strong> ${d.rating_a} (RD ${d.rd_a}) vs ${d.rating_b} (RD ${d.rd_b}) · <strong>Rating difference:</strong> ${d.rating_difference}<br><strong class="position-balance-help" title="${positionTooltip}">Positional balance:</strong> ${d.position_penalty===0?'balanced':`penalty ${d.position_penalty}`}<br><span class="muted">Team A: ${Object.values(d.positions_a).join(', ')} · Team B: ${Object.values(d.positions_b).join(', ')}</span>`;
+
+                    const suggestedTeams = [
+                        { key: 'a', players: teams.a, positions: d.positions_a },
+                        { key: 'b', players: teams.b, positions: d.positions_b }
+                    ];
+                    suggestedTeams.forEach(({key, players: teamPlayers, positions}) => {
+                        const team = suggested.querySelectorAll('.team')[key === 'a' ? 0 : 1];
+                        if (!team) return;
+                        const rows = [...team.querySelectorAll('li')];
+                        teamPlayers.forEach((playerId, index) => {
+                            const position = positions?.[String(playerId)] || positions?.[playerId];
+                            if (position && rows[index]) {
+                                const badge = document.createElement('span');
+                                badge.className = 'considered-position';
+                                badge.textContent = ` (${position})`;
+                                badge.title = 'Position considered by the matchmaker for this suggested team.';
+                                rows[index].appendChild(badge);
+                            }
+                        });
+                    });
                 }).catch(()=>quality.textContent='Team details could not be loaded.');
             }
         }
     }
+
+    const resultSummary=document.querySelector('.result-summary');
+    if(resultSummary){
+        const balanceLabel=[...resultSummary.querySelectorAll('strong')].find(el=>el.textContent.includes('Positional balance evaluation'));
+        if(balanceLabel){
+            balanceLabel.classList.add('position-balance-help');
+            balanceLabel.title=positionTooltip;
+            balanceLabel.style.cursor='help';
+            balanceLabel.setAttribute('aria-label',positionTooltip);
+        }
+    }
+
+    restorePlayerPositions();
 
     const useTeams=[...document.querySelectorAll('a.primary')].find(a=>a.textContent.trim()==='Use these teams in Enter a Match');
     if(generated&&useTeams){
