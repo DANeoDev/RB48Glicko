@@ -79,17 +79,17 @@ def import_match(connection, row, players, alias_lookup, ignored_aliases):
         if player_id is not None:
             team_b_ids.append(player_id)
 
+    # matches.players_a / players_b are participant counts. The registered
+    # player IDs themselves are stored in match_players below.
     create_match(
         connection,
         match_id,
         match_date,
         pitch,
-        team_a_ids,
-        team_b_ids,
-        goals_a,
-        goals_b,
         len(team_a),
-        len(team_b)
+        len(team_b),
+        goals_a,
+        goals_b
     )
 
     for player_id in team_a_ids:
