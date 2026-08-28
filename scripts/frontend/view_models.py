@@ -53,6 +53,13 @@ def build_match_history(connection, players, player_id=None, rating_type=TOTAL):
     matches = get_matches(connection)
     history = []
     for match_id, match in matches.items():
+        # The history filter is based on the type of match, not merely on
+        # which rating is displayed for the match.
+        if rating_type == BOX and match["pitch"].lower() != "box":
+            continue
+        if rating_type == HF and match["pitch"].lower() != "hf":
+            continue
+
         team_a, team_b = get_match_teams(connection, match_id)
         if player_id is not None and player_id not in team_a and player_id not in team_b: continue
         external_a, external_b = match["players_a"] - len(team_a), match["players_b"] - len(team_b)
