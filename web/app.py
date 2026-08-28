@@ -9,7 +9,6 @@ from scripts.database.db_matches import get_player_stats
 from scripts.frontend.view_models import build_leaderboard, build_match_history
 from scripts.analysis.model_analysis import analyze_model
 from scripts.matches.match_entry import add_match, next_match_id, import_uploaded_matches, create_new_player, CALIBRATION_LEVELS, process_new_matches
-from scripts.matches.matchhistory_sync import sync_matchhistory_csv
 from scripts.matchmaking.matchmaker import generate_match, _team_rating, _position_penalty, _considered_positions
 from scripts.matchmaking.match_parser import parse_match_image, parse_match_text, resolve_player_names, normalize_player_name, MatchParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
@@ -147,12 +146,8 @@ def match_center():
 
     elif request.method == "POST" and action == "create_player":
         try:
-            alias = request.form.get("new_alias", ""); positions = request.form.getlist("new_positions"); calibration = request.form.get("calibration", "average"); created_id, values = create_new_player(connection, alias, positions, calibration)
-            target = selected_ids
-            target.append(created_id)
-            success = f"Created {alias.strip()} and added them to the match."
-            calibration_message = f"Calibration rating: {values['rating']:.1f} (RD {values['rd']:.1f})."
-            players = get_players(connection); selected_ids = list(dict.fromkeys(target))
+            alias = request.form.get("new_alias", ""); positions = request.form.getlist("positions") or request.form.getlist("new_positions"); calibration = request.form.get("calibration", "average"); created_id, values = create_new_player(connection, alias, positions, calibration)
+            selected_ids.append(created_id); success = f"Created {alias.strip()} and added them to the match."; calibration_message = f"Calibration rating: {values['rating']:.1f} (RD {values['rd']:.1f})."; players = get_players(connection); selected_ids = list(dict.fromkeys(selected_ids))
         except ValueError as exc:
             error = str(exc)
 
@@ -162,14 +157,22 @@ def match_center():
         try:
             external_a = int(request.form.get("external_a", "0") or 0); external_b = int(request.form.get("external_b", "0") or 0)
             if external_a < 0 or external_b < 0: raise ValueError("External player counts cannot be negative.")
-            if not team_a and external_a == 0 or not team_b and external_b == 0: raise ValueError("Both teams need at least one player.")
+            if (not team_a and external_a == 0) or (not team_b and external_b == 0): raise ValueError("Both teams need at least one player.")
             if len(team_a) != len(set(team_a)) or len(team_b) != len(set(team_b)): raise ValueError("A player cannot appear more than once on the same team.")
             if set(team_a) & set(team_b): raise ValueError("A player cannot be on both teams.")
             goals_a_int, goals_b_int = int(goals_a), int(goals_b)
             if goals_a_int < 0 or goals_b_int < 0: raise ValueError("Goals cannot be negative.")
-            date.fromisoformat(match_date); match_id = add_match(connection, match_date, pitch, team_a, team_b, goals_a_int, goals_b_int, len(team_a) + external_a, len(team_b) + external_b); processed = process_new_matches(connection); sync_matchhistory_csv(connection); success = f"Saved {match_id} and updated Glicko ({processed} match processed)."; calibration_message = None
+            date.fromisoformat(match_date)
+            match_id = add_match(connection, match_date, pitch, team_a, team_b, goals_a_int, goals_b_int, len(team_a) + external_a, len(team_b) + external_b)
+            processed = process_new_matches(connection)
+            success = f"Saved {match_id} and updated Glicko ({processed} match processed)."
+            calibration_message = None
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"success": True, "message": "Match added successfully.", "match_id": match_id, "processed": processed})
         except (ValueError, RuntimeError) as exc:
             error = str(exc)
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"success": False, "error": error}), 400
 
     elif request.method == "POST" and action in ("generate", "reroll"):
         try: seed = int(request.form.get("seed")) if request.form.get("seed") is not None else None
@@ -180,8 +183,7 @@ def match_center():
         selected_ids = [int(pid) for pid in request.args.getlist("players") if pid.isdigit() and int(pid) in players]
 
     match_date = request.form.get("date", request.args.get("date", request.form.get("parsed_match_date", date.today().isoformat())))
-    if parse_result and parse_result.get("match_date"):
-        match_date = parse_result["match_date"]
+    if parse_result and parse_result.get("match_date"): match_date = parse_result["match_date"]
     team_a = _get_prefilled_team_ids(request.form, "team_a", players) if request.method == "POST" and action in ("save", "create_player") else []
     team_b = _get_prefilled_team_ids(request.form, "team_b", players) if request.method == "POST" and action in ("save", "create_player") else []
     goals_a = request.form.get("goals_a", "0") if request.method == "POST" else "0"; goals_b = request.form.get("goals_b", "0") if request.method == "POST" else "0"
@@ -198,29 +200,19 @@ def match_center():
 def add_database_player():
     connection = get_connection()
     try:
-        alias = normalize_player_name(request.form.get("alias", ""))
-        mode = request.form.get("mode", "new")
-        if not alias:
-            raise ValueError("Player name cannot be empty.")
+        alias = normalize_player_name(request.form.get("alias", "")); mode = request.form.get("mode", "new")
+        if not alias: raise ValueError("Player name cannot be empty.")
         alias_lookup = get_alias_lookup(connection)
-        if alias.casefold() in {a.casefold() for a in alias_lookup}:
-            raise ValueError(f"The alias '{alias}' already exists.")
-
+        if alias.casefold() in {a.casefold() for a in alias_lookup}: raise ValueError(f"The alias '{alias}' already exists.")
         if mode == "alias":
             player_id = int(request.form.get("target_player_id", ""))
-            if player_id not in get_players(connection):
-                raise ValueError("Selected player does not exist.")
-            add_alias(connection, alias, player_id)
-            connection.commit()
-            return jsonify({"player_id": player_id, "alias": alias})
-
-        positions = request.form.getlist("positions")
-        calibration = request.form.get("calibration", "average")
+            if player_id not in get_players(connection): raise ValueError("Selected player does not exist.")
+            add_alias(connection, alias, player_id); connection.commit(); return jsonify({"player_id": player_id, "alias": alias})
+        positions = request.form.getlist("positions"); calibration = request.form.get("calibration", "average")
         player_id, values = create_new_player(connection, alias, positions, calibration)
         return jsonify({"player_id": player_id, "alias": alias, "rating": values["rating"], "rd": values["rd"]})
     except (ValueError, TypeError) as exc:
-        connection.rollback()
-        return jsonify({"error": str(exc)}), 400
+        connection.rollback(); return jsonify({"error": str(exc)}), 400
     finally:
         connection.close()
 
@@ -230,50 +222,32 @@ def add_temporary_player():
     connection = get_connection()
     try:
         alias = normalize_player_name(request.form.get("alias", ""))
-        if not alias:
-            raise ValueError("Player name cannot be empty.")
+        if not alias: raise ValueError("Player name cannot be empty.")
         alias_lookup = get_alias_lookup(connection)
-        if alias.casefold() in {a.casefold() for a in alias_lookup}:
-            raise ValueError("This name already belongs to a registered player. Use 'Add player to database' instead.")
+        if alias.casefold() in {a.casefold() for a in alias_lookup}: raise ValueError("This name already belongs to a registered player. Use 'Add player to database' instead.")
         ignored_aliases = get_ignored_aliases(connection)
-        if alias.casefold() not in {a.casefold() for a in ignored_aliases}:
-            add_ignored_alias(connection, alias)
-            connection.commit()
+        if alias.casefold() not in {a.casefold() for a in ignored_aliases}: add_ignored_alias(connection, alias); connection.commit()
         return jsonify({"alias": alias})
     except (ValueError, TypeError) as exc:
-        connection.rollback()
-        return jsonify({"error": str(exc)}), 400
+        connection.rollback(); return jsonify({"error": str(exc)}), 400
     finally:
         connection.close()
 
 
 @app.route("/match-center/team-details")
 def match_center_team_details():
-    try:
-        team_a = [int(x) for x in request.args.getlist("team_a")]
-        team_b = [int(x) for x in request.args.getlist("team_b")]
-    except ValueError:
-        return jsonify({"error": "Invalid team player IDs."}), 400
+    try: team_a = [int(x) for x in request.args.getlist("team_a")]; team_b = [int(x) for x in request.args.getlist("team_b")]
+    except ValueError: return jsonify({"error": "Invalid team player IDs."}), 400
     connection = get_connection(); players = get_players(connection); ratings = get_ratings(connection)
-    if not team_a or not team_b or any(pid not in players for pid in team_a + team_b):
-        connection.close(); return jsonify({"error": "Invalid team composition."}), 400
-    rating_type = TOTAL
-    rating_a = _team_rating(team_a, ratings, rating_type); rating_b = _team_rating(team_b, ratings, rating_type)
-    details = {
-        "rating_a": round(rating_a.rating, 1), "rd_a": round(rating_a.rd, 1),
-        "rating_b": round(rating_b.rating, 1), "rd_b": round(rating_b.rd, 1),
-        "rating_difference": round(abs(rating_a.rating - rating_b.rating), 1),
-        "position_penalty": _position_penalty(team_a, team_b, players),
-        "positions_a": _considered_positions(team_a, players),
-        "positions_b": _considered_positions(team_b, players),
-    }
+    if not team_a or not team_b or any(pid not in players for pid in team_a + team_b): connection.close(); return jsonify({"error": "Invalid team composition."}), 400
+    rating_type = TOTAL; rating_a = _team_rating(team_a, ratings, rating_type); rating_b = _team_rating(team_b, ratings, rating_type)
+    details = {"rating_a": round(rating_a.rating, 1), "rd_a": round(rating_a.rd, 1), "rating_b": round(rating_b.rating, 1), "rd_b": round(rating_b.rd, 1), "rating_difference": round(abs(rating_a.rating - rating_b.rating), 1), "position_penalty": _position_penalty(team_a, team_b, players), "positions_a": _considered_positions(team_a, players), "positions_b": _considered_positions(team_b, players)}
     connection.close(); return jsonify(details)
 
 
 @app.route("/matchmaker", methods=["GET", "POST"])
 def legacy_matchmaker():
-    if request.method == "GET":
-        return redirect(url_for("match_center", **request.args.to_dict(flat=False)))
+    if request.method == "GET": return redirect(url_for("match_center", **request.args.to_dict(flat=False)))
     return redirect(url_for("match_center"), code=307)
 
 @app.route("/glickofaq")
