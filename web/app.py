@@ -154,7 +154,7 @@ def match_center():
             if request.headers.get("X-Requested-With") == "XMLHttpRequest": connection.close(); return jsonify({"success": False, "error": error}), 400
 
     connection.close()
-    return render_template("match_center.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success, success=success, error=error, calibration_message=calibration_message, selected_rating_type=rating_type)
+    return render_template("match_center.html", calibration_levels=CALIBRATION_LEVELS, players=players, ratings=ratings, selected_ids=selected_ids, result=result, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success, success=success, error=error, calibration_message=calibration_message, selected_rating_type=rating_type)
 
 
 @app.route("/match-center/team-details", methods=["POST"])

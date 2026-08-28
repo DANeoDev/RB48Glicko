@@ -31,27 +31,46 @@
 <p><a href="{{ url_for('home') }}">← Back to Stats</a></p>
 </div>
 
-<h2>Ratings</h2>
-<table class="ratings-table">
-<thead><tr><th></th><th>C Rating</th><th>E Rating</th><th>RD</th><th>Games</th><th>Ws</th><th>Ls</th><th>W%</th></tr></thead>
-<tbody>
 {% set player_name = player["aliases"][0] %}
 {% set box_only = stats["box"]["games"] > 0 and stats["hf"]["games"] == 0 %}
 {% set hf_only = stats["hf"]["games"] > 0 and stats["box"]["games"] == 0 %}
 {% set rating_diverges = (box_only and ratings["total"]["rating"] != ratings["box"]["rating"]) or (hf_only and ratings["total"]["rating"] != ratings["hf"]["rating"]) %}
 {% set exclusive_pitch = "BOX" if box_only else "HF" if hf_only else "" %}
+
+<h2>Ratings</h2>
+
+<table class="ratings-table"{% if rating_diverges %} title="How can the ratings diverge even though {{ player_name }} only has games in {{ exclusive_pitch }}? Well, this is a good question, but it works as intended. If you can figure out the reason, send a Mail to the webmaster — he will grant you a reward." style="cursor: help;"{% endif %}>
+
+<thead>
+<tr>
+<th></th>
+<th>C Rating</th>
+<th>E Rating</th>
+<th>RD</th>
+<th>Games</th>
+<th>Ws</th>
+<th>Ls</th>
+<th>W%</th>
+</tr>
+</thead>
+
+<tbody>
+
 {% for rating_type in ["total", "box", "hf"] %}
+
 <tr>
 <th>{{ rating_type | upper }}</th>
 <td>{{ (ratings[rating_type]["rating"] - 3 * ratings[rating_type]["rd"]) | round(0) }}</td>
-<td{% if rating_diverges and (rating_type == "total" or rating_type == exclusive_pitch | lower) %} title="How can the ratings diverge even though {{ player_name }} only has games in {{ exclusive_pitch }}? Well, this is a good question, but the behaviour is as intended. If you can figure it out, send a Mail to the webmaster — he will grant you a reward." style="cursor: help;"{% endif %}>{{ ratings[rating_type]["rating"] | round(0) }}</td>
+<td>{{ ratings[rating_type]["rating"] | round(0) }}</td>
 <td>{{ ratings[rating_type]["rd"] | round(1) }}</td>
 <td>{{ stats[rating_type]["games"] }}</td>
 <td>{{ stats[rating_type]["wins"] }}</td>
 <td>{{ stats[rating_type]["losses"] }}</td>
 <td>{{ stats[rating_type]["win_percent"] | round(1) }}%</td>
 </tr>
+
 {% endfor %}
+
 </tbody>
 </table>
 
