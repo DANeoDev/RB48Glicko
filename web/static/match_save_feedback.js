@@ -17,14 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const okButton = modal.querySelector('#match-save-success-ok');
 
-    function showSuccess() {
-        modal.style.display = 'flex';
-        okButton.focus();
-    }
-
     okButton.addEventListener('click', () => {
-        // The normal POST would replace the page. Preserve the user's position
-        // so acknowledging the success message does not throw them to the top.
         sessionStorage.setItem('rb48_match_center_restore_scroll', String(window.scrollY));
         window.location.reload();
     });
@@ -32,48 +25,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedScroll = sessionStorage.getItem('rb48_match_center_restore_scroll');
     if (savedScroll !== null) {
         sessionStorage.removeItem('rb48_match_center_restore_scroll');
-        requestAnimationFrame(() => {
-            window.scrollTo(0, Number(savedScroll) || 0);
-        });
+        requestAnimationFrame(() => window.scrollTo(0, Number(savedScroll) || 0));
     }
 
     form.addEventListener('submit', async event => {
-        event.preventDefault();
+        const submitter = event.submitter;
+        if (!submitter || submitter.name !== 'action' || submitter.value !== 'save') return;
 
+        event.preventDefault();
         if (!form.checkValidity()) {
             form.reportValidity();
             return;
         }
 
-        const submitButton = form.querySelector('button[type="submit"]');
-        if (submitButton) submitButton.disabled = true;
+        const scrollY = window.scrollY;
+        submitter.disabled = true;
 
         try {
-            const response = await fetch(window.location.href, {
+            const response = await fetch(form.action || window.location.href, {
                 method: 'POST',
                 body: new FormData(form),
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
+            const data = await response.json();
 
-            const html = await response.text();
-
-            // The Match Center already renders a success notice after the
-            // match has been processed. Only show our confirmation modal when
-            // that successful server-side result is actually present.
-            if (response.ok && /Saved\s+[^<]+and updated Glicko/.test(html)) {
-                showSuccess();
-                return;
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'The match could not be saved.');
             }
 
-            // Keep the normal server-side validation/error behaviour visible.
-            document.open();
-            document.write(html);
-            document.close();
+            modal.style.display = 'flex';
+            okButton.focus();
+            sessionStorage.setItem('rb48_match_center_restore_scroll', String(scrollY));
         } catch (error) {
             console.error('Could not save match:', error);
-            form.submit();
-        } finally {
-            if (submitButton) submitButton.disabled = false;
+            alert(error.message);
+            submitter.disabled = false;
         }
     });
 });
