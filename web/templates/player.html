@@ -66,9 +66,9 @@
 <h2>Personal Match History</h2>
 <div class="player-history-controls">
 <div class="player-rating-selector" title="Select which match history to display and which Glicko rating type is shown: Total, BOX, or HF.">
-<a class="{% if selected_rating_type == 'total' %}active{% endif %}" href="{{ url_for('player_profile', player_id=player_id, rating_type='total') if player_id is defined else request.path + '?rating_type=total' }}" title="Show Total match history.">Total</a>
-<a class="{% if selected_rating_type == 'box' %}active{% endif %}" href="{{ url_for('player_profile', player_id=player_id, rating_type='box') if player_id is defined else request.path + '?rating_type=box' }}" title="Show BOX match history.">BOX</a>
-<a class="{% if selected_rating_type == 'hf' %}active{% endif %}" href="{{ url_for('player_profile', player_id=player_id, rating_type='hf') if player_id is defined else request.path + '?rating_type=hf' }}" title="Show HF match history.">HF</a>
+<a data-preserve-scroll class="{% if selected_rating_type == 'total' %}active{% endif %}" href="{{ url_for('player_profile', player_id=player_id, rating_type='total') if player_id is defined else request.path + '?rating_type=total' }}" title="Show Total match history.">Total</a>
+<a data-preserve-scroll class="{% if selected_rating_type == 'box' %}active{% endif %}" href="{{ url_for('player_profile', player_id=player_id, rating_type='box') if player_id is defined else request.path + '?rating_type=box' }}" title="Show BOX match history.">BOX</a>
+<a data-preserve-scroll class="{% if selected_rating_type == 'hf' %}active{% endif %}" href="{{ url_for('player_profile', player_id=player_id, rating_type='hf') if player_id is defined else request.path + '?rating_type=hf' }}" title="Show HF match history.">HF</a>
 </div>
 <span class="player-rating-help" title="The selected type filters the match history and determines the player ratings, team ratings, expected result and rating change shown in this match history.">ⓘ Selected type is used throughout this match history</span>
 </div>
