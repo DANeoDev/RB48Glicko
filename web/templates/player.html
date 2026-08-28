@@ -1,580 +1,129 @@
 {% extends "base.html" %}
 
-
 {% block title %}
     {{ player["aliases"][0] }} — RB48
 {% endblock %}
 
-
 {% block head %}
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <style>
-
-    /* =========================
-       Player profile
-       ========================= */
-
-    .profile {
-        text-align: center;
-    }
-
-
-    /* =========================
-       Rating graphs
-       ========================= */
-
-    .graphs {
-        display: flex;
-        justify-content: center;
-        gap: 40px;
-        margin-top: 40px;
-    }
-
-
-    .graph {
-        width: 350px;
-    }
-
-
-    .graph canvas {
-        width: 100% !important;
-        height: 220px !important;
-    }
-
-    .highlight-player {
-    font-weight: bold;
-    color: var(--green-light);
-    }
-
-    .rating-extremes {
-    margin-top: 8px;
-    font-size: 0.85em;
-    line-height: 1.5;
-    }
-
-    .rating-extremes strong {
-        display: inline-block;
-        width: 42px;
-    }
-
-
-    /* =========================
-       Ratings Table
-       ========================= */
-
-    .ratings-table {
-        border-collapse: collapse;
-        margin: 20px auto;
-    }
-
+.profile { text-align: center; }
+.graphs { display: flex; justify-content: center; gap: 40px; margin-top: 40px; }
+.graph { width: 350px; }
+.graph canvas { width: 100% !important; height: 220px !important; }
+.highlight-player { font-weight: bold; color: var(--green-light); }
+.rating-extremes { margin-top: 8px; font-size: 0.85em; line-height: 1.5; }
+.rating-extremes strong { display: inline-block; width: 42px; }
+.ratings-table { border-collapse: collapse; margin: 20px auto; }
+.player-history-controls { display:flex; flex-direction:column; align-items:center; gap:12px; margin:30px 0 26px; }
+.player-rating-selector { display:inline-flex; border-radius:var(--radius); overflow:hidden; box-shadow:0 0 0 1px var(--border); }
+.player-rating-selector a { padding:7px 12px; border:0; border-right:1px solid var(--border); background:var(--bg-surface); color:var(--text-main); font:inherit; font-size:12px; font-weight:600; text-decoration:none; }
+.player-rating-selector a:last-child { border-right:0; }
+.player-rating-selector a.active { background:var(--green-dark); color:var(--text-main); }
+.player-rating-help { cursor:help; color:var(--text-muted); font-size:11px; }
 </style>
-
 {% endblock %}
-
 
 {% block content %}
-
 <div class="profile">
+<div class="page-header">
+<h1>{{ player["aliases"][0] }}</h1>
+<p><a href="{{ url_for('home') }}">← Back to Stats</a></p>
+</div>
 
-    <!-- =========================
-         Player heading
-         ========================= -->
-
-    <div class="page-header">
-
-        <h1>
-            {{ player["aliases"][0] }}
-        </h1>
-
-        <p>
-            <a href="{{ url_for('home') }}">
-                ← Back to Stats
-            </a>
-        </p>
-
-    </div>
-
-
-    <!-- =========================
-         Ratings
-         ========================= -->
-
-    <h2>Ratings</h2>
-
-    <table class="ratings-table">
-
-        <thead>
-
-            <tr>
-                <th></th>
-                <th>C Rating</th>
-                <th>E Rating</th>
-                <th>RD</th>
-                <th>Games</th>
-                <th>Ws</th>
-                <th>Ls</th>
-                <th>W%</th>
-            </tr>
-
-        </thead>
-
-
-        <tbody>
-
-            {% for rating_type in ["total", "box", "hf"] %}
-
-            <tr>
-
-                <th>
-                    {{ rating_type | upper }}
-                </th>
-
-                <td>
-                    {{
-                        (
-                            ratings[rating_type]["rating"]
-                            - 3 * ratings[rating_type]["rd"]
-                        ) | round(0)
-                    }}
-                </td>
-
-                <td>
-                    {{ ratings[rating_type]["rating"] | round(0) }}
-                </td>
-
-                <td>
-                    {{ ratings[rating_type]["rd"] | round(1) }}
-                </td>
-
-                <td>
-                    {{ stats[rating_type]["games"] }}
-                </td>
-
-                <td>
-                    {{ stats[rating_type]["wins"] }}
-                </td>
-
-                <td>
-                    {{ stats[rating_type]["losses"] }}
-                </td>
-
-                <td>
-                    {{ stats[rating_type]["win_percent"] | round(1) }}%
-                </td>
-
-            </tr>
-
-            {% endfor %}
-
-        </tbody>
-
-    </table>
-
-
-    <!-- =========================
-         Rating graphs
-         ========================= -->
+<h2>Ratings</h2>
+<table class="ratings-table">
+<thead><tr><th></th><th>C Rating</th><th>E Rating</th><th>RD</th><th>Games</th><th>Ws</th><th>Ls</th><th>W%</th></tr></thead>
+<tbody>
+{% for rating_type in ["total", "box", "hf"] %}
+<tr>
+<th>{{ rating_type | upper }}</th>
+<td>{{ (ratings[rating_type]["rating"] - 3 * ratings[rating_type]["rd"]) | round(0) }}</td>
+<td>{{ ratings[rating_type]["rating"] | round(0) }}</td>
+<td>{{ ratings[rating_type]["rd"] | round(1) }}</td>
+<td>{{ stats[rating_type]["games"] }}</td>
+<td>{{ stats[rating_type]["wins"] }}</td>
+<td>{{ stats[rating_type]["losses"] }}</td>
+<td>{{ stats[rating_type]["win_percent"] | round(1) }}%</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
 
 <div class="graphs">
-
-    {% for rating_type in ["total", "box", "hf"] %}
-
-    <div class="graph">
-
-        <h3>{{ rating_type | upper }}</h3>
-
-        <canvas id="{{ rating_type }}Chart"></canvas>
-
-        <div class="rating-extremes">
-
-            <div>
-                <strong>Peak</strong>
-
-                {% if rating_extremes[rating_type]["peak"] %}
-                    {{ rating_extremes[rating_type]["peak"]["rating"] | round | int }}
-
-                    {% if rating_extremes[rating_type]["peak"]["date"] %}
-                        ·
-                        {{ rating_extremes[rating_type]["peak"]["date"][:10] }}
-                    {% endif %}
-
-                {% else %}
-                    —
-                {% endif %}
-            </div>
-            <div>
-                <strong>Low</strong>
-
-                {% if rating_extremes[rating_type]["low"] %}
-                    {{ rating_extremes[rating_type]["low"]["rating"] | round | int }}
-
-                    {% if rating_extremes[rating_type]["low"]["date"] %}
-                        ·
-                        {{ rating_extremes[rating_type]["low"]["date"][:10] }}
-                    {% endif %}
-
-                {% else %}
-                    —
-                {% endif %}
-            </div>
-
-        </div>
-
-    </div>
-
-    {% endfor %}
-
+{% for rating_type in ["total", "box", "hf"] %}
+<div class="graph">
+<h3>{{ rating_type | upper }}</h3>
+<canvas id="{{ rating_type }}Chart"></canvas>
+<div class="rating-extremes">
+<div><strong>Peak</strong>{% if rating_extremes[rating_type]["peak"] %} {{ rating_extremes[rating_type]["peak"]["rating"] | round | int }}{% if rating_extremes[rating_type]["peak"]["date"] %} · {{ rating_extremes[rating_type]["peak"]["date"][:10] }}{% endif %}{% else %} —{% endif %}</div>
+<div><strong>Low</strong>{% if rating_extremes[rating_type]["low"] %} {{ rating_extremes[rating_type]["low"]["rating"] | round | int }}{% if rating_extremes[rating_type]["low"]["date"] %} · {{ rating_extremes[rating_type]["low"]["date"][:10] }}{% endif %}{% else %} —{% endif %}</div>
+</div>
+</div>
+{% endfor %}
 </div>
 
-
-    <!-- =========================
-         Personal match history
-         ========================= -->
-
-    <h2>Personal Match History</h2>
-
-    <div class="match-history">
-
-        {% for match in matches %}
-
-        <div class="match">
-
-            <div class="match-header">
-
-                {{ match["match_id"] }}
-                —
-                {{ match["pitch"] | upper }}
-
-            </div>
-
-
-            <div class="match-info">
-
-                <!-- Team A -->
-
-                <div class="team team-a">
-
-                    <strong>Team A</strong>
-
-                    <div class="players">
-
-                        {% for team_player in match["team_a_players"] %}
-                            <span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}<span class="player-rating">({{ team_player["rating"] | round | int }})</span>{% if not loop.last %},{% endif %}</span>
-                        {% endfor %}
-
-                        {% if match["external_a"] > 0 %}
-
-                            {% if match["team_a_players"] %}, {% endif %}
-
-                            + {{ match["external_a"] }}
-                            external player{% if match["external_a"] != 1 %}s{% endif %}
-
-                        {% endif %}
-
-                    </div>
-
-                </div>
-
-
-                <!-- Score -->
-
-                <div class="score">
-
-                    {{ match["goals_a"] }}
-                    -
-                    {{ match["goals_b"] }}
-
-                </div>
-
-
-                <!-- Team B -->
-
-                <div class="team team-b">
-
-                    <strong>Team B</strong>
-
-                    <div class="players">
-
-                        {% for team_player in match["team_b_players"] %}
-                            <span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}<span class="player-rating">({{ team_player["rating"] | round | int }})</span>{% if not loop.last %},{% endif %}</span>
-                        {% endfor %}
-
-
-                        {% if match["external_b"] > 0 %}
-
-                            {% if match["team_b_players"] %}, {% endif %}
-
-                            + {{ match["external_b"] }}
-                            external player{% if match["external_b"] != 1 %}s{% endif %}
-
-                        {% endif %}
-
-                    </div>
-
-                </div>
-
-            </div>
-
-
-            <!-- =========================
-                 Expandable match details
-                 ========================= -->
-
-            <div class="match-details">
-
-                <!-- Team A details -->
-
-                <div class="team-details team-a">
-
-                    <div class="team-stat">
-                        <span class="stat-label">⌀ Rating</span>
-                        <span>{{ match["team_a_rating"] | round | int }}</span>
-                    </div>
-
-                    <div class="team-stat">
-                        <span class="stat-label">⌀ RD</span>
-                        <span>{{ match["team_a_rd"] | round(1) }}</span>
-                    </div>
-
-                    <div class="team-stat">
-                        <span class="stat-label">Win%</span>
-                        <span>—</span>
-                    </div>
-
-                </div>
-
-
-                <!-- Rating delta -->
-
-                <div class="rating-delta">
-
-                    {% if match["rating_delta"] > 0 %}
-
-                        <span class="positive">
-                            ↑ {{ match["rating_delta"] | round(1) }}
-                        </span>
-
-                    {% elif match["rating_delta"] < 0 %}
-
-                        <span class="negative">
-                            ↓ {{ match["rating_delta"] | abs | round(1) }}
-                        </span>
-
-                    {% else %}
-
-                        <span>
-                            — 0.0
-                        </span>
-
-                    {% endif %}
-
-
-                    <span class="delta-separator">|</span>
-
-
-                    {% if match["rating_delta"] < 0 %}
-
-                        <span class="positive">
-                            ↑ {{ match["rating_delta"] | abs | round(1) }}
-                        </span>
-
-                    {% elif match["rating_delta"] > 0 %}
-
-                        <span class="negative">
-                            ↓ {{ match["rating_delta"] | round(1) }}
-                        </span>
-
-                    {% else %}
-
-                        <span>
-                            — 0.0
-                        </span>
-
-                    {% endif %}
-
-                </div>
-
-
-                <!-- Team B details -->
-
-                <div class="team-details team-b">
-
-                    <div class="team-stat">
-                        <span class="stat-label">⌀ Rating</span>
-                        <span>{{ match["team_b_rating"] | round | int }}</span>
-                    </div>
-
-                    <div class="team-stat">
-                        <span class="stat-label">⌀ RD</span>
-                        <span>{{ match["team_b_rd"] | round(1) }}</span>
-                    </div>
-
-                    <div class="team-stat">
-                        <span class="stat-label">Win%</span>
-                        <span>—</span>
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        {% endfor %}
-
-    </div>
-
+<h2>Personal Match History</h2>
+<div class="player-history-controls">
+<div class="player-rating-selector" title="Select which match history to display and which Glicko rating type is shown: Total, BOX, or HF.">
+<a class="{% if selected_rating_type == 'total' %}active{% endif %}" href="{{ url_for('player_profile', player_id=player_id, rating_type='total') if player_id is defined else request.path + '?rating_type=total' }}" title="Show Total match history.">Total</a>
+<a class="{% if selected_rating_type == 'box' %}active{% endif %}" href="{{ url_for('player_profile', player_id=player_id, rating_type='box') if player_id is defined else request.path + '?rating_type=box' }}" title="Show BOX match history.">BOX</a>
+<a class="{% if selected_rating_type == 'hf' %}active{% endif %}" href="{{ url_for('player_profile', player_id=player_id, rating_type='hf') if player_id is defined else request.path + '?rating_type=hf' }}" title="Show HF match history.">HF</a>
+</div>
+<span class="player-rating-help" title="The selected type filters the match history and determines the player ratings, team ratings, expected result and rating change shown in this match history.">ⓘ Selected type is used throughout this match history</span>
 </div>
 
+<div class="match-history">
+{% for match in matches %}
+<div class="match">
+<div class="match-header">{{ match["match_id"] }} — {{ match["pitch"] | upper }}</div>
+<div class="match-info">
+<div class="team team-a"><strong>Team A</strong><div class="players">
+{% for team_player in match["team_a_players"] %}<span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}<span class="player-rating" title="Pre-match {{ selected_rating_type | upper if selected_rating_type != 'total' else 'Total' }} rating">({{ team_player["rating"] | round | int }})</span>{% if not loop.last %},{% endif %}</span>{% endfor %}
+{% if match["external_a"] > 0 %}{% if match["team_a_players"] %}, {% endif %}+ {{ match["external_a"] }} external player{% if match["external_a"] != 1 %}s{% endif %}{% endif %}
+</div></div>
+<div class="score">{{ match["goals_a"] }} - {{ match["goals_b"] }}</div>
+<div class="team team-b"><strong>Team B</strong><div class="players">
+{% for team_player in match["team_b_players"] %}<span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}<span class="player-rating" title="Pre-match {{ selected_rating_type | upper if selected_rating_type != 'total' else 'Total' }} rating">({{ team_player["rating"] | round | int }})</span>{% if not loop.last %},{% endif %}</span>{% endfor %}
+{% if match["external_b"] > 0 %}{% if match["team_b_players"] %}, {% endif %}+ {{ match["external_b"] }} external player{% if match["external_b"] != 1 %}s{% endif %}{% endif %}
+</div></div>
+</div>
+<div class="match-details">
+<div class="team-details team-a">
+<div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_a_rating"] | round | int }}</span></div>
+<div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_a_rd"] | round(1) }}</span></div>
+<div class="team-stat"><span class="stat-label">Win%</span><span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span></div>
+</div>
+<div class="rating-delta">
+{% if match["rating_delta"] > 0 %}<span class="positive">↑ {{ match["rating_delta"] | round(1) }}</span>{% elif match["rating_delta"] < 0 %}<span class="negative">↓ {{ match["rating_delta"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+<span class="delta-separator">|</span>
+{% if match["rating_delta"] < 0 %}<span class="positive">↑ {{ match["rating_delta"] | abs | round(1) }}</span>{% elif match["rating_delta"] > 0 %}<span class="negative">↓ {{ match["rating_delta"] | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+</div>
+<div class="team-details team-b">
+<div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_b_rating"] | round | int }}</span></div>
+<div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_b_rd"] | round | int }}</span></div>
+<div class="team-stat"><span class="stat-label">Win%</span><span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span></div>
+</div>
+</div>
+</div>
+{% endfor %}
+</div>
+</div>
 {% endblock %}
-
 
 {% block scripts %}
-
 <script>
+const ratingHistory = {{ rating_history | tojson }};
+function createRatingChart(elementId, ratingType) {
+const history = ratingHistory[ratingType];
+const labels = history.map((entry, index) => { const lastIndex = history.length - 1; if (index === 0 || index === Math.round(lastIndex / 3) || index === Math.round(lastIndex * 2 / 3) || index === lastIndex) return entry.date ? entry.date.substring(0, 7) : ""; return ""; });
+const ratings = history.map(entry => entry.rating);
+new Chart(document.getElementById(elementId), { type: "line", data: { labels: labels, datasets: [{ label: "Rating", data: ratings, tension: 0.2 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { autoSkip: false, maxRotation: 0 } }, y: { beginAtZero: false } } } });
+}
+createRatingChart("totalChart", "total");
+createRatingChart("boxChart", "box");
+createRatingChart("hfChart", "hf");
 
-    /* =========================
-       Rating graphs
-       ========================= */
-
-    const ratingHistory =
-        {{ rating_history | tojson }};
-
-
-    function createRatingChart(
-        elementId,
-        ratingType
-    ) {
-
-        const history =
-            ratingHistory[ratingType];
-
-
-const labels = history.map(
-    (entry, index) => {
-
-        const lastIndex = history.length - 1;
-
-        if (
-            index === 0 ||
-            index === Math.round(lastIndex / 3) ||
-            index === Math.round(lastIndex * 2 / 3) ||
-            index === lastIndex
-        ) {
-            return entry.date
-                ? entry.date.substring(0, 7)
-                : "";
-        }
-
-        return "";
-    }
-);
-
-
-        const ratings =
-            history.map(
-                entry => entry.rating
-            );
-
-        console.log(
-        ratingType,
-        history.length,
-        history
-        );
-        
-
-
-        new Chart(
-            document.getElementById(elementId),
-            {
-                type: "line",
-
-                data: {
-
-                    labels: labels,
-
-                    datasets: [{
-
-                        label: "Rating",
-
-                        data: ratings,
-
-                        tension: 0.2
-
-                    }]
-
-                },
-
-                options: {
-
-                    responsive: true,
-
-                    plugins: {
-
-                        legend: {
-                            display: false
-                        }
-
-                    },
-
-                    scales: {
-
-                        y: {
-                            beginAtZero: false
-                        }
-
-                    }
-
-                }
-
-            }
-        );
-
-    }
-
-
-    createRatingChart(
-        "totalChart",
-        "total"
-    );
-
-
-    createRatingChart(
-        "boxChart",
-        "box"
-    );
-
-
-    createRatingChart(
-        "hfChart",
-        "hf"
-    );
-
-
-    /* =========================
-       Match expansion
-       ========================= */
-
-    document
-        .querySelectorAll(".match")
-        .forEach(match => {
-
-            match.addEventListener(
-                "click",
-                () => {
-
-                    match.classList.toggle(
-                        "expanded"
-                    );
-
-                }
-            );
-
-        });
-
+document.querySelectorAll(".match").forEach(match => { match.addEventListener("click", () => match.classList.toggle("expanded")); });
 </script>
-
 {% endblock %}
-```
