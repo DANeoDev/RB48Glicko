@@ -3,19 +3,8 @@ __pycache__/
 .venv/
 
 # Local databases
-data/*.db
-data/*.sqlite
-data/*.sqlite3
 
-# Match input data
-matches/
-
-# Database backups
-data/backups/
-
-# Generated / local analysis output
-data/stats/
-data/ratings/
+data/
 
 # Local development files
 TO-DOs.md
