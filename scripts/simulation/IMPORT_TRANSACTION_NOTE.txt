@@ -1,0 +1,1 @@
+The simulation importer should use a single SQLite transaction for bulk imports. Production DB helpers intentionally commit individual writes; do not change their normal behavior just for the simulation.

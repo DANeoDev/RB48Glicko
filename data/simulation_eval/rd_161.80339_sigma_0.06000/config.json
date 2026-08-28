@@ -1,0 +1,21 @@
+{
+  "rating_type": "total",
+  "starting_rating": 1500.0,
+  "starting_rd": 161.80339,
+  "starting_sigma": 0.06,
+  "tau": 1.0,
+  "simulation_games": 10000,
+  "checkpoints": [
+    50,
+    100,
+    250,
+    500,
+    1000,
+    2500,
+    5000,
+    10000
+  ],
+  "team_size": 6,
+  "seed": 42,
+  "true_strength_probability_scale": 400.0
+}

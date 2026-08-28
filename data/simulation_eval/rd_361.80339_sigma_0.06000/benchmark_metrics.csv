@@ -1,0 +1,17 @@
+benchmark,criterion,first_checkpoint_games,achieved_value
+Strength Pearson correlation,>= 0.25,250,0.29870162741711354
+Strength Pearson correlation,>= 0.5,430,0.5150692162321521
+Strength Pearson correlation,>= 0.75,800,0.7706008225399427
+Strength Pearson correlation,>= 0.9,,
+Strength rank (Spearman) correlation,>= 0.5,440,0.5159574468085106
+Strength rank (Spearman) correlation,>= 0.75,800,0.7866912722535823
+Prediction beats 50/50 (Brier skill),> 0,1375,0.0007029286330062501
+Prediction beats base-rate baseline,> 0,1375,0.0006601139390449706
+Probability correlation,>= 0.25,25,0.3059081775181371
+Probability correlation,>= 0.5,1250,0.5291465789611232
+Probability correlation,>= 0.75,,
+Probability MAE,<= 0.1,1375,0.0997763022276696
+Probability MAE,<= 0.05,,
+Probability MSE,<= 0.01,,
+Calibration reliability,<= 0.01,1125,0.008001920232757887
+Mean probability bias (absolute),<= 0.01,119,0.009407092950550708

@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local databases
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# Match input data
+matches/
+
+# Database backups
+data/backups/
+
+# Generated / local analysis output
+data/stats/
+data/ratings/
+
+# Local development files
+TO-DOs.md
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# too big:
+data/demo/demo.db

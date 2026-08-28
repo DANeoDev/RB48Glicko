@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}RB48{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+<header class="site-header">
+    <nav class="navbar">
+        <a class="logo" href="{{ url_for('home') }}">RB48</a>
+        <div class="nav-links">
+            <a href="{{ url_for('home') }}" class="{% if request.endpoint == 'home' %}active{% endif %}">Stats</a>
+            <a href="{{ url_for('match_history') }}" class="{% if request.endpoint == 'match_history' %}active{% endif %}">Match History</a>
+            <a href="{{ url_for('match_center') }}" class="{% if request.endpoint == 'match_center' %}active{% endif %}">Match Center</a>
+            <a href="{{ url_for('model_analysis') }}" class="{% if request.endpoint == 'model_analysis' %}active{% endif %}">Model Analysis</a>
+            <a href="{{ url_for('simulation_analysis') }}" class="{% if request.endpoint == 'simulation_analysis' %}active{% endif %}">Simulation Analysis</a>
+        </div>
+    </nav>
+</header>
+<main>{% block content %}{% endblock %}</main>
+{% block scripts %}{% endblock %}
+{% if request.endpoint == 'match_center' %}
+<script src="{{ url_for('static', filename='match_center.js') }}"></script>
+<script src="{{ url_for('static', filename='match_center_navigation.js') }}"></script>
+{% endif %}
+</body>
+</html>
