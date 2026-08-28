@@ -9,7 +9,6 @@
 .match-entry-controls { display:flex; flex-direction:column; align-items:center; gap:12px; margin:18px 0 26px; }
 .match-entry-button { display:inline-block; padding:11px 22px; border-radius:var(--radius); background:var(--green-dark); color:var(--text-main); border:1px solid var(--green-dark); font-weight:700; text-decoration:none; }
 .rating-selector-wrap { display:flex; flex-direction:column; align-items:center; gap:5px; }
-.rating-selector-label { color:var(--text-muted); font-size:12px; font-weight:600; }
 .rating-selector { display:inline-flex; border-radius:var(--radius); overflow:hidden; box-shadow:0 0 0 1px var(--border); }
 .rating-selector a { padding:7px 12px; border:0; border-right:1px solid var(--border); background:var(--bg-surface); color:var(--text-main); font:inherit; font-size:12px; font-weight:600; text-decoration:none; }
 .rating-selector a:last-child { border-right:0; }
@@ -24,22 +23,8 @@
     <p>All recorded RB48 matches</p>
 </div>
 
-<div class="match-entry-controls">
-    {% set selected_rating_type = request.args.get('rating_type', 'total') | lower %}
-    <div class="rating-selector-wrap">
-        <span class="rating-selector-label">Rating type</span>
-        <div class="rating-selector" title="Select which Glicko rating type is used for the match history: Total, BOX, or HF.">
-            <a class="{% if selected_rating_type == 'total' %}active{% endif %}" href="{{ url_for('match_history', rating_type='total') }}" title="Show the Total rating history.">Total</a>
-            <a class="{% if selected_rating_type == 'box' %}active{% endif %}" href="{{ url_for('match_history', rating_type='box') }}" title="Show the BOX rating history.">BOX</a>
-            <a class="{% if selected_rating_type == 'hf' %}active{% endif %}" href="{{ url_for('match_history', rating_type='hf') }}" title="Show the HF rating history.">HF</a>
-        </div>
-        <span class="rating-selector-help" title="The selected rating type determines the player ratings, team ratings, expected result and rating change shown below.">ⓘ Selected rating type is used throughout this history</span>
-    </div>
-
-    <a class="match-entry-button" href="{{ url_for('match_center') }}">＋ Enter Match</a>
-</div>
-
 <div class="match-history">
+{% set selected_rating_type = request.args.get('rating_type', 'total') | lower %}
 {% for match in matches %}
 <div class="match">
     <div class="match-header">{{ match["match_id"] }} — {{ match["pitch"] | upper }}</div>
@@ -87,6 +72,18 @@
     </div>
 </div>
 {% endfor %}
+</div>
+
+<div class="match-entry-controls">
+    <div class="rating-selector-wrap">
+        <div class="rating-selector" title="Select which match history to display and which Glicko rating type is shown: Total, BOX, or HF.">
+            <a class="{% if selected_rating_type == 'total' %}active{% endif %}" href="{{ url_for('match_history', rating_type='total') }}" title="Show Total match history.">Total</a>
+            <a class="{% if selected_rating_type == 'box' %}active{% endif %}" href="{{ url_for('match_history', rating_type='box') }}" title="Show BOX match history.">BOX</a>
+            <a class="{% if selected_rating_type == 'hf' %}active{% endif %}" href="{{ url_for('match_history', rating_type='hf') }}" title="Show HF match history.">HF</a>
+        </div>
+        <span class="rating-selector-help" title="The selected type filters the match history and determines the player ratings, team ratings, expected result and rating change shown in the match history.">ⓘ Selected type is used throughout this match history</span>
+    </div>
+    <a class="match-entry-button" href="{{ url_for('match_center') }}">＋ Enter Match</a>
 </div>
 {% endblock %}
 
