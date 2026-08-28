@@ -30,5 +30,22 @@
 <script src="{{ url_for('static', filename='match_center_navigation.js') }}"></script>
 {% endif %}
 
+<script>
+document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[data-preserve-scroll]");
+    if (!link) return;
+
+    sessionStorage.setItem("rb48ScrollPosition", window.scrollY);
+});
+
+window.addEventListener("load", () => {
+    const position = sessionStorage.getItem("rb48ScrollPosition");
+    if (position === null) return;
+
+    window.scrollTo(0, Number(position));
+    sessionStorage.removeItem("rb48ScrollPosition");
+});
+</script>
+
 </body>
 </html>
