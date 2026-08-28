@@ -6,6 +6,10 @@ __pycache__/
 
 data/
 
+# local matches 
+
+matches/
+
 # Local development files
 TO-DOs.md
 *.log
