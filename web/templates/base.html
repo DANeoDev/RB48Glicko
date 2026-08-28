@@ -45,6 +45,32 @@ window.addEventListener("load", () => {
     window.scrollTo(0, Number(position));
     sessionStorage.removeItem("rb48ScrollPosition");
 });
+
+if (document.getElementById("leaderboard")) {
+    document.querySelectorAll("#leaderboard tbody tr").forEach(row => {
+        const totalGames = Number(row.dataset.totalGames);
+        const boxGames = Number(row.dataset.boxGames);
+        const hfGames = Number(row.dataset.hfGames);
+        const totalRating = Number(row.dataset.totalRating);
+        const boxRating = Number(row.dataset.boxRating);
+        const hfRating = Number(row.dataset.hfRating);
+
+        let pitch = null;
+        if (totalGames > 0 && boxGames === totalGames && hfGames === 0 && totalRating !== boxRating) {
+            pitch = "BOX";
+        } else if (totalGames > 0 && hfGames === totalGames && boxGames === 0 && totalRating !== hfRating) {
+            pitch = "HF";
+        }
+
+        if (!pitch) return;
+
+        const playerLink = row.querySelector("td:nth-child(2) a");
+        if (!playerLink) return;
+
+        const player = playerLink.textContent.trim();
+        playerLink.title = `How can the ratings diverge even though ${player} only has games in ${pitch}? Well, this is a good question, but the behaviour is as intended. If you can figure it out, send a Mail to the webmaster — he will grant you a reward.`;
+    });
+}
 </script>
 
 </body>
