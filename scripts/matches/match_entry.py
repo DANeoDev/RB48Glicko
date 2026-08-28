@@ -53,28 +53,43 @@ def next_match_id(connection, match_date):
     return f"{match_date}-{highest + 1}"
 
 
-def _write_match_to_date_csv(connection, match_id):
-    match = get_matches(connection)[match_id]
-    team_a, team_b = get_match_teams(connection, match_id)
+def _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_b_ids, goals_a, goals_b):
+    """Write the match to the matches folder. This folder is the match source of truth."""
     aliases = {row["player_id"]: row["alias"] for row in connection.execute("SELECT alias, player_id FROM aliases")}
     MATCHES_DIR.mkdir(parents=True, exist_ok=True)
-    csv_file = MATCHES_DIR / f"{match['date']}.csv"
+    csv_file = MATCHES_DIR / f"{match_date}.csv"
     existing_ids = set()
     if csv_file.exists():
         with csv_file.open("r", encoding="utf-8-sig", newline="") as file:
-            existing_ids = {row[0].strip() for row in csv.reader(file) if row}
-    if match_id in existing_ids: return
+            existing_ids = {row[0].strip() for row in csv.reader(file) if row and row[0].strip()}
+    if match_id in existing_ids:
+        return
     write_header = not csv_file.exists() or csv_file.stat().st_size == 0
     with csv_file.open("a", encoding="utf-8", newline="") as file:
         writer = csv.writer(file)
-        if write_header: writer.writerow(["match_id", "pitch", "team A", "team B", "goals A", "goals B"])
-        writer.writerow([match_id, match["pitch"], ",".join(aliases[p] for p in team_a), ",".join(aliases[p] for p in team_b), match["goals_a"], match["goals_b"]])
+        if write_header:
+            writer.writerow(["match_id", "pitch", "team A", "team B", "goals A", "goals B"])
+        writer.writerow([
+            match_id,
+            pitch,
+            ",".join(aliases[p] for p in team_a_ids),
+            ",".join(aliases[p] for p in team_b_ids),
+            goals_a,
+            goals_b,
+        ])
 
 
 def add_match(connection, match_date, pitch, team_a_ids, team_b_ids, goals_a, goals_b, players_a_count=None, players_b_count=None, match_id=None):
+    """Persist a match through the canonical pipeline: matches file first, then SQLite."""
     match_id = match_id or next_match_id(connection, match_date)
     if match_exists(connection, match_id): raise ValueError(f"Match {match_id} already exists.")
-    players_a_count = len(team_a_ids) if players_a_count is None else players_a_count; players_b_count = len(team_b_ids) if players_b_count is None else players_b_count
+    players_a_count = len(team_a_ids) if players_a_count is None else players_a_count
+    players_b_count = len(team_b_ids) if players_b_count is None else players_b_count
+
+    # The matches folder is the source of truth. Write it first so a failed DB
+    # operation leaves a durable entry that can be imported/retried later.
+    _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_b_ids, goals_a, goals_b)
+
     connection.execute("BEGIN")
     try:
         create_match(connection, match_id, match_date, pitch, players_a_count, players_b_count, goals_a, goals_b)
@@ -82,8 +97,8 @@ def add_match(connection, match_date, pitch, team_a_ids, team_b_ids, goals_a, go
         for player_id in team_b_ids: add_match_player(connection, match_id, player_id, "b")
         connection.commit()
     except Exception:
-        connection.rollback(); raise
-    _write_match_to_date_csv(connection, match_id)
+        connection.rollback()
+        raise
     return match_id
 
 
