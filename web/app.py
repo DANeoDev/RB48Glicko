@@ -138,3 +138,6 @@ def player_profile(player_id):
         history = rating_history[rating_type]
         rating_extremes[rating_type] = {"peak": max(history, key=lambda entry: entry["rating"]), "low": min(history, key=lambda entry: entry["rating"])} if history else {"peak": None, "low": None}
     selected_rating_type = request.args.get("rating_type", "total").lower()
+    selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
+    matches = build_match_history(connection, players, player_id, {"total": TOTAL, "box": BOX, "hf": HF}[selected_rating_type]); connection.close(); matches.reverse()
+    return render_template("player.html", player=players[player_id], ratings=ratings[player_id], stats=stats[player_id], rating_history=rating_history, rating_extremes=rating_extremes, matches=matches, selected_rating_type=selected_rating_type)
