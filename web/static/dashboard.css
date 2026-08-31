@@ -1,11 +1,8 @@
 .dashboard-page {
-    /* Escape the global max-width/padding on <main> so the background
-       can genuinely span the entire viewport. */
     width: 100vw;
-    min-height: calc(100vh - 75px);
-    margin: -40px 0 0 calc(50% - 50vw);
-    padding: 40px 0 60px;
-
+    min-height: 100vh;
+    margin: 0 0 0 calc(50% - 50vw);
+    padding: 0;
     background-image: url("images/Dashboard_background.png");
     background-size: cover;
     background-position: center;
@@ -14,18 +11,16 @@
 
 .dashboard-content {
     width: min(1400px, 90vw);
-    min-height: calc(100vh - 175px);
+    min-height: 100vh;
     margin: 0 auto;
-
     display: flex;
     align-items: center;
     justify-content: flex-end;
 }
 
 .dashboard-news {
-    width: min(460px, 40vw);
-    min-height: 360px;
-
+    width: min(690px, 60vw);
+    min-height: 540px;
     background: #19113C;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 14px;
@@ -34,20 +29,20 @@
 }
 
 .dashboard-news-header {
-    padding: 22px 26px;
+    padding: 33px 39px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.10);
 }
 
 .dashboard-news-header h1 {
     margin: 0;
     color: #fff;
-    font-size: 26px;
+    font-size: 39px;
     font-weight: 700;
 }
 
 .dashboard-news-content {
-    min-height: 285px;
-    padding: 26px;
+    min-height: 428px;
+    padding: 39px;
 }
 
 .dashboard-news-empty {
@@ -57,17 +52,17 @@
 
 @media (max-width: 800px) {
     .dashboard-page {
-        min-height: calc(100vh - 75px);
-        padding: 24px 0 40px;
+        min-height: 100vh;
     }
 
     .dashboard-content {
         width: calc(100% - 40px);
-        min-height: calc(100vh - 139px);
+        min-height: 100vh;
         justify-content: center;
     }
 
     .dashboard-news {
-        width: min(100%, 460px);
+        width: min(100%, 690px);
+        min-height: 540px;
     }
 }
