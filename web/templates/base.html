@@ -54,7 +54,7 @@
 <header class="site-header">
     <nav class="navbar">
         <a class="logo" href="{{ url_for('home') }}" aria-label="RB48 home">
-            <img src="{{ url_for('static', filename='RB48_logo.png') }}" alt="RB48">
+            <img src="{{ url_for('static', filename='images/RB48_logo.png') }}" alt="RB48">
         </a>
         <div class="nav-links">
             <a href="{{ url_for('home') }}" class="{% if request.endpoint == 'home' %}active{% endif %}">Stats</a>
