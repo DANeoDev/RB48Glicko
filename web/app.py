@@ -173,14 +173,14 @@ def model_analysis():
 
 
 @app.route("/glickofaq")
-def glickofaq():
+def glicko_explainer():
     return render_template("glickofaq.html")
 
 
 @app.route("/matchmaker", methods=["GET", "POST"])
 def matchmaker():
     if request.method == "POST":
-        players = get_players(get_connection())
+        connection = get_connection(); players = get_players(connection); connection.close()
         selected = request.form.getlist("players")
         result = generate_match([int(player_id) for player_id in selected], players)
         return render_template("matchmaker.html", players=players, result=result)
