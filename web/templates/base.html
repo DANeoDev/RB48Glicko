@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}RB48{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='footer.css') }}">
     {% block head %}{% endblock %}
     <style>
         .card { background: var(--modal-bg) !important; }
@@ -43,7 +44,7 @@
     <div class="site-footer-inner">
         <a class="site-footer-home" href="{{ url_for('home') }}">RB 48 Homepage</a>
         <nav class="site-footer-links" aria-label="Footer navigation">
-            <a href="{{ url_for('glicko_explainer') }}">About</a>
+            <a href="#">About</a>
             <a href="{{ url_for('glicko_explainer') }}">FAQ</a>
             <a href="https://github.com/DANeoDev/RB48Glicko" target="_blank" rel="noopener noreferrer">GitHub</a>
         </nav>
