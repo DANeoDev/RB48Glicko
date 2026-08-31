@@ -33,14 +33,19 @@ def create_news_table(connection):
     connection.commit()
 
 
-def get_published_news(connection):
-    """Return published News metadata, newest first."""
-    cursor = connection.execute("""
+def get_published_news(connection, limit=None, offset=0):
+    """Return published News metadata, newest first, optionally paginated."""
+    query = """
         SELECT id, filename, created_at, updated_at, published_at, author_id
         FROM news
         WHERE is_published = 1
         ORDER BY published_at DESC, id DESC
-    """)
+    """
+    params = []
+    if limit is not None:
+        query += " LIMIT ? OFFSET ?"
+        params.extend((limit, offset))
+    cursor = connection.execute(query, params)
     return cursor.fetchall()
 
 
