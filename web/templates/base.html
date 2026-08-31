@@ -34,6 +34,23 @@
             <a href="{{ url_for('match_center') }}" class="{% if request.endpoint == 'match_center' %}active{% endif %}">Match Center</a>
             <a href="{{ url_for('model_analysis') }}" class="{% if request.endpoint == 'model_analysis' %}active{% endif %}">Model Analysis</a>
         </div>
+        <div class="profile-menu">
+            <button type="button" class="profile-button" aria-label="Account" title="Account">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <circle cx="12" cy="8" r="3.5"></circle>
+                    <path d="M5 20c.7-3.3 3.2-5.2 7-5.2s6.3 1.9 7 5.2"></path>
+                </svg>
+            </button>
+            <div class="profile-dropdown">
+                {% if current_user %}
+                    <div class="profile-dropdown-user">{{ current_user["username"] }}</div>
+                    <a href="{{ url_for('logout') }}">Log out</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}">Log in</a>
+                    <a href="{{ url_for('register') }}">Register</a>
+                {% endif %}
+            </div>
+        </div>
     </nav>
 </header>
 <main>{% block content %}{% endblock %}</main>
