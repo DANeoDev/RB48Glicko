@@ -49,6 +49,40 @@
 .dashboard-news-content {
     min-height: 428px;
     padding: 39px;
+    color: #ffffff;
+    overflow-y: auto;
+}
+
+.dashboard-news-item h1,
+.dashboard-news-item h2 {
+    margin-top: 0;
+    color: #ffffff;
+}
+
+.dashboard-news-item h1 { font-size: 28px; }
+.dashboard-news-item h2 { font-size: 23px; }
+
+.dashboard-news-item p {
+    margin: 0 0 18px;
+    line-height: 1.6;
+}
+
+.dashboard-news-item ul,
+.dashboard-news-item ol {
+    margin: 0 0 18px;
+    padding-left: 25px;
+}
+
+.dashboard-news-item li {
+    margin-bottom: 7px;
+}
+
+.dashboard-news-item a {
+    color: #b99eea;
+}
+
+.dashboard-news-item a:hover {
+    color: #d7c5f4;
 }
 
 .dashboard-news-empty {
