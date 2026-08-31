@@ -9,61 +9,15 @@
     {% block head %}{% endblock %}
     <style>
         /* Global redesign overrides: keep these consistent across every page/modal. */
-        .card {
-            background: var(--modal-bg) !important;
-        }
-
-        .modal {
-            background: var(--modal-bg) !important;
-            border-color: var(--accent-dark) !important;
-            color: #ffffff;
-        }
-
-        .modal h1,
-        .modal h2,
-        .modal h3,
-        .modal h4,
-        .modal strong {
-            color: #ffffff;
-        }
-
-        .modal input,
-        .modal select,
-        .modal textarea {
-            background: #24194A;
-            color: #ffffff;
-            border-color: #5A4A83;
-        }
-
-        .modal input::placeholder,
-        .modal textarea::placeholder {
-            color: #C9C2D8;
-        }
-
-        .primary {
-            background: var(--accent) !important;
-            color: #ffffff !important;
-            border-color: var(--accent) !important;
-            transition: background-color 0.15s ease, border-color 0.15s ease;
-        }
-
-        .primary:hover {
-            background: var(--accent-hover) !important;
-            border-color: var(--accent-hover) !important;
-        }
-
-        /* Add-player action deliberately stays distinct from regular secondary buttons. */
-        .add-btn {
-            background: var(--accent-dark) !important;
-            color: #ffffff !important;
-            border-color: var(--accent-dark) !important;
-            transition: background-color 0.15s ease, border-color 0.15s ease;
-        }
-
-        .add-btn:hover {
-            background: var(--accent-hover) !important;
-            border-color: var(--accent-hover) !important;
-        }
+        .card { background: var(--modal-bg) !important; }
+        .modal { background: var(--modal-bg) !important; border-color: var(--accent-dark) !important; color: #ffffff; }
+        .modal h1, .modal h2, .modal h3, .modal h4, .modal strong { color: #ffffff; }
+        .modal input, .modal select, .modal textarea { background: #24194A; color: #ffffff; border-color: #5A4A83; }
+        .modal input::placeholder, .modal textarea::placeholder { color: #C9C2D8; }
+        .primary { background: var(--accent) !important; color: #ffffff !important; border-color: var(--accent) !important; transition: background-color 0.15s ease, border-color 0.15s ease; }
+        .primary:hover { background: var(--accent-hover) !important; border-color: var(--accent-hover) !important; }
+        .add-btn { background: var(--accent-dark) !important; color: #ffffff !important; border-color: var(--accent-dark) !important; transition: background-color 0.15s ease, border-color 0.15s ease; }
+        .add-btn:hover { background: var(--accent-hover) !important; border-color: var(--accent-hover) !important; }
     </style>
 </head>
 
@@ -74,6 +28,7 @@
             <img src="{{ url_for('static', filename='images/RB48_logo.png') }}" alt="RB48">
         </a>
         <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
             <a href="{{ url_for('home') }}" class="{% if request.endpoint == 'home' %}active{% endif %}">Stats</a>
             <a href="{{ url_for('match_history') }}" class="{% if request.endpoint == 'match_history' %}active{% endif %}">Match History</a>
             <a href="{{ url_for('match_center') }}" class="{% if request.endpoint == 'match_center' %}active{% endif %}">Match Center</a>
@@ -89,49 +44,32 @@
 <script src="{{ url_for('static', filename='match_save_feedback.js') }}"></script>
 <script src="{{ url_for('static', filename='match_center_navigation.js') }}"></script>
 {% endif %}
-
 <script>
 document.addEventListener("click", (event) => {
     const link = event.target.closest("a[data-preserve-scroll]");
     if (!link) return;
-
     sessionStorage.setItem("rb48ScrollPosition", window.scrollY);
 });
-
 window.addEventListener("load", () => {
     const position = sessionStorage.getItem("rb48ScrollPosition");
     if (position === null) return;
-
     window.scrollTo(0, Number(position));
     sessionStorage.removeItem("rb48ScrollPosition");
 });
-
 if (document.getElementById("leaderboard")) {
     document.querySelectorAll("#leaderboard tbody tr").forEach(row => {
-        const totalGames = Number(row.dataset.totalGames);
-        const boxGames = Number(row.dataset.boxGames);
-        const hfGames = Number(row.dataset.hfGames);
-        const totalRating = Number(row.dataset.totalRating);
-        const boxRating = Number(row.dataset.boxRating);
-        const hfRating = Number(row.dataset.hfRating);
-
+        const totalGames = Number(row.dataset.totalGames), boxGames = Number(row.dataset.boxGames), hfGames = Number(row.dataset.hfGames);
+        const totalRating = Number(row.dataset.totalRating), boxRating = Number(row.dataset.boxRating), hfRating = Number(row.dataset.hfRating);
         let pitch = null;
-        if (totalGames > 0 && boxGames === totalGames && hfGames === 0 && totalRating !== boxRating) {
-            pitch = "BOX";
-        } else if (totalGames > 0 && hfGames === totalGames && boxGames === 0 && totalRating !== hfRating) {
-            pitch = "HF";
-        }
-
+        if (totalGames > 0 && boxGames === totalGames && hfGames === 0 && totalRating !== boxRating) pitch = "BOX";
+        else if (totalGames > 0 && hfGames === totalGames && boxGames === 0 && totalRating !== hfRating) pitch = "HF";
         if (!pitch) return;
-
         const playerLink = row.querySelector("td:nth-child(2) a");
         if (!playerLink) return;
-
         const player = playerLink.textContent.trim();
         playerLink.title = `How can the ratings diverge even though ${player} only has games in ${pitch}? Well, this is a good question, but it works as intended. If you can figure out the reason, send a Mail to the webmaster — he will grant you a reward.`;
     });
 }
 </script>
-
 </body>
 </html>
