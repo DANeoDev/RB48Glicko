@@ -1,20 +1,79 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-container">
-    <h1>Create account</h1>
-    <form method="post" class="form-card">
-        {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-        <label for="username">Username</label>
-        <input id="username" name="username" required minlength="3" maxlength="30" value="{{ request.form.get('username', '') }}">
+<div class="page-container account-page">
+    <div class="account-card">
+        <div class="account-header">
+            <h1>Create account</h1>
+            <p>Join RB48 and keep your account ready for future features.</p>
+        </div>
 
-        <label for="email">Email</label>
-        <input id="email" name="email" type="email" required maxlength="254" value="{{ request.form.get('email', '') }}">
+        <form method="post" class="account-form" id="register-form">
+            {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" required minlength="8">
+            <div class="form-field">
+                <label for="username">Username</label>
+                <input id="username" name="username" autocomplete="username" required minlength="3" maxlength="30" value="{{ request.form.get('username', '') }}">
+            </div>
 
-        <button type="submit">Create account</button>
-    </form>
+            <div class="form-field">
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" autocomplete="email" required maxlength="254" value="{{ request.form.get('email', '') }}">
+            </div>
+
+            <div class="form-field">
+                <label for="password">Password</label>
+                <div class="password-input-wrap">
+                    <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8">
+                    <button type="button" class="password-toggle" data-password-target="password" aria-label="Show password" title="Show password">◉</button>
+                </div>
+                <span class="form-hint">At least 8 characters.</span>
+            </div>
+
+            <div class="form-field">
+                <label for="confirm-password">Confirm password</label>
+                <div class="password-input-wrap">
+                    <input id="confirm-password" name="confirm_password" type="password" autocomplete="new-password" required minlength="8">
+                    <button type="button" class="password-toggle" data-password-target="confirm-password" aria-label="Show password" title="Show password">◉</button>
+                </div>
+                <span class="form-hint" id="password-match-hint"></span>
+            </div>
+
+            <button type="submit" class="primary account-submit">Create account</button>
+        </form>
+    </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll(".password-toggle").forEach(button => {
+    button.addEventListener("click", () => {
+        const input = document.getElementById(button.dataset.passwordTarget);
+        const showing = input.type === "text";
+        input.type = showing ? "password" : "text";
+        button.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+        button.setAttribute("title", showing ? "Show password" : "Hide password");
+        button.textContent = showing ? "◉" : "○";
+    });
+});
+
+const password = document.getElementById("password");
+const confirmPassword = document.getElementById("confirm-password");
+const matchHint = document.getElementById("password-match-hint");
+
+function updatePasswordMatch() {
+    if (!confirmPassword.value) {
+        matchHint.textContent = "";
+        confirmPassword.setCustomValidity("");
+        return;
+    }
+    const matches = password.value === confirmPassword.value;
+    matchHint.textContent = matches ? "Passwords match." : "Passwords do not match.";
+    confirmPassword.setCustomValidity(matches ? "" : "Passwords do not match.");
+}
+
+password.addEventListener("input", updatePasswordMatch);
+confirmPassword.addEventListener("input", updatePasswordMatch);
+</script>
 {% endblock %}
