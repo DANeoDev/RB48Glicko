@@ -74,7 +74,7 @@ def dashboard():
 
 @app.route("/stats")
 def stats():
-    return render_template("index.html")
+    return render_template("stats.html")
 
 @app.route("/player/<int:player_id>")
 def player_profile(player_id):

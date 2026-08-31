@@ -29,7 +29,7 @@
         </a>
         <div class="nav-links">
             <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
-            <a href="{{ url_for('home') }}" class="{% if request.endpoint == 'home' %}active{% endif %}">Stats</a>
+            <a href="{{ url_for('stats') }}" class="{% if request.endpoint == 'stats' %}active{% endif %}">Stats</a> 
             <a href="{{ url_for('match_history') }}" class="{% if request.endpoint == 'match_history' %}active{% endif %}">Match History</a>
             <a href="{{ url_for('match_center') }}" class="{% if request.endpoint == 'match_center' %}active{% endif %}">Match Center</a>
             <a href="{{ url_for('model_analysis') }}" class="{% if request.endpoint == 'model_analysis' %}active{% endif %}">Model Analysis</a>
