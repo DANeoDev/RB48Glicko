@@ -25,9 +25,9 @@
 }
 
 .dashboard-news {
-    width: min(900px, 70vw);
+    width: min(800px, 65vw);
     min-height: 0;
-    height: 702px;
+    height: 620px;
     max-height: calc(100vh - 155px);
     background: #19113C;
     border: 1px solid rgba(255, 255, 255, 0.12);

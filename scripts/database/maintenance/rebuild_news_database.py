@@ -1,7 +1,7 @@
 """Rebuild the News metadata database from Markdown files on disk.
 
 Run from the project root with:
-    python -m scripts.database.rebuild_news_database
+    python -m scripts.database.maintenance.rebuild_news_database
 
 The Markdown files are the source of truth for which News entries exist.
 Existing metadata (author and timestamps) is preserved when a filename remains.
@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 import sqlite3
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 NEWS_DATABASE_FILE = PROJECT_ROOT / "data" / "news.db"
 NEWS_DIRECTORY = PROJECT_ROOT / "data" / "news"
 TIMESTAMP_RE = re.compile(r"^(\d{8}-\d{6})-")
