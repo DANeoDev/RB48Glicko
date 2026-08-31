@@ -14,7 +14,11 @@
                 <h1>News</h1>
             </div>
             <div class="dashboard-news-content" aria-live="polite">
-                <p class="dashboard-news-empty">No news yet.</p>
+                {% if news %}
+                    <article class="dashboard-news-item">{{ news.html | safe }}</article>
+                {% else %}
+                    <p class="dashboard-news-empty">No news yet.</p>
+                {% endif %}
             </div>
         </div>
     </div>
