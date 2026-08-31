@@ -3,7 +3,7 @@
     /* ---------- Colors ---------- */
 
     --bg-main: #161818;
-    --bg-header: #131516;
+    --bg-header: #19113C;
 
     --bg-surface: #1f2221;
     --bg-surface-alt: #202421;
@@ -11,9 +11,16 @@
     --text-main: #bbb09d;
     --text-muted: #9E9A94;
 
-    --green: #4F8A5B;
-    --green-light: #6FA878;
-    --green-dark: #386b43;
+    /* RB48 purple palette */
+    --green: #582DA1;
+    --green-light: #7B52C5;
+    --green-dark: #43227A;
+
+    /* Dedicated semantic names for new UI work */
+    --accent: #582DA1;
+    --accent-hover: #7B52C5;
+    --accent-dark: #43227A;
+    --modal-bg: #19113C;
 
     --border: #3A403C;
 
@@ -45,7 +52,10 @@ body {
         "Segoe UI",
         sans-serif;
 
-    background: var(--bg-main);
+    background-color: var(--bg-main);
+    background-image: url("General_background.png");
+    background-repeat: repeat;
+    background-attachment: fixed;
     color: var(--text-main);
 }
 
@@ -66,7 +76,7 @@ body {
     max-width: var(--content-width);
     margin: 0 auto;
 
-    padding: 16px 24px;
+    padding: 10px 24px;
 
     display: flex;
     align-items: center;
@@ -76,12 +86,22 @@ body {
 
 .logo {
 
-    font-size: 20px;
-    font-weight: 700;
+    display: flex;
+    align-items: center;
+
+    height: 44px;
 
     text-decoration: none;
+}
 
-    color: var(--text-main);
+
+.logo img {
+
+    display: block;
+    width: auto;
+    height: 44px;
+    max-width: 180px;
+    object-fit: contain;
 }
 
 
@@ -111,7 +131,7 @@ body {
 
 .nav-links a.active {
 
-    color: var(--green-dark);
+    color: var(--green);
 }
 
 
@@ -269,11 +289,9 @@ a:hover {
 
 .info-button:hover {
 
-    color: var(--text-main);
-
-    border-color: var(--green);
-
-    background: var(--green-dark);
+    color: #ffffff;
+    border-color: var(--accent-hover);
+    background: var(--accent);
 }
 
 
@@ -353,19 +371,21 @@ a:hover {
 
 #pitch-selector .pitch-selector.selected {
 
-    background-color: var(--green-dark);
+    background-color: var(--accent);
 
-    color: var(--text-main);
+    color: #ffffff;
 
-    border-color: var(--green-dark);
+    border-color: var(--accent);
 }
 
 
 #pitch-selector .pitch-selector:hover {
 
-    background-color: var(--green);
+    background-color: var(--accent-hover);
 
     color: #ffffff;
+
+    border-color: var(--accent-hover);
 }
 
 
@@ -688,9 +708,13 @@ a:hover {
 
     .navbar {
 
-        padding: 14px 16px;
+        padding: 10px 16px;
     }
 
+    .logo,
+    .logo img {
+        height: 40px;
+    }
 
     .nav-links {
 
