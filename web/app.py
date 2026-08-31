@@ -56,11 +56,24 @@ def _build_parse_result(parsed, players):
 
 
 def _rebuild_parser_result(form, players):
+    """Rebuild parser state from hidden form fields, or execute a fresh parser request."""
     def integer_or_none(value):
         try:
             return int(value) if value not in (None, "") else None
         except (TypeError, ValueError):
             return None
+
+    action = form.get("action")
+    if action in ("parse_source", "parse_image"):
+        if action == "parse_source" and form.get("match_text", "").strip():
+            parsed = parse_match_text(form["match_text"])
+        else:
+            upload = request.files.get("match_image")
+            if not upload or not upload.filename:
+                raise MatchParserError("Please paste a WhatsApp message or choose/paste an image first.")
+            parsed = parse_match_image(upload.read(), upload.mimetype)
+        return _build_parse_result(parsed, players)
+
     return _build_parse_result({"kind": form.get("parsed_kind", "unknown"), "match_date": form.get("parsed_match_date") or None, "players": form.getlist("parsed_player"), "team_a": [x for x in form.get("parsed_team_a", "").split("||") if x], "team_b": [x for x in form.get("parsed_team_b", "").split("||") if x], "goals_a": integer_or_none(form.get("parsed_goals_a")), "goals_b": integer_or_none(form.get("parsed_goals_b"))}, players)
 
 
@@ -120,15 +133,10 @@ def register():
         confirm_password = request.form.get("confirm_password", "")
         if password != confirm_password:
             return render_template("register.html", error="Passwords do not match."), 400
-        user_id, error = register_user(
-            request.form.get("username", ""),
-            request.form.get("email", ""),
-            password,
-        )
+        user_id, error = register_user(request.form.get("username", ""), request.form.get("email", ""), password)
         if error:
             return render_template("register.html", error=error), 400
-        session.clear()
-        session["user_id"] = user_id
+        session.clear(); session["user_id"] = user_id
         return redirect(url_for("home"))
     return render_template("register.html")
 
@@ -139,8 +147,7 @@ def login():
         user = authenticate(request.form.get("login", ""), request.form.get("password", ""))
         if not user:
             return render_template("login.html", error="Invalid username/email or password."), 401
-        session.clear()
-        session["user_id"] = user["id"]
+        session.clear(); session["user_id"] = user["id"]
         return redirect(url_for("home"))
     return render_template("login.html")
 
@@ -153,11 +160,9 @@ def logout():
 
 @app.route("/news/format", methods=["POST"])
 def format_news():
-    """Format plain News text through the configured Gemini API."""
     payload = request.get_json(silent=True) or {}
-    text = payload.get("text", "")
     try:
-        markdown = format_news_markdown(text)
+        markdown = format_news_markdown(payload.get("text", ""))
     except NewsAIError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"markdown": markdown})
@@ -165,24 +170,20 @@ def format_news():
 
 @app.route("/news/items")
 def get_more_news():
-    """Return the next page of published News items."""
     try:
         offset = max(0, int(request.args.get("offset", 0)))
         limit = min(10, max(1, int(request.args.get("limit", 2))))
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid News pagination parameters."}), 400
-
     news, has_more = _get_dashboard_news(offset=offset, limit=limit)
     return jsonify({"news": news, "has_more": has_more})
 
 
 @app.route("/news/create", methods=["POST"])
 def create_news():
-    """Create and immediately publish a News Markdown file."""
     markdown = request.form.get("markdown", "").strip()
     if not markdown:
         return redirect(url_for("home"))
-
     now = datetime.now(timezone.utc)
     filename = _news_filename(markdown, now)
     try:
@@ -212,11 +213,7 @@ def dashboard():
 
 @app.route("/stats")
 def stats():
-    connection = get_connection()
-    ratings = get_ratings(connection)
-    players = get_players(connection)
-    stats = get_player_stats(connection)
-    connection.close()
+    connection = get_connection(); ratings = get_ratings(connection); players = get_players(connection); stats = get_player_stats(connection); connection.close()
     return render_template("stats.html", leaderboard=build_leaderboard(ratings, players, stats))
 
 
@@ -226,8 +223,7 @@ def player_profile(player_id):
     for rating_type in ["total", "box", "hf"]:
         history = rating_history[rating_type]
         rating_extremes[rating_type] = {"peak": max(history, key=lambda entry: entry["rating"]), "low": min(history, key=lambda entry: entry["rating"])} if history else {"peak": None, "low": None}
-    selected_rating_type = request.args.get("rating_type", "total").lower()
-    selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
+    selected_rating_type = request.args.get("rating_type", "total").lower(); selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
     matches = build_match_history(connection, players, player_id, {"total": TOTAL, "box": BOX, "hf": HF}[selected_rating_type]); connection.close(); matches.reverse()
     return render_template("player.html", player=players[player_id], ratings=ratings[player_id], stats=stats[player_id], rating_history=rating_history, rating_extremes=rating_extremes, matches=matches, selected_rating_type=selected_rating_type)
 
@@ -240,9 +236,7 @@ def match_history():
 
 @app.route("/model-analysis")
 def model_analysis():
-    connection = get_connection()
-    analysis = analyze_model(connection)
-    connection.close()
+    connection = get_connection(); analysis = analyze_model(connection); connection.close()
     return render_template("model_analysis.html", analysis=analysis)
 
 
