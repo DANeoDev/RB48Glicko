@@ -2,6 +2,7 @@ from pathlib import Path
 import re
 
 from scripts.database.news_database import NEWS_DIRECTORY
+from web.services.markdown_service import render_markdown
 
 
 class NewsFileError(ValueError):
@@ -77,3 +78,9 @@ def delete_news_file(filename):
         raise NewsFileError("News file does not exist.")
 
     path.unlink()
+
+
+def render_news_item(news_item):
+    """Read a News item's Markdown file and return safe rendered HTML."""
+    markdown = read_news_file(news_item["filename"])
+    return render_markdown(markdown)
