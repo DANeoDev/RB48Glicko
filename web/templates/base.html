@@ -9,6 +9,10 @@
     {% block head %}{% endblock %}
     <style>
         /* Global redesign overrides: keep these consistent across every page/modal. */
+        .card {
+            background: var(--modal-bg) !important;
+        }
+
         .modal {
             background: var(--modal-bg) !important;
             border-color: var(--accent-dark) !important;
@@ -44,6 +48,19 @@
         }
 
         .primary:hover {
+            background: var(--accent-hover) !important;
+            border-color: var(--accent-hover) !important;
+        }
+
+        /* Add-player action deliberately stays distinct from regular secondary buttons. */
+        .add-btn {
+            background: var(--accent-dark) !important;
+            color: #ffffff !important;
+            border-color: var(--accent-dark) !important;
+            transition: background-color 0.15s ease, border-color 0.15s ease;
+        }
+
+        .add-btn:hover {
             background: var(--accent-hover) !important;
             border-color: var(--accent-hover) !important;
         }
