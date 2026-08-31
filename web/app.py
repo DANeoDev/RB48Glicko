@@ -14,7 +14,8 @@ from scripts.matches.match_entry import add_match, next_match_id, import_uploade
 from scripts.matchmaking.matchmaker import generate_match, _team_rating, _position_penalty, _considered_positions
 from scripts.matchmaking.match_parser import parse_match_image, parse_match_text, resolve_player_names, normalize_player_name, MatchParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
-from web.services.news_service import render_news_item, NewsFileError, create_news_file
+from web.services.markdown_service import render_markdown, MarkdownError
+from web.services.news_service import NewsFileError, create_news_file, read_news_file
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
@@ -75,8 +76,9 @@ def _get_dashboard_news():
 
     for news_item in published_news:
         try:
-            return {"id": news_item["id"], "html": render_news_item(news_item)}
-        except NewsFileError:
+            markdown = read_news_file(news_item["filename"])
+            return {"id": news_item["id"], "html": render_markdown(markdown)}
+        except (NewsFileError, MarkdownError):
             continue
 
     return None
