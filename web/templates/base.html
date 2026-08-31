@@ -7,6 +7,47 @@
     <title>{% block title %}RB48{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     {% block head %}{% endblock %}
+    <style>
+        /* Global redesign overrides: keep these consistent across every page/modal. */
+        .modal {
+            background: var(--modal-bg) !important;
+            border-color: var(--accent-dark) !important;
+            color: #ffffff;
+        }
+
+        .modal h1,
+        .modal h2,
+        .modal h3,
+        .modal h4,
+        .modal strong {
+            color: #ffffff;
+        }
+
+        .modal input,
+        .modal select,
+        .modal textarea {
+            background: #24194A;
+            color: #ffffff;
+            border-color: #5A4A83;
+        }
+
+        .modal input::placeholder,
+        .modal textarea::placeholder {
+            color: #C9C2D8;
+        }
+
+        .primary {
+            background: var(--accent) !important;
+            color: #ffffff !important;
+            border-color: var(--accent) !important;
+            transition: background-color 0.15s ease, border-color 0.15s ease;
+        }
+
+        .primary:hover {
+            background: var(--accent-hover) !important;
+            border-color: var(--accent-hover) !important;
+        }
+    </style>
 </head>
 
 <body>
