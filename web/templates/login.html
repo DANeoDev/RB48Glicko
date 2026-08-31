@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-container">
+    <h1>Log in</h1>
+    <form method="post" class="form-card">
+        {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+        <label for="login">Username or email</label>
+        <input id="login" name="login" required value="{{ request.form.get('login', '') }}">
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required>
+
+        <button type="submit">Log in</button>
+    </form>
+</div>
+{% endblock %}
