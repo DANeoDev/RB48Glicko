@@ -1,8 +1,13 @@
+.dashboard-body {
+    overflow: hidden;
+}
+
 .dashboard-page {
     width: 100vw;
-    min-height: 100vh;
-    margin: 0 0 0 calc(50% - 50vw);
-    padding: 0;
+    height: calc(100vh - 75px);
+    min-height: 0;
+    margin: -40px 0 0 calc(50% - 50vw);
+    padding: 40px 0 0;
     background-image: url("images/Dashboard_background.png");
     background-size: cover;
     background-position: center;
@@ -11,7 +16,8 @@
 
 .dashboard-content {
     width: min(1400px, 90vw);
-    min-height: 100vh;
+    height: calc(100vh - 115px);
+    min-height: 0;
     margin: 0 auto;
     display: flex;
     align-items: center;
@@ -52,12 +58,12 @@
 
 @media (max-width: 800px) {
     .dashboard-page {
-        min-height: 100vh;
+        height: calc(100vh - 75px);
     }
 
     .dashboard-content {
         width: calc(100% - 40px);
-        min-height: 100vh;
+        height: calc(100vh - 115px);
         justify-content: center;
     }
 
