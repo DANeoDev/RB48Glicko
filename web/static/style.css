@@ -53,7 +53,7 @@ body {
         sans-serif;
 
     background-color: var(--bg-main);
-    background-image: url("General_background.png");
+    background-image: url("images/General_background.png");
     background-repeat: repeat;
     background-attachment: fixed;
     color: var(--text-main);
