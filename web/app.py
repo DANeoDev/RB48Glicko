@@ -196,3 +196,86 @@ def create_news():
     except (NewsFileError, OSError):
         return redirect(url_for("home"))
     return redirect(url_for("home"))
+
+
+@app.route("/")
+def home():
+    news, has_more_news = _get_dashboard_news()
+    return render_template("dashboard.html", news=news, has_more_news=has_more_news)
+
+
+@app.route("/dashboard")
+def dashboard():
+    news, has_more_news = _get_dashboard_news()
+    return render_template("dashboard.html", news=news, has_more_news=has_more_news)
+
+
+@app.route("/stats")
+def stats():
+    connection = get_connection()
+    ratings = get_ratings(connection)
+    players = get_players(connection)
+    stats = get_player_stats(connection)
+    connection.close()
+    return render_template("stats.html", leaderboard=build_leaderboard(ratings, players, stats))
+
+
+@app.route("/player/<int:player_id>")
+def player_profile(player_id):
+    connection = get_connection(); players = get_players(connection); ratings = get_ratings(connection); stats = get_player_stats(connection); rating_history = get_player_rating_history(connection, player_id); rating_extremes = {}
+    for rating_type in ["total", "box", "hf"]:
+        history = rating_history[rating_type]
+        rating_extremes[rating_type] = {"peak": max(history, key=lambda entry: entry["rating"]), "low": min(history, key=lambda entry: entry["rating"])} if history else {"peak": None, "low": None}
+    selected_rating_type = request.args.get("rating_type", "total").lower()
+    selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
+    matches = build_match_history(connection, players, player_id, {"total": TOTAL, "box": BOX, "hf": HF}[selected_rating_type]); connection.close(); matches.reverse()
+    return render_template("player.html", player=players[player_id], ratings=ratings[player_id], stats=stats[player_id], rating_history=rating_history, rating_extremes=rating_extremes, matches=matches, selected_rating_type=selected_rating_type)
+
+
+@app.route("/matches")
+def match_history():
+    connection = get_connection(); players = get_players(connection); matches = build_match_history(connection, players); matches.reverse(); connection.close()
+    return render_template("matches.html", matches=matches)
+
+
+@app.route("/model-analysis")
+def model_analysis():
+    connection = get_connection()
+    analysis = analyze_model(connection)
+    connection.close()
+    return render_template("model_analysis.html", analysis=analysis)
+
+
+@app.route("/glickofaq")
+def glicko_explainer():
+    return render_template("glickofaq.html")
+
+
+@app.route("/matchmaker", methods=["GET", "POST"])
+def matchmaker():
+    if request.method == "POST":
+        connection = get_connection(); players = get_players(connection); connection.close()
+        selected = request.form.getlist("players")
+        result = generate_match([int(player_id) for player_id in selected], players)
+        return render_template("matchmaker.html", players=players, result=result)
+    connection = get_connection(); players = get_players(connection); connection.close()
+    return render_template("matchmaker.html", players=players)
+
+
+@app.route("/match-center", methods=["GET", "POST"])
+def match_center():
+    connection = get_connection(); players = get_players(connection)
+    if request.method == "GET":
+        connection.close()
+        return render_template("match_center.html", players=players, parse_result=_EmptyParseResult(), calibration_levels=CALIBRATION_LEVELS)
+    try:
+        parse_result = _rebuild_parser_result(request.form, players)
+        connection.close()
+        return render_template("match_center.html", players=players, parse_result=parse_result, calibration_levels=CALIBRATION_LEVELS)
+    except Exception:
+        connection.close()
+        raise
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
