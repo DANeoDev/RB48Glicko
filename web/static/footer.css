@@ -14,7 +14,7 @@
 
 .site-footer-inner {
     min-height: 58px;
-    padding: 0 28px;
+    padding: 0 42px 0 28px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -22,13 +22,14 @@
 }
 
 .site-footer a {
-    color: rgba(255, 255, 255, 0.88);
+    color: var(--text-muted);
     text-decoration: none;
+    font-weight: 500;
     transition: color 0.15s ease;
 }
 
 .site-footer a:hover {
-    color: #ffffff;
+    color: var(--accent-hover);
 }
 
 .site-footer-home {
@@ -39,6 +40,7 @@
     display: flex;
     align-items: center;
     gap: 28px;
+    padding-right: 26px;
 }
 
 .site-footer-toggle,
@@ -89,5 +91,6 @@
 
     .site-footer-links {
         gap: 14px;
+        padding-right: 18px;
     }
 }
