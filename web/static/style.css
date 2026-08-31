@@ -237,6 +237,16 @@ table td {
 }
 
 
+/* Match Center has a page-local .card rule, so keep the
+   redesigned card colour authoritative without changing its
+   spacing or parser colour grading. */
+
+.mc .card {
+
+    background: var(--card-bg);
+}
+
+
 /* =========================
    Links
    ========================= */
@@ -698,6 +708,41 @@ a:hover {
 .delta-separator {
     width: 30px;
     color: transparent;
+}
+
+
+/* =========================
+   Match Center add-player button
+   ========================= */
+
+.mc .add-player {
+
+    display: inline-block;
+    margin-top: 9px;
+    padding: 6px 10px;
+
+    border: 1px solid var(--accent-dark);
+    border-radius: var(--radius);
+
+    background: var(--accent-dark);
+    color: var(--accent-readable);
+
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+
+    transition:
+        color 0.15s ease,
+        background-color 0.15s ease,
+        border-color 0.15s ease;
+}
+
+
+.mc .add-player:hover {
+
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
 }
 
 
