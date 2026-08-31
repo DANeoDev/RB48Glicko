@@ -12,7 +12,6 @@ from scripts.database.db_matches import get_player_stats
 from scripts.frontend.view_models import build_leaderboard, build_match_history
 from scripts.analysis.model_analysis import analyze_model
 from scripts.matches.match_entry import add_match, next_match_id, create_new_player, CALIBRATION_LEVELS, process_new_matches
-from scripts.matches.matchhistory_sync import sync_matchhistory_csv
 from scripts.matchmaking.matchmaker import generate_match, _team_rating, _position_penalty, _considered_positions
 from scripts.matchmaking.match_parser import parse_match_image, parse_match_text, resolve_player_names, normalize_player_name, MatchParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
