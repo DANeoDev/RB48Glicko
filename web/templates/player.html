@@ -11,7 +11,7 @@
 .graphs { display: flex; justify-content: center; gap: 40px; margin-top: 40px; }
 .graph { width: 350px; }
 .graph canvas { width: 100% !important; height: 220px !important; }
-.highlight-player { font-weight: bold; color: var(--green-light); }
+.highlight-player { font-weight: bold; color: var(--accent-readable); }
 .rating-extremes { margin-top: 8px; font-size: 0.85em; line-height: 1.5; }
 .rating-extremes strong { display: inline-block; width: 42px; }
 .ratings-table { border-collapse: collapse; margin: 20px auto; }
@@ -19,7 +19,8 @@
 .player-rating-selector { display:inline-flex; border-radius:var(--radius); overflow:hidden; box-shadow:0 0 0 1px var(--border); }
 .player-rating-selector a { padding:7px 12px; border:0; border-right:1px solid var(--border); background:var(--bg-surface); color:var(--text-main); font:inherit; font-size:12px; font-weight:600; text-decoration:none; }
 .player-rating-selector a:last-child { border-right:0; }
-.player-rating-selector a.active { background:var(--green-dark); color:var(--text-main); }
+.player-rating-selector a.active { background:var(--accent); color:#ffffff; }
+.player-rating-selector a:hover { background:var(--accent-hover); color:#ffffff; }
 .player-rating-help { cursor:help; color:var(--text-muted); font-size:11px; }
 </style>
 {% endblock %}
