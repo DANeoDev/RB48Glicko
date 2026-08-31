@@ -12,14 +12,16 @@
     --text-muted: #9E9A94;
 
     /* RB48 purple palette */
-    --green: #582DA1;
-    --green-light: #7B52C5;
-    --green-dark: #43227A;
-
-    /* Dedicated semantic names for new UI work */
     --accent: #582DA1;
     --accent-hover: #7B52C5;
     --accent-dark: #43227A;
+
+    /* Readable accent for active navigation and player links */
+    --accent-readable: #7B52C5;
+
+    /* Semantic status colour */
+    --positive: #7B52C5;
+
     --modal-bg: #19113C;
 
     --border: #3A403C;
@@ -125,13 +127,13 @@ body {
 
 .nav-links a:hover {
 
-    color: var(--green-light);
+    color: var(--accent-hover);
 }
 
 
 .nav-links a.active {
 
-    color: var(--green);
+    color: var(--accent-readable);
 }
 
 
@@ -242,7 +244,7 @@ table td {
 
 a {
 
-    color: var(--green);
+    color: var(--accent-readable);
 
     text-decoration: none;
 
@@ -252,7 +254,7 @@ a {
 
 a:hover {
 
-    color: var(--green-light);
+    color: var(--accent-hover);
 }
 
 
@@ -470,7 +472,7 @@ a:hover {
 
 #leaderboard td a {
 
-    color: var(--green);
+    color: var(--accent-readable);
 
     text-decoration: none;
 }
@@ -478,7 +480,7 @@ a:hover {
 
 #leaderboard td a:hover {
 
-    color: var(--green-light);
+    color: var(--accent-hover);
 }
 
 
@@ -685,7 +687,7 @@ a:hover {
 
 .rating-delta .positive {
 
-    color: var(--green-light);
+    color: var(--positive);
 }
 
 
