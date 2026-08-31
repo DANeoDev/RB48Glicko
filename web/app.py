@@ -11,7 +11,8 @@ from scripts.database.db_players import get_players, get_alias_lookup, get_ignor
 from scripts.database.db_matches import get_player_stats
 from scripts.frontend.view_models import build_leaderboard, build_match_history
 from scripts.analysis.model_analysis import analyze_model
-from scripts.matches.match_entry import add_match, next_match_id, import_uploaded_matches, create_new_player, CALIBRATION_LEVELS, process_new_matches
+from scripts.matches.match_entry import add_match, next_match_id, create_new_player, CALIBRATION_LEVELS, process_new_matches
+from scripts.matches.matchhistory_sync import sync_matchhistory_csv
 from scripts.matchmaking.matchmaker import generate_match, _team_rating, _position_penalty, _considered_positions
 from scripts.matchmaking.match_parser import parse_match_image, parse_match_text, resolve_player_names, normalize_player_name, MatchParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
@@ -27,13 +28,11 @@ app.secret_key = os.environ.get("RB48_SECRET_KEY") or os.urandom(32)
 
 @app.context_processor
 def inject_current_user():
-    """Make the authenticated account available to every template."""
     user_id = session.get("user_id")
     return {"current_user": get_user(user_id) if user_id else None}
 
 
 class _EmptyParseResult(dict):
-    """Falsey parse-result placeholder so templates can safely access its fields."""
     def __bool__(self):
         return False
 
@@ -56,7 +55,6 @@ def _build_parse_result(parsed, players):
 
 
 def _rebuild_parser_result(form, players):
-    """Rebuild parser state from hidden form fields, or execute a fresh parser request."""
     def integer_or_none(value):
         try:
             return int(value) if value not in (None, "") else None
@@ -91,7 +89,6 @@ def _get_prefilled_team_ids(form, team_name, players):
 
 
 def _render_news_items(news_items):
-    """Read and render a sequence of News metadata rows."""
     rendered = []
     for news_item in news_items:
         try:
@@ -108,7 +105,6 @@ def _render_news_items(news_items):
 
 
 def _get_dashboard_news(offset=0, limit=2):
-    """Return a page of published News items, newest first."""
     connection = get_news_connection()
     try:
         published_news = get_published_news(connection, limit=limit, offset=offset)
@@ -119,7 +115,6 @@ def _get_dashboard_news(offset=0, limit=2):
 
 
 def _news_filename(markdown, timestamp):
-    """Create a readable, safe filename from the first Markdown heading/content."""
     heading = re.search(r"^#{1,2}\s+(.+?)\s*$", markdown, re.MULTILINE)
     source = heading.group(1) if heading else next((line.strip() for line in markdown.splitlines() if line.strip()), "news")
     source = re.sub(r"[^A-Za-z0-9]+", "-", source).strip("-").lower() or "news"
@@ -136,7 +131,8 @@ def register():
         user_id, error = register_user(request.form.get("username", ""), request.form.get("email", ""), password)
         if error:
             return render_template("register.html", error=error), 400
-        session.clear(); session["user_id"] = user_id
+        session.clear()
+        session["user_id"] = user_id
         return redirect(url_for("home"))
     return render_template("register.html")
 
@@ -147,7 +143,8 @@ def login():
         user = authenticate(request.form.get("login", ""), request.form.get("password", ""))
         if not user:
             return render_template("login.html", error="Invalid username/email or password."), 401
-        session.clear(); session["user_id"] = user["id"]
+        session.clear()
+        session["user_id"] = user["id"]
         return redirect(url_for("home"))
     return render_template("login.html")
 
@@ -213,62 +210,307 @@ def dashboard():
 
 @app.route("/stats")
 def stats():
-    connection = get_connection(); ratings = get_ratings(connection); players = get_players(connection); stats = get_player_stats(connection); connection.close()
+    connection = get_connection()
+    ratings = get_ratings(connection)
+    players = get_players(connection)
+    stats = get_player_stats(connection)
+    connection.close()
     return render_template("stats.html", leaderboard=build_leaderboard(ratings, players, stats))
 
 
 @app.route("/player/<int:player_id>")
 def player_profile(player_id):
-    connection = get_connection(); players = get_players(connection); ratings = get_ratings(connection); stats = get_player_stats(connection); rating_history = get_player_rating_history(connection, player_id); rating_extremes = {}
+    connection = get_connection()
+    players = get_players(connection)
+    ratings = get_ratings(connection)
+    stats = get_player_stats(connection)
+    rating_history = get_player_rating_history(connection, player_id)
+    rating_extremes = {}
     for rating_type in ["total", "box", "hf"]:
         history = rating_history[rating_type]
         rating_extremes[rating_type] = {"peak": max(history, key=lambda entry: entry["rating"]), "low": min(history, key=lambda entry: entry["rating"])} if history else {"peak": None, "low": None}
-    selected_rating_type = request.args.get("rating_type", "total").lower(); selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
-    matches = build_match_history(connection, players, player_id, {"total": TOTAL, "box": BOX, "hf": HF}[selected_rating_type]); connection.close(); matches.reverse()
+    selected_rating_type = request.args.get("rating_type", "total").lower()
+    selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
+    matches = build_match_history(connection, players, player_id, {"total": TOTAL, "box": BOX, "hf": HF}[selected_rating_type])
+    connection.close()
+    matches.reverse()
     return render_template("player.html", player=players[player_id], ratings=ratings[player_id], stats=stats[player_id], rating_history=rating_history, rating_extremes=rating_extremes, matches=matches, selected_rating_type=selected_rating_type)
 
 
 @app.route("/matches")
 def match_history():
-    connection = get_connection(); players = get_players(connection); matches = build_match_history(connection, players); matches.reverse(); connection.close()
+    connection = get_connection()
+    players = get_players(connection)
+    matches = build_match_history(connection, players)
+    matches.reverse()
+    connection.close()
     return render_template("matches.html", matches=matches)
 
 
 @app.route("/model-analysis")
 def model_analysis():
-    connection = get_connection(); analysis = analyze_model(connection); connection.close()
-    return render_template("model_analysis.html", analysis=analysis)
+    mode = request.args.get("mode", "total")
+    mode = mode if mode in ("total", "pitch") else "total"
+    connection = get_connection()
+    analysis = analyze_model(connection, mode)
+    connection.close()
+    return render_template("model_analysis.html", analysis=analysis, mode=mode)
+
+
+@app.route("/match-center", methods=["GET", "POST"])
+def match_center():
+    connection = get_connection()
+    players = get_players(connection)
+    ratings = get_ratings(connection)
+    mode = request.form.get("mode", request.args.get("mode", "total"))
+    mode = mode if mode in ("total", "pitch") else "total"
+    pitch = request.form.get("pitch", request.args.get("pitch", "box"))
+    pitch = pitch if pitch in ("box", "hf") else "box"
+    rating_type = BOX if mode == "pitch" and pitch == "box" else HF if mode == "pitch" else TOTAL
+    selected_ids = request.form.getlist("players") or request.args.getlist("players")
+    selected_ids = [int(pid) for pid in selected_ids if pid.isdigit() and int(pid) in players]
+    result = None
+    seed = None
+    parse_result = _EmptyParseResult(kind="", match_date=None, players=[], team_a=[], team_b=[], team_a_ids=[], team_b_ids=[], goals_a=None, goals_b=None, verified_ids=[], conflicts=[], unmatched=[])
+    parse_error = None
+    parser_success = None
+    success = error = calibration_message = None
+    action = request.form.get("action") if request.method == "POST" else None
+
+    if request.method == "POST" and action in ("parse_image", "parse_source"):
+        try:
+            if action == "parse_source" and request.form.get("match_text", "").strip():
+                parsed = parse_match_text(request.form["match_text"])
+            else:
+                upload = request.files.get("match_image")
+                if not upload or not upload.filename:
+                    raise MatchParserError("Please paste a WhatsApp message or choose/paste an image first.")
+                parsed = parse_match_image(upload.read(), upload.mimetype)
+            parse_result = _build_parse_result(parsed, players)
+            selected_ids = parse_result["verified_ids"]
+            if parse_result["kind"] == "match":
+                parser_success = "This looks like an already played match. Review the imported facts, or check the same players for fairer possible teams."
+        except MatchParserError as exc:
+            parse_error = str(exc)
+
+    elif request.method == "POST" and action == "resolve_conflicts":
+        parse_result = _rebuild_parser_result(request.form, players)
+        selected_ids = list(parse_result["verified_ids"])
+        lookup = _alias_candidates(players)
+        remaining = []
+        for index, conflict in enumerate(parse_result["conflicts"]):
+            detail = normalize_player_name(request.form.get(f"conflict_detail_{index}", ""))
+            candidates = lookup.get((detail or conflict["name"]).casefold(), [])
+            if len(candidates) == 1:
+                selected_ids.append(candidates[0])
+            elif len(candidates) > 1:
+                remaining.append({"name": conflict["name"], "candidate_ids": candidates, "detail": detail})
+            else:
+                parse_result["unmatched"].append({"name": detail or conflict["name"], "verified": False})
+        parse_result["conflicts"] = remaining
+        selected_ids = list(dict.fromkeys(selected_ids))
+        parser_success = "Name conflicts resolved. The confirmed identities are now selected." if not remaining else None
+
+    elif request.method == "POST" and action == "add_parser_alias":
+        parse_result = _rebuild_parser_result(request.form, players)
+        alias = normalize_player_name(request.form.get("new_alias", ""))
+        try:
+            player_id = int(request.form.get("target_player_id", ""))
+            lookup = get_alias_lookup(connection)
+            if player_id not in players:
+                raise ValueError("Selected player does not exist.")
+            if not alias:
+                raise ValueError("Alias cannot be empty.")
+            if alias.casefold() in {a.casefold() for a in lookup}:
+                raise ValueError(f"The alias '{alias}' already exists.")
+            add_alias(connection, alias, player_id)
+            connection.commit()
+            players = get_players(connection)
+            selected_ids = list(dict.fromkeys(selected_ids + [player_id]))
+            parse_result = _rebuild_parser_result(request.form, players)
+            _remove_resolved_name(parse_result, alias)
+            parser_success = f"Added '{alias}' as an alias and selected the player."
+        except (ValueError, TypeError) as exc:
+            parse_error = str(exc)
+
+    elif request.method == "POST" and action == "create_parser_player":
+        alias = normalize_player_name(request.form.get("new_alias", ""))
+        positions = request.form.getlist("new_positions")
+        calibration = request.form.get("calibration", "average")
+        try:
+            created_id, _ = create_new_player(connection, alias, positions, calibration)
+            players = get_players(connection)
+            selected_ids = list(dict.fromkeys(selected_ids + [created_id]))
+            parse_result = _rebuild_parser_result(request.form, players)
+            _remove_resolved_name(parse_result, alias)
+            parser_success = f"Created {alias} and selected them."
+        except ValueError as exc:
+            parse_error = str(exc)
+            parse_result = _rebuild_parser_result(request.form, players)
+
+    elif request.method == "POST" and action == "create_player":
+        try:
+            alias = request.form.get("new_alias", "")
+            positions = request.form.getlist("new_positions")
+            calibration = request.form.get("calibration", "average")
+            created_id, values = create_new_player(connection, alias, positions, calibration)
+            selected_ids.append(created_id)
+            success = f"Created {alias.strip()} and added them to the match."
+            calibration_message = f"Calibration rating: {values['rating']:.1f} (RD {values['rd']:.1f})."
+            players = get_players(connection)
+            selected_ids = list(dict.fromkeys(selected_ids))
+        except ValueError as exc:
+            error = str(exc)
+
+    elif request.method == "POST" and action == "save":
+        match_date = request.form.get("date", date.today().isoformat())
+        pitch = request.form.get("pitch", "box")
+        goals_a = request.form.get("goals_a", "0")
+        goals_b = request.form.get("goals_b", "0")
+        team_a = _get_prefilled_team_ids(request.form, "team_a", players)
+        team_b = _get_prefilled_team_ids(request.form, "team_b", players)
+        try:
+            external_a = int(request.form.get("external_a", "0") or 0)
+            external_b = int(request.form.get("external_b", "0") or 0)
+            if external_a < 0 or external_b < 0:
+                raise ValueError("External player counts cannot be negative.")
+            if (not team_a and external_a == 0) or (not team_b and external_b == 0):
+                raise ValueError("Both teams need at least one player.")
+            if len(team_a) != len(set(team_a)) or len(team_b) != len(set(team_b)):
+                raise ValueError("A player cannot appear more than once on the same team.")
+            if set(team_a) & set(team_b):
+                raise ValueError("A player cannot be on both teams.")
+            goals_a_int, goals_b_int = int(goals_a), int(goals_b)
+            if goals_a_int < 0 or goals_b_int < 0:
+                raise ValueError("Goals cannot be negative.")
+            date.fromisoformat(match_date)
+            match_id = add_match(connection, match_date, pitch, team_a, team_b, goals_a_int, goals_b_int, len(team_a) + external_a, len(team_b) + external_b)
+            processed = process_new_matches(connection)
+            sync_matchhistory_csv(connection)
+            success = f"Saved {match_id} and updated Glicko ({processed} match processed)."
+            calibration_message = None
+        except (ValueError, RuntimeError) as exc:
+            error = str(exc)
+
+    elif request.method == "POST" and action in ("generate", "reroll"):
+        try:
+            seed = int(request.form.get("seed")) if request.form.get("seed") is not None else None
+        except ValueError:
+            seed = None
+        if len(selected_ids) >= 2:
+            result = generate_match(selected_ids, players, ratings, rating_type, seed=seed)
+
+    elif request.method == "GET":
+        selected_ids = [int(pid) for pid in request.args.getlist("players") if pid.isdigit() and int(pid) in players]
+
+    match_date = request.form.get("date", request.args.get("date", request.form.get("parsed_match_date", date.today().isoformat())))
+    if parse_result and parse_result.get("match_date"):
+        match_date = parse_result["match_date"]
+    team_a = _get_prefilled_team_ids(request.form, "team_a", players) if request.method == "POST" and action in ("save", "create_player") else []
+    team_b = _get_prefilled_team_ids(request.form, "team_b", players) if request.method == "POST" and action in ("save", "create_player") else []
+    goals_a = request.form.get("goals_a", "0") if request.method == "POST" else "0"
+    goals_b = request.form.get("goals_b", "0") if request.method == "POST" else "0"
+    if parse_result and parse_result.get("kind") == "match" and not team_a and not team_b:
+        team_a = parse_result.get("team_a_ids", [])
+        team_b = parse_result.get("team_b_ids", [])
+        goals_a = parse_result.get("goals_a") if parse_result.get("goals_a") is not None else 0
+        goals_b = parse_result.get("goals_b") if parse_result.get("goals_b") is not None else 0
+    player_names = {pid: (data["aliases"][0] if data["aliases"] else f"Player {pid}") for pid, data in players.items()}
+    player_search_data = [{"id": pid, "name": player_names[pid], "positions": data.get("positions", [])} for pid, data in players.items()]
+    next_id = next_match_id(connection, match_date)
+    connection.close()
+    return render_template("match_center.html", players=players, ratings=ratings, selected_ids=selected_ids, result=result, mode=mode, pitch=pitch, seed=seed, parse_result=parse_result, parse_error=parse_error, parser_success=parser_success, calibration_levels=CALIBRATION_LEVELS, matchmaker_date=match_date, match_date=match_date, team_a=team_a, team_b=team_b, goals_a=goals_a, goals_b=goals_b, player_names=player_names, player_search_data=player_search_data, next_match_id=next_id, success=success, error=error, calibration_message=calibration_message)
+
+
+@app.route("/match-center/add-database-player", methods=["POST"])
+def add_database_player():
+    connection = get_connection()
+    try:
+        alias = normalize_player_name(request.form.get("alias", ""))
+        mode = request.form.get("mode", "new")
+        if not alias:
+            raise ValueError("Player name cannot be empty.")
+        alias_lookup = get_alias_lookup(connection)
+        if alias.casefold() in {a.casefold() for a in alias_lookup}:
+            raise ValueError(f"The alias '{alias}' already exists.")
+        if mode == "alias":
+            player_id = int(request.form.get("target_player_id", ""))
+            if player_id not in get_players(connection):
+                raise ValueError("Selected player does not exist.")
+            add_alias(connection, alias, player_id)
+            connection.commit()
+            return jsonify({"player_id": player_id, "alias": alias})
+        positions = request.form.getlist("positions")
+        calibration = request.form.get("calibration", "average")
+        player_id, values = create_new_player(connection, alias, positions, calibration)
+        return jsonify({"player_id": player_id, "alias": alias, "rating": values["rating"], "rd": values["rd"]})
+    except (ValueError, TypeError) as exc:
+        connection.rollback()
+        return jsonify({"error": str(exc)}), 400
+    finally:
+        connection.close()
+
+
+@app.route("/match-center/add-temporary-player", methods=["POST"])
+def add_temporary_player():
+    connection = get_connection()
+    try:
+        alias = normalize_player_name(request.form.get("alias", ""))
+        if not alias:
+            raise ValueError("Player name cannot be empty.")
+        alias_lookup = get_alias_lookup(connection)
+        if alias.casefold() in {a.casefold() for a in alias_lookup}:
+            raise ValueError("This name already belongs to a registered player. Use 'Add player to database' instead.")
+        ignored_aliases = get_ignored_aliases(connection)
+        if alias.casefold() not in {a.casefold() for a in ignored_aliases}:
+            add_ignored_alias(connection, alias)
+            connection.commit()
+        return jsonify({"alias": alias})
+    except (ValueError, TypeError) as exc:
+        connection.rollback()
+        return jsonify({"error": str(exc)}), 400
+    finally:
+        connection.close()
+
+
+@app.route("/match-center/team-details")
+def match_center_team_details():
+    try:
+        team_a = [int(x) for x in request.args.getlist("team_a")]
+        team_b = [int(x) for x in request.args.getlist("team_b")]
+    except ValueError:
+        return jsonify({"error": "Invalid team player IDs."}), 400
+    connection = get_connection()
+    players = get_players(connection)
+    ratings = get_ratings(connection)
+    if not team_a or not team_b or any(pid not in players for pid in team_a + team_b):
+        connection.close()
+        return jsonify({"error": "Invalid team composition."}), 400
+    rating_type = TOTAL
+    rating_a = _team_rating(team_a, ratings, rating_type)
+    rating_b = _team_rating(team_b, ratings, rating_type)
+    details = {
+        "rating_a": round(rating_a.rating, 1), "rd_a": round(rating_a.rd, 1),
+        "rating_b": round(rating_b.rating, 1), "rd_b": round(rating_b.rd, 1),
+        "rating_difference": round(abs(rating_a.rating - rating_b.rating), 1),
+        "position_penalty": _position_penalty(team_a, team_b, players),
+        "positions_a": _considered_positions(team_a, players),
+        "positions_b": _considered_positions(team_b, players),
+    }
+    connection.close()
+    return jsonify(details)
+
+
+@app.route("/matchmaker", methods=["GET", "POST"])
+def legacy_matchmaker():
+    if request.method == "GET":
+        return redirect(url_for("match_center", **request.args.to_dict(flat=False)))
+    return redirect(url_for("match_center"), code=307)
 
 
 @app.route("/glickofaq")
 def glicko_explainer():
     return render_template("glickofaq.html")
-
-
-@app.route("/matchmaker", methods=["GET", "POST"])
-def matchmaker():
-    if request.method == "POST":
-        connection = get_connection(); players = get_players(connection); connection.close()
-        selected = request.form.getlist("players")
-        result = generate_match([int(player_id) for player_id in selected], players)
-        return render_template("matchmaker.html", players=players, result=result)
-    connection = get_connection(); players = get_players(connection); connection.close()
-    return render_template("matchmaker.html", players=players)
-
-
-@app.route("/match-center", methods=["GET", "POST"])
-def match_center():
-    connection = get_connection(); players = get_players(connection)
-    if request.method == "GET":
-        connection.close()
-        return render_template("match_center.html", players=players, parse_result=_EmptyParseResult(), calibration_levels=CALIBRATION_LEVELS)
-    try:
-        parse_result = _rebuild_parser_result(request.form, players)
-        connection.close()
-        return render_template("match_center.html", players=players, parse_result=parse_result, calibration_levels=CALIBRATION_LEVELS)
-    except Exception:
-        connection.close()
-        raise
 
 
 if __name__ == "__main__":
