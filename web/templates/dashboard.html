@@ -12,6 +12,7 @@
         <div class="dashboard-news card">
             <div class="dashboard-news-header">
                 <h1>News</h1>
+                <button type="button" class="dashboard-news-add" id="open-news-modal">+ News</button>
             </div>
             <div class="dashboard-news-content" aria-live="polite">
                 {% if news %}
@@ -23,4 +24,58 @@
         </div>
     </div>
 </section>
+
+<div class="news-modal-backdrop" id="news-modal" hidden>
+    <div class="modal news-editor-modal" role="dialog" aria-modal="true" aria-labelledby="news-editor-title">
+        <div class="news-editor-header">
+            <h2 id="news-editor-title">Create News</h2>
+            <button type="button" class="news-editor-close" id="close-news-modal" aria-label="Close">×</button>
+        </div>
+        <form method="post" action="{{ url_for('create_news') }}" id="news-editor-form">
+            <label for="news-markdown">Markdown</label>
+            <textarea id="news-markdown" name="markdown" rows="14" placeholder="# News headline\n\nWrite your News here..." required></textarea>
+            <div class="news-markdown-help">
+                <span><code># heading</code></span>
+                <span><code>**bold**</code></span>
+                <span><code>*italic*</code></span>
+                <span><code>- bullet</code></span>
+                <span><code>1. numbered</code></span>
+                <span><code>[link](https://...)</code></span>
+            </div>
+            <div class="news-editor-actions">
+                <button type="button" class="news-editor-cancel" id="cancel-news-modal">Cancel</button>
+                <button type="submit" class="primary">Create &amp; Publish</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const newsModal = document.getElementById("news-modal");
+const openNewsModal = document.getElementById("open-news-modal");
+const closeNewsModal = document.getElementById("close-news-modal");
+const cancelNewsModal = document.getElementById("cancel-news-modal");
+const newsMarkdown = document.getElementById("news-markdown");
+
+function showNewsModal() {
+    newsModal.hidden = false;
+    newsMarkdown.focus();
+}
+
+function hideNewsModal() {
+    newsModal.hidden = true;
+}
+
+openNewsModal.addEventListener("click", showNewsModal);
+closeNewsModal.addEventListener("click", hideNewsModal);
+cancelNewsModal.addEventListener("click", hideNewsModal);
+newsModal.addEventListener("click", (event) => {
+    if (event.target === newsModal) hideNewsModal();
+});
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !newsModal.hidden) hideNewsModal();
+});
+</script>
 {% endblock %}
