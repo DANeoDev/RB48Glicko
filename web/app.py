@@ -218,11 +218,11 @@ def match_center():
     connection = get_connection(); players = get_players(connection)
     if request.method == "GET":
         connection.close()
-        return render_template("match_center.html", players=players, parse_result=_EmptyParseResult())
+        return render_template("match_center.html", players=players, parse_result=_EmptyParseResult(), calibration_levels=CALIBRATION_LEVELS)
     try:
         parse_result = _rebuild_parser_result(request.form, players)
         connection.close()
-        return render_template("match_center.html", players=players, parse_result=parse_result)
+        return render_template("match_center.html", players=players, parse_result=parse_result, calibration_levels=CALIBRATION_LEVELS)
     except Exception:
         connection.close()
         raise
