@@ -1,9 +1,10 @@
-from datetime import date
+from datetime import date, datetime
+import re
 
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 
 from scripts.database.database import get_connection
-from scripts.database.news_database import get_news_connection, get_published_news
+from scripts.database.news_database import get_news_connection, get_published_news, add_news_item, publish_news_item
 from scripts.database.db_ratings import get_ratings, get_player_rating_history
 from scripts.database.db_players import get_players, get_alias_lookup, get_ignored_aliases, add_alias, add_ignored_alias
 from scripts.database.db_matches import get_player_stats
@@ -13,7 +14,7 @@ from scripts.matches.match_entry import add_match, next_match_id, import_uploade
 from scripts.matchmaking.matchmaker import generate_match, _team_rating, _position_penalty, _considered_positions
 from scripts.matchmaking.match_parser import parse_match_image, parse_match_text, resolve_player_names, normalize_player_name, MatchParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
-from web.services.news_service import render_news_item, NewsFileError
+from web.services.news_service import render_news_item, NewsFileError, create_news_file
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
@@ -81,6 +82,35 @@ def _get_dashboard_news():
     return None
 
 
+def _news_filename(markdown, timestamp):
+    """Create a readable, safe filename from the first Markdown heading/content."""
+    heading = re.search(r"^#{1,2}\s+(.+?)\s*$", markdown, re.MULTILINE)
+    source = heading.group(1) if heading else next((line.strip() for line in markdown.splitlines() if line.strip()), "news")
+    source = re.sub(r"[^A-Za-z0-9]+", "-", source).strip("-").lower() or "news"
+    return f"{timestamp:%Y%m%d-%H%M%S}-{source}.md"
+
+
+@app.route("/news/create", methods=["POST"])
+def create_news():
+    """Create and immediately publish a News Markdown file."""
+    markdown = request.form.get("markdown", "").strip()
+    if not markdown:
+        return redirect(url_for("home"))
+
+    now = datetime.now()
+    filename = _news_filename(markdown, now)
+    create_news_file(filename, markdown)
+
+    connection = get_news_connection()
+    try:
+        news_id = add_news_item(connection, filename, now.isoformat(timespec="seconds"))
+        publish_news_item(connection, news_id, now.isoformat(timespec="seconds"))
+    finally:
+        connection.close()
+
+    return redirect(url_for("home"))
+
+
 @app.route("/")
 def home():
     return render_template("dashboard.html", news=_get_dashboard_news())
@@ -108,6 +138,3 @@ def player_profile(player_id):
         history = rating_history[rating_type]
         rating_extremes[rating_type] = {"peak": max(history, key=lambda entry: entry["rating"]), "low": min(history, key=lambda entry: entry["rating"])} if history else {"peak": None, "low": None}
     selected_rating_type = request.args.get("rating_type", "total").lower()
-    selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
-    matches = build_match_history(connection, players, player_id, {"total": TOTAL, "box": BOX, "hf": HF}[selected_rating_type]); connection.close(); matches.reverse()
-    return render_template("player.html", player=players[player_id], ratings=ratings[player_id], stats=stats[player_id], rating_history=rating_history, rating_extremes=rating_extremes, matches=matches, selected_rating_type=selected_rating_type)
