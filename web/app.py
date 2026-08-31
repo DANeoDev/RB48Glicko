@@ -1,7 +1,8 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+import os
 import re
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 
 from scripts.database.database import get_connection
 from scripts.database.news_database import get_news_connection, get_published_news, add_news_item, publish_news_item
@@ -14,12 +15,21 @@ from scripts.matches.match_entry import add_match, next_match_id, import_uploade
 from scripts.matchmaking.matchmaker import generate_match, _team_rating, _position_penalty, _considered_positions
 from scripts.matchmaking.match_parser import parse_match_image, parse_match_text, resolve_player_names, normalize_player_name, MatchParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
+from scripts.accounts.auth import authenticate, get_user, register_user
 from web.services.ai_service import NewsAIError, format_news_markdown
 from web.services.markdown_service import render_markdown, MarkdownError
 from web.services.news_service import NewsFileError, create_news_file, read_news_file
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+app.secret_key = os.environ.get("RB48_SECRET_KEY") or os.urandom(32)
+
+
+@app.context_processor
+def inject_current_user():
+    """Make the authenticated account available to every template."""
+    user_id = session.get("user_id")
+    return {"current_user": get_user(user_id) if user_id else None}
 
 
 class _EmptyParseResult(dict):
@@ -101,6 +111,40 @@ def _news_filename(markdown, timestamp):
     source = heading.group(1) if heading else next((line.strip() for line in markdown.splitlines() if line.strip()), "news")
     source = re.sub(r"[^A-Za-z0-9]+", "-", source).strip("-").lower() or "news"
     return f"{timestamp:%Y%m%d-%H%M%S}-{source}.md"
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        user_id, error = register_user(
+            request.form.get("username", ""),
+            request.form.get("email", ""),
+            request.form.get("password", ""),
+        )
+        if error:
+            return render_template("register.html", error=error), 400
+        session.clear()
+        session["user_id"] = user_id
+        return redirect(url_for("home"))
+    return render_template("register.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        user = authenticate(request.form.get("login", ""), request.form.get("password", ""))
+        if not user:
+            return render_template("login.html", error="Invalid username/email or password."), 401
+        session.clear()
+        session["user_id"] = user["id"]
+        return redirect(url_for("home"))
+    return render_template("login.html")
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("home"))
 
 
 @app.route("/news/format", methods=["POST"])
