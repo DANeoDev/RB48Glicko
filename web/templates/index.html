@@ -327,6 +327,16 @@
 
 {% block scripts %}
 
+<style>
+
+#leaderboard th.sort-selected {
+
+    color: var(--accent-readable);
+
+}
+
+</style>
+
 <script>
 
 const table =
@@ -399,6 +409,8 @@ const columnLabels = [
 ];
 
 let currentSortColumn = "games";
+
+
 /* =========================
    Sort rows
    ========================= */
@@ -453,10 +465,33 @@ function sortRows(column) {
 
 }
 
+
+/* =========================
+   Update selected sort header
+   ========================= */
+
+function updateSelectedSortHeader() {
+
+    const selectedColumn =
+        currentPitch + "-" + currentSortColumn;
+
+
+    columnHeaders.forEach(header => {
+
+        header.classList.toggle(
+            "sort-selected",
+            header.dataset.column === selectedColumn
+        );
+
+    });
+
+}
+
+
 /* =========================
    Game filter
    ========================= */
-   
+
 const gameFilter =
     document.getElementById("game-filter");
 
@@ -536,7 +571,7 @@ function applyGameFilter() {
 
     });
 
-     updateVisibleRanks();
+    updateVisibleRanks();
 
 }
 
@@ -647,6 +682,8 @@ function selectPitch(pitch) {
         pitch + "-" + currentSortColumn
     );
 
+    updateSelectedSortHeader();
+
     applyGameFilter();
 
 }
@@ -693,6 +730,8 @@ columnHeaders.forEach(header => {
             sortRows(
                 header.dataset.column
             );
+
+            updateSelectedSortHeader();
 
         }
     );
