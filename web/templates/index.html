@@ -398,12 +398,14 @@ const columnLabels = [
     "W%"
 ];
 
-
+let currentSortColumn = "total-games";
 /* =========================
    Sort rows
    ========================= */
 
 function sortRows(column) {
+
+    currentSortColumn = column;
 
     const rows =
         Array.from(
@@ -456,6 +458,8 @@ function sortRows(column) {
 /* =========================
    Game filter
    ========================= */
+   
+sortRows(currentSortColumn);
 
 const gameFilter =
     document.getElementById("game-filter");

@@ -5,8 +5,8 @@
     --bg-main: #161818;
     --bg-header: #19113C;
 
-    --bg-surface: #1f2221;
-    --bg-surface-alt: #202421;
+    --bg-surface: #19113C;
+    --bg-surface-alt: #211553;
     --card-bg: #19113C;
 
     --text-main: #bbb09d;
@@ -55,7 +55,9 @@ body {
 
     background-color: var(--bg-main);
     background-image: url("images/General_background.png");
-    background-repeat: repeat;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
     background-attachment: fixed;
     color: var(--text-main);
 }
@@ -90,7 +92,7 @@ body {
     display: flex;
     align-items: center;
 
-    height: 88px;
+    height: 55px;
 
     text-decoration: none;
 }
