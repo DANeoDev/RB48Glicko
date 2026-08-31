@@ -398,14 +398,12 @@ const columnLabels = [
     "W%"
 ];
 
-let currentSortColumn = "total-games";
+let currentSortColumn = "games";
 /* =========================
    Sort rows
    ========================= */
 
 function sortRows(column) {
-
-    currentSortColumn = column;
 
     const rows =
         Array.from(
@@ -459,8 +457,6 @@ function sortRows(column) {
    Game filter
    ========================= */
    
-sortRows(currentSortColumn);
-
 const gameFilter =
     document.getElementById("game-filter");
 
@@ -642,13 +638,13 @@ function selectPitch(pitch) {
 
 
     /*
-        When changing pitch, reset the
-        ordering to that pitch's
-        Conservative Rating.
+        Retain the currently selected
+        sorting column when changing
+        pitch type.
     */
 
     sortRows(
-        pitch + "-conservative"
+        pitch + "-" + currentSortColumn
     );
 
     applyGameFilter();
@@ -688,6 +684,11 @@ columnHeaders.forEach(header => {
     header.addEventListener(
         "click",
         () => {
+
+            currentSortColumn =
+                header.dataset.column
+                    .replace(currentPitch + "-", "");
+
 
             sortRows(
                 header.dataset.column
