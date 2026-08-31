@@ -14,11 +14,19 @@
                 <h1>News</h1>
                 <button type="button" class="dashboard-news-add" id="open-news-modal">+ News</button>
             </div>
-            <div class="dashboard-news-content" aria-live="polite">
+            <div class="dashboard-news-content" id="dashboard-news-content" aria-live="polite">
                 {% if news %}
-                    <article class="dashboard-news-item">{{ news.html | safe }}</article>
+                    {% for item in news %}
+                    <article class="dashboard-news-item">
+                        <div class="dashboard-news-date">{{ item.date }}</div>
+                        {{ item.html | safe }}
+                    </article>
+                    {% endfor %}
                 {% else %}
                     <p class="dashboard-news-empty">No news yet.</p>
+                {% endif %}
+                {% if has_more_news %}
+                    <div class="dashboard-news-loading" id="dashboard-news-loading" hidden>Loading more news…</div>
                 {% endif %}
             </div>
         </div>
@@ -62,6 +70,11 @@ const cancelNewsModal = document.getElementById("cancel-news-modal");
 const newsMarkdown = document.getElementById("news-markdown");
 const formatNewsAI = document.getElementById("format-news-ai");
 const newsEditorStatus = document.getElementById("news-editor-status");
+const newsContent = document.getElementById("dashboard-news-content");
+const newsLoading = document.getElementById("dashboard-news-loading");
+let newsOffset = {{ news|length }};
+let hasMoreNews = {{ 'true' if has_more_news else 'false' }};
+let loadingNews = false;
 
 function showNewsModal() {
     newsModal.hidden = false;
@@ -111,6 +124,41 @@ formatNewsAI.addEventListener("click", async () => {
         newsEditorStatus.textContent = error.message || "The AI formatter failed.";
     } finally {
         formatNewsAI.disabled = false;
+    }
+});
+
+async function loadMoreNews() {
+    if (!hasMoreNews || loadingNews) return;
+    loadingNews = true;
+    if (newsLoading) newsLoading.hidden = false;
+
+    try {
+        const response = await fetch(`{{ url_for('get_more_news') }}?offset=${newsOffset}&limit=2`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load more news.");
+
+        data.news.forEach(item => {
+            const article = document.createElement("article");
+            article.className = "dashboard-news-item";
+            article.innerHTML = `<div class="dashboard-news-date">${item.date}</div>${item.html}`;
+            newsContent.insertBefore(article, newsLoading);
+        });
+
+        newsOffset += data.news.length;
+        hasMoreNews = data.has_more;
+        if (newsLoading && !hasMoreNews) newsLoading.remove();
+    } catch (error) {
+        console.error(error);
+    } finally {
+        loadingNews = false;
+        if (newsLoading && hasMoreNews) newsLoading.hidden = true;
+    }
+}
+
+newsContent.addEventListener("scroll", () => {
+    const threshold = 120;
+    if (newsContent.scrollTop + newsContent.clientHeight >= newsContent.scrollHeight - threshold) {
+        loadMoreNews();
     }
 });
 </script>
