@@ -22,14 +22,13 @@
 </head>
 
 <body class="{% if request.endpoint in ['home', 'dashboard'] %}dashboard-body{% endif %}">
-{% if request.endpoint not in ['home', 'dashboard'] %}
 <header class="site-header">
     <nav class="navbar">
         <a class="logo" href="{{ url_for('home') }}" aria-label="RB48 home">
             <img src="{{ url_for('static', filename='images/RB48_logo.png') }}" alt="RB48">
         </a>
         <div class="nav-links">
-            <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
+            <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint in ['home', 'dashboard'] %}active{% endif %}">Dashboard</a>
             <a href="{{ url_for('stats') }}" class="{% if request.endpoint == 'stats' %}active{% endif %}">Stats</a>
             <a href="{{ url_for('match_history') }}" class="{% if request.endpoint == 'match_history' %}active{% endif %}">Match History</a>
             <a href="{{ url_for('match_center') }}" class="{% if request.endpoint == 'match_center' %}active{% endif %}">Match Center</a>
@@ -37,9 +36,7 @@
         </div>
     </nav>
 </header>
-{% endif %}
 <main>{% block content %}{% endblock %}</main>
-{% if request.endpoint not in ['home', 'dashboard'] %}
 <footer class="site-footer" id="site-footer">
     <div class="site-footer-inner">
         <a class="site-footer-home" href="{{ url_for('home') }}">RB 48 Homepage</a>
@@ -52,7 +49,6 @@
     <button type="button" class="site-footer-toggle" id="site-footer-toggle" aria-label="Hide footer" title="Hide footer">−</button>
 </footer>
 <button type="button" class="site-footer-reopen" id="site-footer-reopen" aria-label="Show footer" title="Show footer">+</button>
-{% endif %}
 {% block scripts %}{% endblock %}
 {% if request.endpoint == 'match_center' %}
 <script src="{{ url_for('static', filename='match_center.js') }}"></script>
