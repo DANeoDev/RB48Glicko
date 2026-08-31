@@ -68,6 +68,11 @@ def home():
     return render_template("index.html", leaderboard=build_leaderboard(ratings, players, stats))
 
 
+@app.route("/dashboard")
+def dashboard():
+    return render_template("dashboard.html")
+
+
 @app.route("/player/<int:player_id>")
 def player_profile(player_id):
     connection = get_connection(); players = get_players(connection); ratings = get_ratings(connection); stats = get_player_stats(connection); rating_history = get_player_rating_history(connection, player_id); rating_extremes = {}
