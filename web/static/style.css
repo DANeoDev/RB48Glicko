@@ -7,6 +7,7 @@
 
     --bg-surface: #1f2221;
     --bg-surface-alt: #202421;
+    --card-bg: #24194A;
 
     --text-main: #bbb09d;
     --text-muted: #9E9A94;
@@ -15,9 +16,7 @@
     --accent: #582DA1;
     --accent-hover: #7B52C5;
     --accent-dark: #43227A;
-
-    /* Readable accent for active navigation and player links */
-    --accent-readable: #7B52C5;
+    --accent-readable: #B797D8;
 
     /* Semantic status colour */
     --positive: #7B52C5;
@@ -228,7 +227,7 @@ table td {
 
 .card {
 
-    background: var(--bg-surface);
+    background: var(--card-bg);
 
     border: 1px solid var(--border);
     border-radius: var(--radius);
