@@ -67,22 +67,32 @@ def _get_prefilled_team_ids(form, team_name, players):
     return [int(pid) for pid in values if pid.isdigit() and int(pid) in players]
 
 
-def _get_dashboard_news():
-    """Return the newest published News item rendered as safe HTML."""
-    connection = get_news_connection()
-    try:
-        published_news = get_published_news(connection)
-    finally:
-        connection.close()
-
-    for news_item in published_news:
+def _render_news_items(news_items):
+    """Read and render a sequence of News metadata rows."""
+    rendered = []
+    for news_item in news_items:
         try:
             markdown = read_news_file(news_item["filename"])
-            return {"id": news_item["id"], "html": render_markdown(markdown)}
+            published_at = news_item["published_at"] or news_item["created_at"]
+            try:
+                entry_date = datetime.fromisoformat(published_at).strftime("%d.%m.%Y")
+            except (TypeError, ValueError):
+                entry_date = str(published_at).split("T", 1)[0]
+            rendered.append({"id": news_item["id"], "html": render_markdown(markdown), "date": entry_date})
         except (NewsFileError, MarkdownError):
             continue
+    return rendered
 
-    return None
+
+def _get_dashboard_news(offset=0, limit=2):
+    """Return a page of published News items, newest first."""
+    connection = get_news_connection()
+    try:
+        published_news = get_published_news(connection, limit=limit, offset=offset)
+        next_news = get_published_news(connection, limit=1, offset=offset + limit)
+    finally:
+        connection.close()
+    return _render_news_items(published_news), bool(next_news)
 
 
 def _news_filename(markdown, timestamp):
@@ -103,6 +113,19 @@ def format_news():
     except NewsAIError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"markdown": markdown})
+
+
+@app.route("/news/items")
+def get_more_news():
+    """Return the next page of published News items."""
+    try:
+        offset = max(0, int(request.args.get("offset", 0)))
+        limit = min(10, max(1, int(request.args.get("limit", 2))))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid News pagination parameters."}), 400
+
+    news, has_more = _get_dashboard_news(offset=offset, limit=limit)
+    return jsonify({"news": news, "has_more": has_more})
 
 
 @app.route("/news/create", methods=["POST"])
@@ -128,12 +151,14 @@ def create_news():
 
 @app.route("/")
 def home():
-    return render_template("dashboard.html", news=_get_dashboard_news())
+    news, has_more_news = _get_dashboard_news()
+    return render_template("dashboard.html", news=news, has_more_news=has_more_news)
 
 
 @app.route("/dashboard")
 def dashboard():
-    return render_template("dashboard.html", news=_get_dashboard_news())
+    news, has_more_news = _get_dashboard_news()
+    return render_template("dashboard.html", news=news, has_more_news=has_more_news)
 
 
 @app.route("/stats")
