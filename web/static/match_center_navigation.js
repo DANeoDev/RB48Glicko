@@ -15,7 +15,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const submitter = event.submitter;
             if (!submitter || submitter.name !== 'action') return;
             if (!['generate', 'reroll'].includes(submitter.value)) return;
-
             sessionStorage.setItem(scrollKey, String(window.scrollY));
         });
     }
@@ -23,17 +22,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedScroll = sessionStorage.getItem(scrollKey);
     if (savedScroll !== null) {
         sessionStorage.removeItem(scrollKey);
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                window.scrollTo(0, Number(savedScroll) || 0);
-            });
-        });
+        // match_center.js has its own legacy result scroll. Restore after it
+        // has run so the user's position always wins.
+        setTimeout(() => {
+            window.scrollTo(0, Number(savedScroll) || 0);
+        }, 250);
     }
 
     if (!suggested || !generated) return;
-
     if (matchmaker) matchmaker.open = true;
-
-    // Do not scroll to the generated result automatically. The user stays
-    // where they were; they can scroll to the result themselves.
 });
