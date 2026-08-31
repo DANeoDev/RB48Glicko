@@ -33,7 +33,7 @@
         </div>
         <form method="post" action="{{ url_for('create_news') }}" id="news-editor-form">
             <label for="news-markdown">Markdown</label>
-            <textarea id="news-markdown" name="markdown" rows="14" placeholder="# News headline\n\nWrite your News here..." required></textarea>
+            <textarea id="news-markdown" name="markdown" rows="14" placeholder="Paste or write your News here..." required></textarea>
             <div class="news-markdown-help">
                 <span><code># heading</code></span>
                 <span><code>**bold**</code></span>
@@ -44,8 +44,10 @@
             </div>
             <div class="news-editor-actions">
                 <button type="button" class="news-editor-cancel" id="cancel-news-modal">Cancel</button>
+                <button type="button" class="news-editor-ai" id="format-news-ai">✨ Format with AI</button>
                 <button type="submit" class="primary">Create &amp; Publish</button>
             </div>
+            <p class="news-editor-status" id="news-editor-status" role="status" aria-live="polite"></p>
         </form>
     </div>
 </div>
@@ -58,9 +60,12 @@ const openNewsModal = document.getElementById("open-news-modal");
 const closeNewsModal = document.getElementById("close-news-modal");
 const cancelNewsModal = document.getElementById("cancel-news-modal");
 const newsMarkdown = document.getElementById("news-markdown");
+const formatNewsAI = document.getElementById("format-news-ai");
+const newsEditorStatus = document.getElementById("news-editor-status");
 
 function showNewsModal() {
     newsModal.hidden = false;
+    newsEditorStatus.textContent = "";
     newsMarkdown.focus();
 }
 
@@ -76,6 +81,37 @@ newsModal.addEventListener("click", (event) => {
 });
 document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !newsModal.hidden) hideNewsModal();
+});
+
+formatNewsAI.addEventListener("click", async () => {
+    const text = newsMarkdown.value.trim();
+    if (!text) {
+        newsEditorStatus.textContent = "Please enter some text first.";
+        newsMarkdown.focus();
+        return;
+    }
+
+    formatNewsAI.disabled = true;
+    newsEditorStatus.textContent = "Formatting with AI…";
+
+    try {
+        const response = await fetch("{{ url_for('format_news') }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || "The AI formatter failed.");
+        }
+        newsMarkdown.value = data.markdown;
+        newsEditorStatus.textContent = "Formatted. Please review the Markdown before publishing.";
+        newsMarkdown.focus();
+    } catch (error) {
+        newsEditorStatus.textContent = error.message || "The AI formatter failed.";
+    } finally {
+        formatNewsAI.disabled = false;
+    }
 });
 </script>
 {% endblock %}
