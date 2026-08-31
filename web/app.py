@@ -64,17 +64,23 @@ def _get_prefilled_team_ids(form, team_name, players):
 
 @app.route("/")
 def home():
-    connection = get_connection(); ratings = get_ratings(connection); players = get_players(connection); stats = get_player_stats(connection); connection.close()
-    return render_template("dashboard.html", leaderboard=build_leaderboard(ratings, players, stats))
+    return render_template("dashboard.html")
 
 
 @app.route("/dashboard")
 def dashboard():
     return render_template("dashboard.html")
 
+
 @app.route("/stats")
 def stats():
-    return render_template("stats.html")
+    connection = get_connection()
+    ratings = get_ratings(connection)
+    players = get_players(connection)
+    stats = get_player_stats(connection)
+    connection.close()
+    return render_template("stats.html", leaderboard=build_leaderboard(ratings, players, stats))
+
 
 @app.route("/player/<int:player_id>")
 def player_profile(player_id):
