@@ -1,17 +1,46 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-container">
-    <h1>Log in</h1>
-    <form method="post" class="form-card">
-        {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-        <label for="login">Username or email</label>
-        <input id="login" name="login" required value="{{ request.form.get('login', '') }}">
+<div class="page-container account-page">
+    <div class="account-card">
+        <div class="account-header">
+            <h1>Log in</h1>
+            <p>Welcome back to RB48.</p>
+        </div>
 
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" required>
+        <form method="post" class="account-form">
+            {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
-        <button type="submit">Log in</button>
-    </form>
+            <div class="form-field">
+                <label for="login">Username or email</label>
+                <input id="login" name="login" autocomplete="username" required value="{{ request.form.get('login', '') }}">
+            </div>
+
+            <div class="form-field">
+                <label for="password">Password</label>
+                <div class="password-input-wrap">
+                    <input id="password" name="password" type="password" autocomplete="current-password" required>
+                    <button type="button" class="password-toggle" data-password-target="password" aria-label="Show password" title="Show password">◉</button>
+                </div>
+            </div>
+
+            <button type="submit" class="primary account-submit">Log in</button>
+        </form>
+    </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll(".password-toggle").forEach(button => {
+    button.addEventListener("click", () => {
+        const input = document.getElementById(button.dataset.passwordTarget);
+        const showing = input.type === "text";
+        input.type = showing ? "password" : "text";
+        button.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+        button.setAttribute("title", showing ? "Show password" : "Hide password");
+        button.textContent = showing ? "◉" : "○";
+    });
+});
+</script>
 {% endblock %}
