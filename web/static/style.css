@@ -202,6 +202,16 @@ body {
     z-index: 1000;
 }
 
+/* Bridge the small visual gap so the dropdown remains reachable by mouse. */
+.profile-dropdown::before {
+    content: "";
+    position: absolute;
+    top: -8px;
+    right: 0;
+    width: 100%;
+    height: 8px;
+}
+
 .profile-menu:hover .profile-dropdown,
 .profile-menu:focus-within .profile-dropdown {
     opacity: 1;
@@ -239,204 +249,21 @@ body {
    Main content
    ========================= */
 
-main {
-
-    max-width: var(--content-width);
-    margin: 0 auto;
-
-    padding: 40px 24px 60px;
-}
-
-
-/* =========================
-   Account pages
-   ========================= */
-
-.account-page {
-    display: flex;
-    justify-content: center;
-}
-
-.account-card {
-    width: min(480px, 100%);
-    padding: 34px 36px 36px;
-    background: var(--modal-bg);
-    border: 1px solid var(--accent-dark);
-    border-radius: 12px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
-}
-
-.account-header {
-    margin-bottom: 28px;
-    text-align: center;
-}
-
-.account-header h1 {
-    margin: 0 0 8px;
-    color: #ffffff;
-    font-size: 30px;
-}
-
-.account-header p {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: 14px;
-}
-
-.account-form {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-}
-
-.form-field label {
-    color: #ffffff;
-    font-size: 14px;
-    font-weight: 600;
-}
-
-.form-field input {
-    width: 100%;
-    padding: 11px 13px;
-    border: 1px solid #5A4A83;
-    border-radius: var(--radius);
-    background: #24194A;
-    color: #ffffff;
-    font: inherit;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.form-field input:focus {
-    outline: none;
-    border-color: var(--accent-hover);
-    box-shadow: 0 0 0 3px rgba(123, 82, 197, 0.18);
-}
-
-.password-input-wrap {
-    position: relative;
-    display: flex;
-}
-
-.password-input-wrap input {
-    padding-right: 46px;
-}
-
-.password-toggle {
-    position: absolute;
-    top: 50%;
-    right: 6px;
-    width: 34px;
-    height: 34px;
-    transform: translateY(-50%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: 15px;
-    transition: color 0.15s ease, background-color 0.15s ease;
-}
-
-.password-toggle:hover {
-    color: #ffffff;
-    background: rgba(123, 82, 197, 0.20);
-}
-
-.form-hint {
-    min-height: 15px;
-    color: var(--text-muted);
-    font-size: 12px;
-}
-
-.account-submit {
-    width: 100%;
-    margin-top: 4px;
-    padding: 11px 16px;
-    border-radius: var(--radius);
-    font: inherit;
-    font-weight: 600;
-    cursor: pointer;
-}
-
 
 /* =========================
    Tables
    ========================= */
 
 table {
-
+    width: 100%;
     border-collapse: collapse;
 }
 
-
-table th,
-table td {
-
-    text-align: center;
-}
-
-
-table th {
-
-    color: var(--text-main);
-}
-
-
-table td {
-
-    color: var(--text-main);
-}
-
-
-table th,
-table td {
-
+th,
+td {
     border-bottom: 1px solid var(--border);
-}
-
-
-/* =========================
-   Page headers
-   ========================= */
-
-.page-header {
-
-    margin-bottom: 30px;
-}
-
-
-.page-header h1 {
-
-    margin: 0;
-
-    font-size: 32px;
-}
-
-
-.page-header p {
-
-    margin-top: 8px;
-
-    color: var(--text-muted);
-}
-
-
-.page-header-row {
-
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    width: 100%;
+    padding: 10px;
+    text-align: left;
 }
 
 
@@ -658,6 +485,13 @@ a:hover {
     text-align: center;
 
     font: inherit;
+}
+
+
+.stats-filter input:focus {
+
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
 }
 
 
