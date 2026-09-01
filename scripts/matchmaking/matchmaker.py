@@ -1,7 +1,15 @@
 import itertools
 import random
 
-from scripts.glicko.glicko2 import TOTAL, BOX, HF, Rating
+from scripts.glicko.glicko2 import (
+    TOTAL,
+    BOX,
+    HF,
+    Rating,
+    DEFAULT_RATING,
+    DEFAULT_RD,
+    DEFAULT_SIGMA,
+)
 from scripts.glicko.glicko2_calculator import calculate_team_rating
 
 
@@ -23,15 +31,37 @@ def _normalized_positions(player):
     return positions
 
 
-def _rating_objects(ratings):
-    """Adapt DB rating dictionaries to the Rating objects expected by the calculator."""
+def _rating_objects(ratings, player_ids, rating_type, calibrations=None):
+    """Build the rating objects needed by the matchmaker.
+
+    A player may exist in the database without a current Glicko rating, for
+    example immediately after being created. In that case the matchmaker uses
+    the player's calibration. If no calibration exists either, it falls back
+    to the standard Glicko starting values.
+    """
+    calibrations = calibrations or {}
     converted = {}
-    for player_id, rating_types in ratings.items():
-        converted[player_id] = {}
-        for rating_type, data in rating_types.items():
-            converted[player_id][rating_type] = Rating(
-                data["rating"], data["rd"], data["sigma"]
+
+    for player_id in player_ids:
+        rating_data = ratings.get(player_id, {}).get(rating_type)
+        if rating_data is None:
+            rating_data = calibrations.get(
+                player_id,
+                {
+                    "rating": DEFAULT_RATING,
+                    "rd": DEFAULT_RD,
+                    "sigma": DEFAULT_SIGMA,
+                },
             )
+
+        converted[player_id] = {
+            rating_type: Rating(
+                rating_data["rating"],
+                rating_data["rd"],
+                rating_data["sigma"],
+            )
+        }
+
     return converted
 
 
@@ -82,8 +112,8 @@ def _considered_positions(team, players):
     return assigned
 
 
-def _team_rating(team, ratings, rating_type):
-    rating_objects = _rating_objects(ratings)
+def _team_rating(team, ratings, rating_type, calibrations=None):
+    rating_objects = _rating_objects(ratings, team, rating_type, calibrations)
     return calculate_team_rating(
         team,
         len(team),
@@ -92,16 +122,16 @@ def _team_rating(team, ratings, rating_type):
     )
 
 
-def _score(team_a, team_b, ratings, players, rating_type):
-    rating_a = _team_rating(team_a, ratings, rating_type)
-    rating_b = _team_rating(team_b, ratings, rating_type)
+def _score(team_a, team_b, ratings, players, rating_type, calibrations=None):
+    rating_a = _team_rating(team_a, ratings, rating_type, calibrations)
+    rating_b = _team_rating(team_b, ratings, rating_type, calibrations)
     rating_difference = abs(rating_a.rating - rating_b.rating)
     position_penalty = _position_penalty(team_a, team_b, players)
     score = rating_difference + position_penalty * 12
     return score, rating_a, rating_b
 
 
-def generate_match(team_player_ids, players, ratings, rating_type, seed=None):
+def generate_match(team_player_ids, players, ratings, rating_type, seed=None, calibrations=None):
     team_player_ids = list(dict.fromkeys(team_player_ids))
     if len(team_player_ids) < 2:
         return None
@@ -125,7 +155,7 @@ def generate_match(team_player_ids, players, ratings, rating_type, seed=None):
                 team_b = [p for p in shuffled if p not in team_a]
                 if size == n - size and min(team_a) > min(team_b):
                     continue
-                score, rating_a, rating_b = _score(team_a, team_b, ratings, players, rating_type)
+                score, rating_a, rating_b = _score(team_a, team_b, ratings, players, rating_type, calibrations)
                 candidates.append((score, team_a, team_b, rating_a, rating_b))
     else:
         seen = set()
@@ -138,7 +168,7 @@ def generate_match(team_player_ids, players, ratings, rating_type, seed=None):
             if key in seen:
                 continue
             seen.add(key)
-            score, rating_a, rating_b = _score(team_a, team_b, ratings, players, rating_type)
+            score, rating_a, rating_b = _score(team_a, team_b, ratings, players, rating_type, calibrations)
             candidates.append((score, team_a[:], team_b[:], rating_a, rating_b))
 
     candidates.sort(key=lambda item: item[0])
