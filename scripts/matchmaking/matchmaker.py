@@ -1,6 +1,8 @@
 import itertools
 import random
 
+from scripts.database.database import get_connection
+from scripts.database.db_ratings import get_calibrations
 from scripts.glicko.glicko2 import (
     TOTAL,
     BOX,
@@ -31,8 +33,17 @@ def _normalized_positions(player):
     return positions
 
 
+def _load_calibrations():
+    """Load calibration ratings for players without current Glicko ratings."""
+    connection = get_connection()
+    try:
+        return get_calibrations(connection)
+    finally:
+        connection.close()
+
+
 def _rating_objects(ratings, player_ids, rating_type, calibrations=None):
-    """Build the rating objects needed by the matchmaker.
+    """Build rating objects for the matchmaker with sensible fallbacks.
 
     A player may exist in the database without a current Glicko rating, for
     example immediately after being created. In that case the matchmaker uses
@@ -113,6 +124,8 @@ def _considered_positions(team, players):
 
 
 def _team_rating(team, ratings, rating_type, calibrations=None):
+    if calibrations is None:
+        calibrations = _load_calibrations()
     rating_objects = _rating_objects(ratings, team, rating_type, calibrations)
     return calculate_team_rating(
         team,
@@ -135,6 +148,9 @@ def generate_match(team_player_ids, players, ratings, rating_type, seed=None, ca
     team_player_ids = list(dict.fromkeys(team_player_ids))
     if len(team_player_ids) < 2:
         return None
+
+    if calibrations is None:
+        calibrations = _load_calibrations()
 
     randomizer = random.Random(seed)
     shuffled = team_player_ids[:]
