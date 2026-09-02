@@ -509,11 +509,54 @@
         };
     }
 
+
+    // ------------------------------------------------------------
+    // Future Date Easter Egg Modal
+    // ------------------------------------------------------------
+
+    function initFutureDateModal() {
+        const dateInput = document.getElementById('match-date');
+        const futureModal = document.getElementById('future-date-modal');
+        const confirmBtn = document.getElementById('future-confirm');
+        const resetBtn = document.getElementById('future-reset');
+
+        if (!dateInput || !futureModal) {
+            return;
+        }
+
+        function getTodayString() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        dateInput.addEventListener('change', () => {
+            const selected = dateInput.value;
+            const todayStr = getTodayString();
+
+            if (selected && selected > todayStr) {
+                futureModal.style.display = 'flex';
+            }
+        });
+
+        confirmBtn?.addEventListener('click', () => {
+            futureModal.style.display = 'none';
+        });
+
+        resetBtn?.addEventListener('click', () => {
+            dateInput.value = getTodayString();
+            futureModal.style.display = 'none';
+        });
+    }
+
     initTeamEditor();
     initParserImagePaste();
     initConflictModal();
     initAddPlayerModal();
     initGeneratedTeamTransfer();
     initAddPlayerButton();
+    initFutureDateModal();
 
 })();
