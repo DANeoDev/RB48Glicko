@@ -378,6 +378,11 @@
         return p;
     }
 
+    function isMatchHistoryPage() {
+        const p = getCanonicalPagePath();
+        return p === "/matches";
+    }
+
     async function saveBubble() {
         const textarea = document.getElementById("noise-text-input");
         const content = textarea.value.trim();
@@ -463,7 +468,15 @@
         wrapper.className = "noise-bubble-wrapper";
         wrapper.id = `noise-bubble-wrap-${b.id}`;
         wrapper.style.left = `${b.pos_x_percent}%`;
-        wrapper.style.top = `${b.pos_y_percent}%`;
+
+        if (isMatchHistoryPage()) {
+            wrapper.classList.add("noise-match-history-anchored");
+            wrapper.style.bottom = `${100 - b.pos_y_percent}%`;
+            wrapper.style.top = "auto";
+        } else {
+            wrapper.style.top = `${b.pos_y_percent}%`;
+            wrapper.style.bottom = "auto";
+        }
 
         if (userDisplayMode === "expanded") {
             renderExpandedBubble(wrapper, b, isAuthorOrStaff);
@@ -569,7 +582,13 @@
             const posYPercent = Math.max(1, Math.min(99, (moveEvt.pageY / containerHeight) * 100));
 
             currentDrag.element.style.left = `${posXPercent}%`;
-            currentDrag.element.style.top = `${posYPercent}%`;
+            if (isMatchHistoryPage()) {
+                currentDrag.element.style.bottom = `${100 - posYPercent}%`;
+                currentDrag.element.style.top = "auto";
+            } else {
+                currentDrag.element.style.top = `${posYPercent}%`;
+                currentDrag.element.style.bottom = "auto";
+            }
             currentDrag.newX = posXPercent;
             currentDrag.newY = posYPercent;
         };

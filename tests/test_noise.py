@@ -518,6 +518,15 @@ class NoiseBubblesTest(unittest.TestCase):
         self.assertIn("Dashboard Banter", dash_contents)
         self.assertIn("Home Banter", dash_contents)
 
+    def test_noise_js_syntax_and_matches_rule(self):
+        import shutil
+        import subprocess
+        node_path = shutil.which("node")
+        if node_path:
+            js_file = os.path.join(app.root_path, "static", "noise.js")
+            result = subprocess.run([node_path, "-c", js_file], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, f"JS error in noise.js:\n{result.stderr}")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -155,6 +155,31 @@ class MatchCenterFrontendTests(unittest.TestCase):
         # Because RDs and ratings differ, absolute gains/losses are not strictly identical
         self.assertNotEqual(round(details["delta_a"], 4), round(-details["delta_b"], 4))
 
+    def test_calculate_match_details_player_specific_delta(self):
+        from scripts.frontend.view_models import calculate_match_details
+
+        match = {
+            "goals_a": 4,
+            "goals_b": 2,
+            "players_a": 2,
+            "players_b": 2,
+        }
+        team_a = [1, 2]
+        team_b = [3, 4]
+        match_ratings = {
+            1: {TOTAL: {"rating": 1500.0, "rd": 250.0, "sigma": 0.06}}, # high RD
+            2: {TOTAL: {"rating": 1500.0, "rd": 60.0, "sigma": 0.06}},  # low RD
+            3: {TOTAL: {"rating": 1500.0, "rd": 100.0, "sigma": 0.06}},
+            4: {TOTAL: {"rating": 1500.0, "rd": 100.0, "sigma": 0.06}},
+        }
+        details_p1 = calculate_match_details(match, team_a, team_b, match_ratings, TOTAL, player_id=1)
+        details_p2 = calculate_match_details(match, team_a, team_b, match_ratings, TOTAL, player_id=2)
+
+        self.assertIsNotNone(details_p1["player_delta"])
+        self.assertIsNotNone(details_p2["player_delta"])
+        # High RD player 1 should gain more rating than low RD player 2 on the same winning team
+        self.assertGreater(details_p1["player_delta"], details_p2["player_delta"])
+
 
 if __name__ == "__main__":
     unittest.main()

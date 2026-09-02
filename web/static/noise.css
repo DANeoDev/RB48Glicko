@@ -89,6 +89,10 @@ body.noise-mode-active * {
     transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
+.noise-bubble-wrapper.noise-match-history-anchored {
+    transform: translate(-50%, 50%);
+}
+
 .noise-bubble {
     position: relative;
     max-width: 280px;

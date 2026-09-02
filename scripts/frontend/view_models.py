@@ -45,7 +45,7 @@ def build_leaderboard(ratings, players, stats):
     return leaderboard
 
 
-def calculate_match_details(match, team_a, team_b, match_ratings, rating_type=TOTAL):
+def calculate_match_details(match, team_a, team_b, match_ratings, rating_type=TOTAL, player_id=None):
     empty_details = {
         "team_a_rating": None,
         "team_a_rd": None,
@@ -56,14 +56,16 @@ def calculate_match_details(match, team_a, team_b, match_ratings, rating_type=TO
         "rating_delta": None,
         "delta_a": None,
         "delta_b": None,
+        "player_delta": None,
+        "player_team": None,
     }
     if not team_a or not team_b or not match_ratings:
         return empty_details
 
     required_players = team_a + team_b
     if any(
-        player_id not in match_ratings or rating_type not in match_ratings[player_id]
-        for player_id in required_players
+        pid not in match_ratings or rating_type not in match_ratings[pid]
+        for pid in required_players
     ):
         return empty_details
 
@@ -71,7 +73,7 @@ def calculate_match_details(match, team_a, team_b, match_ratings, rating_type=TO
     total_players_b = match["players_b"]
 
     def team_rating(player_ids, total_players):
-        active_ratings = [match_ratings[player_id][rating_type] for player_id in player_ids]
+        active_ratings = [match_ratings[pid][rating_type] for pid in player_ids]
         average_rating = sum(rating["rating"] for rating in active_ratings) / len(active_ratings)
         ignored_players = total_players - len(player_ids)
         average_rd = math.sqrt(
@@ -96,10 +98,32 @@ def calculate_match_details(match, team_a, team_b, match_ratings, rating_type=TO
     else:
         team_a_result = team_b_result = 0.5
 
-    updated_team_a = Glicko2().update_rating(team_a_rating, [(team_a_result, team_b_rating)])
-    updated_team_b = Glicko2().update_rating(team_b_rating, [(team_b_result, team_a_rating)])
+    engine = Glicko2()
+    updated_team_a = engine.update_rating(team_a_rating, [(team_a_result, team_b_rating)])
+    updated_team_b = engine.update_rating(team_b_rating, [(team_b_result, team_a_rating)])
     delta_a = updated_team_a.rating - team_a_rating.rating
     delta_b = updated_team_b.rating - team_b_rating.rating
+
+    player_delta = None
+    player_team = None
+    if player_id is not None and player_id in match_ratings and rating_type in match_ratings[player_id]:
+        pdata = match_ratings[player_id][rating_type]
+        prd = pdata["rd"]
+        psigma = pdata["sigma"]
+        if player_id in team_a:
+            player_team = "a"
+            virtual_rd = math.sqrt((prd ** 2 + team_a_rating.rd ** 2) / 2)
+            virtual_player = Rating(team_a_rating.rating, virtual_rd, psigma)
+            updated_virtual = engine.update_rating(virtual_player, [(team_a_result, team_b_rating)])
+            player_delta = updated_virtual.rating - virtual_player.rating
+            delta_a = player_delta
+        elif player_id in team_b:
+            player_team = "b"
+            virtual_rd = math.sqrt((prd ** 2 + team_b_rating.rd ** 2) / 2)
+            virtual_player = Rating(team_b_rating.rating, virtual_rd, psigma)
+            updated_virtual = engine.update_rating(virtual_player, [(team_b_result, team_a_rating)])
+            player_delta = updated_virtual.rating - virtual_player.rating
+            delta_b = player_delta
 
     return {
         "team_a_rating": team_a_rating.rating,
@@ -111,6 +135,8 @@ def calculate_match_details(match, team_a, team_b, match_ratings, rating_type=TO
         "rating_delta": delta_a,
         "delta_a": delta_a,
         "delta_b": delta_b,
+        "player_delta": player_delta,
+        "player_team": player_team,
     }
 
 
@@ -133,7 +159,7 @@ def build_match_history(connection, players, player_id=None, rating_type=TOTAL):
         external_a = match["players_a"] - len(team_a)
         external_b = match["players_b"] - len(team_b)
         match_ratings = get_match_ratings(connection, match_id)
-        details = calculate_match_details(match, team_a, team_b, match_ratings, rating_type)
+        details = calculate_match_details(match, team_a, team_b, match_ratings, rating_type, player_id=player_id)
 
         def player_entry(pid):
             rating = match_ratings.get(pid, {}).get(rating_type, {}).get("rating")
