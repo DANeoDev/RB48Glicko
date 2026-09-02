@@ -42,7 +42,7 @@
         .webmaster-sim-bar {
             background: #2a1548;
             border-bottom: 2px solid #7B52C5;
-            padding: 8px 16px;
+            padding: 6px 16px;
             font-size: 13px;
             color: #ffffff;
             display: flex;
@@ -51,12 +51,33 @@
             flex-wrap: wrap;
             gap: 10px;
             z-index: 1000;
+            transition: all 0.2s ease;
         }
-        .webmaster-sim-title {
+        .webmaster-sim-header {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             font-weight: 600;
+        }
+        .webmaster-eye-toggle {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 4px 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+        .webmaster-eye-toggle:hover {
+            background: #582DA1;
+            border-color: #7B52C5;
+            color: #80deea;
+        }
+        .webmaster-eye-toggle svg {
+            display: block;
         }
         .webmaster-sim-badge {
             background: #582DA1;
@@ -92,6 +113,23 @@
             font-weight: bold;
         }
 
+        /* Collapsed state */
+        .webmaster-sim-bar.collapsed {
+            padding: 4px 12px;
+            border-bottom: 1px solid #7B52C5;
+            background: rgba(42, 21, 72, 0.85);
+        }
+        .webmaster-sim-bar.collapsed .webmaster-sim-label,
+        .webmaster-sim-bar.collapsed .webmaster-sim-controls {
+            display: none !important;
+        }
+        .webmaster-sim-bar.collapsed .eye-open {
+            display: none !important;
+        }
+        .webmaster-sim-bar.collapsed .eye-closed {
+            display: block !important;
+        }
+
         /* Flash Messages */
         .flash-container {
             max-width: var(--content-width);
@@ -115,9 +153,19 @@
 <body class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}dashboard-body{% endif %}">
 
 {% if current_user and current_user.role == 'webmaster' %}
-    <div class="webmaster-sim-bar">
-        <div class="webmaster-sim-title">
-            <span>👁️ Webmaster View Simulation:</span>
+    <div class="webmaster-sim-bar" id="webmaster-sim-bar">
+        <div class="webmaster-sim-header">
+            <button type="button" class="webmaster-eye-toggle" id="webmaster-eye-toggle" aria-label="Toggle View Simulation Bar" title="Click to hide/show View Simulation Bar">
+                <svg class="eye-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="3" r="3"></circle>
+                </svg>
+                <svg class="eye-closed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+            </button>
+            <span class="webmaster-sim-label">Webmaster View Simulation:</span>
             <span class="webmaster-sim-badge">
                 {% if simulated_tier %}
                     Simulating: {{ simulated_tier | replace('_', ' ') | title }}
@@ -126,16 +174,18 @@
                 {% endif %}
             </span>
         </div>
-        <form method="post" action="{{ url_for('auth.switch_view') }}" class="webmaster-sim-form">
-            <input type="hidden" name="redirect_to" value="{{ request.full_path }}">
-            <button type="submit" name="view_mode" value="visitor" class="webmaster-sim-btn {% if simulated_tier == 'visitor' %}active{% endif %}">Visitor</button>
-            <button type="submit" name="view_mode" value="user" class="webmaster-sim-btn {% if simulated_tier == 'user' %}active{% endif %}">User</button>
-            <button type="submit" name="view_mode" value="glicko_user" class="webmaster-sim-btn {% if simulated_tier == 'glicko_user' %}active{% endif %}">Glicko User</button>
-            <button type="submit" name="view_mode" value="admin" class="webmaster-sim-btn {% if simulated_tier == 'admin' %}active{% endif %}">Admin</button>
-            {% if simulated_tier %}
-                <button type="submit" name="view_mode" value="reset" class="webmaster-sim-btn" style="background: #dc3545; border-color: #ff8888;">Reset</button>
-            {% endif %}
-        </form>
+        <div class="webmaster-sim-controls" id="webmaster-sim-controls">
+            <form method="post" action="{{ url_for('auth.switch_view') }}" class="webmaster-sim-form">
+                <input type="hidden" name="redirect_to" value="{{ request.full_path }}">
+                <button type="submit" name="view_mode" value="visitor" class="webmaster-sim-btn {% if simulated_tier == 'visitor' %}active{% endif %}">Visitor</button>
+                <button type="submit" name="view_mode" value="user" class="webmaster-sim-btn {% if simulated_tier == 'user' %}active{% endif %}">User</button>
+                <button type="submit" name="view_mode" value="glicko_user" class="webmaster-sim-btn {% if simulated_tier == 'glicko_user' %}active{% endif %}">Glicko User</button>
+                <button type="submit" name="view_mode" value="admin" class="webmaster-sim-btn {% if simulated_tier == 'admin' %}active{% endif %}">Admin</button>
+                {% if simulated_tier %}
+                    <button type="submit" name="view_mode" value="reset" class="webmaster-sim-btn" style="background: #dc3545; border-color: #ff8888;">Reset</button>
+                {% endif %}
+            </form>
+        </div>
     </div>
 {% endif %}
 
@@ -244,6 +294,20 @@ window.addEventListener("load", () => {
     window.scrollTo(0, Number(position));
     sessionStorage.removeItem("rb48ScrollPosition");
 });
+
+// Webmaster simulation bar collapse toggle
+const simBar = document.getElementById("webmaster-sim-bar");
+const eyeToggle = document.getElementById("webmaster-eye-toggle");
+if (simBar && eyeToggle) {
+    if (localStorage.getItem("rb48WebmasterSimCollapsed") === "true") {
+        simBar.classList.add("collapsed");
+    }
+    eyeToggle.addEventListener("click", () => {
+        simBar.classList.toggle("collapsed");
+        localStorage.setItem("rb48WebmasterSimCollapsed", simBar.classList.contains("collapsed") ? "true" : "false");
+    });
+}
+
 const footer = document.getElementById("site-footer");
 const footerToggle = document.getElementById("site-footer-toggle");
 const footerReopen = document.getElementById("site-footer-reopen");
