@@ -363,7 +363,6 @@
     // ------------------------------------------------------------
     // Add-player modal
     // ------------------------------------------------------------
-
     function initAddPlayerModal() {
         const form = document.getElementById('mc-form');
         const addModal = document.getElementById('add-modal');
@@ -374,149 +373,63 @@
         }
 
         function openAdd(name) {
+            addPlayerName = name;
+            document.getElementById('add-name').textContent = name;
+            document.getElementById('choice').style.display = 'block';
+            document.getElementById('alias-form').style.display = 'none';
+            document.getElementById('new-form').style.display = 'none';
+            addModal.style.display = 'flex';
+        }
 
-        addPlayerName = name;
-
-        document.getElementById('add-name').textContent =
-            name;
-
-        document.getElementById('choice').style.display =
-            'block';
-
-        document.getElementById('alias-form').style.display =
-            'none';
-
-        document.getElementById('new-form').style.display =
-            'none';
-
-        addModal.style.display = 'flex';
-    }
-
-
-    document
-        .querySelectorAll('.add-btn')
-        .forEach(button => {
-
-            button.addEventListener(
-                'click',
-                () => openAdd(button.dataset.name)
-            );
-
+        document.querySelectorAll('.add-btn').forEach(button => {
+            button.addEventListener('click', () => openAdd(button.dataset.name));
         });
 
-
-    document
-        .getElementById('add-cancel')
-        ?.addEventListener(
-            'click',
-            () => {
-                addModal.style.display = 'none';
-            }
-        );
-
-
-    document
-        .getElementById('alias-choice')
-        ?.addEventListener('click', () => {
-
-            document.getElementById('choice').style.display =
-                'none';
-
-            document.getElementById('alias-form').style.display =
-                'block';
+        document.getElementById('add-cancel')?.addEventListener('click', () => {
+            addModal.style.display = 'none';
         });
 
-
-    document
-        .getElementById('new-choice')
-        ?.addEventListener('click', () => {
-
-            document.getElementById('choice').style.display =
-                'none';
-
-            document.getElementById('new-form').style.display =
-                'block';
-
-            document.getElementById('new-alias').value =
-                addPlayerName;
+        document.getElementById('alias-choice')?.addEventListener('click', () => {
+            document.getElementById('choice').style.display = 'none';
+            document.getElementById('alias-form').style.display = 'block';
         });
 
+        document.getElementById('new-choice')?.addEventListener('click', () => {
+            document.getElementById('choice').style.display = 'none';
+            document.getElementById('new-form').style.display = 'block';
+            document.getElementById('new-alias').value = addPlayerName;
+        });
 
-    // ------------------------------------------------------------
-    // Form helpers
-    // ------------------------------------------------------------
+        // ------------------------------------------------------------
+        // Form helpers
+        // ------------------------------------------------------------
 
-    function hidden(name, value) {
+        function hidden(name, value) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value;
+            return input;
+        }
 
-        const input = document.createElement('input');
-
-        input.type = 'hidden';
-        input.name = name;
-        input.value = value;
-
-        return input;
-    }
-
-
-    document
-        .getElementById('alias-submit')
-        ?.addEventListener('click', () => {
-
+        document.getElementById('alias-submit')?.addEventListener('click', () => {
             form.append(
                 hidden('action', 'add_parser_alias'),
                 hidden('new_alias', addPlayerName),
-                hidden(
-                    'target_player_id',
-                    document.getElementById('alias-id').value
-                )
+                hidden('target_player_id', document.getElementById('alias-id').value)
             );
-
             form.submit();
         });
 
-
-    document
-        .getElementById('new-submit')
-        ?.addEventListener('click', () => {
-
+        document.getElementById('new-submit')?.addEventListener('click', () => {
             form.append(
-                hidden(
-                    'action',
-                    'create_parser_player'
-                ),
-
-                hidden(
-                    'new_alias',
-                    document.getElementById(
-                        'new-alias'
-                    ).value
-                ),
-
-                hidden(
-                    'calibration',
-                    document.querySelector(
-                        'input[name="new_calibration"]:checked'
-                    )?.value || 'average'
-                )
+                hidden('action', 'create_parser_player'),
+                hidden('new_alias', document.getElementById('new-alias').value),
+                hidden('calibration', document.querySelector('input[name="new_calibration"]:checked')?.value || 'average')
             );
-
-
-            document
-                .querySelectorAll(
-                    'input[name="new_positions"]:checked'
-                )
-                .forEach(input => {
-
-                    form.append(
-                        hidden(
-                            'new_positions',
-                            input.value
-                        )
-                    );
-
-                });
-
-
+            document.querySelectorAll('input[name="new_positions"]:checked').forEach(input => {
+                form.append(hidden('new_positions', input.value));
+            });
             form.submit();
         });
     }
@@ -525,7 +438,6 @@
     // ------------------------------------------------------------
     // Transfer generated teams into Enter a Match
     // ------------------------------------------------------------
-
     function initGeneratedTeamTransfer() {
         const generated = document.getElementById('generated-teams');
 
@@ -534,41 +446,24 @@
         }
 
         try {
-
-            const teams =
-                JSON.parse(generated.textContent);
-
+            const teams = JSON.parse(generated.textContent);
 
             document
-                .querySelectorAll(
-                    '#match-form .team-box'
-                )
+                .querySelectorAll('#match-form .team-box')
                 .forEach((box, index) => {
+                    const team = teams[index === 0 ? 'a' : 'b'];
+                    const teamKey = index === 0 ? 'a' : 'b';
+                    const list = box.querySelector('.player-list');
 
-                    const team =
-                        teams[index === 0 ? 'a' : 'b'];
-
-                    const teamKey =
-                        index === 0 ? 'a' : 'b';
-
-                    const list =
-                        box.querySelector('.player-list');
-
-
-                    if (!list) {
+                    if (!list || !team) {
                         return;
                     }
 
-
                     list.innerHTML = '';
-
-
                     team.forEach(pid => {
                         addTeamPlayer(teamKey, pid);
                     });
-
                 });
-
 
             document
                 .getElementById('enter-match')
@@ -577,21 +472,7 @@
                 });
 
         } catch (error) {
-
-            console.error(
-                'Could not transfer generated teams:',
-                error
-            );
-
-        }
-
-        } catch (error) {
-
-            console.error(
-                'Could not transfer generated teams:',
-                error
-            );
-
+            console.error('Could not transfer generated teams:', error);
         }
     }
 

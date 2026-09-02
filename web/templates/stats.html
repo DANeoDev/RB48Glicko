@@ -17,7 +17,7 @@
     </p>
 
     <a
-        href="{{ url_for('glicko_explainer') }}"
+        href="{{ url_for('stats.glicko_explainer') }}"
         class="info-button"
         title="How is the performance evaluated?"
         aria-label="How is the performance evaluated?"
@@ -62,7 +62,7 @@
                 data-box-conservative="{{ player['box']['conservative'] }}" data-box-rating="{{ player['box']['rating'] }}" data-box-rd="{{ player['box']['rd'] }}" data-box-games="{{ player['box']['games'] }}" data-box-wins="{{ player['box']['wins'] }}" data-box-losses="{{ player['box']['losses'] }}" data-box-win-percent="{{ player['box']['win_percent'] }}"
                 data-hf-conservative="{{ player['hf']['conservative'] }}" data-hf-rating="{{ player['hf']['rating'] }}" data-hf-rd="{{ player['hf']['rd'] }}" data-hf-games="{{ player['hf']['games'] }}" data-hf-wins="{{ player['hf']['wins'] }}" data-hf-losses="{{ player['hf']['losses'] }}" data-hf-win-percent="{{ player['hf']['win_percent'] }}">
                 <td>{{ loop.index }}</td>
-                <td><a href="{{ url_for('player_profile', player_id=player['player_id']) }}">{{ player["alias"] }}</a></td>
+                <td><a href="{{ url_for('stats.player_profile', player_id=player['player_id']) }}">{{ player["alias"] }}</a></td>
                 {% for pitch in ["total", "box", "hf"] %}
                 <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["conservative"] | round | int }}</td>
                 <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rating"] | round | int }}</td>

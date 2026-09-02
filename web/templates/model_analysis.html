@@ -10,10 +10,10 @@
 <h1>Model Analysis</h1>
 <p class="page-intro">How well do the pre-match Glicko ratings predict the actual result and the closeness of the resulting game? Only information available before each match is used.</p>
 <div class="analysis-switch">
-<a href="{{ url_for('model_analysis', mode='total') }}" class="analysis-switch-button {% if mode=='total' %}active{% endif %}">Total rating</a>
-<a href="{{ url_for('model_analysis', mode='pitch', pitch='box') }}" class="analysis-switch-button {% if mode=='pitch' %}active{% endif %}">Pitch-specific rating</a>
+<a href="{{ url_for('stats.model_analysis', mode='total') }}" class="analysis-switch-button {% if mode=='total' %}active{% endif %}">Total rating</a>
+<a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='box') }}" class="analysis-switch-button {% if mode=='pitch' %}active{% endif %}">Pitch-specific rating</a>
 </div>
-{% if mode=='pitch' %}<div class="pitch-switch"><a href="{{ url_for('model_analysis',mode='pitch',pitch='box') }}" class="pitch-switch-button {% if analysis.pitch=='box' %}active{% endif %}">BOX</a><a href="{{ url_for('model_analysis',mode='pitch',pitch='hf') }}" class="pitch-switch-button {% if analysis.pitch=='hf' %}active{% endif %}">HF</a></div>{% endif %}
+{% if mode=='pitch' %}<div class="pitch-switch"><a href="{{ url_for('stats.model_analysis',mode='pitch',pitch='box') }}" class="pitch-switch-button {% if analysis.pitch=='box' %}active{% endif %}">BOX</a><a href="{{ url_for('stats.model_analysis',mode='pitch',pitch='hf') }}" class="pitch-switch-button {% if analysis.pitch=='hf' %}active{% endif %}">HF</a></div>{% endif %}
 <section class="analysis-card">
 <h2>{% if mode=='total' %}Total rating model{% else %}{{ 'BOX' if analysis.pitch=='box' else 'HF' }} rating model{% endif %}</h2>
 <p class="analysis-description">{% if mode=='total' %}Every match is predicted from the players' TOTAL ratings immediately before that match.{% else %}Only {{ 'Box' if analysis.pitch=='box' else 'half-field' }} matches are analysed, using the corresponding pitch-specific ratings immediately before each match.{% endif %} Every match is oriented toward the model's predicted favourite, so every prediction above 50% has the same interpretation.</p>

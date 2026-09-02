@@ -39,7 +39,7 @@
             <h2 id="news-editor-title">Create News</h2>
             <button type="button" class="news-editor-close" id="close-news-modal" aria-label="Close">×</button>
         </div>
-        <form method="post" action="{{ url_for('create_news') }}" id="news-editor-form">
+        <form method="post" action="{{ url_for('news.create_news') }}" id="news-editor-form">
             <label for="news-markdown">Markdown</label>
             <textarea id="news-markdown" name="markdown" rows="14" placeholder="Paste or write your News here..." required></textarea>
             <div class="news-markdown-help">
@@ -108,7 +108,7 @@ formatNewsAI.addEventListener("click", async () => {
     newsEditorStatus.textContent = "Formatting with AI…";
 
     try {
-        const response = await fetch("{{ url_for('format_news') }}", {
+        const response = await fetch("{{ url_for('news.format_news') }}", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text })
@@ -133,7 +133,7 @@ async function loadMoreNews() {
     if (newsLoading) newsLoading.hidden = false;
 
     try {
-        const response = await fetch(`{{ url_for('get_more_news') }}?offset=${newsOffset}&limit=2`);
+        const response = await fetch(`{{ url_for('news.get_more_news') }}?offset=${newsOffset}&limit=2`);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Could not load more news.");
 

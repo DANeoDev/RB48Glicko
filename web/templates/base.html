@@ -21,18 +21,18 @@
     </style>
 </head>
 
-<body class="{% if request.endpoint in ['home', 'dashboard'] %}dashboard-body{% endif %}">
+<body class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}dashboard-body{% endif %}">
 <header class="site-header">
     <nav class="navbar">
-        <a class="logo" href="{{ url_for('home') }}" aria-label="RB48 home">
+        <a class="logo" href="{{ url_for('stats.home') }}" aria-label="RB48 home">
             <img src="{{ url_for('static', filename='images/RB48_logo.png') }}" alt="RB48">
         </a>
         <div class="nav-links">
-            <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint in ['home', 'dashboard'] %}active{% endif %}">Dashboard</a>
-            <a href="{{ url_for('stats') }}" class="{% if request.endpoint == 'stats' %}active{% endif %}">Stats</a>
-            <a href="{{ url_for('match_history') }}" class="{% if request.endpoint == 'match_history' %}active{% endif %}">Match History</a>
-            <a href="{{ url_for('match_center') }}" class="{% if request.endpoint == 'match_center' %}active{% endif %}">Match Center</a>
-            <a href="{{ url_for('model_analysis') }}" class="{% if request.endpoint == 'model_analysis' %}active{% endif %}">Model Analysis</a>
+            <a href="{{ url_for('stats.dashboard') }}" class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}active{% endif %}">Dashboard</a>
+            <a href="{{ url_for('stats.stats') }}" class="{% if request.endpoint == 'stats.stats' %}active{% endif %}">Stats</a>
+            <a href="{{ url_for('stats.match_history') }}" class="{% if request.endpoint == 'stats.match_history' %}active{% endif %}">Match History</a>
+            <a href="{{ url_for('match_center.match_center') }}" class="{% if request.endpoint == 'match_center.match_center' %}active{% endif %}">Match Center</a>
+            <a href="{{ url_for('stats.model_analysis') }}" class="{% if request.endpoint == 'stats.model_analysis' %}active{% endif %}">Model Analysis</a>
         </div>
         <div class="profile-menu">
             <button type="button" class="profile-button" aria-label="Account" title="Account">
@@ -44,10 +44,10 @@
             <div class="profile-dropdown">
                 {% if current_user %}
                     <div class="profile-dropdown-user">{{ current_user["username"] }}</div>
-                    <a href="{{ url_for('logout') }}">Log out</a>
+                    <a href="{{ url_for('auth.logout') }}">Log out</a>
                 {% else %}
-                    <a href="{{ url_for('login') }}">Log in</a>
-                    <a href="{{ url_for('register') }}">Register</a>
+                    <a href="{{ url_for('auth.login') }}">Log in</a>
+                    <a href="{{ url_for('auth.register') }}">Register</a>
                 {% endif %}
             </div>
         </div>
@@ -56,10 +56,10 @@
 <main>{% block content %}{% endblock %}</main>
 <footer class="site-footer" id="site-footer">
     <div class="site-footer-inner">
-        <a class="site-footer-home" href="{{ url_for('home') }}">RB 48 Homepage</a>
+        <a class="site-footer-home" href="{{ url_for('stats.home') }}">RB 48 Homepage</a>
         <nav class="site-footer-links" aria-label="Footer navigation">
             <a href="#">About</a>
-            <a href="{{ url_for('glicko_explainer') }}">FAQ</a>
+            <a href="{{ url_for('stats.glicko_explainer') }}">FAQ</a>
             <a href="https://github.com/DANeoDev/RB48Glicko" target="_blank" rel="noopener noreferrer">GitHub</a>
         </nav>
     </div>
