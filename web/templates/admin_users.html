@@ -3,12 +3,12 @@
 {% block title %}User Management · RB48{% endblock %}
 
 {% block content %}
-<div class="page-container" style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
+<div class="page-container" style="max-width: 1150px; margin: 30px auto; padding: 0 20px;">
     <div class="account-card" style="padding: 24px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
             <div>
                 <h1 style="margin: 0; color: #ffffff;">User Management</h1>
-                <p class="muted" style="margin-top: 4px;">Review registered accounts, approve memberships, and manage player profile link requests.</p>
+                <p class="muted" style="margin-top: 4px;">Review registered accounts, approve memberships, manage player links, and manage account records.</p>
             </div>
             <a href="{{ url_for('stats.home') }}" class="secondary" style="padding: 8px 16px; text-decoration: none;">← Dashboard</a>
         </div>
@@ -26,7 +26,7 @@
                             <th style="padding: 10px 8px;">Glicko</th>
                             <th style="padding: 10px 8px;">Membership</th>
                             <th style="padding: 10px 8px;">Player Profile Link</th>
-                            <th style="padding: 10px 8px;">Actions</th>
+                            <th style="padding: 10px 8px; text-align: right;">Webmaster Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -89,22 +89,30 @@
                                         <span style="color: var(--text-muted);">None</span>
                                     {% endif %}
                                 </td>
-                                <td style="padding: 10px 8px;">
-                                    {% if u.role == 'user' %}
-                                        <form method="post" action="{{ url_for('auth.toggle_approval', user_id=u.id) }}" style="margin: 0;">
-                                            {% if u.is_approved %}
-                                                <button type="submit" name="action" value="revoke" class="secondary" style="padding: 3px 8px; font-size: 11px; cursor: pointer;">
-                                                    Revoke
-                                                </button>
-                                            {% else %}
-                                                <button type="submit" name="action" value="approve" class="primary" style="padding: 3px 10px; font-size: 11px; cursor: pointer;">
-                                                    Approve
-                                                </button>
-                                            {% endif %}
-                                        </form>
-                                    {% else %}
-                                        <span class="muted" style="font-size: 11px;">Staff</span>
-                                    {% endif %}
+                                <td style="padding: 10px 8px; text-align: right;">
+                                    <div style="display: inline-flex; align-items: center; gap: 6px;">
+                                        {% if u.role == 'user' %}
+                                            <form method="post" action="{{ url_for('auth.toggle_approval', user_id=u.id) }}" style="margin: 0; display: inline;">
+                                                {% if u.is_approved %}
+                                                    <button type="submit" name="action" value="revoke" class="secondary" style="padding: 3px 8px; font-size: 11px; cursor: pointer;">
+                                                        Revoke
+                                                    </button>
+                                                {% else %}
+                                                    <button type="submit" name="action" value="approve" class="primary" style="padding: 3px 10px; font-size: 11px; cursor: pointer;">
+                                                        Approve
+                                                    </button>
+                                                {% endif %}
+                                            </form>
+                                        {% else %}
+                                            <span class="muted" style="font-size: 11px; margin-right: 4px;">Staff</span>
+                                        {% endif %}
+
+                                        {% if current_user and current_user.id != u.id %}
+                                            <button type="button" class="secondary" onclick="openDeleteUserModal('{{ u.id }}', '{{ u.username }}', '{{ u.email }}')" style="padding: 3px 7px; font-size: 11px; color: #ff8888; border-color: rgba(220,53,69,0.4); cursor: pointer;" title="Delete user account">
+                                                🗑️ Delete
+                                            </button>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -116,4 +124,83 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Modal: Webmaster Delete User (2-Step Verification) -->
+<div id="delete-user-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 9999; justify-content: center; align-items: center; padding: 20px;">
+    <div style="background: var(--bg-surface); border: 1px solid #dc3545; border-radius: var(--radius); max-width: 480px; width: 100%; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <span style="font-size: 26px;">⚠️</span>
+            <h2 style="margin: 0; color: #ff8888; font-size: 20px;">Delete User Account</h2>
+        </div>
+        <p style="font-size: 13.5px; color: #c9c2d8; line-height: 1.5; margin-bottom: 16px;">
+            You are about to permanently delete <strong id="modal-target-username" style="color: #ffffff;"></strong> (<span id="modal-target-email" style="color: #80deea;"></span>).
+        </p>
+
+        <form id="delete-user-form" method="post" action="">
+            <!-- Step 1 Verification -->
+            <div style="background: rgba(220, 53, 69, 0.12); border: 1px solid rgba(220, 53, 69, 0.35); border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+                <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin: 0; font-size: 13px; color: #ffffff;">
+                    <input type="checkbox" id="del_confirm_1" name="confirm_1" value="yes" required style="margin-top: 3px; width: auto;">
+                    <span><strong>Verification 1 of 2:</strong> I confirm that I want to wipe this user account from the database.</span>
+                </label>
+            </div>
+
+            <!-- Step 2 Verification -->
+            <div style="margin-bottom: 20px;">
+                <label for="del_confirm_username" style="font-size: 13px; font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                    <strong>Verification 2 of 2:</strong> Type <code id="modal-required-username" style="color: #ff8888; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;"></code> below to confirm:
+                </label>
+                <input type="text" id="del_confirm_username" name="confirm_username" placeholder="Username" required autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); background: #24194A; border: 1px solid #5A4A83; color: #ffffff; margin-bottom: 6px;">
+                <span style="font-size: 11px; color: var(--text-muted); display: block;">An automatic database backup will be saved to <code>data/backups/accounts/</code> before deletion.</span>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="secondary" onclick="closeDeleteUserModal()" style="padding: 8px 16px;">Cancel</button>
+                <button type="submit" id="del-submit-btn" class="primary" style="background: #dc3545; border-color: #dc3545; padding: 8px 18px;" disabled>
+                    Confirm &amp; Delete
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let currentTargetUsername = "";
+
+function openDeleteUserModal(userId, username, email) {
+    currentTargetUsername = username;
+    document.getElementById("modal-target-username").textContent = username;
+    document.getElementById("modal-target-email").textContent = email;
+    document.getElementById("modal-required-username").textContent = username;
+    document.getElementById("delete-user-form").action = `/admin/users/${userId}/delete`;
+
+    const check = document.getElementById("del_confirm_1");
+    const input = document.getElementById("del_confirm_username");
+    const submitBtn = document.getElementById("del-submit-btn");
+
+    check.checked = false;
+    input.value = "";
+    submitBtn.disabled = true;
+
+    const validate = () => {
+        const isChecked = check.checked;
+        const isTyped = input.value.trim().toLowerCase() === currentTargetUsername.toLowerCase();
+        submitBtn.disabled = !(isChecked && isTyped);
+    };
+
+    check.onchange = validate;
+    input.oninput = validate;
+
+    const modal = document.getElementById("delete-user-modal");
+    modal.style.display = "flex";
+}
+
+function closeDeleteUserModal() {
+    document.getElementById("delete-user-modal").style.display = "none";
+}
+
+document.getElementById("delete-user-modal").addEventListener("click", function(e) {
+    if (e.target === this) closeDeleteUserModal();
+});
+</script>
 {% endblock %}

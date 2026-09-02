@@ -408,3 +408,37 @@ def link_user_to_player(connection, user_id, player_id):
         (player_id, user_id),
     )
     connection.commit()
+
+
+def backup_and_delete_user(connection, user_id):
+    """Save an archival SQLite backup to data/backups/accounts/ and delete the user account."""
+    from datetime import datetime
+
+    user = get_user_by_id(connection, user_id)
+    if not user:
+        return None, None
+
+    db_file = get_accounts_db_file()
+    backup_dir = PROJECT_ROOT / "data" / "backups" / "accounts"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_filename = f"accounts_backup_{timestamp}.db"
+    backup_path = backup_dir / backup_filename
+
+    # Commit any active transactions
+    connection.commit()
+
+    # Create full SQLite backup
+    if db_file.exists():
+        backup_conn = sqlite3.connect(backup_path)
+        connection.backup(backup_conn)
+        backup_conn.close()
+
+    # Delete verification tokens and user
+    connection.execute("DELETE FROM email_verification_tokens WHERE user_id = ?", (user_id,))
+    connection.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    connection.commit()
+
+    return user, backup_filename
+
