@@ -436,44 +436,56 @@
 
 
     // ------------------------------------------------------------
-    // Transfer generated teams into Enter a Match
+    // Suggested Teams & Transfer into Enter a Match
     // ------------------------------------------------------------
     function initGeneratedTeamTransfer() {
+        const suggested = document.getElementById('suggested-teams');
         const generated = document.getElementById('generated-teams');
+        const transferBtn = document.getElementById('transfer-teams-btn');
 
-        if (!generated) {
+        if (suggested) {
+            suggested.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+
+        if (!generated || !transferBtn) {
             return;
         }
 
-        try {
-            const teams = JSON.parse(generated.textContent);
+        transferBtn.addEventListener('click', () => {
+            try {
+                const teams = JSON.parse(generated.textContent);
 
-            document
-                .querySelectorAll('#match-form .team-box')
-                .forEach((box, index) => {
-                    const team = teams[index === 0 ? 'a' : 'b'];
-                    const teamKey = index === 0 ? 'a' : 'b';
-                    const list = box.querySelector('.player-list');
+                document
+                    .querySelectorAll('#match-form .team-box')
+                    .forEach((box, index) => {
+                        const teamKey = index === 0 ? 'a' : 'b';
+                        const team = teams[teamKey];
+                        const list = box.querySelector('.player-list');
 
-                    if (!list || !team) {
-                        return;
-                    }
+                        if (!list || !team) {
+                            return;
+                        }
 
-                    list.innerHTML = '';
-                    team.forEach(pid => {
-                        addTeamPlayer(teamKey, pid);
+                        list.innerHTML = '';
+                        team.forEach(pid => {
+                            addTeamPlayer(teamKey, pid);
+                        });
                     });
-                });
 
-            document
-                .getElementById('enter-match')
-                ?.scrollIntoView({
-                    behavior: 'smooth'
-                });
+                document
+                    .getElementById('enter-match')
+                    ?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
 
-        } catch (error) {
-            console.error('Could not transfer generated teams:', error);
-        }
+            } catch (error) {
+                console.error('Could not transfer generated teams:', error);
+            }
+        });
     }
 
 

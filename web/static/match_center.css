@@ -75,6 +75,18 @@
     details summary {
         cursor: pointer;
         font-size: 18px;
+        user-select: none;
+    }
+
+    .parser-summary-subtext {
+        font-size: 14px;
+        margin-left: 8px;
+        font-weight: normal;
+    }
+
+    .parser-intro {
+        margin-top: 12px;
+        margin-bottom: 0;
     }
 
     .players {
