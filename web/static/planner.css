@@ -1,0 +1,470 @@
+/* Attendance Planner Styles */
+
+.planner-container {
+    max-width: 860px;
+    margin: 20px auto 60px;
+    padding: 0 16px;
+}
+
+.planner-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.planner-title-wrap h1 {
+    margin: 0;
+    font-size: 28px;
+    color: #ffffff;
+}
+
+.planner-title-wrap p {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.planner-admin-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Event Accordion Cards */
+.planner-event-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 18px;
+    overflow: hidden;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.planner-event-card:hover {
+    border-color: #582DA1;
+}
+
+.planner-event-card.expanded {
+    border-color: #7B52C5;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.planner-card-summary {
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    background: rgba(36, 25, 74, 0.4);
+    gap: 12px;
+}
+
+.planner-summary-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.planner-pitch-badge {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+}
+
+.planner-pitch-box {
+    background: #582DA1;
+    color: #ffffff;
+}
+
+.planner-pitch-hf {
+    background: #00897b;
+    color: #ffffff;
+}
+
+.planner-date-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.planner-time-tag {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.planner-summary-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.planner-counter-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.planner-counter-attending {
+    color: #88ff88;
+    background: rgba(40, 167, 69, 0.15);
+    border: 1px solid rgba(40, 167, 69, 0.3);
+}
+
+.planner-counter-declined {
+    color: #ff8888;
+    background: rgba(220, 53, 69, 0.15);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+.planner-toggle-arrow {
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+}
+
+.planner-event-card.expanded .planner-toggle-arrow {
+    transform: rotate(180deg);
+}
+
+/* Expanded Card Body */
+.planner-card-body {
+    display: none;
+    padding: 20px;
+    border-top: 1px solid var(--border);
+}
+
+.planner-event-card.expanded .planner-card-body {
+    display: block;
+}
+
+/* Action Controls Bar */
+.planner-actions-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    margin-bottom: 20px;
+}
+
+.planner-rsvp-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.planner-rsvp-btn {
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-attend {
+    background: rgba(40, 167, 69, 0.2);
+    color: #88ff88;
+    border-color: rgba(40, 167, 69, 0.4);
+}
+.btn-attend:hover, .btn-attend.active {
+    background: #28a745;
+    color: #ffffff;
+    border-color: #28a745;
+}
+
+.btn-decline {
+    background: rgba(220, 53, 69, 0.2);
+    color: #ff8888;
+    border-color: rgba(220, 53, 69, 0.4);
+}
+.btn-decline:hover, .btn-decline.active {
+    background: #dc3545;
+    color: #ffffff;
+    border-color: #dc3545;
+}
+
+.btn-cancel-rsvp {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    border-color: rgba(255, 255, 255, 0.15);
+    font-size: 12px;
+    padding: 7px 10px;
+}
+.btn-cancel-rsvp:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+}
+
+.planner-guest-btn {
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius);
+    background: var(--accent);
+    color: #ffffff;
+    border: 1px solid var(--accent);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+.planner-guest-btn:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
+.planner-guest-btn.btn-locked {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted);
+    border-color: rgba(255, 255, 255, 0.12);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* Roster Lists */
+.planner-roster-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 16px 0 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.planner-roster-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 8px;
+}
+
+.planner-player-item {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #ffffff;
+}
+
+.planner-player-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+}
+
+.planner-slot-number {
+    font-size: 11px;
+    font-weight: 700;
+    background: #582DA1;
+    color: #ffffff;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.planner-player-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.planner-player-guest {
+    font-style: italic;
+    color: #c9c2d8;
+}
+
+.planner-remove-btn {
+    background: none;
+    border: none;
+    color: #ff6b6b;
+    cursor: pointer;
+    font-size: 13px;
+    opacity: 0.6;
+    padding: 2px 5px;
+    border-radius: 3px;
+    transition: all 0.15s ease;
+}
+.planner-remove-btn:hover {
+    opacity: 1;
+    background: rgba(255, 107, 107, 0.15);
+}
+
+/* Waiting List Section */
+.planner-waiting-divider {
+    margin: 24px 0 16px;
+    border-top: 2px dashed rgba(245, 166, 35, 0.4);
+    position: relative;
+    text-align: center;
+}
+
+.planner-waiting-badge {
+    position: relative;
+    top: -12px;
+    background: #2a1b40;
+    color: #f5a623;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(245, 166, 35, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-block;
+}
+
+.planner-waiting-box {
+    background: rgba(245, 166, 35, 0.05);
+    border: 1px solid rgba(245, 166, 35, 0.15);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.planner-waiting-box .planner-slot-number {
+    background: #8e6210;
+    color: #ffe082;
+}
+
+.planner-waiting-box .planner-player-item {
+    color: #ffe082;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+/* Decliners Row */
+.planner-decliners-wrap {
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.planner-decliners-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #ff8888;
+}
+
+.planner-decliners-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.planner-decliner-tag {
+    background: rgba(220, 53, 69, 0.1);
+    border: 1px solid rgba(220, 53, 69, 0.2);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 12px;
+    color: #c9c2d8;
+}
+
+/* Modals */
+.planner-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.planner-modal-overlay.active {
+    display: flex;
+}
+
+.planner-modal-card {
+    background: #19113c;
+    border: 1px solid #7B52C5;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 440px;
+    padding: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.planner-modal-card h2 {
+    margin: 0 0 12px;
+    color: #ffffff;
+    font-size: 20px;
+}
+
+.planner-modal-card p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0 0 16px;
+    line-height: 1.4;
+}
+
+.planner-modal-form label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #ffffff;
+}
+
+.planner-modal-form input,
+.planner-modal-form select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: #24194A;
+    border: 1px solid #5A4A83;
+    color: #ffffff;
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+
+.planner-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.planner-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    background: var(--bg-surface);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+}

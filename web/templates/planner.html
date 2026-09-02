@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}RB48 — Attendance Planner{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='planner.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="planner-container">
+    <div class="planner-header-row">
+        <div class="planner-title-wrap">
+            <h1>Attendance Planner</h1>
+            <p>Upcoming RB48 matchdays and player sign-ups</p>
+        </div>
+        <div class="planner-admin-actions">
+            {% if current_user %}
+                <button type="button" class="secondary" data-open-name-modal style="padding: 8px 14px; font-size: 13px; cursor: pointer;">
+                    Name: <strong>{{ user_attendance_name }}</strong> ✎
+                </button>
+            {% endif %}
+            {% if has_tier('admin') %}
+                <button type="button" class="primary" id="open-schedule-modal-btn" style="padding: 8px 16px; font-size: 13px; cursor: pointer;">
+                    ＋ Schedule Matchday
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if events %}
+        <div class="planner-events-list">
+            {% for event in events %}
+                <div class="planner-event-card {% if loop.first %}expanded{% endif %}" id="event-card-{{ event.id }}">
+                    <!-- Card Summary Header (Accordion Trigger) -->
+                    <div class="planner-card-summary">
+                        <div class="planner-summary-left">
+                            <span class="planner-pitch-badge planner-pitch-{{ event.pitch_lower }}">{{ event.pitch }}</span>
+                            <span class="planner-date-title">{{ event.formatted_date }}</span>
+                            <span class="planner-time-tag">@ {{ event.formatted_time }} · {{ event.location }}</span>
+                        </div>
+                        <div class="planner-summary-right">
+                            <span class="planner-counter-badge planner-counter-attending" title="Attending players">
+                                👍 {{ event.attending_count }}/{{ event.max_players }}
+                            </span>
+                            {% if event.declined_count > 0 %}
+                                <span class="planner-counter-badge planner-counter-declined" title="Declined players">
+                                    👎 {{ event.declined_count }}
+                                </span>
+                            {% endif %}
+                            <span class="planner-toggle-arrow">▼</span>
+                        </div>
+                    </div>
+
+                    <!-- Card Body -->
+                    <div class="planner-card-body">
+                        <!-- Action Bar -->
+                        <div class="planner-actions-bar">
+                            {% if current_user %}
+                                <div class="planner-rsvp-group">
+                                    <form method="post" action="{{ url_for('planner.rsvp_event', event_id=event.id) }}" style="display: inline-flex; gap: 6px; margin: 0;">
+                                        <button type="submit" name="status" value="attending" class="planner-rsvp-btn btn-attend {% if event.user_rsvp == 'attending' %}active{% endif %}">
+                                            👍 Attend
+                                        </button>
+                                        <button type="submit" name="status" value="declined" class="planner-rsvp-btn btn-decline {% if event.user_rsvp == 'declined' %}active{% endif %}">
+                                            👎 Decline
+                                        </button>
+                                        {% if event.user_rsvp %}
+                                            <button type="submit" name="status" value="cancel" class="planner-rsvp-btn btn-cancel-rsvp" title="Clear my RSVP status">
+                                                ✕ Clear
+                                            </button>
+                                        {% endif %}
+                                    </form>
+
+                                    {% if event.guest_unlocked %}
+                                        <button type="button" class="planner-guest-btn" data-event-id="{{ event.id }}" data-open-guest-modal="member-guest-modal">
+                                            ＋ Add Guest
+                                        </button>
+                                    {% else %}
+                                        <button type="button" class="planner-guest-btn btn-locked" title="Guest registration opens on {{ event.guest_unlock_time_formatted }}">
+                                            ＋ Add Guest <span class="nav-lock-icon">🔒</span>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; flex-wrap: wrap; gap: 10px;">
+                                    <span style="font-size: 13px; color: var(--text-muted);">
+                                        <a href="{{ url_for('auth.login', next=request.path) }}" style="color: var(--accent-readable); font-weight: bold;">Log in</a> to RSVP as a member, or register as a guest player:
+                                    </span>
+                                    {% if event.guest_unlocked %}
+                                        <button type="button" class="planner-guest-btn" data-event-id="{{ event.id }}" data-open-guest-modal="visitor-guest-modal">
+                                            ＋ Attend as Guest Player
+                                        </button>
+                                    {% else %}
+                                        <button type="button" class="planner-guest-btn btn-locked" title="Guest player registration opens on {{ event.guest_unlock_time_formatted }}">
+                                            ＋ Attend as Guest Player <span class="nav-lock-icon">🔒</span>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+
+                            {% if has_tier('admin') %}
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <a href="{{ url_for('match_center.match_center') }}" class="secondary" style="font-size: 12px; padding: 6px 12px; text-decoration: none;" title="Go to Match Center">
+                                        Match Center →
+                                    </a>
+                                    <form method="post" action="{{ url_for('planner.delete_event_route', event_id=event.id) }}" onsubmit="return confirm('Are you sure you want to cancel and delete this matchday event?');" style="margin: 0;">
+                                        <button type="submit" class="secondary" style="font-size: 12px; padding: 6px 10px; color: #ff8888;" title="Cancel this event">
+                                            Cancel Event
+                                        </button>
+                                    </form>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Active Match Roster (1..Max Capacity) -->
+                        <div class="planner-roster-title">
+                            <span>Active Lineup ({{ event.active_roster | length }}/{{ event.max_players }})</span>
+                            {% if event.active_roster | length >= event.max_players %}
+                                <span style="font-size: 12px; color: #ffc107;">Pitch Capacity Reached</span>
+                            {% endif %}
+                        </div>
+
+                        {% if event.active_roster %}
+                            <ul class="planner-roster-list">
+                                {% for player in event.active_roster %}
+                                    <li class="planner-player-item">
+                                        <div class="planner-player-main">
+                                            <span class="planner-slot-number">{{ loop.index }}</span>
+                                            <span class="planner-player-name {% if player.is_guest %}planner-player-guest{% endif %}">
+                                                {{ player.name }}
+                                            </span>
+                                        </div>
+                                        {% if has_tier('admin') or (current_user and (player.user_id == current_user.id or player.registered_by_user_id == current_user.id)) %}
+                                            <form method="post" action="{{ url_for('planner.remove_event_attendee', event_id=event.id, attendee_id=player.id) }}" style="margin: 0;">
+                                                <button type="submit" class="planner-remove-btn" title="Remove {{ player.name }}">✕</button>
+                                            </form>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="muted" style="font-size: 13px; margin: 10px 0 20px;">No attendees yet. Be the first to sign up!</p>
+                        {% endif %}
+
+                        <!-- Waiting List (If Capacity Exceeded) -->
+                        {% if event.waiting_list %}
+                            <div class="planner-waiting-divider">
+                                <span class="planner-waiting-badge">Waiting List ({{ event.waiting_list | length }})</span>
+                            </div>
+                            <div class="planner-waiting-box">
+                                <ul class="planner-roster-list" style="margin-bottom: 0;">
+                                    {% for player in event.waiting_list %}
+                                        <li class="planner-player-item">
+                                            <div class="planner-player-main">
+                                                <span class="planner-slot-number">W{{ loop.index }}</span>
+                                                <span class="planner-player-name {% if player.is_guest %}planner-player-guest{% endif %}">
+                                                    {{ player.name }}
+                                                </span>
+                                            </div>
+                                            {% if has_tier('admin') or (current_user and (player.user_id == current_user.id or player.registered_by_user_id == current_user.id)) %}
+                                                <form method="post" action="{{ url_for('planner.remove_event_attendee', event_id=event.id, attendee_id=player.id) }}" style="margin: 0;">
+                                                    <button type="submit" class="planner-remove-btn" title="Remove {{ player.name }}">✕</button>
+                                                </form>
+                                            {% endif %}
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+
+                        <!-- Decliners Section -->
+                        {% if event.declined_list %}
+                            <div class="planner-decliners-wrap">
+                                <div class="planner-decliners-title">
+                                    <span>👎 Declined ({{ event.declined_count }})</span>
+                                </div>
+                                <div class="planner-decliners-tags">
+                                    {% for player in event.declined_list %}
+                                        <span class="planner-decliner-tag">{{ player.name }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="planner-empty-state">
+            <h2 style="color: #ffffff; margin-bottom: 8px;">No Upcoming Matchdays</h2>
+            <p class="muted">Check back soon for the next scheduled game dates.</p>
+            {% if has_tier('admin') %}
+                <button type="button" class="primary" onclick="document.getElementById('schedule-event-modal').classList.add('active');" style="margin-top: 14px; padding: 8px 18px;">
+                    ＋ Schedule First Matchday
+                </button>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+<!-- Modal 1: Member Add Guest -->
+<div class="planner-modal-overlay" id="member-guest-modal">
+    <div class="planner-modal-card">
+        <h2>Add Guest Player</h2>
+        <p>Enter the guest player's name. A suffix <code>(+1, +2...)</code> will be automatically appended to link them to your membership.</p>
+        <form method="post" class="planner-modal-form">
+            <input type="hidden" name="event_id_target" value="">
+            <label for="member_guest_name">Guest Name:</label>
+            <input type="text" id="member_guest_name" name="guest_name" placeholder="e.g. Max" required autocomplete="off">
+            <div class="planner-modal-actions">
+                <button type="button" class="secondary modal-cancel-btn">Cancel</button>
+                <button type="submit" class="primary">Add Guest</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal 2: Visitor Attend as Guest -->
+<div class="planner-modal-overlay" id="visitor-guest-modal">
+    <div class="planner-modal-card">
+        <h2>Attend as Guest Player</h2>
+        <p>Enter your full name to join the match attendance list as a guest player.</p>
+        <form method="post" class="planner-modal-form">
+            <input type="hidden" name="event_id_target" value="">
+            <label for="visitor_guest_name">Your Name:</label>
+            <input type="text" id="visitor_guest_name" name="guest_name" placeholder="e.g. Dennis" required autocomplete="off">
+            <div class="planner-modal-actions">
+                <button type="button" class="secondary modal-cancel-btn">Cancel</button>
+                <button type="submit" class="primary">Sign Up as Guest</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal 3: Admin Schedule Matchday -->
+{% if has_tier('admin') %}
+<div class="planner-modal-overlay" id="schedule-event-modal">
+    <div class="planner-modal-card">
+        <h2>Schedule Matchday Event</h2>
+        <p>Create a new upcoming matchday session for members and guests to attend.</p>
+        <form method="post" action="{{ url_for('planner.create_event_route') }}" class="planner-modal-form">
+            <label for="event_date">Date & Time:</label>
+            <input type="datetime-local" id="event_date" name="event_date" required>
+
+            <label for="pitch_select">Pitch Format:</label>
+            <select id="pitch_select" name="pitch" required>
+                <option value="box">BOX (Capacity: 12 Players)</option>
+                <option value="hf">Half-Field / HF (Capacity: 18 Players)</option>
+            </select>
+
+            <label for="event_title">Title (Optional):</label>
+            <input type="text" id="event_title" name="title" placeholder="e.g. Tuesday Kickoff">
+
+            <label for="event_location">Location (Optional):</label>
+            <input type="text" id="event_location" name="location" placeholder="e.g. RB48 Arena">
+
+            <div class="planner-modal-actions">
+                <button type="button" class="secondary modal-cancel-btn">Cancel</button>
+                <button type="submit" class="primary">Schedule Event</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal 4: Member Attendance Display Name Settings -->
+{% if current_user %}
+<div class="planner-modal-overlay" id="attendance-name-modal">
+    <div class="planner-modal-card">
+        <h2>Attendance Display Name</h2>
+        <p>Set the custom nickname or name that appears on the attendance list when you RSVP.</p>
+        <form method="post" action="{{ url_for('planner.update_attendance_name') }}" class="planner-modal-form">
+            <label for="attendance_name_input">Display Name:</label>
+            <input type="text" id="attendance_name_input" name="attendance_name" value="{{ user_attendance_name }}" required>
+            <div class="planner-modal-actions">
+                <button type="button" class="secondary modal-cancel-btn">Cancel</button>
+                <button type="submit" class="primary">Save Name</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='planner.js') }}"></script>
+{% endblock %}

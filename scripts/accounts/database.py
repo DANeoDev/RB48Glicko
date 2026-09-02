@@ -29,6 +29,7 @@ def create_account_tables(connection):
                 CHECK (role IN ('user', 'admin', 'webmaster')),
             email_verified INTEGER NOT NULL DEFAULT 0,
             is_approved INTEGER NOT NULL DEFAULT 0,
+            attendance_name TEXT,
             psychology_test_passed INTEGER NOT NULL DEFAULT 0,
             psychology_test_date TEXT,
             player_id INTEGER,
@@ -54,6 +55,8 @@ def create_account_tables(connection):
         connection.execute("ALTER TABLE users ADD COLUMN is_approved INTEGER NOT NULL DEFAULT 0")
         # Automatically mark existing admins and webmasters as approved
         connection.execute("UPDATE users SET is_approved = 1 WHERE role IN ('admin', 'webmaster')")
+    if "attendance_name" not in existing_columns:
+        connection.execute("ALTER TABLE users ADD COLUMN attendance_name TEXT")
     if "psychology_test_passed" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN psychology_test_passed INTEGER NOT NULL DEFAULT 0")
     if "psychology_test_date" not in existing_columns:
@@ -76,6 +79,7 @@ def get_user_by_id(connection, user_id):
             role,
             email_verified,
             is_approved,
+            attendance_name,
             psychology_test_passed,
             psychology_test_date,
             player_id,
@@ -99,6 +103,7 @@ def get_user_by_login(connection, login):
             role,
             email_verified,
             is_approved,
+            attendance_name,
             psychology_test_passed,
             psychology_test_date,
             player_id,
@@ -122,6 +127,7 @@ def get_user_by_email(connection, email):
             role,
             email_verified,
             is_approved,
+            attendance_name,
             psychology_test_passed,
             psychology_test_date,
             player_id,
@@ -144,6 +150,7 @@ def get_all_users(connection):
             role,
             email_verified,
             is_approved,
+            attendance_name,
             psychology_test_passed,
             created_at
         FROM users
@@ -162,6 +169,7 @@ def get_pending_users(connection):
             email,
             role,
             email_verified,
+            attendance_name,
             created_at
         FROM users
         WHERE is_approved = 0 AND role = 'user'
@@ -170,10 +178,12 @@ def get_pending_users(connection):
     ).fetchall()
 
 
-def create_user(connection, username, email, password_hash, created_at, role="user", is_approved=0):
+def create_user(connection, username, email, password_hash, created_at, role="user", is_approved=0, attendance_name=None):
     """Insert a new user account."""
     if role in ("admin", "webmaster"):
         is_approved = 1
+    if not attendance_name:
+        attendance_name = username
     cursor = connection.execute(
         """
         INSERT INTO users (
@@ -182,11 +192,12 @@ def create_user(connection, username, email, password_hash, created_at, role="us
             password_hash,
             role,
             is_approved,
+            attendance_name,
             created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (username, email, password_hash, role, is_approved, created_at),
+        (username, email, password_hash, role, is_approved, attendance_name, created_at),
     )
     connection.commit()
     return cursor.lastrowid
@@ -220,6 +231,15 @@ def approve_user(connection, user_id, approved=True):
     connection.execute(
         "UPDATE users SET is_approved = ? WHERE id = ?",
         (1 if approved else 0, user_id),
+    )
+    connection.commit()
+
+
+def set_user_attendance_name(connection, user_id, attendance_name):
+    """Update user's attendance display name."""
+    connection.execute(
+        "UPDATE users SET attendance_name = ? WHERE id = ?",
+        (attendance_name.strip(), user_id),
     )
     connection.commit()
 
