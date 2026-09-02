@@ -2,12 +2,12 @@ __pycache__/
 *.py[cod]
 .venv/
 
-# Local databases
-data/*.db
-data/*.sqlite
-data/*.sqlite3
+# Local databases and secrets
+data/
+.env
+*.env
 
-# Match input data
+# Local matches
 matches/
 
 # Database backups
@@ -19,6 +19,7 @@ data/news/
 # Generated / local analysis output
 data/stats/
 data/ratings/
+data/glicko/
 
 # Local development files
 TO-DOs.md
@@ -28,6 +29,3 @@ TO-DOs.md
 .ruff_cache/
 .coverage
 htmlcov/
-
-# Local demo sqlite database
-data/demo/demo.db
