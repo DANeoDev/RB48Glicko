@@ -28,8 +28,12 @@
 {% endblock %}
 
 {% block content %}
-<div class="profile">
-<div class="page-header">
+<div class="page-header" style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+{% if linked_user and linked_user.avatar_file %}
+<div style="width: 80px; height: 80px; border-radius: 50%; overflow: hidden; border: 2px solid #7B52C5; margin-bottom: 4px; box-shadow: 0 4px 14px rgba(0,0,0,0.3);">
+<img src="{{ url_for('static', filename=linked_user.avatar_file) }}" alt="{{ player['aliases'][0] }}" style="width: 100%; height: 100%; object-fit: cover;">
+</div>
+{% endif %}
 <h1>{{ player["aliases"][0] }}</h1>
 <p><a href="{{ url_for('stats.stats') }}">← Back to Stats</a></p>
 </div>

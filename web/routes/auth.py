@@ -211,3 +211,100 @@ def toggle_approval(user_id):
         return redirect(url_for("auth.admin_users"))
     finally:
         connection.close()
+
+
+@auth_bp.route("/settings")
+@require_tier(Tier.USER)
+def settings():
+    """Profile & account settings page."""
+    user = get_current_user()
+    from scripts.database.database import get_connection as get_main_connection
+    from scripts.database.db_players import get_players
+
+    main_conn = get_main_connection()
+    try:
+        players = get_players(main_conn)
+    finally:
+        main_conn.close()
+
+    return render_template("settings.html", user=user, players=players)
+
+
+@auth_bp.route("/settings/profile", methods=["POST"])
+@require_tier(Tier.USER)
+def update_profile():
+    """Update profile attendance name, player connection, and avatar picture."""
+    import os
+    import time
+    from pathlib import Path
+    from werkzeug.utils import secure_filename
+    from scripts.accounts.database import get_accounts_connection, update_user_profile
+
+    user = get_current_user()
+    attendance_name = request.form.get("attendance_name", "").strip()
+    player_id_raw = request.form.get("player_id", "")
+    player_id = int(player_id_raw) if player_id_raw.isdigit() and int(player_id_raw) > 0 else None
+
+    avatar_file = user.get("avatar_file")
+    avatar_upload = request.files.get("avatar")
+
+    if avatar_upload and avatar_upload.filename:
+        ext = avatar_upload.filename.rsplit(".", 1)[-1].lower() if "." in avatar_upload.filename else ""
+        if ext in ("png", "jpg", "jpeg", "webp", "gif"):
+            upload_dir = Path(__file__).resolve().parents[2] / "web" / "static" / "uploads" / "avatars"
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            filename = f"user_{user['id']}_{int(time.time())}.{ext}"
+            filepath = upload_dir / filename
+            avatar_upload.save(str(filepath))
+            avatar_file = f"uploads/avatars/{filename}"
+        else:
+            flash("Invalid image format. Supported formats: PNG, JPG, WEBP, GIF.", "warning")
+
+    conn = get_accounts_connection()
+    try:
+        update_user_profile(
+            conn,
+            user["id"],
+            attendance_name=attendance_name if attendance_name else user["username"],
+            player_id=player_id,
+            avatar_file=avatar_file,
+        )
+        flash("Profile settings updated successfully!", "success")
+    finally:
+        conn.close()
+
+    return redirect(url_for("auth.settings"))
+
+
+@auth_bp.route("/settings/password", methods=["POST"])
+@require_tier(Tier.USER)
+def update_password():
+    """Change account password."""
+    from werkzeug.security import check_password_hash, generate_password_hash
+    from scripts.accounts.database import get_accounts_connection, update_user_password
+
+    user = get_current_user()
+    current_password = request.form.get("current_password", "")
+    new_password = request.form.get("new_password", "")
+    confirm_password = request.form.get("confirm_password", "")
+
+    if not check_password_hash(user["password_hash"], current_password):
+        flash("Current password is incorrect.", "danger")
+        return redirect(url_for("auth.settings"))
+
+    if len(new_password) < 8:
+        flash("New password must be at least 8 characters long.", "warning")
+        return redirect(url_for("auth.settings"))
+
+    if new_password != confirm_password:
+        flash("New passwords do not match.", "warning")
+        return redirect(url_for("auth.settings"))
+
+    conn = get_accounts_connection()
+    try:
+        update_user_password(conn, user["id"], generate_password_hash(new_password))
+        flash("Your password has been changed successfully.", "success")
+    finally:
+        conn.close()
+
+    return redirect(url_for("auth.settings"))

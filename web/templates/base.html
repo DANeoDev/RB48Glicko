@@ -270,6 +270,7 @@
                     {% if current_user.role == 'webmaster' %}
                         <a href="{{ url_for('auth.admin_users') }}" style="color: #80deea; font-weight: 600;">👥 User Management</a>
                     {% endif %}
+                    <a href="{{ url_for('auth.settings') }}">⚙️ Profile & Settings</a>
                     <a href="{{ url_for('planner.planner') }}">Attendance Planner</a>
                     {% if has_tier('user') and not current_user.get('psychology_test_passed') %}
                         <a href="{{ url_for('auth.glicko_test') }}" style="font-size: 12px; color: var(--text-muted);">Glicko Assessment</a>

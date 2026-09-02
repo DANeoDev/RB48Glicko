@@ -3,9 +3,10 @@ import time
 import unittest
 
 from scripts.accounts.auth import register_user
-from scripts.accounts.database import approve_user, get_accounts_connection, mark_email_verified, update_user_role
+from scripts.accounts.database import approve_user, get_accounts_connection, get_user_by_id, mark_email_verified, update_user_role
 from scripts.planner.database import (
     add_guest_rsvp,
+    add_standard_wednesday_events,
     cancel_user_rsvp,
     create_event,
     get_event_attendees,
@@ -37,6 +38,37 @@ class PlannerTests(unittest.TestCase):
 
         self.assertEqual(box_event["max_players"], 12)
         self.assertEqual(hf_event["max_players"], 18)
+
+    def test_add_standard_wednesday_events_alternating(self):
+        # Clear existing events
+        self.conn.execute("DELETE FROM attendees")
+        self.conn.execute("DELETE FROM events")
+        self.conn.commit()
+
+        # Seed initial box event on a Tuesday
+        create_event(self.conn, "2026-09-08 20:00", "box")
+
+        created_ids = add_standard_wednesday_events(self.conn, count=4)
+        self.assertEqual(len(created_ids), 4)
+
+        events = get_upcoming_events(self.conn, limit=10)
+        # 1st is the Tuesday BOX, followed by the 4 Wednesdays:
+        # Since last was BOX, the 1st new Wednesday must be HF!
+        self.assertEqual(events[1]["pitch"], "hf")
+        self.assertEqual(events[1]["max_players"], 18)
+        self.assertIn("Halbfeld", events[1]["location"])
+        self.assertIn("20:30", events[1]["event_date"])
+
+        # 2nd Wednesday must be BOX
+        self.assertEqual(events[2]["pitch"], "box")
+        self.assertEqual(events[2]["max_players"], 12)
+        self.assertIn("Soccerbox", events[2]["location"])
+        self.assertIn("20:00", events[2]["event_date"])
+
+        # 3rd Wednesday must be HF
+        self.assertEqual(events[3]["pitch"], "hf")
+        # 4th Wednesday must be BOX
+        self.assertEqual(events[4]["pitch"], "box")
 
     def test_chronological_ordering_and_waiting_list(self):
         event_id = create_event(self.conn, "2026-11-01 18:30", "box", max_players=3)
@@ -85,7 +117,7 @@ class PlannerTests(unittest.TestCase):
         event_id = create_event(self.conn, "2026-12-01 18:30", "box")
 
         # 1. Visitor guest
-        visitor_guest_id = add_guest_rsvp(self.conn, event_id, "Dennis", registered_by_user_id=None, registered_by_name=None)
+        add_guest_rsvp(self.conn, event_id, "Dennis", registered_by_user_id=None, registered_by_name=None)
         attendees = [dict(a) for a in get_event_attendees(self.conn, event_id)]
         self.assertEqual(attendees[0]["name"], "Dennis (Guest)")
 
@@ -105,6 +137,7 @@ class PlannerTests(unittest.TestCase):
         try:
             mark_email_verified(acc_conn, user_id)
             approve_user(acc_conn, user_id, approved=True)
+            update_user_role(acc_conn, user_id, "admin")
         finally:
             acc_conn.close()
 
@@ -118,19 +151,30 @@ class PlannerTests(unittest.TestCase):
         resp = self.client.post(f"/planner/{past_event_id}/rsvp", data={"status": "attending"}, follow_redirects=True)
         self.assertEqual(resp.status_code, 200)
 
-        # 2. Update attendance name
-        name_resp = self.client.post("/settings/attendance-name", data={"attendance_name": "ProKonsti"}, follow_redirects=True)
-        self.assertEqual(name_resp.status_code, 200)
+        # 2. Update profile via settings
+        prof_resp = self.client.post("/settings/profile", data={"attendance_name": "ProKonsti", "player_id": "1"}, follow_redirects=True)
+        self.assertEqual(prof_resp.status_code, 200)
+
+        acc_conn2 = get_accounts_connection()
+        u = get_user_by_id(acc_conn2, user_id)
+        acc_conn2.close()
+        self.assertEqual(u["attendance_name"], "ProKonsti")
+        self.assertEqual(u["player_id"], 1)
 
         # 3. Add a guest
         guest_resp = self.client.post(f"/planner/{past_event_id}/guest", data={"guest_name": "Lukas"}, follow_redirects=True)
         self.assertEqual(guest_resp.status_code, 200)
         self.assertIn(b"Lukas (ProKonsti +1)", guest_resp.data)
 
-        # 4. View /planner page
-        get_resp = self.client.get("/planner")
-        self.assertEqual(get_resp.status_code, 200)
-        self.assertIn(b"Attendance Planner", get_resp.data)
+        # 4. Admin auto-seed 4 matchdays
+        seed_resp = self.client.post("/planner/events/auto-seed", follow_redirects=True)
+        self.assertEqual(seed_resp.status_code, 200)
+        self.assertIn(b"standard Wednesday matchdays", seed_resp.data)
+
+        # 5. View /settings page
+        settings_resp = self.client.get("/settings")
+        self.assertEqual(settings_resp.status_code, 200)
+        self.assertIn(b"Profile Information", settings_resp.data)
 
 
 if __name__ == "__main__":

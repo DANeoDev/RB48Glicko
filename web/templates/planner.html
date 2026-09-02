@@ -15,13 +15,18 @@
         </div>
         <div class="planner-admin-actions">
             {% if current_user %}
-                <button type="button" class="secondary" data-open-name-modal style="padding: 8px 14px; font-size: 13px; cursor: pointer;">
-                    Name: <strong>{{ user_attendance_name }}</strong> ✎
-                </button>
+                <a href="{{ url_for('auth.settings') }}" class="secondary" style="padding: 8px 14px; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                    Name: <strong>{{ user_attendance_name }}</strong> ⚙️
+                </a>
             {% endif %}
             {% if has_tier('admin') %}
+                <form method="post" action="{{ url_for('planner.auto_seed_events') }}" style="margin: 0; display: inline;">
+                    <button type="submit" class="secondary" style="padding: 8px 14px; font-size: 13px; cursor: pointer;" title="Automatically schedule the next 4 Wednesdays with alternating BOX/HF pitches">
+                        ＋ Add 4 Standard Matches
+                    </button>
+                </form>
                 <button type="button" class="primary" id="open-schedule-modal-btn" style="padding: 8px 16px; font-size: 13px; cursor: pointer;">
-                    ＋ Schedule Matchday
+                    ＋ Custom Matchday
                 </button>
             {% endif %}
         </div>
@@ -190,9 +195,16 @@
             <h2 style="color: #ffffff; margin-bottom: 8px;">No Upcoming Matchdays</h2>
             <p class="muted">Check back soon for the next scheduled game dates.</p>
             {% if has_tier('admin') %}
-                <button type="button" class="primary" onclick="document.getElementById('schedule-event-modal').classList.add('active');" style="margin-top: 14px; padding: 8px 18px;">
-                    ＋ Schedule First Matchday
-                </button>
+                <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <form method="post" action="{{ url_for('planner.auto_seed_events') }}" style="margin: 0;">
+                        <button type="submit" class="primary" style="padding: 8px 18px;">
+                            ＋ Add 4 Standard Matches
+                        </button>
+                    </form>
+                    <button type="button" class="secondary" onclick="document.getElementById('schedule-event-modal').classList.add('active');" style="padding: 8px 18px;">
+                        ＋ Custom Matchday
+                    </button>
+                </div>
             {% endif %}
         </div>
     {% endif %}

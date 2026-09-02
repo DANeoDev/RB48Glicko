@@ -1,6 +1,4 @@
-"""SQLite database operations for the Attendance Planner."""
-
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 import sqlite3
@@ -74,6 +72,78 @@ def create_event(connection, event_date, pitch, title=None, location=None, max_p
     )
     connection.commit()
     return cursor.lastrowid
+
+
+def add_standard_wednesday_events(connection, count=4):
+    """Add standard Wednesday matchdays starting with alternating pitch after the latest open event.
+
+    - BOX: 20:00 at Soccerbox - Uni Sport (capacity: 12)
+    - HF: 20:30 at Halbfeld - Zülpicher Wall 5 (capacity: 18)
+    """
+    latest_event = connection.execute(
+        """
+        SELECT event_date, pitch
+        FROM events
+        WHERE status = 'open'
+        ORDER BY event_date DESC, id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+
+    if latest_event:
+        try:
+            date_str = latest_event["event_date"]
+            if "T" in date_str:
+                last_dt = datetime.fromisoformat(date_str)
+            elif " " in date_str:
+                last_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M")
+            else:
+                last_dt = datetime.strptime(date_str, "%Y-%m-%d")
+        except Exception:
+            last_dt = datetime.now()
+
+        base_date = last_dt.date()
+        last_pitch = latest_event["pitch"].lower()
+        next_pitch = "hf" if last_pitch == "box" else "box"
+    else:
+        base_date = datetime.now().date()
+        next_pitch = "box"
+
+    # Find the first Wednesday strictly after base_date (weekday 2)
+    days_ahead = (2 - base_date.weekday()) % 7
+    if days_ahead == 0:
+        days_ahead = 7
+
+    first_wed = base_date + timedelta(days=days_ahead)
+    created_ids = []
+
+    current_pitch = next_pitch
+    for i in range(count):
+        wed_date = first_wed + timedelta(weeks=i)
+        if current_pitch == "box":
+            time_str = "20:00"
+            location = "Soccerbox - Uni Sport"
+            max_players = 12
+            title = "RB48 BOX Matchday"
+        else:
+            time_str = "20:30"
+            location = "Halbfeld - Zülpicher Wall 5"
+            max_players = 18
+            title = "RB48 HF Matchday"
+
+        date_formatted = f"{wed_date.strftime('%Y-%m-%d')} {time_str}"
+        event_id = create_event(
+            connection,
+            event_date=date_formatted,
+            pitch=current_pitch,
+            title=title,
+            location=location,
+            max_players=max_players,
+        )
+        created_ids.append(event_id)
+        current_pitch = "hf" if current_pitch == "box" else "box"
+
+    return created_ids
 
 
 def get_upcoming_events(connection, limit=10):
