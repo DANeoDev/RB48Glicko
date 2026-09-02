@@ -6,10 +6,11 @@ ACCOUNTS_DATABASE_FILE = PROJECT_ROOT / "data" / "accounts.db"
 
 
 def get_accounts_connection():
-    """Return a connection to the separate account database."""
+    """Return a connection to the separate account database with foreign keys enabled."""
     ACCOUNTS_DATABASE_FILE.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(ACCOUNTS_DATABASE_FILE)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
     create_account_tables(connection)
     return connection
 

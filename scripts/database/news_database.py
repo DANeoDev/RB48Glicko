@@ -7,12 +7,13 @@ NEWS_DIRECTORY = PROJECT_ROOT / "data" / "news"
 
 
 def get_news_connection():
-    """Return a connection to the separate News database."""
+    """Return a connection to the separate News database with foreign keys enabled."""
     NEWS_DATABASE_FILE.parent.mkdir(parents=True, exist_ok=True)
     NEWS_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
     connection = sqlite3.connect(NEWS_DATABASE_FILE)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
     create_news_table(connection)
     return connection
 

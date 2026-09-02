@@ -8,9 +8,10 @@ DATABASE_FILE = PROJECT_ROOT / "data" / "rb48.db"
 
 
 def get_connection():
-    """Return a connection to the primary RB48 database."""
+    """Return a connection to the primary RB48 database with foreign keys enabled."""
     connection = sqlite3.connect(DATABASE_FILE)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 

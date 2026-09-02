@@ -21,8 +21,6 @@ development.
 
 Currently implemented:
 
-Currently implemented:
-
 - SQLite database for players, matches, ratings and statistics
 - Player management with unique IDs, aliases and positions
 - Match entry through the web interface, including AI-assisted extraction from images and text via an external AI API
@@ -258,20 +256,10 @@ more substantially between rating periods.
 Players start with:
 
 - Rating: `1500`
-- RD: `161.8`
-- Sigma: `0.06`
+- RD: `348`
+- Sigma: `0.03`
 
-The standard Glicko-2 starting RD of 350 was reduced to 161.8 because the
-context of RB48Glicko differs substantially from the original competitive
-rating scenarios for which Glicko was designed.
-
-In this recreational football environment, participating in a match already
-provides considerably more information about a player's playing level than
-the initial uncertainty assumed by the standard Glicko-2 configuration.
-
-The Sigma value of `0.06` is the standard Glicko-2 default and is currently
-left unchanged. It can be adjusted in the future if additional match data
-suggests that a different level of performance volatility is appropriate.
+Custom initial calibrations can also be configured per player for players with known non-average skill levels.
 
 ---
 
