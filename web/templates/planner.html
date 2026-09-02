@@ -255,21 +255,35 @@
     <div class="planner-modal-card">
         <h2>Schedule Matchday Event</h2>
         <p>Create a new upcoming matchday session for members and guests to attend.</p>
-        <form method="post" action="{{ url_for('planner.create_event_route') }}" class="planner-modal-form">
-            <label for="event_date">Date & Time:</label>
-            <input type="datetime-local" id="event_date" name="event_date" required>
-
+        <form method="post" action="{{ url_for('planner.create_event_route') }}" class="planner-modal-form" id="schedule-event-form">
             <label for="pitch_select">Pitch Format:</label>
             <select id="pitch_select" name="pitch" required>
-                <option value="box">BOX (Capacity: 12 Players)</option>
-                <option value="hf">Half-Field / HF (Capacity: 18 Players)</option>
+                <option value="box" selected>Box (12 Players)</option>
+                <option value="hf">Halbfeld / HF (18 Players)</option>
+                <option value="custom">Custom Format</option>
             </select>
 
-            <label for="event_title">Title (Optional):</label>
-            <input type="text" id="event_title" name="title" placeholder="e.g. Tuesday Kickoff">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                <div>
+                    <label for="event_date_input" style="font-size: 13px; font-weight: 600; margin-bottom: 4px; display: block;">Date:</label>
+                    <input type="date" id="event_date_input" name="event_date_only" required style="width: 100%; box-sizing: border-box; margin-bottom: 0;">
+                </div>
+                <div>
+                    <label for="event_time_input" style="font-size: 13px; font-weight: 600; margin-bottom: 4px; display: block;">Time:</label>
+                    <input type="time" id="event_time_input" name="event_time_only" value="20:00" required style="width: 100%; box-sizing: border-box; margin-bottom: 0;">
+                </div>
+            </div>
 
-            <label for="event_location">Location (Optional):</label>
-            <input type="text" id="event_location" name="location" placeholder="e.g. RB48 Arena">
+            <div id="custom_capacity_group" style="display: none; margin-bottom: 12px;">
+                <label for="max_players_input" style="font-size: 13px; font-weight: 600; margin-bottom: 4px; display: block;">Max Amount of Players:</label>
+                <input type="number" id="max_players_input" name="max_players" min="2" max="60" value="12" style="width: 100%; box-sizing: border-box; margin-bottom: 0;">
+            </div>
+
+            <label for="event_location">Location:</label>
+            <input type="text" id="event_location" name="location" value="Soccerbox - Unisport" placeholder="e.g. Soccerbox - Unisport">
+
+            <label for="event_title">Title (Optional):</label>
+            <input type="text" id="event_title" name="title" placeholder="e.g. Wednesday Kickoff">
 
             <div class="planner-modal-actions">
                 <button type="button" class="secondary modal-cancel-btn">Cancel</button>

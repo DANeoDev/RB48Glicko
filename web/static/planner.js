@@ -60,10 +60,54 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // Schedule Event Button
+    // Schedule Event Button & Pitch Format Dynamic Defaults
     const scheduleBtn = document.getElementById("open-schedule-modal-btn");
+    const pitchSelect = document.getElementById("pitch_select");
+    const eventDateInput = document.getElementById("event_date_input");
+    const eventTimeInput = document.getElementById("event_time_input");
+    const eventLocationInput = document.getElementById("event_location");
+    const customCapacityGroup = document.getElementById("custom_capacity_group");
+    const maxPlayersInput = document.getElementById("max_players_input");
+
+    const updatePitchDefaults = () => {
+        if (!pitchSelect) return;
+        const format = pitchSelect.value;
+        if (format === "box") {
+            if (eventLocationInput) eventLocationInput.value = "Soccerbox - Unisport";
+            if (eventTimeInput) eventTimeInput.value = "20:00";
+            if (customCapacityGroup) customCapacityGroup.style.display = "none";
+            if (maxPlayersInput) maxPlayersInput.value = "12";
+        } else if (format === "hf") {
+            if (eventLocationInput) eventLocationInput.value = "Halbfeld - Zülpicher Wall 5";
+            if (eventTimeInput) eventTimeInput.value = "20:30";
+            if (customCapacityGroup) customCapacityGroup.style.display = "none";
+            if (maxPlayersInput) maxPlayersInput.value = "18";
+        } else if (format === "custom") {
+            if (eventLocationInput) {
+                eventLocationInput.value = "";
+                eventLocationInput.placeholder = "e.g. Venue / Pitch Name";
+            }
+            if (customCapacityGroup) customCapacityGroup.style.display = "block";
+            if (maxPlayersInput && (!maxPlayersInput.value || maxPlayersInput.value === "12" || maxPlayersInput.value === "18")) {
+                maxPlayersInput.value = "14";
+            }
+        }
+    };
+
+    if (pitchSelect) {
+        pitchSelect.addEventListener("change", updatePitchDefaults);
+    }
+
     if (scheduleBtn) {
-        scheduleBtn.addEventListener("click", () => openModal("schedule-event-modal"));
+        scheduleBtn.addEventListener("click", () => {
+            if (eventDateInput && !eventDateInput.value) {
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                eventDateInput.value = tomorrow.toISOString().split("T")[0];
+            }
+            updatePitchDefaults();
+            openModal("schedule-event-modal");
+        });
     }
 
     // Attendance Name Settings Button

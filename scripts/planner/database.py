@@ -28,7 +28,7 @@ def create_planner_tables(connection):
         CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event_date TEXT NOT NULL,
-            pitch TEXT NOT NULL CHECK (pitch IN ('box', 'hf')),
+            pitch TEXT NOT NULL CHECK (pitch IN ('box', 'hf', 'custom')),
             max_players INTEGER NOT NULL,
             title TEXT,
             location TEXT,
@@ -36,6 +36,31 @@ def create_planner_tables(connection):
             created_at TEXT NOT NULL
         )
     """)
+
+    # Migrate legacy events table if pitch constraint only allowed ('box', 'hf')
+    table_sql = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='events'"
+    ).fetchone()
+    if table_sql and table_sql[0] and "CHECK (pitch IN ('box', 'hf'))" in table_sql[0]:
+        connection.execute("PRAGMA foreign_keys = OFF")
+        connection.execute("ALTER TABLE events RENAME TO events_old")
+        connection.execute("""
+            CREATE TABLE events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_date TEXT NOT NULL,
+                pitch TEXT NOT NULL CHECK (pitch IN ('box', 'hf', 'custom')),
+                max_players INTEGER NOT NULL,
+                title TEXT,
+                location TEXT,
+                status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'completed', 'cancelled')),
+                created_at TEXT NOT NULL
+            )
+        """)
+        connection.execute("INSERT INTO events SELECT * FROM events_old")
+        connection.execute("DROP TABLE events_old")
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.commit()
+
     connection.execute("""
         CREATE TABLE IF NOT EXISTS attendees (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,10 +81,15 @@ def create_planner_tables(connection):
 def create_event(connection, event_date, pitch, title=None, location=None, max_players=None, created_at=None):
     """Create a new upcoming match event."""
     pitch = pitch.lower()
-    if pitch not in ("box", "hf"):
+    if pitch not in ("box", "hf", "custom"):
         raise ValueError(f"Invalid pitch type: {pitch}")
     if max_players is None:
-        max_players = 12 if pitch == "box" else 18
+        if pitch == "box":
+            max_players = 12
+        elif pitch == "hf":
+            max_players = 18
+        else:
+            max_players = 12
     if created_at is None:
         created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 

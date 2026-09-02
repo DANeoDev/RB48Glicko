@@ -250,6 +250,52 @@ class PlannerTests(unittest.TestCase):
         mc_resp = self.client.get("/match-center?players=1,2,3")
         self.assertEqual(mc_resp.status_code, 200)
 
+    def test_create_custom_pitch_event(self):
+        # 1. Direct DB create
+        custom_id = create_event(self.conn, "2026-11-01 19:00", "custom", title="Tournament Special", max_players=22, location="RheinEnergieSportpark")
+        evt = get_event_by_id(self.conn, custom_id)
+        self.assertEqual(evt["pitch"], "custom")
+        self.assertEqual(evt["max_players"], 22)
+        self.assertEqual(evt["location"], "RheinEnergieSportpark")
+
+        # 2. HTTP route create with admin user
+        unique_name = f"admin_user_{int(time.time() * 1000000)}"
+        admin_id, _ = register_user(unique_name, f"{unique_name}@example.com", "Secret1234!")
+        acc_conn = get_accounts_connection()
+        try:
+            mark_email_verified(acc_conn, admin_id)
+            approve_user(acc_conn, admin_id, approved=True)
+            update_user_role(acc_conn, admin_id, "admin")
+        finally:
+            acc_conn.close()
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = admin_id
+
+        resp = self.client.post(
+            "/planner/events/create",
+            data={
+                "pitch": "custom",
+                "event_date_only": "2026-11-15",
+                "event_time_only": "19:30",
+                "max_players": "16",
+                "location": "Jahnwiesen",
+                "title": "Sunday Cup",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"CUSTOM matchday scheduled", resp.data)
+
+        # Verify in DB
+        events = get_upcoming_events(self.conn)
+        created_cup = next((e for e in events if e["title"] == "Sunday Cup"), None)
+        self.assertIsNotNone(created_cup)
+        self.assertEqual(created_cup["pitch"], "custom")
+        self.assertEqual(created_cup["max_players"], 16)
+        self.assertEqual(created_cup["location"], "Jahnwiesen")
+        self.assertEqual(created_cup["event_date"], "2026-11-15 19:30")
+
 
 if __name__ == "__main__":
     unittest.main()
