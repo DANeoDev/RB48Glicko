@@ -4,8 +4,12 @@ from __future__ import annotations
 import csv
 import math
 import os
-import statistics
 from pathlib import Path
+import statistics
+import sys
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from scripts.database.database import get_connection
 from scripts.database.db_players import get_players
