@@ -3,52 +3,60 @@
 {% block title %}User Management · RB48{% endblock %}
 
 {% block content %}
-<div class="page-container" style="max-width: 1000px; margin: 30px auto; padding: 0 20px;">
+<div class="page-container" style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
     <div class="account-card" style="padding: 24px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
             <div>
                 <h1 style="margin: 0; color: #ffffff;">User Management</h1>
-                <p class="muted" style="margin-top: 4px;">Review registered accounts and approve memberships.</p>
+                <p class="muted" style="margin-top: 4px;">Review registered accounts, approve memberships, and manage player profile link requests.</p>
             </div>
             <a href="{{ url_for('stats.home') }}" class="secondary" style="padding: 8px 16px; text-decoration: none;">← Dashboard</a>
         </div>
 
         {% if users %}
             <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
                     <thead>
                         <tr style="border-bottom: 2px solid var(--border); color: #ffffff;">
                             <th style="padding: 10px 8px;">ID</th>
-                            <th style="padding: 10px 8px;">Username</th>
+                            <th style="padding: 10px 8px;">User</th>
                             <th style="padding: 10px 8px;">Email</th>
                             <th style="padding: 10px 8px;">Role</th>
                             <th style="padding: 10px 8px;">Verified</th>
                             <th style="padding: 10px 8px;">Glicko</th>
-                            <th style="padding: 10px 8px;">Status</th>
-                            <th style="padding: 10px 8px;">Action</th>
+                            <th style="padding: 10px 8px;">Membership</th>
+                            <th style="padding: 10px 8px;">Player Profile Link</th>
+                            <th style="padding: 10px 8px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for u in users %}
                             <tr style="border-bottom: 1px solid var(--border);">
                                 <td style="padding: 10px 8px;">#{{ u.id }}</td>
-                                <td style="padding: 10px 8px; font-weight: 600; color: #ffffff;">{{ u.username }}</td>
+                                <td style="padding: 10px 8px; font-weight: 600; color: #ffffff;">
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        {% if u.avatar_file %}
+                                            <img src="{{ url_for('static', filename=u.avatar_file) }}" alt="Avatar" style="width: 22px; height: 22px; border-radius: 50%; object-fit: cover;">
+                                        {% endif %}
+                                        <span>{{ u.username }}</span>
+                                    </div>
+                                </td>
                                 <td style="padding: 10px 8px; color: var(--text-muted);">{{ u.email }}</td>
                                 <td style="padding: 10px 8px;">
-                                    <span style="background: rgba(88, 45, 161, 0.3); padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                                    <span style="background: rgba(88, 45, 161, 0.3); padding: 2px 8px; border-radius: 4px; font-size: 11px;">
                                         {{ u.role | title }}
                                     </span>
                                 </td>
                                 <td style="padding: 10px 8px;">
                                     {% if u.email_verified %}
-                                        <span style="color: #28a745;">✓ Verified</span>
+                                        <span style="color: #28a745;">✓</span>
                                     {% else %}
-                                        <span style="color: #ffc107;">Unverified</span>
+                                        <span style="color: #ffc107;">Pending</span>
                                     {% endif %}
                                 </td>
                                 <td style="padding: 10px 8px;">
                                     {% if u.psychology_test_passed %}
-                                        <span style="color: #80deea;">✓ Passed</span>
+                                        <span style="color: #80deea;">✓ Active</span>
                                     {% else %}
                                         <span style="color: var(--text-muted);">—</span>
                                     {% endif %}
@@ -61,20 +69,41 @@
                                     {% endif %}
                                 </td>
                                 <td style="padding: 10px 8px;">
+                                    {% if u.pending_player_id %}
+                                        {% set target_player = players.get(u.pending_player_id) %}
+                                        <div style="display: flex; align-items: center; gap: 6px;">
+                                            <span style="color: #ffc107; font-weight: 600;" title="Requesting connection to player">
+                                                ⏳ {{ target_player.aliases[0] if target_player else 'ID #' ~ u.pending_player_id }}
+                                            </span>
+                                            <form method="post" action="{{ url_for('auth.handle_player_link', user_id=u.id) }}" style="display: inline-flex; gap: 4px; margin: 0;">
+                                                <button type="submit" name="action" value="approve" class="primary" style="padding: 2px 6px; font-size: 11px; cursor: pointer;" title="Approve link">✓</button>
+                                                <button type="submit" name="action" value="reject" class="secondary" style="padding: 2px 6px; font-size: 11px; color: #ff8888; cursor: pointer;" title="Reject link">✕</button>
+                                            </form>
+                                        </div>
+                                    {% elif u.player_id %}
+                                        {% set linked_player = players.get(u.player_id) %}
+                                        <span style="color: #80deea;">
+                                            🔗 {{ linked_player.aliases[0] if linked_player else 'ID #' ~ u.player_id }}
+                                        </span>
+                                    {% else %}
+                                        <span style="color: var(--text-muted);">None</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 10px 8px;">
                                     {% if u.role == 'user' %}
                                         <form method="post" action="{{ url_for('auth.toggle_approval', user_id=u.id) }}" style="margin: 0;">
                                             {% if u.is_approved %}
-                                                <button type="submit" name="action" value="revoke" class="secondary" style="padding: 4px 10px; font-size: 12px; cursor: pointer;">
+                                                <button type="submit" name="action" value="revoke" class="secondary" style="padding: 3px 8px; font-size: 11px; cursor: pointer;">
                                                     Revoke
                                                 </button>
                                             {% else %}
-                                                <button type="submit" name="action" value="approve" class="primary" style="padding: 4px 12px; font-size: 12px; cursor: pointer;">
+                                                <button type="submit" name="action" value="approve" class="primary" style="padding: 3px 10px; font-size: 11px; cursor: pointer;">
                                                     Approve
                                                 </button>
                                             {% endif %}
                                         </form>
                                     {% else %}
-                                        <span class="muted" style="font-size: 12px;">Staff</span>
+                                        <span class="muted" style="font-size: 11px;">Staff</span>
                                     {% endif %}
                                 </td>
                             </tr>

@@ -15,17 +15,17 @@
         </div>
         <div class="planner-admin-actions">
             {% if current_user %}
-                <a href="{{ url_for('auth.settings') }}" class="secondary" style="padding: 8px 14px; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                <a href="{{ url_for('auth.settings') }}" class="planner-btn-pill planner-btn-profile" title="Configure your attendance name and player profile in settings">
                     Name: <strong>{{ user_attendance_name }}</strong> ⚙️
                 </a>
             {% endif %}
             {% if has_tier('admin') %}
                 <form method="post" action="{{ url_for('planner.auto_seed_events') }}" style="margin: 0; display: inline;">
-                    <button type="submit" class="secondary" style="padding: 8px 14px; font-size: 13px; cursor: pointer;" title="Automatically schedule the next 4 Wednesdays with alternating BOX/HF pitches">
+                    <button type="submit" class="planner-btn-pill planner-btn-standard" title="Automatically schedule the next 4 Wednesdays with alternating BOX/HF pitches">
                         ＋ Add 4 Standard Matches
                     </button>
                 </form>
-                <button type="button" class="primary" id="open-schedule-modal-btn" style="padding: 8px 16px; font-size: 13px; cursor: pointer;">
+                <button type="button" class="planner-btn-pill planner-btn-custom" id="open-schedule-modal-btn">
                     ＋ Custom Matchday
                 </button>
             {% endif %}
@@ -76,7 +76,7 @@
                                         {% endif %}
                                     </form>
 
-                                    {% if event.guest_unlocked %}
+                                    {% if event.guest_unlocked or has_tier('admin') %}
                                         <button type="button" class="planner-guest-btn" data-event-id="{{ event.id }}" data-open-guest-modal="member-guest-modal">
                                             ＋ Add Guest
                                         </button>
@@ -91,7 +91,7 @@
                                     <span style="font-size: 13px; color: var(--text-muted);">
                                         <a href="{{ url_for('auth.login', next=request.path) }}" style="color: var(--accent-readable); font-weight: bold;">Log in</a> to RSVP as a member, or register as a guest player:
                                     </span>
-                                    {% if event.guest_unlocked %}
+                                    {% if event.guest_unlocked or has_tier('admin') %}
                                         <button type="button" class="planner-guest-btn" data-event-id="{{ event.id }}" data-open-guest-modal="visitor-guest-modal">
                                             ＋ Attend as Guest Player
                                         </button>
@@ -105,7 +105,7 @@
 
                             {% if has_tier('admin') %}
                                 <div style="display: flex; gap: 8px; align-items: center;">
-                                    <a href="{{ url_for('match_center.match_center') }}" class="secondary" style="font-size: 12px; padding: 6px 12px; text-decoration: none;" title="Go to Match Center">
+                                    <a href="{{ url_for('match_center.match_center', players=event.matched_player_ids_str, pitch=event.pitch_lower) if event.matched_player_ids_str else url_for('match_center.match_center', pitch=event.pitch_lower) }}" class="secondary" style="font-size: 12px; padding: 6px 12px; text-decoration: none;" title="Transfer attending lineup directly to Match Center">
                                         Match Center →
                                     </a>
                                     <form method="post" action="{{ url_for('planner.delete_event_route', event_id=event.id) }}" onsubmit="return confirm('Are you sure you want to cancel and delete this matchday event?');" style="margin: 0;">

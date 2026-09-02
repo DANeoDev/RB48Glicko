@@ -29,7 +29,58 @@
 
 .planner-admin-actions {
     display: flex;
-    gap: 8px;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.planner-btn-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 24px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.planner-btn-standard {
+    background: linear-gradient(135deg, #00897b, #005b4f);
+    color: #ffffff;
+    border-color: rgba(0, 230, 180, 0.3);
+    box-shadow: 0 2px 10px rgba(0, 137, 123, 0.25);
+}
+.planner-btn-standard:hover {
+    background: linear-gradient(135deg, #00a896, #00796b);
+    box-shadow: 0 4px 14px rgba(0, 137, 123, 0.4);
+    transform: translateY(-1px);
+}
+
+.planner-btn-custom {
+    background: linear-gradient(135deg, #7B52C5, #582DA1);
+    color: #ffffff;
+    border-color: rgba(160, 120, 240, 0.4);
+    box-shadow: 0 2px 10px rgba(123, 82, 197, 0.25);
+}
+.planner-btn-custom:hover {
+    background: linear-gradient(135deg, #8c62d8, #693bb8);
+    box-shadow: 0 4px 14px rgba(123, 82, 197, 0.4);
+    transform: translateY(-1px);
+}
+
+.planner-btn-profile {
+    background: rgba(255, 255, 255, 0.07);
+    color: #e0dcf0;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+.planner-btn-profile:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.3);
 }
 
 /* Event Accordion Cards */

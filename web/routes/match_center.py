@@ -100,9 +100,10 @@ def match_center():
     mode = mode if mode in ("total", "pitch") else "total"
     pitch = request.form.get("pitch", request.args.get("pitch", "box"))
     pitch = pitch if pitch in ("box", "hf") else "box"
-    rating_type = BOX if mode == "pitch" and pitch == "box" else HF if mode == "pitch" else TOTAL
-    selected_ids = request.form.getlist("players") or request.args.getlist("players")
-    selected_ids = [int(pid) for pid in selected_ids if pid.isdigit() and int(pid) in players]
+    raw_players = request.form.getlist("players") or request.args.getlist("players")
+    if len(raw_players) == 1 and "," in raw_players[0]:
+        raw_players = [p.strip() for p in raw_players[0].split(",") if p.strip()]
+    selected_ids = [int(pid) for pid in raw_players if str(pid).strip().isdigit() and int(pid) in players]
     result = None
     seed = None
     parse_result = _EmptyParseResult(kind="", match_date=None, players=[], team_a=[], team_b=[], team_a_ids=[], team_b_ids=[], goals_a=None, goals_b=None, verified_ids=[], conflicts=[], unmatched=[])

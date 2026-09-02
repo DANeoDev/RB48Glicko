@@ -34,6 +34,7 @@ def create_account_tables(connection):
             psychology_test_passed INTEGER NOT NULL DEFAULT 0,
             psychology_test_date TEXT,
             player_id INTEGER,
+            pending_player_id INTEGER,
             created_at TEXT NOT NULL
         )
     """)
@@ -65,6 +66,8 @@ def create_account_tables(connection):
         connection.execute("ALTER TABLE users ADD COLUMN psychology_test_date TEXT")
     if "player_id" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN player_id INTEGER")
+    if "pending_player_id" not in existing_columns:
+        connection.execute("ALTER TABLE users ADD COLUMN pending_player_id INTEGER")
 
     connection.commit()
 
@@ -86,6 +89,7 @@ def get_user_by_id(connection, user_id):
             psychology_test_passed,
             psychology_test_date,
             player_id,
+            pending_player_id,
             created_at
         FROM users
         WHERE id = ?
@@ -111,6 +115,7 @@ def get_user_by_login(connection, login):
             psychology_test_passed,
             psychology_test_date,
             player_id,
+            pending_player_id,
             created_at
         FROM users
         WHERE lower(username) = lower(?) OR lower(email) = lower(?)
@@ -136,6 +141,7 @@ def get_user_by_email(connection, email):
             psychology_test_passed,
             psychology_test_date,
             player_id,
+            pending_player_id,
             created_at
         FROM users
         WHERE lower(email) = lower(?)
@@ -157,7 +163,8 @@ def get_user_by_player_id(connection, player_id):
             is_approved,
             attendance_name,
             avatar_file,
-            player_id
+            player_id,
+            pending_player_id
         FROM users
         WHERE player_id = ?
         LIMIT 1
@@ -181,6 +188,7 @@ def get_all_users(connection):
             avatar_file,
             psychology_test_passed,
             player_id,
+            pending_player_id,
             created_at
         FROM users
         ORDER BY id DESC
@@ -199,6 +207,7 @@ def get_pending_users(connection):
             role,
             email_verified,
             attendance_name,
+            pending_player_id,
             created_at
         FROM users
         WHERE is_approved = 0 AND role = 'user'
@@ -273,16 +282,13 @@ def set_user_attendance_name(connection, user_id, attendance_name):
     connection.commit()
 
 
-def update_user_profile(connection, user_id, attendance_name=None, player_id=None, avatar_file=None):
+def update_user_profile(connection, user_id, attendance_name=None, avatar_file=None):
     """Update general profile settings."""
     updates = []
     params = []
     if attendance_name is not None:
         updates.append("attendance_name = ?")
         params.append(attendance_name.strip())
-    if player_id is not None:
-        updates.append("player_id = ?")
-        params.append(player_id if player_id > 0 else None)
     if avatar_file is not None:
         updates.append("avatar_file = ?")
         params.append(avatar_file if avatar_file else None)
@@ -294,6 +300,43 @@ def update_user_profile(connection, user_id, attendance_name=None, player_id=Non
             tuple(params),
         )
         connection.commit()
+
+
+def request_player_link(connection, user_id, player_id):
+    """Submit a request to link account to a player ID (or disconnect)."""
+    if not player_id:
+        connection.execute(
+            "UPDATE users SET player_id = NULL, pending_player_id = NULL WHERE id = ?",
+            (user_id,),
+        )
+    else:
+        connection.execute(
+            "UPDATE users SET pending_player_id = ? WHERE id = ?",
+            (player_id, user_id),
+        )
+    connection.commit()
+
+
+def approve_player_link(connection, user_id):
+    """Webmaster approves pending player link."""
+    connection.execute(
+        """
+        UPDATE users
+        SET player_id = pending_player_id, pending_player_id = NULL
+        WHERE id = ? AND pending_player_id IS NOT NULL
+        """,
+        (user_id,),
+    )
+    connection.commit()
+
+
+def reject_player_link(connection, user_id):
+    """Webmaster rejects pending player link."""
+    connection.execute(
+        "UPDATE users SET pending_player_id = NULL WHERE id = ?",
+        (user_id,),
+    )
+    connection.commit()
 
 
 def update_user_password(connection, user_id, password_hash):
@@ -322,7 +365,6 @@ def update_user_role(connection, user_id, role):
     """Update a user's role (user, admin, webmaster)."""
     if role not in ("user", "admin", "webmaster"):
         raise ValueError(f"Invalid role: {role}")
-    # Auto-approve admins and webmasters
     connection.execute(
         """
         UPDATE users
@@ -335,9 +377,9 @@ def update_user_role(connection, user_id, role):
 
 
 def link_user_to_player(connection, user_id, player_id):
-    """Link a user account to a player ID."""
+    """Directly link a user account to a player ID."""
     connection.execute(
-        "UPDATE users SET player_id = ? WHERE id = ?",
+        "UPDATE users SET player_id = ?, pending_player_id = NULL WHERE id = ?",
         (player_id, user_id),
     )
     connection.commit()

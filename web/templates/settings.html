@@ -59,12 +59,23 @@
                         <select id="player_id" name="player_id" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); background: #24194A; border: 1px solid #5A4A83; color: #ffffff;">
                             <option value="">-- No connected player --</option>
                             {% for pid, pdata in players.items() %}
-                                <option value="{{ pid }}" {% if user.player_id == pid %}selected{% endif %}>
+                                <option value="{{ pid }}" {% if user.pending_player_id == pid or (not user.pending_player_id and user.player_id == pid) %}selected{% endif %}>
                                     {{ pdata.aliases[0] }} {% if pdata.positions %}({{ pdata.positions | join(', ') }}){% endif %}
                                 </option>
                             {% endfor %}
                         </select>
-                        <span style="font-size: 11px; color: var(--text-muted);">Links your account and photo to your public player statistics page.</span>
+                        {% if user.pending_player_id %}
+                            {% set pending_p = players.get(user.pending_player_id) %}
+                            <div style="font-size: 12px; color: #ffc107; margin-top: 6px; padding: 4px 8px; background: rgba(255, 193, 7, 0.1); border-radius: 4px; border: 1px solid rgba(255, 193, 7, 0.2);">
+                                ⏳ Connection request pending Webmaster approval for: <strong>{{ pending_p.aliases[0] if pending_p else '#' ~ user.pending_player_id }}</strong>
+                            </div>
+                        {% elif user.player_id %}
+                            {% set linked_p = players.get(user.player_id) %}
+                            <div style="font-size: 12px; color: #80deea; margin-top: 6px;">
+                                ✓ Connected to: <strong><a href="{{ url_for('stats.player_profile', player_id=user.player_id) }}" style="color: #80deea;">{{ linked_p.aliases[0] if linked_p else '#' ~ user.player_id }}</a></strong>
+                            </div>
+                        {% endif %}
+                        <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px;">Links your account and photo to your player statistics page (requires Webmaster approval).</span>
                     </div>
                 </div>
             </div>
