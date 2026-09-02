@@ -1,6 +1,8 @@
 import os
+from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 import time
 import unittest
 
@@ -14,6 +16,10 @@ from web.app import app
 
 class MatchCenterFrontendTests(unittest.TestCase):
     def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_accounts_db = Path(self.temp_dir.name) / "test_accounts.db"
+        os.environ["RB48_ACCOUNTS_DATABASE_FILE"] = str(self.test_accounts_db)
+
         self.app = app
         unique_name = f"mc_admin_{int(time.time() * 1000000)}"
         self.admin_id, _ = register_user(unique_name, f"{unique_name}@example.com", "adminpass123", role="admin")
@@ -23,6 +29,10 @@ class MatchCenterFrontendTests(unittest.TestCase):
             update_user_role(conn, self.admin_id, "admin")
         finally:
             conn.close()
+
+    def tearDown(self):
+        os.environ.pop("RB48_ACCOUNTS_DATABASE_FILE", None)
+        self.temp_dir.cleanup()
 
     def test_match_center_uses_one_frontend_implementation(self):
         with self.app.test_client() as client:

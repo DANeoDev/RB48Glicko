@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+import tempfile
 import time
 import unittest
 
@@ -8,7 +11,14 @@ from web.app import app
 
 class RouteTests(unittest.TestCase):
     def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_accounts_db = Path(self.temp_dir.name) / "test_accounts.db"
+        os.environ["RB48_ACCOUNTS_DATABASE_FILE"] = str(self.test_accounts_db)
         self.client = app.test_client()
+
+    def tearDown(self):
+        os.environ.pop("RB48_ACCOUNTS_DATABASE_FILE", None)
+        self.temp_dir.cleanup()
 
     def create_user_session(self, role="user", verified=True, approved=True, psychology_passed=True):
         unique_name = f"rt_user_{int(time.time() * 1000000)}"
