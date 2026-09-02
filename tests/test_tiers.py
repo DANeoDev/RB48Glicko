@@ -112,16 +112,23 @@ class AccessTiersTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/glicko-test", resp.headers["Location"])
 
-        # 3. Submit wrong answers -> returns 400
-        fail_resp = self.client.post("/glicko-test", data={"q1": "a", "q2": "b", "q3": "c", "q4": "b"})
+        # 3. Submit tryhard/toxic answers -> assigned tryhard persona, clearance denied (returns 400)
+        fail_resp = self.client.post("/glicko-test", data={"q1": "c", "q2": "c", "q3": "c", "q4": "c", "q5": "c", "q6": "c", "q7": "c"})
         self.assertEqual(fail_resp.status_code, 400)
+        self.assertIn(b"Raging Stat-Striker", fail_resp.data)
 
-        # 4. Submit correct answers -> succeeds and promotes to Glicko User
-        pass_resp = self.client.post("/glicko-test", data={"q1": "b", "q2": "a", "q3": "a", "q4": "a"}, follow_redirects=True)
+        updated_fail = get_user(user["id"])
+        self.assertEqual(updated_fail["psychology_test_passed"], 0)
+        self.assertEqual(updated_fail["psychology_persona"], "tryhard")
+
+        # 4. Submit sportsmanship/legend answers -> succeeds and promotes to Glicko User
+        pass_resp = self.client.post("/glicko-test", data={"q1": "b", "q2": "a", "q3": "a", "q4": "a", "q5": "a", "q6": "a", "q7": "a"}, follow_redirects=True)
         self.assertEqual(pass_resp.status_code, 200)
+        self.assertIn(b"Locker Room Legend", pass_resp.data)
 
         updated = get_user(user["id"])
         self.assertEqual(updated["psychology_test_passed"], 1)
+        self.assertEqual(updated["psychology_persona"], "legend")
 
         # 5. Now model analysis is accessible
         model_resp = self.client.get("/model-analysis")

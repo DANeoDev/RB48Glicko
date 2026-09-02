@@ -88,6 +88,49 @@
         </form>
     </div>
 
+    <!-- Glicko Clearance & Psychology Assessment Card -->
+    <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+            <h2 style="margin: 0; font-size: 18px; color: #ffffff;">
+                Detailed Performance Evaluation (Glicko-2)
+            </h2>
+            {% if user.psychology_test_passed %}
+                <span style="background: rgba(40, 167, 69, 0.2); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.4); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
+                    ✓ Glicko Clearance Active
+                </span>
+            {% else %}
+                <span style="background: rgba(255, 193, 7, 0.15); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.3); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
+                    Assessment Required
+                </span>
+            {% endif %}
+        </div>
+
+        <p style="font-size: 13.5px; color: #c9c2d8; line-height: 1.5; margin-bottom: 16px;">
+            To preserve recreational enjoyment, prevent rating toxicity, and ensure all players understand rating variance, access to numerical Glicko-2 ratings, rating deviations (RD), and predictive model analytics is unlocked via the I.M.P. Football Personality Assessment.
+        </p>
+
+        {% if user.psychology_test_passed %}
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <span style="font-size: 13px; color: #80deea;">
+                    {% if user.psychology_persona %}
+                        Assigned Archetype: <strong>{{ user.psychology_persona | replace('_', ' ') | title }}</strong>
+                    {% else %}
+                        Status: Clearance Granted
+                    {% endif %}
+                </span>
+                <a href="{{ url_for('auth.glicko_test') }}" class="secondary" style="padding: 8px 16px; text-decoration: none; font-size: 13px;">
+                    View Psychological Dossier / Retake →
+                </a>
+            </div>
+        {% else %}
+            <div style="text-align: right;">
+                <a href="{{ url_for('auth.glicko_test') }}" class="primary" style="padding: 9px 20px; text-decoration: none; font-size: 13.5px; font-weight: 700; border-radius: 20px; display: inline-block;">
+                    Request Access to Detailed Performance Evaluation →
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
     <!-- Password Change Card -->
     <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
         <h2 style="margin: 0 0 16px; font-size: 18px; color: #ffffff; border-bottom: 1px solid var(--border); padding-bottom: 10px;">

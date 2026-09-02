@@ -33,6 +33,7 @@ def create_account_tables(connection):
             avatar_file TEXT,
             psychology_test_passed INTEGER NOT NULL DEFAULT 0,
             psychology_test_date TEXT,
+            psychology_persona TEXT,
             player_id INTEGER,
             pending_player_id INTEGER,
             created_at TEXT NOT NULL
@@ -64,6 +65,8 @@ def create_account_tables(connection):
         connection.execute("ALTER TABLE users ADD COLUMN psychology_test_passed INTEGER NOT NULL DEFAULT 0")
     if "psychology_test_date" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN psychology_test_date TEXT")
+    if "psychology_persona" not in existing_columns:
+        connection.execute("ALTER TABLE users ADD COLUMN psychology_persona TEXT")
     if "player_id" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN player_id INTEGER")
     if "pending_player_id" not in existing_columns:
@@ -88,6 +91,7 @@ def get_user_by_id(connection, user_id):
             avatar_file,
             psychology_test_passed,
             psychology_test_date,
+            psychology_persona,
             player_id,
             pending_player_id,
             created_at
@@ -114,6 +118,7 @@ def get_user_by_login(connection, login):
             avatar_file,
             psychology_test_passed,
             psychology_test_date,
+            psychology_persona,
             player_id,
             pending_player_id,
             created_at
@@ -140,6 +145,7 @@ def get_user_by_email(connection, email):
             avatar_file,
             psychology_test_passed,
             psychology_test_date,
+            psychology_persona,
             player_id,
             pending_player_id,
             created_at
@@ -163,6 +169,7 @@ def get_user_by_player_id(connection, player_id):
             is_approved,
             attendance_name,
             avatar_file,
+            psychology_persona,
             player_id,
             pending_player_id
         FROM users
@@ -187,6 +194,7 @@ def get_all_users(connection):
             attendance_name,
             avatar_file,
             psychology_test_passed,
+            psychology_persona,
             player_id,
             pending_player_id,
             created_at
@@ -357,6 +365,19 @@ def set_psychology_test_status(connection, user_id, passed, test_date):
         WHERE id = ?
         """,
         (1 if passed else 0, test_date, user_id),
+    )
+    connection.commit()
+
+
+def set_user_persona(connection, user_id, persona_key, passed, test_date):
+    """Update user's assigned psychology persona archetype, pass status, and test date."""
+    connection.execute(
+        """
+        UPDATE users
+        SET psychology_persona = ?, psychology_test_passed = ?, psychology_test_date = ?
+        WHERE id = ?
+        """,
+        (persona_key, 1 if passed else 0, test_date, user_id),
     )
     connection.commit()
 
