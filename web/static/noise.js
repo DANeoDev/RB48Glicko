@@ -449,14 +449,25 @@
 
         const pill = wrapper.querySelector(".noise-indicator-pill");
         if (pill) {
-            const expandInPlace = (e) => {
+            pill.addEventListener("mouseenter", (e) => {
                 if (isDraggingJustEnded) return;
                 if (e && (e.target.closest(".noise-drag-handle") || e.target.closest("button"))) return;
-                renderExpandedBubble(wrapper, b, isAuthorOrStaff, true);
-            };
 
-            pill.addEventListener("mouseenter", expandInPlace);
-            pill.addEventListener("click", expandInPlace);
+                const immunity = parseInt(wrapper.dataset.hoverImmunity || "0", 10);
+                if (immunity > 0) {
+                    wrapper.dataset.hoverImmunity = (immunity - 1).toString();
+                    return;
+                }
+
+                renderExpandedBubble(wrapper, b, isAuthorOrStaff, true);
+            });
+
+            pill.addEventListener("click", (e) => {
+                if (isDraggingJustEnded) return;
+                if (e && (e.target.closest(".noise-drag-handle") || e.target.closest("button"))) return;
+                wrapper.dataset.hoverImmunity = "0";
+                renderExpandedBubble(wrapper, b, isAuthorOrStaff, true);
+            });
         }
     }
 
@@ -464,6 +475,7 @@
         const wrap = document.getElementById(`noise-bubble-wrap-${bubbleId}`);
         const b = loadedBubbles.find(item => item.id === bubbleId);
         if (wrap && b) {
+            wrap.dataset.hoverImmunity = "2";
             const currentUserId = window.RB48_USER ? window.RB48_USER.id : null;
             const isStaff = window.RB48_USER && ["admin", "webmaster"].includes(window.RB48_USER.role);
             const isAuthorOrStaff = isStaff || (currentUserId && currentUserId === b.user_id);
