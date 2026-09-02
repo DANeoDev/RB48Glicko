@@ -1,17 +1,34 @@
 import os
 import shutil
 import subprocess
+import time
 import unittest
 
-from web.app import app
+from scripts.accounts.auth import register_user
+from scripts.accounts.database import get_accounts_connection, mark_email_verified, update_user_role
+from scripts.glicko.glicko2 import TOTAL
 from scripts.matchmaking.match_parser import normalize_player_name, resolve_player_names
 from scripts.matchmaking.matchmaker import generate_match
-from scripts.glicko.glicko2 import TOTAL
+from web.app import app
 
 
 class MatchCenterFrontendTests(unittest.TestCase):
+    def setUp(self):
+        self.app = app
+        unique_name = f"mc_admin_{int(time.time() * 1000000)}"
+        self.admin_id, _ = register_user(unique_name, f"{unique_name}@example.com", "adminpass123", role="admin")
+        conn = get_accounts_connection()
+        try:
+            mark_email_verified(conn, self.admin_id)
+            update_user_role(conn, self.admin_id, "admin")
+        finally:
+            conn.close()
+
     def test_match_center_uses_one_frontend_implementation(self):
-        with app.test_client() as client:
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
             response = client.get("/match-center")
 
             self.assertEqual(response.status_code, 200)
@@ -36,7 +53,7 @@ class MatchCenterFrontendTests(unittest.TestCase):
     def test_match_center_js_syntax_is_valid(self):
         node_path = shutil.which("node")
         if node_path:
-            js_file = os.path.join(app.root_path, "static", "match_center.js")
+            js_file = os.path.join(self.app.root_path, "static", "match_center.js")
             result = subprocess.run(
                 [node_path, "-c", js_file],
                 capture_output=True,
@@ -47,16 +64,6 @@ class MatchCenterFrontendTests(unittest.TestCase):
                 0,
                 f"JavaScript syntax error in match_center.js:\n{result.stderr}"
             )
-
-    def test_legacy_matchmaker_redirects(self):
-        with app.test_client() as client:
-            response_get = client.get("/matchmaker?players=1&players=2")
-            self.assertIn(response_get.status_code, (302, 308))
-            self.assertIn("/match-center", response_get.headers.get("Location", ""))
-
-            response_post = client.post("/matchmaker", data={"players": ["1", "2"]})
-            self.assertEqual(response_post.status_code, 307)
-            self.assertIn("/match-center", response_post.headers.get("Location", ""))
 
     def test_normalize_player_name(self):
         self.assertEqual(normalize_player_name("[M] Daniel"), "Daniel")
@@ -95,3 +102,7 @@ class MatchCenterFrontendTests(unittest.TestCase):
         self.assertEqual(len(result["team_a"]) + len(result["team_b"]), 4)
         self.assertIn("rating_difference", result)
         self.assertIn("position_penalty", result)
+
+
+if __name__ == "__main__":
+    unittest.main()

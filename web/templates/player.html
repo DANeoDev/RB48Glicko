@@ -5,7 +5,9 @@
 {% endblock %}
 
 {% block head %}
+{% if has_tier('glicko_user') %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endif %}
 <style>
 .profile { text-align: center; }
 .graphs { display: flex; justify-content: center; gap: 40px; margin-top: 40px; }
@@ -29,7 +31,7 @@
 <div class="profile">
 <div class="page-header">
 <h1>{{ player["aliases"][0] }}</h1>
-<p><a href="{{ url_for('stats.home') }}">← Back to Stats</a></p>
+<p><a href="{{ url_for('stats.stats') }}">← Back to Stats</a></p>
 </div>
 
 {% set player_name = player["aliases"][0] %}
@@ -38,16 +40,29 @@
 {% set rating_diverges = (box_only and ratings["total"]["rating"] != ratings["box"]["rating"]) or (hf_only and ratings["total"]["rating"] != ratings["hf"]["rating"]) %}
 {% set exclusive_pitch = "BOX" if box_only else "HF" if hf_only else "" %}
 
-<h2>Ratings</h2>
+<h2>Performance Overview</h2>
 
-<table class="ratings-table"{% if rating_diverges %} title="How can the ratings diverge even though {{ player_name }} only has games in {{ exclusive_pitch }}? Well, this is a good question, but it works as intended. If you can figure out the reason, send a Mail to the webmaster — he will grant you a reward." style="cursor: help;"{% endif %}>
+{% if not has_tier('glicko_user') %}
+    <div class="notice" style="max-width: 600px; margin: 16px auto; background: var(--bg-surface-alt); border-left: 3px solid var(--accent); padding: 14px; text-align: left;">
+        <strong>Glicko Ratings Locked:</strong> You are viewing raw game statistics. Complete the sportsmanship test to unlock rating curves and probability estimates.
+        <div style="margin-top: 10px;">
+            <a href="{{ url_for('auth.glicko_test', next=request.path) }}" class="primary" style="padding: 6px 14px; text-decoration: none; font-size: 13px;">
+                Unlock Ratings →
+            </a>
+        </div>
+    </div>
+{% endif %}
+
+<table class="ratings-table"{% if rating_diverges and has_tier('glicko_user') %} title="How can the ratings diverge even though {{ player_name }} only has games in {{ exclusive_pitch }}? Well, this is a good question, but it works as intended. If you can figure out the reason, send a Mail to the webmaster — he will grant you a reward." style="cursor: help;"{% endif %}>
 
 <thead>
 <tr>
 <th></th>
+{% if has_tier('glicko_user') %}
 <th>C Rating</th>
 <th>E Rating</th>
 <th>RD</th>
+{% endif %}
 <th>Games</th>
 <th>Ws</th>
 <th>Ls</th>
@@ -61,9 +76,11 @@
 
 <tr>
 <th>{{ rating_type | upper }}</th>
+{% if has_tier('glicko_user') %}
 <td>{{ (ratings[rating_type]["rating"] - 3 * ratings[rating_type]["rd"]) | round(0) }}</td>
 <td>{{ ratings[rating_type]["rating"] | round(0) }}</td>
 <td>{{ ratings[rating_type]["rd"] | round(1) }}</td>
+{% endif %}
 <td>{{ stats[rating_type]["games"] }}</td>
 <td>{{ stats[rating_type]["wins"] }}</td>
 <td>{{ stats[rating_type]["losses"] }}</td>
@@ -75,6 +92,7 @@
 </tbody>
 </table>
 
+{% if has_tier('glicko_user') %}
 <div class="graphs">
 {% for rating_type in ["total", "box", "hf"] %}
 <div class="graph">
@@ -87,15 +105,15 @@
 </div>
 {% endfor %}
 </div>
+{% endif %}
 
 <h2>Personal Match History</h2>
 <div class="player-history-controls">
-<div class="player-rating-selector" title="Select which match history to display and which Glicko rating type is shown: Total, BOX, or HF.">
+<div class="player-rating-selector" title="Select which match history to display: Total, BOX, or HF.">
 <a data-preserve-scroll class="{% if selected_rating_type == 'total' %}active{% endif %}" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='total') if player_id is defined else request.path + '?rating_type=total' }}" title="Show Total match history.">Total</a>
 <a data-preserve-scroll class="{% if selected_rating_type == 'box' %}active{% endif %}" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='box') if player_id is defined else request.path + '?rating_type=box' }}" title="Show BOX match history.">BOX</a>
 <a data-preserve-scroll class="{% if selected_rating_type == 'hf' %}active{% endif %}" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='hf') if player_id is defined else request.path + '?rating_type=hf' }}" title="Show HF match history.">HF</a>
 </div>
-<span class="player-rating-help" title="The selected type filters the match history and determines the player ratings, team ratings, expected result and rating change shown in this match history.">ⓘ Selected type is used throughout this match history</span>
 </div>
 
 <div class="match-history">
@@ -104,15 +122,17 @@
 <div class="match-header">{{ match["match_id"] }} — {{ match["pitch"] | upper }}</div>
 <div class="match-info">
 <div class="team team-a"><strong>Team A</strong><div class="players">
-{% for team_player in match["team_a_players"] %}<span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}<span class="player-rating" title="Pre-match {{ selected_rating_type | upper if selected_rating_type != 'total' else 'Total' }} rating">({{ team_player["rating"] | round | int }})</span>{% if not loop.last %},{% endif %}</span>{% endfor %}
+{% for team_player in match["team_a_players"] %}<span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}{% if has_tier('glicko_user') %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
 {% if match["external_a"] > 0 %}{% if match["team_a_players"] %}, {% endif %}+ {{ match["external_a"] }} external player{% if match["external_a"] != 1 %}s{% endif %}{% endif %}
 </div></div>
 <div class="score">{{ match["goals_a"] }} - {{ match["goals_b"] }}</div>
 <div class="team team-b"><strong>Team B</strong><div class="players">
-{% for team_player in match["team_b_players"] %}<span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}<span class="player-rating" title="Pre-match {{ selected_rating_type | upper if selected_rating_type != 'total' else 'Total' }} rating">({{ team_player["rating"] | round | int }})</span>{% if not loop.last %},{% endif %}</span>{% endfor %}
+{% for team_player in match["team_b_players"] %}<span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}{% if has_tier('glicko_user') %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
 {% if match["external_b"] > 0 %}{% if match["team_b_players"] %}, {% endif %}+ {{ match["external_b"] }} external player{% if match["external_b"] != 1 %}s{% endif %}{% endif %}
 </div></div>
 </div>
+
+{% if has_tier('glicko_user') %}
 <div class="match-details">
 <div class="team-details team-a">
 <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_a_rating"] | round | int }}</span></div>
@@ -130,6 +150,8 @@
 <div class="team-stat"><span class="stat-label">Win%</span><span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span></div>
 </div>
 </div>
+{% endif %}
+
 </div>
 {% endfor %}
 </div>
@@ -137,6 +159,7 @@
 {% endblock %}
 
 {% block scripts %}
+{% if has_tier('glicko_user') %}
 <script>
 const ratingHistory = {{ rating_history | tojson }};
 function createRatingChart(elementId, ratingType) {
@@ -148,7 +171,9 @@ new Chart(document.getElementById(elementId), { type: "line", data: { labels: la
 createRatingChart("totalChart", "total");
 createRatingChart("boxChart", "box");
 createRatingChart("hfChart", "hf");
-
+</script>
+{% endif %}
+<script>
 document.querySelectorAll(".match").forEach(match => { match.addEventListener("click", () => match.classList.toggle("expanded")); });
 </script>
 {% endblock %}

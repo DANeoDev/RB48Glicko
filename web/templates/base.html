@@ -18,10 +18,108 @@
         .primary:hover { background: var(--accent-hover) !important; border-color: var(--accent-hover) !important; }
         .add-btn { background: var(--accent-dark) !important; color: #ffffff !important; border-color: var(--accent-dark) !important; transition: background-color 0.15s ease, border-color 0.15s ease; }
         .add-btn:hover { background: var(--accent-hover) !important; border-color: var(--accent-hover) !important; }
+
+        /* Webmaster View Simulation Bar */
+        .webmaster-sim-bar {
+            background: #2a1548;
+            border-bottom: 2px solid #7B52C5;
+            padding: 8px 16px;
+            font-size: 13px;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            z-index: 1000;
+        }
+        .webmaster-sim-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+        }
+        .webmaster-sim-badge {
+            background: #582DA1;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+        .webmaster-sim-form {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            margin: 0;
+        }
+        .webmaster-sim-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            padding: 3px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .webmaster-sim-btn:hover {
+            background: #582DA1;
+            border-color: #7B52C5;
+        }
+        .webmaster-sim-btn.active {
+            background: #7B52C5;
+            border-color: #ffffff;
+            font-weight: bold;
+        }
+
+        /* Flash Messages */
+        .flash-container {
+            max-width: var(--content-width);
+            margin: 12px auto 0;
+            padding: 0 20px;
+        }
+        .flash-message {
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            margin-bottom: 8px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .flash-success { background: rgba(40, 167, 69, 0.25); border-left: 4px solid #28a745; color: #88ff88; }
+        .flash-warning { background: rgba(255, 193, 7, 0.25); border-left: 4px solid #ffc107; color: #ffe082; }
+        .flash-danger { background: rgba(220, 53, 69, 0.25); border-left: 4px solid #dc3545; color: #ff8888; }
+        .flash-info { background: rgba(23, 162, 184, 0.25); border-left: 4px solid #17a2b8; color: #80deea; }
     </style>
 </head>
 
 <body class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}dashboard-body{% endif %}">
+
+{% if current_user and current_user.role == 'webmaster' %}
+    <div class="webmaster-sim-bar">
+        <div class="webmaster-sim-title">
+            <span>👁️ Webmaster View Simulation:</span>
+            <span class="webmaster-sim-badge">
+                {% if simulated_tier %}
+                    Simulating: {{ simulated_tier | replace('_', ' ') | title }}
+                {% else %}
+                    Actual: Webmaster
+                {% endif %}
+            </span>
+        </div>
+        <form method="post" action="{{ url_for('auth.switch_view') }}" class="webmaster-sim-form">
+            <input type="hidden" name="redirect_to" value="{{ request.full_path }}">
+            <button type="submit" name="view_mode" value="visitor" class="webmaster-sim-btn {% if simulated_tier == 'visitor' %}active{% endif %}">Visitor</button>
+            <button type="submit" name="view_mode" value="user" class="webmaster-sim-btn {% if simulated_tier == 'user' %}active{% endif %}">User</button>
+            <button type="submit" name="view_mode" value="glicko_user" class="webmaster-sim-btn {% if simulated_tier == 'glicko_user' %}active{% endif %}">Glicko User</button>
+            <button type="submit" name="view_mode" value="admin" class="webmaster-sim-btn {% if simulated_tier == 'admin' %}active{% endif %}">Admin</button>
+            {% if simulated_tier %}
+                <button type="submit" name="view_mode" value="reset" class="webmaster-sim-btn" style="background: #dc3545; border-color: #ff8888;">Reset</button>
+            {% endif %}
+        </form>
+    </div>
+{% endif %}
+
 <header class="site-header">
     <nav class="navbar">
         <a class="logo" href="{{ url_for('stats.home') }}" aria-label="RB48 home">
@@ -31,8 +129,12 @@
             <a href="{{ url_for('stats.dashboard') }}" class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}active{% endif %}">Dashboard</a>
             <a href="{{ url_for('stats.stats') }}" class="{% if request.endpoint == 'stats.stats' %}active{% endif %}">Stats</a>
             <a href="{{ url_for('stats.match_history') }}" class="{% if request.endpoint == 'stats.match_history' %}active{% endif %}">Match History</a>
-            <a href="{{ url_for('match_center.match_center') }}" class="{% if request.endpoint == 'match_center.match_center' %}active{% endif %}">Match Center</a>
-            <a href="{{ url_for('stats.model_analysis') }}" class="{% if request.endpoint == 'stats.model_analysis' %}active{% endif %}">Model Analysis</a>
+            {% if has_tier('admin') %}
+                <a href="{{ url_for('match_center.match_center') }}" class="{% if request.endpoint == 'match_center.match_center' %}active{% endif %}">Match Center</a>
+            {% endif %}
+            {% if has_tier('glicko_user') %}
+                <a href="{{ url_for('stats.model_analysis') }}" class="{% if request.endpoint == 'stats.model_analysis' %}active{% endif %}">Model Analysis</a>
+            {% endif %}
         </div>
         <div class="profile-menu">
             <button type="button" class="profile-button" aria-label="Account" title="Account">
@@ -43,7 +145,18 @@
             </button>
             <div class="profile-dropdown">
                 {% if current_user %}
-                    <div class="profile-dropdown-user">{{ current_user["username"] }}</div>
+                    <div class="profile-dropdown-user">
+                        <strong>{{ current_user["username"] }}</strong>
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">
+                            {{ current_user.get('role', 'user') | title }}
+                            {% if current_user.get('psychology_test_passed') %}
+                                · Glicko Verified
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if has_tier('user') and not current_user.get('psychology_test_passed') %}
+                        <a href="{{ url_for('auth.glicko_test') }}" style="color: var(--accent-readable); font-weight: bold;">Unlock Glicko Ratings</a>
+                    {% endif %}
                     <a href="{{ url_for('auth.logout') }}">Log out</a>
                 {% else %}
                     <a href="{{ url_for('auth.login') }}">Log in</a>
@@ -53,7 +166,19 @@
         </div>
     </nav>
 </header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        <div class="flash-container">
+            {% for category, message in messages %}
+                <div class="flash-message flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
 <main>{% block content %}{% endblock %}</main>
+
 <footer class="site-footer" id="site-footer">
     <div class="site-footer-inner">
         <a class="site-footer-home" href="{{ url_for('stats.home') }}">RB 48 Homepage</a>
@@ -66,7 +191,9 @@
     <button type="button" class="site-footer-toggle" id="site-footer-toggle" aria-label="Hide footer" title="Hide footer">−</button>
 </footer>
 <button type="button" class="site-footer-reopen" id="site-footer-reopen" aria-label="Show footer" title="Show footer">+</button>
+
 {% block scripts %}{% endblock %}
+
 <script>
 document.addEventListener("click", (event) => {
     const link = event.target.closest("a[data-preserve-scroll]");

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Email · RB48{% endblock %}
+
+{% block content %}
+<div class="page-container account-page">
+    <div class="account-card">
+        <div class="account-header">
+            <h1>Check your email</h1>
+            <p>We sent a verification link to <strong>{{ email }}</strong>.</p>
+        </div>
+
+        <div class="account-content" style="line-height: 1.6; color: var(--text-main);">
+            <p>Please click the link in the email to verify your address and unlock player statistics.</p>
+            
+            {% if dev_verification_url %}
+                <div class="notice" style="margin: 20px 0; background: var(--bg-surface-alt); border-left: 3px solid var(--accent); padding: 14px;">
+                    <strong>Development / Test Mode:</strong><br>
+                    Since SMTP is in development mode, you can verify directly with this link:<br>
+                    <a href="{{ dev_verification_url }}" style="color: var(--accent-readable); word-break: break-all;">{{ dev_verification_url }}</a>
+                </div>
+            {% endif %}
+
+            <div class="actions" style="margin-top: 24px; display: flex; gap: 12px;">
+                <a href="{{ url_for('auth.login') }}" class="secondary" style="padding: 10px 18px;">Go to Login</a>
+                <a href="{{ url_for('auth.resend_verification') }}" class="primary" style="padding: 10px 18px;">Resend email</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

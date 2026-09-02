@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Resend Verification · RB48{% endblock %}
+
+{% block content %}
+<div class="page-container account-page">
+    <div class="account-card">
+        <div class="account-header">
+            <h1>Verify your email</h1>
+            <p>Enter your email address to receive a new verification link.</p>
+        </div>
+
+        {% if error %}
+            <div class="notice" style="margin-bottom: 20px; background: rgba(220, 53, 69, 0.2); border-left: 3px solid #dc3545; padding: 14px; color: #ff8888;">
+                {{ error }}
+            </div>
+        {% endif %}
+
+        {% if success %}
+            <div class="notice" style="margin-bottom: 20px; background: rgba(40, 167, 69, 0.2); border-left: 3px solid #28a745; padding: 14px; color: #88ff88;">
+                {{ success }}
+            </div>
+        {% endif %}
+
+        <form method="post" class="account-form">
+            <div class="form-field">
+                <label for="email">Email address</label>
+                <input id="email" name="email" type="email" required autocomplete="email" value="{{ request.form.get('email', '') }}">
+            </div>
+
+            <div class="actions" style="margin-top: 20px; display: flex; gap: 12px;">
+                <button type="submit" class="primary" style="padding: 10px 18px;">Send link</button>
+                <a href="{{ url_for('auth.login') }}" class="secondary" style="padding: 10px 18px; text-decoration: none;">Back to Login</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
