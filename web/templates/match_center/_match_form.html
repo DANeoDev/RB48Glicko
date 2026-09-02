@@ -1,0 +1,267 @@
+<!-- ============================================================
+         ENTER A MATCH
+         ============================================================ -->
+
+    <section
+        class="card"
+        id="enter-match"
+    >
+
+        <h2>Enter a Match</h2>
+
+        <p class="muted">
+            Enter a completed match manually or review imported facts before saving.
+        </p>
+
+
+        {% if success %}
+
+            <div class="notice">
+
+                {{ success }}
+
+                {% if calibration_message %}
+                    <br>
+                    {{ calibration_message }}
+                {% endif %}
+
+            </div>
+
+        {% endif %}
+
+
+        {% if error %}
+
+            <div class="notice">
+                {{ error }}
+            </div>
+
+        {% endif %}
+
+
+        <form
+            method="post"
+            id="match-form"
+        >
+
+            <input
+                type="hidden"
+                name="action"
+                value="save"
+            >
+
+            <input
+                type="hidden"
+                id="future-confirm"
+                name="future_confirm"
+            >
+
+            <input
+                type="hidden"
+                id="save-confirmed"
+                name="save_confirmed"
+            >
+
+
+            <div class="entry-grid">
+
+                <div class="field">
+
+                    <label for="match-date">
+                        Date
+                    </label>
+
+                    <input
+                        id="match-date"
+                        type="date"
+                        name="date"
+                        value="{{ match_date }}"
+                        required
+                    >
+
+                    <span class="muted">
+                        Next match ID:
+                        <strong>{{ next_match_id }}</strong>
+                    </span>
+
+                </div>
+
+
+                <div class="field">
+
+                    <label for="pitch">
+                        Pitch
+                    </label>
+
+                    <select
+                        id="pitch"
+                        name="pitch"
+                    >
+                        <option
+                            value="box"
+                            {% if pitch == 'box' %}selected{% endif %}
+                        >
+                            Box
+                        </option>
+
+                        <option
+                            value="hf"
+                            {% if pitch == 'hf' %}selected{% endif %}
+                        >
+                            HF
+                        </option>
+                    </select>
+
+                </div>
+
+
+                <div class="field">
+
+                    <label>
+                        Result
+                    </label>
+
+                    <div class="result-inputs">
+
+                        <input
+                            type="number"
+                            name="goals_a"
+                            min="0"
+                            value="{{ goals_a }}"
+                            required
+                        >
+
+                        <span>:</span>
+
+                        <input
+                            type="number"
+                            name="goals_b"
+                            min="0"
+                            value="{{ goals_b }}"
+                            required
+                        >
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="team-columns">
+
+                {% for team, label in [('a', 'Team A'), ('b', 'Team B')] %}
+
+                    <div class="team-box">
+
+                        <h3>
+
+                            {{ label }}
+
+                            <span id="count-{{ team }}">
+                                (
+                                {% if team == 'a' %}
+                                    {{ team_a | length }}
+                                {% else %}
+                                    {{ team_b | length }}
+                                {% endif %}
+                                )
+                            </span>
+
+                        </h3>
+
+
+                        <label>
+                            Search player and click to add
+                        </label>
+
+                        <input
+                            class="player-search"
+                            id="search-{{ team }}"
+                            placeholder="Type a name..."
+                            autocomplete="off"
+                        >
+
+
+                        <div
+                            class="search-results"
+                            id="results-{{ team }}"
+                        ></div>
+
+
+                        <button
+                            type="button"
+                            class="add-player"
+                            onclick="openPlayerModal('{{ team }}')"
+                        >
+                            + Add new player
+                        </button>
+
+
+                        <div
+                            class="player-list"
+                            id="list-{{ team }}"
+                        >
+
+                            {% set ids = team_a if team == 'a' else team_b %}
+
+                            {% for pid in ids %}
+
+                                <div class="selected-player">
+
+                                    <span class="selected-player-name">
+                                        {{ player_names[pid] }}
+                                    </span>
+
+                                    <button
+                                        class="remove-player"
+                                        type="button"
+                                    >
+                                        ×
+                                    </button>
+
+                                    <input
+                                        type="hidden"
+                                        name="team_{{ team }}"
+                                        value="{{ pid }}"
+                                    >
+
+                                </div>
+
+                            {% endfor %}
+
+                        </div>
+
+                    </div>
+
+                {% endfor %}
+
+            </div>
+
+
+            <div class="actions">
+
+                <button
+                    class="primary"
+                    type="submit"
+                >
+                    Save match &amp; update Glicko
+                </button>
+
+            </div>
+
+        </form>
+
+    </section>
+
+
+    {% if result %}
+
+        <script
+            type="application/json"
+            id="generated-teams"
+        >
+            {{ {'a': result.team_a, 'b': result.team_b} | tojson }}
+        </script>
+
+    {% endif %}

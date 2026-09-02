@@ -1,0 +1,135 @@
+<!-- ============================================================
+         SUGGESTED TEAMS
+         ============================================================ -->
+
+    {% if result %}
+
+        <section
+            class="card"
+            id="suggested-teams"
+        >
+
+            <h2>Suggested teams</h2>
+
+
+            <div class="teams">
+
+                <!-- Team A -->
+
+                <div class="team">
+
+                    <h3>Team A</h3>
+
+                    <ul>
+
+                        {% for pid in result.team_a %}
+
+                            <li>
+
+                                {{ players[pid].aliases[0]
+                                    if players[pid].aliases
+                                    else 'Player ' ~ pid
+                                }}
+
+                                <span
+                                    class="position-info"
+                                    title="The position shown is the position the matchmaker considered for this player in this suggested team. It is based on the player's registered position capabilities and the other players on the team; it does not change the player's stored positions."
+                                >
+                                    ({{ result.considered_positions_a[pid] }})
+                                </span>
+
+                            </li>
+
+                        {% endfor %}
+
+                    </ul>
+
+
+                    <div class="muted">
+
+                        <strong>Rating:</strong>
+                        {{ '%.1f' | format(result.rating_a.rating) }}
+
+                        ·
+
+                        <strong>RD:</strong>
+                        {{ '%.1f' | format(result.rating_a.rd) }}
+
+                    </div>
+
+                </div>
+
+
+                <!-- Team B -->
+
+                <div class="team">
+
+                    <h3>Team B</h3>
+
+                    <ul>
+
+                        {% for pid in result.team_b %}
+
+                            <li>
+
+                                {{ players[pid].aliases[0]
+                                    if players[pid].aliases
+                                    else 'Player ' ~ pid
+                                }}
+
+                                <span
+                                    class="position-info"
+                                    title="The position shown is the position the matchmaker considered for this player in this suggested team. It is based on the player's registered position capabilities and the other players on the team; it does not change the player's stored positions."
+                                >
+                                    ({{ result.considered_positions_b[pid] }})
+                                </span>
+
+                            </li>
+
+                        {% endfor %}
+
+                    </ul>
+
+
+                    <div class="muted">
+
+                        <strong>Rating:</strong>
+                        {{ '%.1f' | format(result.rating_b.rating) }}
+
+                        ·
+
+                        <strong>RD:</strong>
+                        {{ '%.1f' | format(result.rating_b.rd) }}
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="result-summary">
+
+                <strong>Rating difference:</strong>
+                {{ '%.1f' | format(result.rating_difference) }}
+
+                <br>
+
+                <strong>Positional balance evaluation:</strong>
+
+                <span
+                    class="position-evaluation"
+                    title="Lower is better. The score compares how evenly both teams cover GK, DEF, MID and ATT based on players' registered position capabilities. A score of 0 means the positional capability counts are equal. An additional large penalty is applied if all GK-capable players end up on the same team."
+                >
+                    ⓘ
+                    {{ '%.1f' | format(result.position_penalty) }}
+                </span>
+
+            </div>
+
+
+
+
+        </section>
+
+    {% endif %}

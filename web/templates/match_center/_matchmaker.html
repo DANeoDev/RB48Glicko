@@ -1,0 +1,84 @@
+<!-- ============================================================
+         MATCHMAKER
+         ============================================================ -->
+
+    <section class="card">
+
+        <details id="matchmaker-details">
+
+            <summary>
+                <strong>Matchmaker</strong>
+            </summary>
+
+            <p class="muted">
+                Use the detected players or select additional players to generate fair teams.
+            </p>
+
+
+            {% if parse_result and parse_result.kind == 'match' %}
+
+                <div class="notice">
+
+                    <strong>
+                        Do you want to check for fairer possible teams?
+                    </strong>
+
+                    <br>
+
+                    The imported source already describes a completed match.
+                    This is useful if you want to compare the recorded teams
+                    with alternative team compositions.
+
+                </div>
+
+            {% endif %}
+
+
+            <form method="post">
+
+                <div class="players">
+
+                    {% for pid, p in players.items() %}
+
+                        <label class="player">
+
+                            <input
+                                type="checkbox"
+                                name="players"
+                                value="{{ pid }}"
+                                {% if pid in selected_ids %}checked{% endif %}
+                            >
+
+                            <span class="player-name">
+                                {{ p.aliases[0] if p.aliases else 'Player ' ~ pid }}
+                            </span>
+
+                            <span class="player-positions">
+                                {{ p.positions | join(', ') if p.positions else 'Any' }}
+                            </span>
+
+                        </label>
+
+                    {% endfor %}
+
+                </div>
+
+
+                <div class="actions">
+
+                    <button
+                        class="primary"
+                        type="submit"
+                        name="action"
+                        value="generate"
+                    >
+                        Generate teams
+                    </button>
+
+                </div>
+
+            </form>
+
+        </details>
+
+    </section>

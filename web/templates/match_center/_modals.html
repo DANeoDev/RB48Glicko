@@ -1,0 +1,227 @@
+<!-- ================================================================
+     CONFLICT MODAL
+     ================================================================ -->
+
+<div
+    class="modal-bg"
+    id="conflict-modal"
+>
+
+    <div class="modal">
+
+        <h3>Change name details</h3>
+
+        <p class="muted">
+            The source contains
+            <strong id="conflict-name"></strong>.
+        </p>
+
+        <input
+            id="conflict-input"
+            type="text"
+            placeholder="e.g. Konsti Müller"
+        >
+
+
+        <div class="modal-actions">
+
+            <button
+                class="primary"
+                id="conflict-save"
+                type="button"
+            >
+                Use this identity
+            </button>
+
+            <button
+                class="secondary"
+                id="conflict-cancel"
+                type="button"
+            >
+                Cancel
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ================================================================
+     ADD PLAYER MODAL
+     ================================================================ -->
+
+<div
+    class="modal-bg"
+    id="add-modal"
+>
+
+    <div class="modal">
+
+        <h3>Add player</h3>
+
+        <p>
+            Detected name:
+            <strong id="add-name"></strong>
+        </p>
+
+
+        <div id="choice">
+
+            <p>
+                Should this be an alias for an existing player,
+                or a new player?
+            </p>
+
+
+            <div class="modal-actions">
+
+                <button
+                    class="primary"
+                    id="alias-choice"
+                    type="button"
+                    title="If this is a common name, it is better to select the player manually instead of assigning a possibly overloaded alias."
+                >
+                    Add alias to existing ID
+                </button>
+
+                <button
+                    class="secondary"
+                    id="new-choice"
+                    type="button"
+                >
+                    Add new player
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <div
+            id="alias-form"
+            style="display: none;"
+        >
+
+            <select id="alias-id">
+
+                {% for pid, p in players.items() %}
+
+                    <option value="{{ pid }}">
+                        #{{ pid }} —
+                        {{ p.aliases[0]
+                            if p.aliases
+                            else 'Player ' ~ pid
+                        }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+
+            <div class="modal-actions">
+
+                <button
+                    class="primary"
+                    id="alias-submit"
+                    type="button"
+                >
+                    Add alias &amp; select
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <div
+            id="new-form"
+            style="display: none;"
+        >
+
+            <input
+                id="new-alias"
+                type="text"
+                placeholder="Alias / name"
+            >
+
+
+            <div class="positions">
+
+                {% for pos in ['GK', 'DEF', 'MID', 'ATT'] %}
+
+                    <label>
+
+                        <input
+                            type="checkbox"
+                            name="new_positions"
+                            value="{{ pos }}"
+                        >
+
+                        {{ pos }}
+
+                    </label>
+
+                {% endfor %}
+
+            </div>
+
+
+            <div class="calibration">
+
+                {% for key, item in calibration_levels.items() %}
+
+                    <label>
+
+                        <input
+                            type="radio"
+                            name="new_calibration"
+                            value="{{ key }}"
+                            {% if key == 'average' %}checked{% endif %}
+                        >
+
+                        {{ item[1] }}
+
+                        {% if item[0] %}
+                            ({{ (item[0] * 100) | int }}th percentile)
+                        {% endif %}
+
+                    </label>
+
+                {% endfor %}
+
+            </div>
+
+
+            <div class="modal-actions">
+
+                <button
+                    class="primary"
+                    id="new-submit"
+                    type="button"
+                >
+                    Create &amp; select
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <div class="modal-actions">
+
+            <button
+                class="secondary"
+                id="add-cancel"
+                type="button"
+            >
+                Cancel
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
