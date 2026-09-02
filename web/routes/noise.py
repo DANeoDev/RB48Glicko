@@ -20,7 +20,11 @@ noise_bp = Blueprint("noise", __name__)
 
 @noise_bp.route("/api/noise", methods=["GET"])
 def get_noise():
-    """Retrieve all noise bubbles for a given page path."""
+    """Retrieve all noise bubbles for a given page path (registered users only)."""
+    user = get_current_user()
+    if not user or not user.get("email_verified") or not user.get("is_approved"):
+        return jsonify({"success": True, "bubbles": []})
+
     page_path = request.args.get("path", "/").strip()
     match_id = request.args.get("match_id", type=int)
 

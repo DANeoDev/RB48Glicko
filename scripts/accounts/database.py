@@ -483,8 +483,9 @@ def add_noise_bubble(
     if not user:
         raise ValueError("User not found.")
 
-    # Quota check: regular users only have 3 active non-match bubbles
-    if user["role"] == "user" and match_id is None:
+    # Quota check: regular users max 3, staff max 5 active non-match bubbles
+    if match_id is None:
+        max_bubbles = 5 if user["role"] in ("admin", "webmaster") else 3
         active_bubbles = connection.execute(
             """
             SELECT id FROM noise_bubbles
@@ -494,9 +495,9 @@ def add_noise_bubble(
             (user_id,),
         ).fetchall()
 
-        # If already at 3 (or more), evict oldest so total remains at 3 after insert
-        if len(active_bubbles) >= 3:
-            to_remove_count = len(active_bubbles) - 2
+        # If already at max (or more), evict oldest so total remains at max after insert
+        if len(active_bubbles) >= max_bubbles:
+            to_remove_count = len(active_bubbles) - (max_bubbles - 1)
             to_remove_ids = [b["id"] for b in active_bubbles[:to_remove_count]]
             for b_id in to_remove_ids:
                 connection.execute("DELETE FROM noise_bubbles WHERE id = ?", (b_id,))
@@ -625,9 +626,13 @@ def update_noise_bubble_position(connection, bubble_id, pos_x_percent, pos_y_per
 
 
 def set_user_noise_display_mode(connection, user_id, mode):
-    """Update user's preferred noise display mode ('smart', 'always_show', 'always_indicators', 'hidden')."""
-    valid_modes = ("smart", "always_show", "always_indicators", "hidden")
-    mode = mode if mode in valid_modes else "smart"
+    """Update user's preferred noise display mode ('transparent', 'always_expanded', 'hidden')."""
+    if mode in ("smart", "always_indicators"):
+        mode = "transparent"
+    elif mode == "always_show":
+        mode = "always_expanded"
+    valid_modes = ("transparent", "always_expanded", "hidden")
+    mode = mode if mode in valid_modes else "transparent"
     connection.execute(
         "UPDATE users SET noise_display_mode = ? WHERE id = ?",
         (mode, user_id),

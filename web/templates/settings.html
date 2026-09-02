@@ -143,37 +143,27 @@
         </div>
 
         <p class="reading-text" style="font-size: 14px; margin-bottom: 16px; color: #c9c2d8;">
-            Configure how member noise text bubbles interact with buttons, tables, and page content on your screen:
+            Configure how member noise text bubbles interact with page content and buttons on your screen:
         </p>
 
         <form method="post" action="{{ url_for('noise.update_noise_display_mode') }}">
             <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
                 <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
-                    <input type="radio" name="noise_display_mode" value="smart" {% if user.noise_display_mode == 'smart' or not user.noise_display_mode %}checked{% endif %} style="margin-top: 3px;">
+                    <input type="radio" name="noise_display_mode" value="transparent" {% if user.noise_display_mode == 'transparent' or not user.noise_display_mode or user.noise_display_mode == 'smart' or user.noise_display_mode == 'always_indicators' %}checked{% endif %} style="margin-top: 3px;">
                     <div>
-                        <strong style="color: #ffffff; font-size: 14px; display: block;">Smart Overlap Collision (Recommended)</strong>
+                        <strong style="color: #80deea; font-size: 14px; display: block;">Translucent Indicator Pills (Default / Recommended)</strong>
                         <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
-                            Bubbles in open spaces stay fully expanded. Bubbles that overlap with buttons, inputs, or tables collapse into translucent indicator badges (<code>💭</code>) that pop into view on hover.
+                            All banter bubbles start as compact translucent pills (<code>💭 [Author]</code>) with drag handles. Hovering or tapping pops open the full banter message without blocking buttons or tables.
                         </span>
                     </div>
                 </label>
 
                 <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
-                    <input type="radio" name="noise_display_mode" value="always_show" {% if user.noise_display_mode == 'always_show' %}checked{% endif %} style="margin-top: 3px;">
+                    <input type="radio" name="noise_display_mode" value="always_expanded" {% if user.noise_display_mode == 'always_expanded' or user.noise_display_mode == 'always_show' %}checked{% endif %} style="margin-top: 3px;">
                     <div>
-                        <strong style="color: #ffffff; font-size: 14px; display: block;">Always Show Full Bubbles</strong>
+                        <strong style="color: #ffffff; font-size: 14px; display: block;">Always Show Expanded Bubbles</strong>
                         <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
-                            Always display full text bubbles in their exact positions as placed by authors.
-                        </span>
-                    </div>
-                </label>
-
-                <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
-                    <input type="radio" name="noise_display_mode" value="always_indicators" {% if user.noise_display_mode == 'always_indicators' %}checked{% endif %} style="margin-top: 3px;">
-                    <div>
-                        <strong style="color: #ffffff; font-size: 14px; display: block;">Minimal Indicator Pills</strong>
-                        <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
-                            Display all noise bubbles as small, non-intrusive indicator pills. Hover to expand banter.
+                            Always display full text speech bubbles directly on the page.
                         </span>
                     </div>
                 </label>
@@ -183,7 +173,7 @@
                     <div>
                         <strong style="color: #ff8888; font-size: 14px; display: block;">Mute Noise (Hide All)</strong>
                         <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
-                            Hide all noise bubbles completely for a completely clean page view.
+                            Hide all noise bubbles completely for a clean page view.
                         </span>
                     </div>
                 </label>

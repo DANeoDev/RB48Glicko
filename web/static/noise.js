@@ -12,18 +12,25 @@
     let loadedBubbles = [];
 
     const PALETTE = [
-        { name: "Purple", hex: "#7B52C5" },
-        { name: "Teal", hex: "#00897b" },
-        { name: "Crimson", hex: "#d32f2f" },
-        { name: "Amber", hex: "#e65100" },
-        { name: "Midnight", hex: "#211553" },
-        { name: "Cyan", hex: "#00bcd4" },
+        { name: "Royal Purple", hex: "#7B52C5" },
+        { name: "Deep Emerald", hex: "#00897b" },
+        { name: "Crimson Fire", hex: "#dc2626" },
+        { name: "Electric Amber", hex: "#ea580c" },
+        { name: "Midnight Velvet", hex: "#24194A" },
+        { name: "Neon Cyan", hex: "#06b6d4" },
+        { name: "Hot Magenta", hex: "#db2777" },
+        { name: "Electric Lime", hex: "#65a30d" },
+        { name: "Sky Blue", hex: "#2563eb" },
+        { name: "Slate Charcoal", hex: "#334155" },
     ];
 
     let selectedColor = PALETTE[0].hex;
 
     function initNoise() {
-        const container = getOrCreateContainer();
+        // Only load if user is logged in
+        if (!window.RB48_USER) return;
+
+        getOrCreateContainer();
         ensureNoiseElements();
         loadPageBubbles();
 
@@ -38,12 +45,42 @@
         // Click on page in Noise Mode
         document.addEventListener("click", handlePageClickInNoiseMode, true);
 
-        // Window resize re-positions / re-checks overlap
+        // Window resize
         let resizeTimer;
         window.addEventListener("resize", () => {
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(renderAllBubbles, 200);
         });
+    }
+
+    function getDismissedIds() {
+        try {
+            return JSON.parse(localStorage.getItem("rb48_dismissed_noise_ids") || "[]");
+        } catch {
+            return [];
+        }
+    }
+
+    function addDismissedId(id) {
+        const list = getDismissedIds();
+        if (!list.includes(id)) {
+            list.push(id);
+            localStorage.setItem("rb48_dismissed_noise_ids", JSON.stringify(list));
+        }
+    }
+
+    function getLocalPositions() {
+        try {
+            return JSON.parse(localStorage.getItem("rb48_local_noise_positions") || "{}");
+        } catch {
+            return {};
+        }
+    }
+
+    function setLocalPosition(id, x, y) {
+        const positions = getLocalPositions();
+        positions[id] = { x: x, y: y };
+        localStorage.setItem("rb48_local_noise_positions", JSON.stringify(positions));
     }
 
     function getOrCreateContainer() {
@@ -91,10 +128,12 @@
                     <button type="button" onclick="window.RB48Noise.closeCreator()" style="background: none; border: none; color: #fff; font-size: 18px; cursor: pointer;">✕</button>
                 </div>
 
+                <!-- WYSIWYG Live Preview Textarea -->
                 <div style="margin-bottom: 14px;">
-                    <textarea id="noise-text-input" placeholder="Drop your comment or banter..." maxlength="160" rows="3" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; background: #24194A; border: 1px solid #5A4A83; color: #ffffff; font-family: Inter, sans-serif; font-size: 14px; resize: vertical;"></textarea>
+                    <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 6px;">Banter Message (Live Preview):</label>
+                    <textarea id="noise-text-input" placeholder="Type your banter or comment..." maxlength="160" rows="3" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; background: #7B52C5; border: 2px solid rgba(255,255,255,0.3); color: #ffffff; font-family: Inter, sans-serif; font-size: 15px; resize: vertical; box-shadow: 0 4px 14px rgba(0,0,0,0.4); transition: all 0.2s ease;"></textarea>
                     <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 4px;">
-                        <span>Max 160 characters</span>
+                        <span>— ${escapeHtml(window.RB48_USER?.attendance_name || window.RB48_USER?.username || 'You')}</span>
                         <span id="noise-char-count">0/160</span>
                     </div>
                 </div>
@@ -102,23 +141,24 @@
                 <!-- Color chips -->
                 <div style="margin-bottom: 14px;">
                     <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 6px;">Bubble Color:</label>
-                    <div id="noise-color-chips" style="display: flex; gap: 8px; align-items: center;"></div>
+                    <div id="noise-color-chips" style="display: flex; gap: 7px; flex-wrap: wrap; align-items: center;"></div>
                 </div>
 
                 <!-- Font & Size -->
                 <div style="display: flex; gap: 10px; margin-bottom: 18px;">
                     <div style="flex: 1;">
-                        <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 4px;">Font:</label>
-                        <select id="noise-font-family" style="width: 100%; padding: 6px; border-radius: 6px; background: #24194A; border: 1px solid #5A4A83; color: #ffffff; font-size: 13px;">
-                            <option value="Inter">Clean (Inter)</option>
-                            <option value="'Comic Neue', cursive, sans-serif">Banter (Comic)</option>
+                        <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 4px;">Font Style:</label>
+                        <select id="noise-font-family" style="width: 100%; padding: 7px; border-radius: 6px; background: #24194A; border: 1px solid #5A4A83; color: #ffffff; font-size: 13px;">
+                            <option value="Inter, sans-serif">Clean (Inter)</option>
+                            <option value="'Comic Neue', 'Comic Sans MS', cursive, sans-serif">Banter (Comic)</option>
                             <option value="Impact, Charcoal, sans-serif">Loud (Impact)</option>
-                            <option value="'Courier New', monospace">Retro (Mono)</option>
+                            <option value="'Courier New', Courier, monospace">Retro (Mono)</option>
+                            <option value="Georgia, serif">Classic (Serif)</option>
                         </select>
                     </div>
-                    <div style="width: 100px;">
+                    <div style="width: 110px;">
                         <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 4px;">Size:</label>
-                        <select id="noise-font-size" style="width: 100%; padding: 6px; border-radius: 6px; background: #24194A; border: 1px solid #5A4A83; color: #ffffff; font-size: 13px;">
+                        <select id="noise-font-size" style="width: 100%; padding: 7px; border-radius: 6px; background: #24194A; border: 1px solid #5A4A83; color: #ffffff; font-size: 13px;">
                             <option value="13">Small</option>
                             <option value="15" selected>Medium</option>
                             <option value="18">Large</option>
@@ -129,8 +169,8 @@
 
                 <div style="display: flex; justify-content: flex-end; gap: 10px;">
                     <button type="button" class="secondary" onclick="window.RB48Noise.closeCreator()" style="padding: 8px 14px; font-size: 13px;">Cancel</button>
-                    <button type="button" id="noise-save-btn" class="primary" onclick="window.RB48Noise.saveBubble()" style="padding: 8px 20px; font-size: 13px; font-weight: 700; border-radius: 20px;">
-                        Post Noise 🚀
+                    <button type="button" id="noise-save-btn" class="primary" onclick="window.RB48Noise.saveBubble()" style="padding: 9px 22px; font-size: 13.5px; font-weight: 700; border-radius: 20px;">
+                        Post Banter 🚀
                     </button>
                 </div>
             `;
@@ -147,16 +187,33 @@
                     selectedColor = c.hex;
                     chipContainer.querySelectorAll(".noise-color-chip").forEach(ch => ch.classList.remove("selected"));
                     chip.classList.add("selected");
+                    syncWysiwygPreview();
                 };
                 chipContainer.appendChild(chip);
             });
 
-            // Character count listener
+            // Character count & input listener
             const textarea = document.getElementById("noise-text-input");
+            const fontSelect = document.getElementById("noise-font-family");
+            const sizeSelect = document.getElementById("noise-font-size");
+
             textarea.addEventListener("input", () => {
                 document.getElementById("noise-char-count").textContent = `${textarea.value.length}/160`;
             });
+            fontSelect.addEventListener("change", syncWysiwygPreview);
+            sizeSelect.addEventListener("change", syncWysiwygPreview);
         }
+    }
+
+    function syncWysiwygPreview() {
+        const textarea = document.getElementById("noise-text-input");
+        const fontSelect = document.getElementById("noise-font-family");
+        const sizeSelect = document.getElementById("noise-font-size");
+        if (!textarea) return;
+
+        textarea.style.backgroundColor = selectedColor;
+        textarea.style.fontFamily = fontSelect ? fontSelect.value : "Inter";
+        textarea.style.fontSize = (sizeSelect ? sizeSelect.value : "15") + "px";
     }
 
     function toggleNoiseMode(forceState) {
@@ -210,6 +267,7 @@
         if (modal && textarea) {
             textarea.value = "";
             document.getElementById("noise-char-count").textContent = "0/160";
+            syncWysiwygPreview();
             modal.style.display = "block";
             textarea.focus();
         }
@@ -224,7 +282,7 @@
         const textarea = document.getElementById("noise-text-input");
         const content = textarea.value.trim();
         if (!content) {
-            alert("Please enter some text for your noise bubble.");
+            alert("Please enter some banter for your speech bubble.");
             return;
         }
 
@@ -286,116 +344,84 @@
         const container = getOrCreateContainer();
         container.innerHTML = "";
 
-        const userDisplayMode = (window.RB48_USER && window.RB48_USER.noise_display_mode) || "smart";
+        const userDisplayMode = (window.RB48_USER && window.RB48_USER.noise_display_mode) || "transparent";
         if (userDisplayMode === "hidden") return;
 
         const currentUserId = window.RB48_USER ? window.RB48_USER.id : null;
         const isStaff = window.RB48_USER && ["admin", "webmaster"].includes(window.RB48_USER.role);
+        const dismissedIds = getDismissedIds();
+        const localPositions = getLocalPositions();
 
         loadedBubbles.forEach((b) => {
-            const canManage = isStaff || (currentUserId && currentUserId === b.user_id);
-            const el = createBubbleDOM(b, canManage, userDisplayMode);
+            // Filter out locally dismissed bubbles
+            if (dismissedIds.includes(b.id)) return;
+
+            // Apply local reposition override if present
+            const displayX = localPositions[b.id]?.x ?? b.pos_x_percent;
+            const displayY = localPositions[b.id]?.y ?? b.pos_y_percent;
+
+            const isAuthorOrStaff = isStaff || (currentUserId && currentUserId === b.user_id);
+            const el = createBubbleDOM(b, isAuthorOrStaff, userDisplayMode, displayX, displayY);
             container.appendChild(el);
         });
-
-        // Smart overlap check after layout paint
-        if (userDisplayMode === "smart") {
-            setTimeout(applySmartOverlapCheck, 50);
-        }
     }
 
-    function createBubbleDOM(b, canManage, userDisplayMode) {
+    function createBubbleDOM(b, isAuthorOrStaff, userDisplayMode, posX, posY) {
         const wrapper = document.createElement("div");
         wrapper.className = "noise-bubble-wrapper";
         wrapper.id = `noise-bubble-wrap-${b.id}`;
-        wrapper.style.left = `${b.pos_x_percent}%`;
-        wrapper.style.top = `${b.pos_y_percent}%`;
+        wrapper.style.left = `${posX}%`;
+        wrapper.style.top = `${posY}%`;
 
-        const isAlwaysPill = userDisplayMode === "always_indicators";
+        const isAlwaysExpanded = userDisplayMode === "always_expanded" || userDisplayMode === "always_show";
 
-        if (isAlwaysPill) {
-            renderAsPill(wrapper, b, canManage);
+        if (isAlwaysExpanded) {
+            renderAsFullBubble(wrapper, b, isAuthorOrStaff);
         } else {
-            renderAsFullBubble(wrapper, b, canManage);
+            renderAsPill(wrapper, b, isAuthorOrStaff);
         }
 
         return wrapper;
     }
 
-    function renderAsFullBubble(wrapper, b, canManage) {
+    function renderAsFullBubble(wrapper, b, isAuthorOrStaff) {
         wrapper.innerHTML = `
             <div class="noise-bubble" style="background-color: ${escapeHtml(b.bg_color)}; font-family: ${escapeHtml(b.font_family)}; font-size: ${b.font_size}px;">
                 <div class="noise-bubble-content">${escapeHtml(b.content)}</div>
                 <div class="noise-bubble-footer">
                     <span class="noise-bubble-author">— ${escapeHtml(b.attendance_name || b.username)}</span>
                     <div class="noise-bubble-actions">
-                        ${canManage ? `<span class="noise-drag-handle" title="Drag to reposition" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>` : ""}
-                        ${canManage ? `<button type="button" class="noise-btn-icon" title="Delete noise" onclick="window.RB48Noise.deleteBubble(${b.id})">✕</button>` : ""}
+                        <span class="noise-drag-handle" title="Drag to move anywhere" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
+                        <button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">👁️‍🗨️</button>
+                        ${isAuthorOrStaff ? `<button type="button" class="noise-btn-icon" title="Delete globally" style="color: #ff8888;" onclick="window.RB48Noise.deleteGlobal(${b.id})">🗑️</button>` : ""}
                     </div>
                 </div>
             </div>
         `;
     }
 
-    function renderAsPill(wrapper, b, canManage) {
+    function renderAsPill(wrapper, b, isAuthorOrStaff) {
         wrapper.innerHTML = `
-            <div class="noise-indicator-pill">
-                <span>💭 ${escapeHtml(b.attendance_name || b.username)}</span>
+            <div class="noise-indicator-pill" id="pill-${b.id}">
+                <span class="noise-drag-handle" title="Drag to move" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
+                <span class="pill-label">💭 ${escapeHtml(b.attendance_name || b.username)}</span>
+                <button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>
+                
                 <div class="pill-expanded-popover">
                     <div class="noise-bubble" style="background-color: ${escapeHtml(b.bg_color)}; font-family: ${escapeHtml(b.font_family)}; font-size: ${b.font_size}px;">
                         <div class="noise-bubble-content">${escapeHtml(b.content)}</div>
                         <div class="noise-bubble-footer">
                             <span class="noise-bubble-author">— ${escapeHtml(b.attendance_name || b.username)}</span>
                             <div class="noise-bubble-actions">
-                                ${canManage ? `<span class="noise-drag-handle" title="Drag to reposition" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>` : ""}
-                                ${canManage ? `<button type="button" class="noise-btn-icon" title="Delete noise" onclick="window.RB48Noise.deleteBubble(${b.id})">✕</button>` : ""}
+                                <span class="noise-drag-handle" title="Drag to move" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
+                                <button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">👁️‍🗨️</button>
+                                ${isAuthorOrStaff ? `<button type="button" class="noise-btn-icon" title="Delete globally" style="color: #ff8888;" onclick="window.RB48Noise.deleteGlobal(${b.id})">🗑️</button>` : ""}
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         `;
-    }
-
-    function applySmartOverlapCheck() {
-        const wrappers = document.querySelectorAll(".noise-bubble-wrapper");
-        const interactiveElements = document.querySelectorAll(
-            "button, a, input, select, textarea, table th, table td, form, .card h2, .nav-links"
-        );
-
-        wrappers.forEach((wrap) => {
-            const bubbleId = parseInt(wrap.id.replace("noise-bubble-wrap-", ""), 10);
-            const b = loadedBubbles.find(item => item.id === bubbleId);
-            if (!b) return;
-
-            const currentUserId = window.RB48_USER ? window.RB48_USER.id : null;
-            const isStaff = window.RB48_USER && ["admin", "webmaster"].includes(window.RB48_USER.role);
-            const canManage = isStaff || (currentUserId && currentUserId === b.user_id);
-
-            const wrapRect = wrap.getBoundingClientRect();
-            let overlaps = false;
-
-            for (let i = 0; i < interactiveElements.length; i++) {
-                const el = interactiveElements[i];
-                if (wrap.contains(el)) continue;
-                const elRect = el.getBoundingClientRect();
-
-                // Check intersection
-                if (
-                    wrapRect.right > elRect.left &&
-                    wrapRect.left < elRect.right &&
-                    wrapRect.bottom > elRect.top &&
-                    wrapRect.top < elRect.bottom
-                ) {
-                    overlaps = true;
-                    break;
-                }
-            }
-
-            if (overlaps) {
-                renderAsPill(wrap, b, canManage);
-            }
-        });
     }
 
     function startDrag(e, bubbleId) {
@@ -418,8 +444,8 @@
             const containerWidth = container.clientWidth || window.innerWidth;
             const containerHeight = container.clientHeight || document.body.scrollHeight;
 
-            const posXPercent = Math.max(2, Math.min(98, (moveEvt.pageX / containerWidth) * 100));
-            const posYPercent = Math.max(2, Math.min(98, (moveEvt.pageY / containerHeight) * 100));
+            const posXPercent = Math.max(1, Math.min(99, (moveEvt.pageX / containerWidth) * 100));
+            const posYPercent = Math.max(1, Math.min(99, (moveEvt.pageY / containerHeight) * 100));
 
             currentDrag.element.style.left = `${posXPercent}%`;
             currentDrag.element.style.top = `${posYPercent}%`;
@@ -432,17 +458,28 @@
             document.removeEventListener("mouseup", onMouseUp);
 
             if (currentDrag && currentDrag.newX !== undefined) {
-                try {
-                    await fetch(`/api/noise/${currentDrag.bubbleId}/move`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            pos_x_percent: currentDrag.newX,
-                            pos_y_percent: currentDrag.newY,
-                        }),
-                    });
-                } catch (err) {
-                    console.error("Failed to persist bubble move:", err);
+                const bId = currentDrag.bubbleId;
+                const newX = currentDrag.newX;
+                const newY = currentDrag.newY;
+
+                // Always save local offset so the user sees it in their desired spot
+                setLocalPosition(bId, newX, newY);
+
+                // If author or staff, also update globally on server
+                const b = loadedBubbles.find(item => item.id === bId);
+                const currentUserId = window.RB48_USER ? window.RB48_USER.id : null;
+                const isStaff = window.RB48_USER && ["admin", "webmaster"].includes(window.RB48_USER.role);
+
+                if (b && (isStaff || (currentUserId && currentUserId === b.user_id))) {
+                    try {
+                        await fetch(`/api/noise/${bId}/move`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ pos_x_percent: newX, pos_y_percent: newY }),
+                        });
+                    } catch (err) {
+                        console.error("Failed to persist bubble move globally:", err);
+                    }
                 }
             }
             currentDrag = null;
@@ -452,8 +489,19 @@
         document.addEventListener("mouseup", onMouseUp);
     }
 
-    async function deleteBubble(bubbleId) {
-        if (!confirm("Are you sure you want to delete this noise bubble?")) return;
+    function dismissLocal(bubbleId) {
+        addDismissedId(bubbleId);
+        const wrap = document.getElementById(`noise-bubble-wrap-${bubbleId}`);
+        if (wrap) {
+            wrap.style.transition = "opacity 0.2s ease, transform 0.2s ease";
+            wrap.style.opacity = "0";
+            wrap.style.transform = "translate(-50%, -50%) scale(0.6)";
+            setTimeout(() => wrap.remove(), 200);
+        }
+    }
+
+    async function deleteGlobal(bubbleId) {
+        if (!confirm("Are you sure you want to delete this noise bubble globally for everyone?")) return;
 
         try {
             const resp = await fetch(`/api/noise/${bubbleId}`, { method: "DELETE" });
@@ -466,7 +514,7 @@
                 alert(data.error || "Failed to delete bubble.");
             }
         } catch (err) {
-            console.error("Error deleting bubble:", err);
+            console.error("Error deleting bubble globally:", err);
         }
     }
 
@@ -487,7 +535,8 @@
         closeCreator: closeCreatorModal,
         saveBubble: saveBubble,
         startDrag: startDrag,
-        deleteBubble: deleteBubble,
+        dismissLocal: dismissLocal,
+        deleteGlobal: deleteGlobal,
         refresh: loadPageBubbles,
     };
 
