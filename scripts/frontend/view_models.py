@@ -54,6 +54,8 @@ def calculate_match_details(match, team_a, team_b, match_ratings, rating_type=TO
         "team_a_expected": None,
         "team_b_expected": None,
         "rating_delta": None,
+        "delta_a": None,
+        "delta_b": None,
     }
     if not team_a or not team_b or not match_ratings:
         return empty_details
@@ -95,6 +97,10 @@ def calculate_match_details(match, team_a, team_b, match_ratings, rating_type=TO
         team_a_result = team_b_result = 0.5
 
     updated_team_a = Glicko2().update_rating(team_a_rating, [(team_a_result, team_b_rating)])
+    updated_team_b = Glicko2().update_rating(team_b_rating, [(team_b_result, team_a_rating)])
+    delta_a = updated_team_a.rating - team_a_rating.rating
+    delta_b = updated_team_b.rating - team_b_rating.rating
+
     return {
         "team_a_rating": team_a_rating.rating,
         "team_a_rd": team_a_rating.rd,
@@ -102,7 +108,9 @@ def calculate_match_details(match, team_a, team_b, match_ratings, rating_type=TO
         "team_b_rd": team_b_rating.rd,
         "team_a_expected": team_a_expected,
         "team_b_expected": team_b_expected,
-        "rating_delta": updated_team_a.rating - team_a_rating.rating,
+        "rating_delta": delta_a,
+        "delta_a": delta_a,
+        "delta_b": delta_b,
     }
 
 

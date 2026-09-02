@@ -120,7 +120,8 @@ class MatchCenterFrontendTests(unittest.TestCase):
 
         conn = get_connection()
         try:
-            pid, _ = create_new_player(conn, "Test Striker", ["MID", "ATT"], calibration_level="average", main_position="ATT")
+            unique_name = f"Striker_{int(time.time() * 1000000)}"
+            pid, _ = create_new_player(conn, unique_name, ["MID", "ATT"], calibration_level="average", main_position="ATT")
             players = get_players(conn)
             self.assertIn(pid, players)
             # In players data, main position is tagged with *
@@ -128,6 +129,31 @@ class MatchCenterFrontendTests(unittest.TestCase):
             self.assertIn("MID", players[pid]["positions"])
         finally:
             conn.close()
+
+    def test_calculate_match_details_asymmetric_deltas(self):
+        from scripts.frontend.view_models import calculate_match_details
+
+        match = {
+            "goals_a": 5,
+            "goals_b": 3,
+            "players_a": 1,
+            "players_b": 1,
+        }
+        team_a = [1]
+        team_b = [2]
+        match_ratings = {
+            1: {TOTAL: {"rating": 1500.0, "rd": 200.0, "sigma": 0.06}},
+            2: {TOTAL: {"rating": 1700.0, "rd": 80.0, "sigma": 0.06}},
+        }
+        details = calculate_match_details(match, team_a, team_b, match_ratings, TOTAL)
+        self.assertIsNotNone(details["delta_a"])
+        self.assertIsNotNone(details["delta_b"])
+        # Team A won against a stronger opponent (1700 vs 1500) with high RD (200)
+        self.assertGreater(details["delta_a"], 0)
+        # Team B lost with lower RD (80)
+        self.assertLess(details["delta_b"], 0)
+        # Because RDs and ratings differ, absolute gains/losses are not strictly identical
+        self.assertNotEqual(round(details["delta_a"], 4), round(-details["delta_b"], 4))
 
 
 if __name__ == "__main__":

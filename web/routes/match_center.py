@@ -1,5 +1,5 @@
 from datetime import date
-from flask import Blueprint, render_template, request, redirect, url_for
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 
 from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_ratings
@@ -225,8 +225,23 @@ def match_center():
             processed = process_new_matches(connection)
             success = f"Saved {match_id} and updated Glicko ({processed} match processed)."
             calibration_message = None
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                next_id = next_match_id(connection, match_date)
+                connection.close()
+                return jsonify({
+                    "success": True,
+                    "match_id": match_id,
+                    "message": success,
+                    "next_match_id": next_id,
+                })
         except (ValueError, RuntimeError) as exc:
             error = str(exc)
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                connection.close()
+                return jsonify({
+                    "success": False,
+                    "error": error,
+                }), 400
 
     elif request.method == "POST" and action in ("generate", "reroll"):
         try:

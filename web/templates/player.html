@@ -133,9 +133,21 @@
 <div class="team-stat"><span class="stat-label">Win%</span><span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span></div>
 </div>
 <div class="rating-delta">
-{% if match["rating_delta"] > 0 %}<span class="positive">↑ {{ match["rating_delta"] | round(1) }}</span>{% elif match["rating_delta"] < 0 %}<span class="negative">↓ {{ match["rating_delta"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+{% if match["delta_a"] is not none %}
+    {% if match["delta_a"] > 0 %}<span class="positive">↑ {{ match["delta_a"] | round(1) }}</span>{% elif match["delta_a"] < 0 %}<span class="negative">↓ {{ match["delta_a"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+{% elif match["rating_delta"] is not none %}
+    {% if match["rating_delta"] > 0 %}<span class="positive">↑ {{ match["rating_delta"] | round(1) }}</span>{% elif match["rating_delta"] < 0 %}<span class="negative">↓ {{ match["rating_delta"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+{% else %}
+    <span>— 0.0</span>
+{% endif %}
 <span class="delta-separator">|</span>
-{% if match["rating_delta"] < 0 %}<span class="positive">↑ {{ match["rating_delta"] | abs | round(1) }}</span>{% elif match["rating_delta"] > 0 %}<span class="negative">↓ {{ match["rating_delta"] | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+{% if match["delta_b"] is not none %}
+    {% if match["delta_b"] > 0 %}<span class="positive">↑ {{ match["delta_b"] | round(1) }}</span>{% elif match["delta_b"] < 0 %}<span class="negative">↓ {{ match["delta_b"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+{% elif match["rating_delta"] is not none %}
+    {% if match["rating_delta"] < 0 %}<span class="positive">↑ {{ match["rating_delta"] | abs | round(1) }}</span>{% elif match["rating_delta"] > 0 %}<span class="negative">↓ {{ match["rating_delta"] | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+{% else %}
+    <span>— 0.0</span>
+{% endif %}
 </div>
 <div class="team-details team-b">
 <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_b_rating"] | round | int }}</span></div>
