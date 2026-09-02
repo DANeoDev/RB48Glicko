@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard – RB48{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="dashboard-page">
+    <div class="dashboard-content">
+        <div class="dashboard-news card">
+            <div class="dashboard-news-header">
+                <h1>News</h1>
+                <button type="button" class="dashboard-news-add" id="open-news-modal">+ News</button>
+            </div>
+            <div class="dashboard-news-content" id="dashboard-news-content" aria-live="polite">
+                {% if news %}
+                    {% for item in news %}
+                    <article class="dashboard-news-item">
+                        <div class="dashboard-news-date">{{ item.date }}</div>
+                        {{ item.html | safe }}
+                    </article>
+                    {% endfor %}
+                {% else %}
+                    <p class="dashboard-news-empty">No news yet.</p>
+                {% endif %}
+                {% if has_more_news %}
+                    <div class="dashboard-news-loading" id="dashboard-news-loading" hidden>Loading more news…</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="news-modal-backdrop" id="news-modal" hidden>
+    <div class="modal news-editor-modal" role="dialog" aria-modal="true" aria-labelledby="news-editor-title">
+        <div class="news-editor-header">
+            <h2 id="news-editor-title">Create News</h2>
+            <button type="button" class="news-editor-close" id="close-news-modal" aria-label="Close">×</button>
+        </div>
+        <form method="post" action="{{ url_for('news.create_news') }}" id="news-editor-form">
+            <label for="news-markdown">Markdown</label>
+            <textarea id="news-markdown" name="markdown" rows="14" placeholder="Paste or write your News here..." required></textarea>
+            <div class="news-markdown-help">
+                <span><code># heading</code></span>
+                <span><code>**bold**</code></span>
+                <span><code>*italic*</code></span>
+                <span><code>- bullet</code></span>
+                <span><code>1. numbered</code></span>
+                <span><code>[link](https://...)</code></span>
+            </div>
+            <div class="news-editor-actions">
+                <button type="button" class="news-editor-cancel" id="cancel-news-modal">Cancel</button>
+                <button type="button" class="news-editor-ai" id="format-news-ai">✨ Format with AI</button>
+                <button type="submit" class="primary">Create &amp; Publish</button>
+            </div>
+            <p class="news-editor-status" id="news-editor-status" role="status" aria-live="polite"></p>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const newsModal = document.getElementById("news-modal");
+const openNewsModal = document.getElementById("open-news-modal");
+const closeNewsModal = document.getElementById("close-news-modal");
+const cancelNewsModal = document.getElementById("cancel-news-modal");
+const newsMarkdown = document.getElementById("news-markdown");
+const formatNewsAI = document.getElementById("format-news-ai");
+const newsEditorStatus = document.getElementById("news-editor-status");
+const newsContent = document.getElementById("dashboard-news-content");
+const newsLoading = document.getElementById("dashboard-news-loading");
+let newsOffset = {{ news|length }};
+let hasMoreNews = {{ 'true' if has_more_news else 'false' }};
+let loadingNews = false;
+
+function showNewsModal() {
+    newsModal.hidden = false;
+    newsEditorStatus.textContent = "";
+    newsMarkdown.focus();
+}
+
+function hideNewsModal() {
+    newsModal.hidden = true;
+}
+
+openNewsModal.addEventListener("click", showNewsModal);
+closeNewsModal.addEventListener("click", hideNewsModal);
+cancelNewsModal.addEventListener("click", hideNewsModal);
+newsModal.addEventListener("click", (event) => {
+    if (event.target === newsModal) hideNewsModal();
+});
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !newsModal.hidden) hideNewsModal();
+});
+
+formatNewsAI.addEventListener("click", async () => {
+    const text = newsMarkdown.value.trim();
+    if (!text) {
+        newsEditorStatus.textContent = "Please enter some text first.";
+        newsMarkdown.focus();
+        return;
+    }
+
+    formatNewsAI.disabled = true;
+    newsEditorStatus.textContent = "Formatting with AI…";
+
+    try {
+        const response = await fetch("{{ url_for('news.format_news') }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || "The AI formatter failed.");
+        }
+        newsMarkdown.value = data.markdown;
+        newsEditorStatus.textContent = "Formatted. Please review the Markdown before publishing.";
+        newsMarkdown.focus();
+    } catch (error) {
+        newsEditorStatus.textContent = error.message || "The AI formatter failed.";
+    } finally {
+        formatNewsAI.disabled = false;
+    }
+});
+
+async function loadMoreNews() {
+    if (!hasMoreNews || loadingNews) return;
+    loadingNews = true;
+    if (newsLoading) newsLoading.hidden = false;
+
+    try {
+        const response = await fetch(`{{ url_for('news.get_more_news') }}?offset=${newsOffset}&limit=2`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load more news.");
+
+        data.news.forEach(item => {
+            const article = document.createElement("article");
+            article.className = "dashboard-news-item";
+            article.innerHTML = `<div class="dashboard-news-date">${item.date}</div>${item.html}`;
+            newsContent.insertBefore(article, newsLoading);
+        });
+
+        newsOffset += data.news.length;
+        hasMoreNews = data.has_more;
+        if (newsLoading && !hasMoreNews) newsLoading.remove();
+    } catch (error) {
+        console.error(error);
+    } finally {
+        loadingNews = false;
+        if (newsLoading && hasMoreNews) newsLoading.hidden = true;
+    }
+}
+
+newsContent.addEventListener("scroll", () => {
+    const threshold = 120;
+    if (newsContent.scrollTop + newsContent.clientHeight >= newsContent.scrollHeight - threshold) {
+        loadMoreNews();
+    }
+});
+</script>
+{% endblock %}

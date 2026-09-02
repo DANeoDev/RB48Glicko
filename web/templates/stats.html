@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+
+{% block title %}
+    RB48 — Stats
+{% endblock %}
+
+
+{% block content %}
+
+<div class="page-header-row">
+
+    <h1>Stats</h1>
+
+    <p>
+        RB48 performance statistics
+    </p>
+
+    <a
+        href="{{ url_for('stats.glicko_explainer') }}"
+        class="info-button"
+        title="How is the performance evaluated?"
+        aria-label="How is the performance evaluated?"
+    >
+        ?
+    </a>
+
+</div>
+
+<div class="stats-table-header">
+    <div class="stats-header-spacer"></div>
+    <div id="pitch-selector">
+        <button class="pitch-selector selected" data-pitch="total" title="Rating based on all matches, regardless of pitch type.">TOTAL</button>
+        <button class="pitch-selector" data-pitch="box" title="Rating based only on box matches.">BOX</button>
+        <button class="pitch-selector" data-pitch="hf" title="Rating based only on half-field matches.">HF</button>
+    </div>
+    <div class="stats-filter">
+        <label for="game-filter" title="Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.">Filter</label>
+        <input type="text" id="game-filter" value="-" placeholder="-" title="Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.">
+    </div>
+</div>
+
+<div id="stats-table-container" class="pitch-total">
+    <table id="leaderboard">
+        <thead>
+            <tr>
+                <th>Order</th>
+                <th>Player</th>
+                <th data-column="total-conservative" data-pitch="total" title="Conservative rating: E Rating minus 3 × RD. A cautious estimate of a player's performance.">C Rating</th>
+                <th data-column="total-rating" data-pitch="total" title="Estimated rating: the player's current Glicko-2 rating.">E Rating</th>
+                <th data-column="total-rd" data-pitch="total" title="Rating Deviation: how uncertain the rating is. Lower values mean greater confidence.">RD</th>
+                <th data-column="total-games" data-pitch="total" title="Number of matches played in this category.">Games</th>
+                <th data-column="total-wins" data-pitch="total" title="Number of matches won.">Ws</th>
+                <th data-column="total-losses" data-pitch="total" title="Number of matches lost.">Ls</th>
+                <th data-column="total-win-percent" data-pitch="total" title="Win percentage: wins divided by games played.">W%</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for player in leaderboard %}
+            <tr
+                data-total-conservative="{{ player['total']['conservative'] }}" data-total-rating="{{ player['total']['rating'] }}" data-total-rd="{{ player['total']['rd'] }}" data-total-games="{{ player['total']['games'] }}" data-total-wins="{{ player['total']['wins'] }}" data-total-losses="{{ player['total']['losses'] }}" data-total-win-percent="{{ player['total']['win_percent'] }}"
+                data-box-conservative="{{ player['box']['conservative'] }}" data-box-rating="{{ player['box']['rating'] }}" data-box-rd="{{ player['box']['rd'] }}" data-box-games="{{ player['box']['games'] }}" data-box-wins="{{ player['box']['wins'] }}" data-box-losses="{{ player['box']['losses'] }}" data-box-win-percent="{{ player['box']['win_percent'] }}"
+                data-hf-conservative="{{ player['hf']['conservative'] }}" data-hf-rating="{{ player['hf']['rating'] }}" data-hf-rd="{{ player['hf']['rd'] }}" data-hf-games="{{ player['hf']['games'] }}" data-hf-wins="{{ player['hf']['wins'] }}" data-hf-losses="{{ player['hf']['losses'] }}" data-hf-win-percent="{{ player['hf']['win_percent'] }}">
+                <td>{{ loop.index }}</td>
+                <td><a href="{{ url_for('stats.player_profile', player_id=player['player_id']) }}">{{ player["alias"] }}</a></td>
+                {% for pitch in ["total", "box", "hf"] %}
+                <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["conservative"] | round | int }}</td>
+                <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rating"] | round | int }}</td>
+                <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rd"] | round(1) }}</td>
+                <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["games"] }}</td>
+                <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["wins"] }}</td>
+                <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["losses"] }}</td>
+                <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["win_percent"] | round(1) }}%</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<style>#leaderboard th.sort-selected { color: var(--accent-readable); }</style>
+<script>
+const table=document.getElementById("leaderboard"),tbody=table.querySelector("tbody"),pitchSelectors=document.querySelectorAll(".pitch-selector"),columnHeaders=table.querySelectorAll("th[data-column]"),gameFilter=document.getElementById("game-filter");
+let currentPitch="total",currentSortColumn="games";
+const pitchColumns={total:["total-conservative","total-rating","total-rd","total-games","total-wins","total-losses","total-win-percent"],box:["box-conservative","box-rating","box-rd","box-games","box-wins","box-losses","box-win-percent"],hf:["hf-conservative","hf-rating","hf-rd","hf-games","hf-wins","hf-losses","hf-win-percent"]};
+const columnLabels=["C Rating","E Rating","RD","Games","Ws","Ls","W%"];
+function sortRows(column){const rows=Array.from(tbody.querySelectorAll("tr"));rows.sort((a,b)=>parseFloat(b.getAttribute("data-"+column))-parseFloat(a.getAttribute("data-"+column)));rows.forEach(row=>tbody.appendChild(row));updateVisibleRanks();}
+function updateSelectedSortHeader(){const selected=currentPitch+"-"+currentSortColumn;columnHeaders.forEach(header=>header.classList.toggle("sort-selected",header.dataset.column===selected));}
+function updateVisibleRanks(){let rank=1;tbody.querySelectorAll("tr").forEach(row=>{if(row.style.display!=="none")row.cells[0].textContent=rank++;});}
+function applyGameFilter(){const value=gameFilter.value.trim();if(value===""||value==="-"){tbody.querySelectorAll("tr").forEach(row=>row.style.display="");updateVisibleRanks();return;}const minimum=Number(value);if(!Number.isFinite(minimum)||minimum<0){tbody.querySelectorAll("tr").forEach(row=>row.style.display="");updateVisibleRanks();return;}const gamesColumn=currentPitch+"-games";tbody.querySelectorAll("tr").forEach(row=>row.style.display=Number(row.getAttribute("data-"+gamesColumn))>=minimum?"":"none");updateVisibleRanks();}
+function selectPitch(pitch){currentPitch=pitch;pitchSelectors.forEach(s=>s.classList.toggle("selected",s.dataset.pitch===pitch));pitchColumns[pitch].forEach((column,index)=>{columnHeaders[index].dataset.column=column;columnHeaders[index].textContent=columnLabels[index];});tbody.querySelectorAll("tr").forEach(row=>row.querySelectorAll("td[data-pitch-cell]").forEach(cell=>cell.style.display=cell.dataset.pitchCell===pitch?"":"none"));sortRows(pitch+"-"+currentSortColumn);updateSelectedSortHeader();applyGameFilter();}
+gameFilter.addEventListener("input",applyGameFilter);pitchSelectors.forEach(selector=>selector.addEventListener("click",()=>selectPitch(selector.dataset.pitch)));columnHeaders.forEach(header=>{header.style.cursor="pointer";header.addEventListener("click",()=>{currentSortColumn=header.dataset.column.replace(currentPitch+"-","");sortRows(header.dataset.column);updateSelectedSortHeader();});});selectPitch("total");
+</script>
+{% endblock %}

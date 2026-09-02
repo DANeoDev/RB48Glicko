@@ -13,6 +13,9 @@ matches/
 # Database backups
 data/backups/
 
+# Local news content
+data/news/
+
 # Generated / local analysis output
 data/stats/
 data/ratings/
@@ -26,5 +29,5 @@ TO-DOs.md
 .coverage
 htmlcov/
 
-# too big:
+# Local demo sqlite database
 data/demo/demo.db

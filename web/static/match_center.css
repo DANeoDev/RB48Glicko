@@ -1,0 +1,315 @@
+.mc {
+        max-width: 1100px;
+        margin: auto;
+    }
+
+    .card {
+        margin: 20px 0;
+        padding: 24px;
+    }
+
+    .muted {
+        color: var(--text-muted);
+        line-height: 1.5;
+    }
+
+    .parser {
+        margin-top: 14px;
+        padding: 16px;
+        border: 1px dashed var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-surface-alt);
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    .field label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+
+    .field textarea,
+    .field input,
+    .field select,
+    .player-search {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-surface);
+        color: var(--text-main);
+        font: inherit;
+    }
+
+    .field textarea {
+        min-height: 110px;
+    }
+
+    .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+    }
+
+    .primary,
+    .secondary {
+        padding: 10px 18px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .secondary {
+        background: var(--bg-surface);
+        color: var(--text-main);
+    }
+
+    details summary {
+        cursor: pointer;
+        font-size: 18px;
+    }
+
+    .players {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-top: 16px;
+    }
+
+    .player {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 9px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        cursor: pointer;
+    }
+
+    .player:hover {
+        background: var(--bg-surface-alt);
+    }
+
+    .player-name {
+        flex: 1;
+    }
+
+    .player-positions {
+        color: var(--text-muted);
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    .notice {
+        margin-top: 12px;
+        padding: 12px;
+        background: var(--bg-surface-alt);
+        border-left: 3px solid var(--accent);
+    }
+
+    .teams,
+    .team-columns {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    .team {
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    .team ul {
+        padding-left: 20px;
+    }
+
+    .team li {
+        margin: 5px 0;
+    }
+
+    .position-info,
+    .position-evaluation {
+        cursor: help;
+        text-decoration: underline dotted;
+        text-underline-offset: 3px;
+    }
+
+    .conflict-list,
+    .unknown {
+        margin-top: 14px;
+    }
+
+    .unknown-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin: 8px 0;
+    }
+
+    .name-button {
+        border: 0;
+        background: none;
+        color: var(--accent-readable);
+        cursor: pointer;
+        text-decoration: underline;
+        font: inherit;
+        font-weight: 600;
+    }
+
+    .team-box {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px;
+    }
+
+    .search-results {
+        margin-top: 7px;
+        max-height: 180px;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    .search-result {
+        padding: 8px 10px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .search-result:hover {
+        background: var(--bg-surface-alt);
+    }
+
+    .player-list {
+        min-height: 55px;
+        margin-top: 12px;
+    }
+
+    .selected-player {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 7px 9px;
+        margin-bottom: 6px;
+        background: var(--bg-surface-alt);
+        border-radius: var(--radius);
+    }
+
+    .selected-player-name {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .remove-player,
+    .add-player {
+        border: 0;
+        background: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        font: inherit;
+    }
+
+    .add-player {
+        color: var(--accent-readable);
+        margin-top: 9px;
+    }
+
+    .entry-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+    }
+
+    .positions {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin: 10px 0;
+    }
+
+    .calibration {
+        display: grid;
+        gap: 7px;
+    }
+
+    .modal-bg {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .modal {
+        width: min(560px, calc(100% - 32px));
+        max-height: 90vh;
+        overflow: auto;
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 24px;
+    }
+
+    .modal h3 {
+        margin-top: 0;
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+    }
+
+    .result-inputs {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .result-inputs input {
+        width: 90px;
+    }
+
+    .result-summary {
+        margin-top: 14px;
+        padding: 14px;
+        background: var(--bg-surface-alt);
+        border-left: 3px solid var(--accent);
+    }
+
+    @media (max-width: 750px) {
+        .grid,
+        .teams,
+        .team-columns,
+        .entry-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .players {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .positions {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @media (max-width: 500px) {
+        .players {
+            grid-template-columns: 1fr;
+        }
+    }

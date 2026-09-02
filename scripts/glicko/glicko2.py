@@ -15,10 +15,10 @@ import math
 # ---------------------------------------------------------------------------
 
 DEFAULT_RATING = 1500.0
-DEFAULT_RD = 341.80339
-IGNORED_RD = 261.803399
+DEFAULT_RD = 348
+IGNORED_RD = 480
 DEFAULT_SIGMA = 0.03
-INACTIVITY_RD_TICK = 0.06180339
+INACTIVITY_RD_TICK = 0.1180339
 
 DEFAULT_TAU = 1.0
 DEFAULT_EPSILON = 0.000001
@@ -116,15 +116,14 @@ class Glicko2:
         )
 
 
-    def _scale_up(self, player: Rating) -> _GlickoRating:
-
+    def _scale_up(self, player: _GlickoRating) -> Rating:
         return Rating(
             rating=player.mu * GLICKO2_SCALE + DEFAULT_RATING,
             rd=player.phi * GLICKO2_SCALE,
             sigma=player.sigma,
         )
 
-        # -----------------------------------------------------------------------
+    # -----------------------------------------------------------------------
     # Glicko-2 mathematical helpers
     # -----------------------------------------------------------------------
 
@@ -135,11 +134,9 @@ class Glicko2:
         Higher uncertainty in the opponent means their result influences
         your rating less.
         """
-
         return 1 / math.sqrt(
             1 + (3 * opponent.phi ** 2) / (math.pi ** 2)
         )
-
 
     def _expected_score(
         self,
@@ -150,17 +147,15 @@ class Glicko2:
         """
         Calculate expected score against an opponent.
         """
-
         return 1 / (
             1 + math.exp(
                 -impact * (player.mu - opponent.mu)
             )
         )
 
-
     def _determine_sigma(
         self,
-        player: Rating,
+        player: _GlickoRating,
         difference: float,
         variance: float,
     ) -> float:
