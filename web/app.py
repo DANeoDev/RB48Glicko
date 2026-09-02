@@ -1,6 +1,5 @@
-"""Flask application factory and global template context configuration."""
-
 import os
+from pathlib import Path
 from flask import Flask, session
 from web.routes import register_routes
 from web.services.security import (
@@ -12,7 +11,23 @@ from web.services.security import (
 )
 
 
+def load_env_file():
+    """Load key-value environment variables from .env if present."""
+    env_file = Path(__file__).resolve().parents[1] / ".env"
+    if env_file.exists():
+        with open(env_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    key = key.strip()
+                    value = value.strip().strip("'\"")
+                    if key and key not in os.environ:
+                        os.environ[key] = value
+
+
 def create_app():
+    load_env_file()
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
     app.secret_key = os.environ.get("RB48_SECRET_KEY") or os.urandom(32)

@@ -5,6 +5,8 @@ __pycache__/
 # Local databases
 
 data/
+.env
+*.env
 
 # local matches 
 
