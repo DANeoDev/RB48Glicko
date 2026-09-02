@@ -25,7 +25,9 @@ html {
 
 body {
     margin: 0;
-    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 15.5px;
+    line-height: 1.65;
     background-color: var(--bg-main);
     background-image: url("images/General_background.png");
     background-repeat: no-repeat;
@@ -43,7 +45,7 @@ body {
 .navbar {
     max-width: var(--content-width);
     margin: 0 auto;
-    padding: 10px 24px;
+    padding: 12px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -64,17 +66,30 @@ body {
     object-fit: contain;
 }
 
-.nav-links { display: flex; gap: 24px; }
+.nav-links { display: flex; gap: 26px; align-items: center; }
 
 .nav-links a {
     color: var(--text-muted);
     text-decoration: none;
-    font-weight: 500;
+    font-size: 15.5px;
+    font-weight: 550;
+    letter-spacing: 0.2px;
     transition: color 0.15s ease;
 }
 
 .nav-links a:hover { color: var(--accent-hover); }
-.nav-links a.active { color: var(--accent-readable); }
+.nav-links a.active { color: var(--accent-readable); font-weight: 600; }
+
+/* =========================
+   Reading & Prose Typography
+   ========================= */
+.reading-text, .prose-text, .faq-item p, .about-section p, .account-content p {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15.5px;
+    line-height: 1.72;
+    color: #ded6ed;
+    letter-spacing: 0.15px;
+}
 
 /* =========================
    Account / profile menu

@@ -47,6 +47,7 @@ class RouteTests(unittest.TestCase):
             "/dashboard",
             "/matches",
             "/glickofaq",
+            "/about",
             "/login",
             "/register",
             "/resend-verification",

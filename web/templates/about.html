@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}About · RB 48 Köln e.V.{% endblock %}
+
+{% block head %}
+<style>
+.about-section {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px 36px;
+    margin-bottom: 24px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+.about-section h2 {
+    margin: 0 0 16px;
+    color: #ffffff;
+    font-size: 22px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 10px;
+}
+.about-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 16px;
+}
+@media (max-width: 768px) {
+    .about-grid {
+        grid-template-columns: 1fr;
+    }
+    .about-section {
+        padding: 22px 20px;
+    }
+}
+.about-card-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: var(--radius);
+    padding: 20px;
+}
+.about-card-box h3 {
+    margin: 0 0 8px;
+    color: #80deea;
+    font-size: 17px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width: 920px; margin: 30px auto 60px; padding: 0 16px;">
+    
+    <!-- Hero Header -->
+    <div style="text-align: center; margin-bottom: 36px;">
+        <span style="font-size: 12px; font-weight: 700; color: #80deea; text-transform: uppercase; letter-spacing: 1.5px;">
+            Recreational Football Community · Cologne
+        </span>
+        <h1 style="margin: 8px 0 12px; color: #ffffff; font-size: 32px;">About RB 48 Köln e.V.</h1>
+        <p class="reading-text" style="max-width: 680px; margin: 0 auto; color: #c9c2d8; font-size: 16.5px;">
+            A private football association founded on the principles of fair competition, mathematical matchmaking, and genuine sportsmanship.
+        </p>
+    </div>
+
+    <!-- Section 1: The Story & Spirit -->
+    <div class="about-section">
+        <h2>⚽ The Club &amp; Community</h2>
+        <p class="reading-text">
+            <strong>RB 48 Köln e.V.</strong> is a recreational football association based in Cologne, Germany. We organize weekly small-sided matches for players who love high-tempo football, friendly competition, and sharing a cold drink and good banter after the final whistle.
+        </p>
+        <p class="reading-text">
+            What makes RB 48 special is our commitment to a positive locker-room culture. We play hard, we celebrate incredible goals and nutmegs, and we treat every teammate and opponent with mutual respect regardless of scoreline or skill level.
+        </p>
+    </div>
+
+    <!-- Section 2: Match Formats -->
+    <div class="about-section">
+        <h2>🏟️ Our Matchday Formats</h2>
+        <p class="reading-text">
+            We host regular sessions across two distinct pitch formats to challenge different tactical and physical skillsets:
+        </p>
+
+        <div class="about-grid">
+            <div class="about-card-box" style="border-left: 3px solid #00897b;">
+                <h3>Soccerbox (BOX)</h3>
+                <p class="reading-text" style="font-size: 14.5px; margin-bottom: 8px;">
+                    <strong>Location:</strong> Soccerbox - Uni Sport<br>
+                    <strong>Schedule:</strong> Wednesdays @ 20:00<br>
+                    <strong>Format:</strong> 6v6 (12 Players Max)
+                </p>
+                <p class="reading-text" style="font-size: 14px; margin-bottom: 0;">
+                    High-intensity indoor/caged football with wall rebounds, rapid transitions, and quick one-touch combinations.
+                </p>
+            </div>
+
+            <div class="about-card-box" style="border-left: 3px solid #7B52C5;">
+                <h3>Halbfeld (HF)</h3>
+                <p class="reading-text" style="font-size: 14.5px; margin-bottom: 8px;">
+                    <strong>Location:</strong> Halbfeld - Zülpicher Wall 5<br>
+                    <strong>Schedule:</strong> Wednesdays @ 20:30<br>
+                    <strong>Format:</strong> 9v9 (18 Players Max)
+                </p>
+                <p class="reading-text" style="font-size: 14px; margin-bottom: 0;">
+                    Spacious outdoor half-pitch with room for tactical positioning, long balls, stamina, and expansive team defense.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: The Philosophy: Math for Fairness -->
+    <div class="about-section">
+        <h2>📐 Math for Fairness, Joy for Football</h2>
+        <p class="reading-text">
+            Have you ever played in a recreational game where one side completely dominated, making the match boring for both teams? We built an adapted <strong>Glicko-2 statistical rating model</strong> and automated Matchmaker to solve that problem.
+        </p>
+        <p class="reading-text">
+            By modeling historical lineup combinations and match outcomes, our matchmaking algorithm evaluates thousands of team permutations before kickoff to create the most evenly balanced squads possible.
+        </p>
+        <div style="background: rgba(123, 82, 197, 0.12); border-left: 3px solid #7B52C5; padding: 14px 18px; border-radius: 4px; margin: 16px 0;">
+            <p class="reading-text" style="margin: 0; color: #e0dcf0; font-size: 14.5px;">
+                <strong>Our Golden Rule:</strong> The mathematical model exists exclusively to make matches exciting and balanced. Ratings are result-based summaries of past games — they will never define individual character or human worth.
+            </p>
+        </div>
+    </div>
+
+    <!-- Section 4: Getting Involved -->
+    <div class="about-section" style="border-color: #00897b; background: rgba(0, 137, 123, 0.06);">
+        <h2 style="border-bottom-color: rgba(0, 137, 123, 0.2);">👋 Joining Matchdays as a Guest</h2>
+        <p class="reading-text">
+            New to RB 48? Visitors and friends are welcome to participate as guest players!
+        </p>
+        <p class="reading-text">
+            Guest registration opens in our <a href="{{ url_for('planner.planner') }}" style="color: #80deea; font-weight: 600;">Attendance Planner</a> on the <strong>Sunday at 00:00</strong> before each matchday. Simply sign up, grab your turf or indoor boots, and join us on the pitch!
+        </p>
+        <div style="margin-top: 20px;">
+            <a href="{{ url_for('planner.planner') }}" class="primary" style="padding: 10px 24px; text-decoration: none; font-weight: 700; font-size: 14px; border-radius: 20px; display: inline-block;">
+                Explore Attendance Planner →
+            </a>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
