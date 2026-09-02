@@ -163,6 +163,32 @@ class AccessTiersTest(unittest.TestCase):
         updated = get_user(new_user["id"])
         self.assertEqual(updated["is_approved"], 1)
 
+    def test_webmaster_delete_user_with_backup_and_2step_verification(self):
+        webmaster = self.create_test_user(role="webmaster", verified=True)
+        target_user = self.create_test_user(role="user", verified=True, approved=True)
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = webmaster["id"]
+
+        # 1. Self deletion should be blocked
+        self_del = self.client.post(f"/admin/users/{webmaster['id']}/delete", data={"confirm_1": "yes", "confirm_username": webmaster["username"]}, follow_redirects=True)
+        self.assertIn(b"cannot delete your own active Webmaster account", self_del.data)
+
+        # 2. Failed verification (wrong username)
+        fail_del = self.client.post(f"/admin/users/{target_user['id']}/delete", data={"confirm_1": "yes", "confirm_username": "wrong_name"}, follow_redirects=True)
+        self.assertIn(b"Two-step verification failed", fail_del.data)
+        self.assertIsNotNone(get_user(target_user["id"]))
+
+        # 3. Successful deletion with automatic backup
+        success_del = self.client.post(f"/admin/users/{target_user['id']}/delete", data={"confirm_1": "yes", "confirm_username": target_user["username"]}, follow_redirects=True)
+        self.assertEqual(success_del.status_code, 200)
+        self.assertIn(b"was wiped", success_del.data)
+        self.assertIn(b"Backup archived to data/backups/accounts/", success_del.data)
+
+        # Confirm user is permanently gone from DB
+        self.assertIsNone(get_user(target_user["id"]))
+
 
 if __name__ == "__main__":
     unittest.main()
+

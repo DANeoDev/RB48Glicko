@@ -364,3 +364,36 @@ def update_password():
         conn.close()
 
     return redirect(url_for("auth.settings"))
+
+
+@auth_bp.route("/admin/users/<int:user_id>/delete", methods=["POST"])
+@require_webmaster
+def delete_user_route(user_id):
+    """Permanently delete a user account with 2-step verification and automatic database backup."""
+    from scripts.accounts.database import backup_and_delete_user
+
+    curr_user = get_current_user()
+    if curr_user and curr_user["id"] == user_id:
+        flash("You cannot delete your own active Webmaster account.", "danger")
+        return redirect(url_for("auth.admin_users"))
+
+    conn = get_accounts_connection()
+    try:
+        target_user = get_user_by_id(conn, user_id)
+        if not target_user:
+            flash("User account not found.", "warning")
+            return redirect(url_for("auth.admin_users"))
+
+        confirm_1 = request.form.get("confirm_1") == "yes"
+        confirm_username = request.form.get("confirm_username", "").strip()
+
+        if not (confirm_1 and confirm_username.lower() == target_user["username"].lower()):
+            flash("Two-step verification failed. Username confirmation did not match.", "warning")
+            return redirect(url_for("auth.admin_users"))
+
+        wiped_user, backup_name = backup_and_delete_user(conn, user_id)
+        flash(f"Account '{wiped_user['username']}' (#{wiped_user['id']}) was wiped. Backup archived to data/backups/accounts/{backup_name}.", "success")
+    finally:
+        conn.close()
+
+    return redirect(url_for("auth.admin_users"))
