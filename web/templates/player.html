@@ -132,7 +132,7 @@
 <div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_a_rd"] | round(1) }}</span></div>
 <div class="team-stat"><span class="stat-label">Win%</span><span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span></div>
 </div>
-<div class="rating-delta">
+<div class="rating-delta" title="Shows {{ player.aliases[0] if player.aliases else 'player' }} specific change for the match">
 {% if match["delta_a"] is not none %}
     {% if match["delta_a"] > 0 %}<span class="positive">↑ {{ match["delta_a"] | round(1) }}</span>{% elif match["delta_a"] < 0 %}<span class="negative">↓ {{ match["delta_a"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
 {% elif match["rating_delta"] is not none %}
