@@ -246,8 +246,6 @@
             {% if has_tier('glicko_user') %}
                 <a href="{{ url_for('stats.model_analysis') }}" class="{% if request.endpoint == 'stats.model_analysis' %}active{% endif %}">Model Analysis</a>
             {% endif %}
-
-            <a href="{{ url_for('stats.about') }}" class="{% if request.endpoint == 'stats.about' %}active{% endif %}">About</a>
         </div>
         <div class="profile-menu">
             <button type="button" class="profile-button" aria-label="Account" title="Account">
