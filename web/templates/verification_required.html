@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Email Verification Required · RB48{% endblock %}
+
+{% block content %}
+<div class="page-container account-page" style="max-width: 600px; margin: 40px auto; padding: 0 16px;">
+    <div class="account-card" style="padding: 30px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">
+            <div style="font-size: 32px;">✉️</div>
+            <div>
+                <h1 style="margin: 0; color: #ffffff; font-size: 22px;">Email Verification Required</h1>
+                <p class="muted" style="margin: 4px 0 0; font-size: 13px;">Please verify your email address to activate your account.</p>
+            </div>
+        </div>
+
+        <div style="line-height: 1.6; color: #c9c2d8; font-size: 14px;">
+            <p style="margin-bottom: 14px;">
+                Hello <strong>{{ user.username }}</strong>, you successfully entered your credentials, but your email address (<strong>{{ user.email }}</strong>) has not been verified yet.
+            </p>
+
+            <div style="background: rgba(255, 193, 7, 0.12); border-left: 3px solid #ffc107; padding: 12px 16px; border-radius: 4px; font-size: 13.5px; color: #ffe082; margin-bottom: 20px;">
+                <strong>Next Step:</strong> Please check your email inbox and click the verification link we sent you.
+            </div>
+
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
+                Didn't receive the email or did the link expire? Click below to dispatch a fresh verification link.
+            </p>
+
+            <form method="post" action="{{ url_for('auth.resend_verification') }}" style="margin-bottom: 16px;">
+                <input type="hidden" name="email" value="{{ user.email }}">
+                <button type="submit" class="primary" style="width: 100%; padding: 11px; font-weight: 700; font-size: 14px; cursor: pointer; border-radius: 6px;">
+                    📨 Resend Verification Email
+                </button>
+            </form>
+
+            <div style="text-align: center; border-top: 1px solid var(--border); padding-top: 16px;">
+                <a href="{{ url_for('auth.logout') }}" class="secondary" style="padding: 8px 16px; text-decoration: none; font-size: 13px;">
+                    ← Back to Login
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

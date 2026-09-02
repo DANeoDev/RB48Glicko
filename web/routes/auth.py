@@ -84,6 +84,9 @@ def login():
         if not user["email_verified"]:
             return render_template("verification_required.html", user=user)
 
+        if user["role"] == "user" and not user["is_approved"]:
+            return render_template("pending_approval.html", user=user)
+
         next_url = request.args.get("next") or url_for("stats.home")
         return redirect(next_url)
 

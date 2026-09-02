@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Membership Confirmation Pending · RB48{% endblock %}
+
+{% block content %}
+<div class="page-container account-page" style="max-width: 660px; margin: 40px auto; padding: 0 16px;">
+    <div class="account-card" style="padding: 32px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+        <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 22px; border-bottom: 1px solid var(--border); padding-bottom: 18px;">
+            <div style="font-size: 38px;">⏳</div>
+            <div>
+                <span style="font-size: 11px; font-weight: 700; color: #ffc107; text-transform: uppercase; letter-spacing: 1px;">
+                    Email Verified · Confirmation Pending
+                </span>
+                <h1 style="margin: 4px 0 0; color: #ffffff; font-size: 22px;">Membership Approval Required</h1>
+            </div>
+        </div>
+
+        <div style="line-height: 1.6; color: #c9c2d8; font-size: 14px;">
+            <p style="margin-bottom: 14px;">
+                Hello <strong>{{ user.username }}</strong>! Your email address (<strong>{{ user.email }}</strong>) has been successfully verified.
+            </p>
+
+            <div style="background: rgba(123, 82, 197, 0.12); border-left: 3px solid #7B52C5; padding: 14px 16px; border-radius: 4px; font-size: 13.5px; color: #e0dcf0; margin-bottom: 20px;">
+                <strong style="color: #ffffff; display: block; margin-bottom: 4px;">Association Membership Requirement:</strong>
+                Access to detailed player statistics, performance ratings, and member matchday RSVPs is restricted to members of the <strong>RB 48 Köln e.V.</strong> association.
+            </div>
+
+            <p style="margin-bottom: 16px;">
+                Your account is currently <strong>awaiting manual confirmation by the Webmaster</strong>. This ensures that only authorized association members can access internal player identities and statistics.
+            </p>
+
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 24px;">
+                Once approved, you will have instant access to member statistics and the Attendance Planner. In the meantime, you can explore the general public match calendar and FAQ.
+            </p>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-top: 1px solid var(--border); padding-top: 18px;">
+                <a href="{{ url_for('auth.logout') }}" class="secondary" style="padding: 9px 18px; text-decoration: none; font-size: 13px;">
+                    Log Out
+                </a>
+                <div style="display: flex; gap: 10px;">
+                    <a href="{{ url_for('stats.glicko_explainer') }}" class="secondary" style="padding: 9px 16px; text-decoration: none; font-size: 13px;">
+                        Read FAQ
+                    </a>
+                    <a href="{{ url_for('planner.planner') }}" class="primary" style="padding: 9px 20px; text-decoration: none; font-weight: 700; font-size: 13px; border-radius: 20px;">
+                        View Matchday Calendar →
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

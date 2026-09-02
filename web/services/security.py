@@ -3,7 +3,7 @@
 from enum import IntEnum
 from functools import wraps
 
-from flask import flash, has_request_context, redirect, request, session, url_for
+from flask import flash, has_request_context, redirect, render_template, request, session, url_for
 
 from scripts.accounts.auth import get_user
 
@@ -104,8 +104,7 @@ def require_tier(required_tier):
                     return redirect(url_for("auth.resend_verification"))
 
                 if not user.get("is_approved") and user.get("role") == "user":
-                    flash("Your account is pending manual approval by the Webmaster.", "info")
-                    return redirect(url_for("stats.home"))
+                    return render_template("pending_approval.html", user=user)
 
                 if required_tier >= Tier.GLICKO_USER and not user.get("psychology_test_passed"):
                     flash("Please complete the sportsmanship questionnaire to unlock Glicko ratings.", "info")
