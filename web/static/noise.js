@@ -367,8 +367,10 @@
                     <span class="noise-bubble-author" title="${escapeHtml(b.attendance_name || b.username)}">${escapeHtml(b.attendance_name || b.username)}</span>
                     <div class="noise-bubble-actions">
                         <span class="noise-drag-handle" title="Drag to move anywhere" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
-                        <button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>
-                        ${isAuthorOrStaff ? `<button type="button" class="noise-btn-icon" title="Delete globally" style="color: #ff8888;" onclick="window.RB48Noise.deleteGlobal(${b.id})">🗑️</button>` : ""}
+                        ${isAuthorOrStaff 
+                            ? `<button type="button" class="noise-btn-icon" title="Delete banter globally for everyone" style="color: #ff9999;" onclick="window.RB48Noise.deleteGlobal(${b.id})">✕</button>`
+                            : `<button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>`
+                        }
                     </div>
                 </div>
             </div>
@@ -380,7 +382,10 @@
             <div class="noise-indicator-pill" id="pill-${b.id}">
                 <span class="noise-drag-handle" title="Drag to move" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
                 <span class="pill-label" title="Click to pin open">💭 ${escapeHtml(b.attendance_name || b.username)}</span>
-                <button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>
+                ${isAuthorOrStaff 
+                    ? `<button type="button" class="noise-btn-icon" title="Delete banter globally for everyone" style="color: #ff9999;" onclick="window.RB48Noise.deleteGlobal(${b.id})">✕</button>`
+                    : `<button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>`
+                }
                 
                 <div class="pill-expanded-popover">
                     <div class="noise-bubble" style="background-color: ${escapeHtml(b.bg_color)}; font-family: ${escapeHtml(b.font_family)}; font-size: ${b.font_size}px;">
@@ -389,8 +394,10 @@
                             <span class="noise-bubble-author" title="${escapeHtml(b.attendance_name || b.username)}">${escapeHtml(b.attendance_name || b.username)}</span>
                             <div class="noise-bubble-actions">
                                 <span class="noise-drag-handle" title="Drag to move" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
-                                <button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>
-                                ${isAuthorOrStaff ? `<button type="button" class="noise-btn-icon" title="Delete globally" style="color: #ff8888;" onclick="window.RB48Noise.deleteGlobal(${b.id})">🗑️</button>` : ""}
+                                ${isAuthorOrStaff 
+                                    ? `<button type="button" class="noise-btn-icon" title="Delete banter globally for everyone" style="color: #ff9999;" onclick="window.RB48Noise.deleteGlobal(${b.id})">🗑️</button>`
+                                    : `<button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>`
+                                }
                             </div>
                         </div>
                     </div>

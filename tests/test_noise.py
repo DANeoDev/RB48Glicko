@@ -135,6 +135,18 @@ class NoiseBubblesTest(unittest.TestCase):
             },
         )
 
+        # Post 4 bubbles on /matches directly (page_path = '/matches')
+        for i in range(1, 5):
+            self.client.post(
+                "/api/noise",
+                json={
+                    "page_path": "/matches",
+                    "pos_x_percent": 15 * i,
+                    "pos_y_percent": 15 * i,
+                    "content": f"Match history banter #{i}",
+                },
+            )
+
         conn = get_accounts_connection()
         try:
             # Match 42 bubble should still exist!
@@ -142,7 +154,11 @@ class NoiseBubblesTest(unittest.TestCase):
             self.assertEqual(len(match_bubbles), 1)
             self.assertEqual(match_bubbles[0]["content"], "Match 42 was historic!")
 
-            # Stats general bubbles should have 3
+            # /matches page bubbles should all 5 still exist!
+            matches_page_bubbles = get_noise_bubbles_for_page(conn, "/matches")
+            self.assertEqual(len(matches_page_bubbles), 5)
+
+            # Stats general bubbles should have 3 (FIFO capped)
             stats_bubbles = get_noise_bubbles_for_page(conn, "/stats")
             self.assertEqual(len(stats_bubbles), 3)
         finally:
