@@ -83,6 +83,19 @@
     border-color: rgba(255, 255, 255, 0.3);
 }
 
+.planner-btn-danger {
+    background: rgba(220, 53, 69, 0.12);
+    color: #ff8888;
+    border-color: rgba(220, 53, 69, 0.3);
+}
+.planner-btn-danger:hover {
+    background: rgba(220, 53, 69, 0.3);
+    color: #ffffff;
+    border-color: #dc3545;
+    box-shadow: 0 4px 14px rgba(220, 53, 69, 0.3);
+    transform: translateY(-1px);
+}
+
 /* Event Accordion Cards */
 .planner-event-card {
     background: var(--bg-surface);

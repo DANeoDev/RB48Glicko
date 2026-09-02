@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+import tempfile
 import time
 import unittest
 
@@ -11,6 +14,15 @@ from scripts.accounts.auth import (
 
 
 class AuthTokensTest(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_accounts_db = Path(self.temp_dir.name) / "test_accounts.db"
+        os.environ["RB48_ACCOUNTS_DATABASE_FILE"] = str(self.test_accounts_db)
+
+    def tearDown(self):
+        os.environ.pop("RB48_ACCOUNTS_DATABASE_FILE", None)
+        self.temp_dir.cleanup()
+
     def test_generate_and_verify_token(self):
         token = generate_verification_token(user_id=42, email="tester@example.com")
         self.assertIsInstance(token, str)

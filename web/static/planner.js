@@ -73,4 +73,24 @@ document.addEventListener("DOMContentLoaded", () => {
             openModal("attendance-name-modal");
         });
     });
+
+    // Webmaster Clear All Dates Modal & 2-Step Validation Watcher
+    const clearAllBtn = document.getElementById("open-clear-all-modal-btn");
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener("click", () => openModal("clear-all-modal"));
+    }
+
+    const clearCheck = document.getElementById("clear_confirm_1");
+    const clearInput = document.getElementById("clear_confirm_2");
+    const clearSubmit = document.getElementById("clear-all-submit-btn");
+
+    if (clearCheck && clearInput && clearSubmit) {
+        const validateClear = () => {
+            const isChecked = clearCheck.checked;
+            const isTyped = clearInput.value.trim().toUpperCase() === "CLEAR ALL DATES";
+            clearSubmit.disabled = !(isChecked && isTyped);
+        };
+        clearCheck.addEventListener("change", validateClear);
+        clearInput.addEventListener("input", validateClear);
+    }
 });

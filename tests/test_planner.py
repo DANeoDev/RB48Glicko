@@ -1,4 +1,7 @@
 from datetime import datetime, timedelta
+import os
+from pathlib import Path
+import tempfile
 import time
 import unittest
 
@@ -16,6 +19,7 @@ from scripts.accounts.database import (
 from scripts.planner.database import (
     add_guest_rsvp,
     add_standard_wednesday_events,
+    backup_and_clear_all_events,
     cancel_user_rsvp,
     create_event,
     get_event_attendees,
@@ -31,12 +35,22 @@ from web.routes.planner import calculate_guest_unlock_time, format_event_view_da
 
 class PlannerTests(unittest.TestCase):
     def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_planner_db = Path(self.temp_dir.name) / "test_planner.db"
+        self.test_accounts_db = Path(self.temp_dir.name) / "test_accounts.db"
+
+        os.environ["RB48_PLANNER_DATABASE_FILE"] = str(self.test_planner_db)
+        os.environ["RB48_ACCOUNTS_DATABASE_FILE"] = str(self.test_accounts_db)
+
         self.app = app
         self.client = self.app.test_client()
         self.conn = get_planner_connection()
 
     def tearDown(self):
         self.conn.close()
+        os.environ.pop("RB48_PLANNER_DATABASE_FILE", None)
+        os.environ.pop("RB48_ACCOUNTS_DATABASE_FILE", None)
+        self.temp_dir.cleanup()
 
     def test_create_events_capacity_defaults(self):
         box_id = create_event(self.conn, "2026-10-10 18:30", "box", title="Saturday Box")
@@ -49,11 +63,6 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(hf_event["max_players"], 18)
 
     def test_add_standard_wednesday_events_alternating(self):
-        # Clear existing events
-        self.conn.execute("DELETE FROM attendees")
-        self.conn.execute("DELETE FROM events")
-        self.conn.commit()
-
         # Seed initial box event on a Tuesday
         create_event(self.conn, "2026-09-08 20:00", "box")
 
@@ -159,6 +168,41 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(u["player_id"], 2)
         finally:
             acc_conn.close()
+
+    def test_webmaster_clear_all_dates_with_backup_and_2step_verification(self):
+        # 1. Create webmaster user
+        unique_name = f"wm_user_{int(time.time() * 1000000)}"
+        wm_id, _ = register_user(unique_name, f"{unique_name}@example.com", "pass12345")
+        acc_conn = get_accounts_connection()
+        try:
+            mark_email_verified(acc_conn, wm_id)
+            approve_user(acc_conn, wm_id, approved=True)
+            update_user_role(acc_conn, wm_id, "webmaster")
+        finally:
+            acc_conn.close()
+
+        # Seed some events
+        create_event(self.conn, "2026-10-10 20:00", "box")
+        create_event(self.conn, "2026-10-17 20:30", "hf")
+        self.assertEqual(len(get_upcoming_events(self.conn)), 2)
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = wm_id
+
+        # 2. Failed verification (only step 1 checked, wrong text)
+        fail_resp = self.client.post("/planner/events/clear-all", data={"confirm_1": "yes", "confirm_2": "WRONG"}, follow_redirects=True)
+        self.assertEqual(fail_resp.status_code, 200)
+        self.assertIn(b"Two-step verification failed", fail_resp.data)
+        self.assertEqual(len(get_upcoming_events(self.conn)), 2)
+
+        # 3. Successful 2-step verification
+        success_resp = self.client.post("/planner/events/clear-all", data={"confirm_1": "yes", "confirm_2": "CLEAR ALL DATES"}, follow_redirects=True)
+        self.assertEqual(success_resp.status_code, 200)
+        self.assertIn(b"archived to data/backups/upcoming_matchdates/", success_resp.data)
+
+        # Database is now completely clean
+        events_after = get_upcoming_events(self.conn)
+        self.assertEqual(len(events_after), 0)
 
     def test_planner_routes_integration(self):
         # Create user

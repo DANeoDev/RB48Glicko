@@ -1,16 +1,20 @@
-"""SQLite database schema and queries for user authentication and authorization."""
-
+import os
 from pathlib import Path
 import sqlite3
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-ACCOUNTS_DATABASE_FILE = PROJECT_ROOT / "data" / "accounts.db"
+
+
+def get_accounts_db_file():
+    override = os.environ.get("RB48_ACCOUNTS_DATABASE_FILE")
+    return Path(override) if override else PROJECT_ROOT / "data" / "accounts.db"
 
 
 def get_accounts_connection():
     """Return a connection to the separate account database with foreign keys enabled."""
-    ACCOUNTS_DATABASE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(ACCOUNTS_DATABASE_FILE)
+    db_file = get_accounts_db_file()
+    db_file.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(db_file)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     create_account_tables(connection)

@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+import tempfile
 import time
 import unittest
 from flask import session
@@ -15,9 +18,17 @@ from web.services.security import (
 
 class AccessTiersTest(unittest.TestCase):
     def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_accounts_db = Path(self.temp_dir.name) / "test_accounts.db"
+        os.environ["RB48_ACCOUNTS_DATABASE_FILE"] = str(self.test_accounts_db)
+
         self.app = create_app()
         self.app.config["TESTING"] = True
         self.client = self.app.test_client()
+
+    def tearDown(self):
+        os.environ.pop("RB48_ACCOUNTS_DATABASE_FILE", None)
+        self.temp_dir.cleanup()
 
     def create_test_user(self, role="user", verified=False, approved=False, psychology_passed=False):
         unique_name = f"tier_usr_{int(time.time() * 1000000)}"
