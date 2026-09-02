@@ -22,7 +22,7 @@ from scripts.planner.database import (
     remove_attendee,
     set_user_rsvp,
 )
-from web.services.security import Tier, get_current_user, has_tier, require_admin, require_tier
+from web.services.security import Tier, get_current_user, has_tier, require_admin, require_tier, require_webmaster
 
 planner_bp = Blueprint("planner", __name__)
 
@@ -285,6 +285,29 @@ def auto_seed_events():
     try:
         created_ids = add_standard_wednesday_events(connection, count=4)
         flash(f"Successfully added {len(created_ids)} standard Wednesday matchdays!", "success")
+    finally:
+        connection.close()
+
+    return redirect(url_for("planner.planner"))
+
+
+@planner_bp.route("/planner/events/clear-all", methods=["POST"])
+@require_webmaster
+def clear_all_events():
+    """Webmaster tool: Wipe all upcoming matchdates with 2-step verification after saving a backup."""
+    from scripts.planner.database import backup_and_clear_all_events
+
+    confirm_1 = request.form.get("confirm_1") == "yes"
+    confirm_2 = request.form.get("confirm_2", "").strip().upper() == "CLEAR ALL DATES"
+
+    if not (confirm_1 and confirm_2):
+        flash("Two-step verification failed. Upcoming match dates were not modified.", "warning")
+        return redirect(url_for("planner.planner"))
+
+    connection = get_planner_connection()
+    try:
+        backup_name = backup_and_clear_all_events(connection)
+        flash(f"All match dates archived to data/backups/upcoming_matchdates/{backup_name} and planner reset to clean state.", "success")
     finally:
         connection.close()
 

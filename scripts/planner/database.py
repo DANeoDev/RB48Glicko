@@ -289,3 +289,34 @@ def remove_attendee(connection, attendee_id):
     """Delete a specific attendee entry by attendee ID."""
     connection.execute("DELETE FROM attendees WHERE id = ?", (attendee_id,))
     connection.commit()
+
+
+def backup_and_clear_all_events(connection):
+    """Back up planner database to data/backups/upcoming_matchdates/ and wipe working copy."""
+    from datetime import datetime
+
+    db_file = get_planner_db_file()
+    backup_dir = PROJECT_ROOT / "data" / "backups" / "upcoming_matchdates"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_filename = f"planner_backup_{timestamp}.db"
+    backup_path = backup_dir / backup_filename
+
+    # Commit any active transactions
+    connection.commit()
+
+    # Create full SQLite backup
+    if db_file.exists():
+        backup_conn = sqlite3.connect(backup_path)
+        connection.backup(backup_conn)
+        backup_conn.close()
+
+    # Wipe working copy
+    connection.execute("DELETE FROM attendees")
+    connection.execute("DELETE FROM events")
+    connection.commit()
+    connection.execute("VACUUM")
+
+    return backup_filename
+

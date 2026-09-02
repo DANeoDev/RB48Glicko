@@ -29,6 +29,11 @@
                     ＋ Custom Matchday
                 </button>
             {% endif %}
+            {% if current_user and current_user.role == 'webmaster' and events %}
+                <button type="button" class="planner-btn-pill planner-btn-danger" id="open-clear-all-modal-btn" title="Webmaster tool: Archive and wipe all upcoming match dates with 2-step verification">
+                    🗑️ Clear All Dates
+                </button>
+            {% endif %}
         </div>
     </div>
 
@@ -287,6 +292,46 @@
             <div class="planner-modal-actions">
                 <button type="button" class="secondary modal-cancel-btn">Cancel</button>
                 <button type="submit" class="primary">Save Name</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal 5: Webmaster Clear All Dates (2-Step Verification) -->
+{% if current_user and current_user.role == 'webmaster' %}
+<div class="planner-modal-overlay" id="clear-all-modal">
+    <div class="planner-modal-card" style="border-color: #dc3545; max-width: 480px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <span style="font-size: 26px;">⚠️</span>
+            <h2 style="margin: 0; color: #ff8888; font-size: 20px;">Clear All Upcoming Dates</h2>
+        </div>
+        <p style="font-size: 13px; color: #c9c2d8; line-height: 1.5; margin-bottom: 16px;">
+            This will remove all scheduled matchdays and active player RSVPs from the planner. A full SQLite backup will automatically be archived to <code>data/backups/upcoming_matchdates/</code>.
+        </p>
+
+        <form method="post" action="{{ url_for('planner.clear_all_events') }}" class="planner-modal-form" id="clear-all-form">
+            <!-- Step 1 Verification -->
+            <div style="background: rgba(220, 53, 69, 0.12); border: 1px solid rgba(220, 53, 69, 0.35); border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+                <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin: 0; font-size: 13px; color: #ffffff;">
+                    <input type="checkbox" id="clear_confirm_1" name="confirm_1" value="yes" required style="margin-top: 3px; width: auto;">
+                    <span><strong>Verification 1 of 2:</strong> I confirm that I want to wipe the active upcoming match list and create a backup.</span>
+                </label>
+            </div>
+
+            <!-- Step 2 Verification -->
+            <div style="margin-bottom: 20px;">
+                <label for="clear_confirm_2" style="font-size: 13px; font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                    <strong>Verification 2 of 2:</strong> Type <code style="color: #ff8888; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">CLEAR ALL DATES</code> below:
+                </label>
+                <input type="text" id="clear_confirm_2" name="confirm_2" placeholder="CLEAR ALL DATES" required autocomplete="off" style="margin-bottom: 0;">
+            </div>
+
+            <div class="planner-modal-actions">
+                <button type="button" class="secondary modal-cancel-btn">Cancel</button>
+                <button type="submit" id="clear-all-submit-btn" class="primary" style="background: #dc3545; border-color: #dc3545;" disabled>
+                    Confirm &amp; Clear All Dates
+                </button>
             </div>
         </form>
     </div>
