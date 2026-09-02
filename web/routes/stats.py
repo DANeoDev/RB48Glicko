@@ -102,3 +102,9 @@ def model_analysis():
 @stats_bp.route("/glickofaq")
 def glicko_explainer():
     return render_template("glickofaq.html")
+
+
+@stats_bp.route("/about")
+def about():
+    """About RB 48 Köln e.V. history, formats, and community philosophy."""
+    return render_template("about.html")

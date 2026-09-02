@@ -246,6 +246,8 @@
             {% if has_tier('glicko_user') %}
                 <a href="{{ url_for('stats.model_analysis') }}" class="{% if request.endpoint == 'stats.model_analysis' %}active{% endif %}">Model Analysis</a>
             {% endif %}
+
+            <a href="{{ url_for('stats.about') }}" class="{% if request.endpoint == 'stats.about' %}active{% endif %}">About</a>
         </div>
         <div class="profile-menu">
             <button type="button" class="profile-button" aria-label="Account" title="Account">
@@ -301,7 +303,7 @@
     <div class="site-footer-inner">
         <a class="site-footer-home" href="{{ url_for('stats.home') }}">RB 48 Homepage</a>
         <nav class="site-footer-links" aria-label="Footer navigation">
-            <a href="#">About</a>
+            <a href="{{ url_for('stats.about') }}">About</a>
             <a href="{{ url_for('stats.glicko_explainer') }}">FAQ</a>
             <a href="https://github.com/DANeoDev/RB48Glicko" target="_blank" rel="noopener noreferrer">GitHub</a>
         </nav>
