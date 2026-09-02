@@ -454,16 +454,8 @@
     // Suggested Teams & Transfer into Enter a Match
     // ------------------------------------------------------------
     function initGeneratedTeamTransfer() {
-        const suggested = document.getElementById('suggested-teams');
         const generated = document.getElementById('generated-teams');
         const transferBtn = document.getElementById('transfer-teams-btn');
-
-        if (suggested) {
-            suggested.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
-        }
 
         if (!generated || !transferBtn) {
             return;
@@ -499,6 +491,84 @@
 
             } catch (error) {
                 console.error('Could not transfer generated teams:', error);
+            }
+        });
+    }
+
+
+    // ------------------------------------------------------------
+    // Save Match & Update Glicko (Modal without page jumping)
+    // ------------------------------------------------------------
+    function initMatchSaveForm() {
+        const matchForm = document.getElementById('match-form');
+        const saveModal = document.getElementById('match-saved-modal');
+        const saveMsg = document.getElementById('saved-modal-message');
+        const saveDoneBtn = document.getElementById('saved-modal-done');
+
+        if (!matchForm || !saveModal) {
+            return;
+        }
+
+        saveDoneBtn?.addEventListener('click', () => {
+            saveModal.style.display = 'none';
+        });
+
+        saveModal.addEventListener('click', (e) => {
+            if (e.target === saveModal) {
+                saveModal.style.display = 'none';
+            }
+        });
+
+        matchForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const teamAInputs = document.querySelectorAll('#list-a input[name="team_a"]');
+            const teamBInputs = document.querySelectorAll('#list-b input[name="team_b"]');
+
+            if (teamAInputs.length === 0 && teamBInputs.length === 0) {
+                alert('Both teams need at least one player.');
+                return;
+            }
+
+            const formData = new FormData(matchForm);
+            formData.set('action', 'save');
+
+            const submitBtn = matchForm.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+            }
+
+            try {
+                const response = await fetch('/match-center', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    if (saveMsg) {
+                        saveMsg.textContent = data.message || `Match ${data.match_id} saved successfully and Glicko ratings updated!`;
+                    }
+                    saveModal.style.display = 'flex';
+
+                    // Update next match ID badge if present
+                    const nextBadge = document.querySelector('#enter-match strong');
+                    if (nextBadge && data.next_match_id) {
+                        nextBadge.textContent = data.next_match_id;
+                    }
+                } else {
+                    alert(data.error || 'Failed to save match.');
+                }
+            } catch (err) {
+                console.error('Error saving match:', err);
+                matchForm.submit();
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                }
             }
         });
     }
@@ -571,6 +641,7 @@
     initConflictModal();
     initAddPlayerModal();
     initGeneratedTeamTransfer();
+    initMatchSaveForm();
     initAddPlayerButton();
     initFutureDateModal();
 

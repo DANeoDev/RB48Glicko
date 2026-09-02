@@ -280,3 +280,53 @@
 
 </div>
 
+
+<!-- ================================================================
+     MATCH SAVED SUCCESS MODAL
+     ================================================================ -->
+
+<div
+    class="modal-bg"
+    id="match-saved-modal"
+    style="display: none;"
+>
+    <div class="modal">
+
+        <h3 style="display: flex; align-items: center; gap: 8px; color: #80cbc4;">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: rgba(0, 137, 123, 0.25); color: #80cbc4; font-size: 16px; font-weight: bold;">✓</span>
+            Match Saved Successfully!
+        </h3>
+
+        <p
+            id="saved-modal-message"
+            class="muted"
+            style="margin-top: 10px; margin-bottom: 20px; font-size: 15px;"
+        >
+            Match added successfully and Glicko ratings updated.
+        </p>
+
+        <div class="modal-actions">
+
+            <button
+                class="primary"
+                id="saved-modal-done"
+                type="button"
+            >
+                Done
+            </button>
+
+            <a
+                href="{{ url_for('stats.match_history') }}"
+                class="secondary"
+                style="text-decoration: none;"
+            >
+                View Match History
+            </a>
+
+        </div>
+
+    </div>
+
+</div>
+
+
