@@ -367,6 +367,17 @@
         if (modal) modal.style.display = "none";
     }
 
+    function getCanonicalPagePath() {
+        let p = window.location.pathname || "/";
+        if (p === "/dashboard" || p === "/index" || p === "" || p === "/dashboard/" || p === "/index/") {
+            return "/";
+        }
+        if (p.length > 1 && p.endsWith("/")) {
+            p = p.slice(0, -1);
+        }
+        return p;
+    }
+
     async function saveBubble() {
         const textarea = document.getElementById("noise-text-input");
         const content = textarea.value.trim();
@@ -379,7 +390,7 @@
         const sizeSelect = document.getElementById("noise-font-size");
 
         const payload = {
-            page_path: window.location.pathname,
+            page_path: getCanonicalPagePath(),
             pos_x_percent: pendingCoords.x,
             pos_y_percent: pendingCoords.y,
             content: content,
@@ -417,7 +428,7 @@
 
     async function loadPageBubbles() {
         try {
-            const path = encodeURIComponent(window.location.pathname);
+            const path = encodeURIComponent(getCanonicalPagePath());
             const resp = await fetch(`/api/noise?path=${path}`);
             const data = await resp.json();
             if (data.success && Array.isArray(data.bubbles)) {

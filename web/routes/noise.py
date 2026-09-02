@@ -11,6 +11,7 @@ from scripts.accounts.database import (
     get_accounts_connection,
     get_noise_bubble_by_id,
     get_noise_bubbles_for_page,
+    normalize_noise_page_path,
     set_user_noise_display_mode,
     set_user_noise_override,
     update_noise_bubble_position,
@@ -27,7 +28,7 @@ def get_noise():
     if not user or not user.get("email_verified") or not user.get("is_approved"):
         return jsonify({"success": True, "bubbles": []})
 
-    page_path = request.args.get("path", "/").strip()
+    page_path = normalize_noise_page_path(request.args.get("path", "/"))
     match_id = request.args.get("match_id", type=int)
 
     conn = get_accounts_connection()
@@ -55,7 +56,7 @@ def create_noise():
     if len(content) > 160:
         return jsonify({"success": False, "error": "Message cannot exceed 160 characters."}), 400
 
-    page_path = str(data.get("page_path", "/")).strip()
+    page_path = normalize_noise_page_path(data.get("page_path", "/"))
     match_id = data.get("match_id")
     match_id = int(match_id) if match_id is not None and str(match_id).isdigit() else None
 

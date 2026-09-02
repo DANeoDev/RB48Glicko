@@ -473,6 +473,51 @@ class NoiseBubblesTest(unittest.TestCase):
         self.assertEqual(created["bg_color"], "#24194A")
         self.assertEqual(created["font_family"], "'Press Start 2P', monospace")
 
+    def test_dashboard_and_root_canonical_sync(self):
+        user = self.create_user(role="user")
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        # Post bubble on /dashboard
+        resp1 = self.client.post(
+            "/api/noise",
+            json={
+                "page_path": "/dashboard",
+                "pos_x_percent": 30,
+                "pos_y_percent": 30,
+                "content": "Dashboard Banter",
+            },
+        )
+        self.assertEqual(resp1.status_code, 201)
+
+        # Post bubble on /
+        resp2 = self.client.post(
+            "/api/noise",
+            json={
+                "page_path": "/",
+                "pos_x_percent": 50,
+                "pos_y_percent": 50,
+                "content": "Home Banter",
+            },
+        )
+        self.assertEqual(resp2.status_code, 201)
+
+        # Fetching / must return BOTH bubbles
+        resp_root = self.client.get("/api/noise?path=/")
+        self.assertEqual(resp_root.status_code, 200)
+        root_bubbles = resp_root.get_json()["bubbles"]
+        root_contents = [b["content"] for b in root_bubbles]
+        self.assertIn("Dashboard Banter", root_contents)
+        self.assertIn("Home Banter", root_contents)
+
+        # Fetching /dashboard must also return BOTH bubbles
+        resp_dash = self.client.get("/api/noise?path=/dashboard")
+        self.assertEqual(resp_dash.status_code, 200)
+        dash_bubbles = resp_dash.get_json()["bubbles"]
+        dash_contents = [b["content"] for b in dash_bubbles]
+        self.assertIn("Dashboard Banter", dash_contents)
+        self.assertIn("Home Banter", dash_contents)
+
 
 if __name__ == "__main__":
     unittest.main()

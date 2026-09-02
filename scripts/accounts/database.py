@@ -112,6 +112,9 @@ def create_account_tables(connection):
     if "text_color" not in existing_bubble_cols:
         connection.execute("ALTER TABLE noise_bubbles ADD COLUMN text_color TEXT NOT NULL DEFAULT '#ffffff'")
 
+    # Normalize existing dashboard/index bubbles to root '/'
+    connection.execute("UPDATE noise_bubbles SET page_path = '/' WHERE page_path IN ('/dashboard', '/index', '/dashboard/', '/index/')")
+
     connection.commit()
 
 
@@ -482,6 +485,18 @@ def backup_and_delete_user(connection, user_id):
     return user, backup_filename
 
 
+def normalize_noise_page_path(path):
+    """Normalize page paths so that root, /dashboard, and /index map to '/'."""
+    if not path:
+        return "/"
+    p = str(path).strip()
+    if p in ("/dashboard", "/index", "", "/dashboard/", "/index/"):
+        return "/"
+    if len(p) > 1 and p.endswith("/"):
+        p = p.rstrip("/")
+    return p
+
+
 def add_noise_bubble(
     connection,
     user_id,
@@ -501,6 +516,8 @@ def add_noise_bubble(
     user = get_user_by_id(connection, user_id)
     if not user:
         raise ValueError("User not found.")
+
+    page_path = normalize_noise_page_path(page_path)
 
     # Quota check: bubbles on match history (/matches or match_id) stay forever without quota eviction.
     # On other pages, limit is 5 active bubbles for everyone (FIFO eviction).
@@ -552,7 +569,16 @@ def add_noise_bubble(
 
 def get_noise_bubbles_for_page(connection, page_path, viewer_user_id=None, match_id=None):
     """Retrieve all noise bubbles for a specific page path, applying viewer's custom positions & dismissing."""
-    query = """
+    page_path = normalize_noise_page_path(page_path)
+
+    if page_path == "/":
+        path_clause = "b.page_path IN ('/', '/dashboard', '/index')"
+        params = [viewer_user_id]
+    else:
+        path_clause = "b.page_path = ?"
+        params = [viewer_user_id, page_path]
+
+    query = f"""
         SELECT
             b.id,
             b.user_id,
@@ -573,9 +599,8 @@ def get_noise_bubbles_for_page(connection, page_path, viewer_user_id=None, match
         FROM noise_bubbles b
         JOIN users u ON b.user_id = u.id
         LEFT JOIN user_noise_overrides o ON b.id = o.bubble_id AND o.user_id = ?
-        WHERE b.page_path = ? AND (o.is_dismissed IS NULL OR o.is_dismissed = 0)
+        WHERE {path_clause} AND (o.is_dismissed IS NULL OR o.is_dismissed = 0)
     """
-    params = [viewer_user_id, page_path]
     if match_id is not None:
         query += " AND b.match_id = ?"
         params.append(match_id)
