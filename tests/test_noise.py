@@ -148,11 +148,12 @@ class NoiseBubblesTest(unittest.TestCase):
         finally:
             conn.close()
 
-    def test_webmaster_unlimited_bubbles(self):
+    def test_staff_quota_limit_of_five(self):
         webmaster = self.create_user(role="webmaster")
         with self.client.session_transaction() as sess:
             sess["user_id"] = webmaster["id"]
 
+        # Post 5 bubbles
         for i in range(1, 6):
             resp = self.client.post(
                 "/api/noise",
@@ -169,8 +170,51 @@ class NoiseBubblesTest(unittest.TestCase):
         try:
             bubbles = get_noise_bubbles_for_page(conn, "/dashboard")
             self.assertEqual(len(bubbles), 5)
+            self.assertEqual(bubbles[0]["content"], "Staff announcement #1")
+
+            # Post 6th bubble -> Staff announcement #1 evicted (FIFO)
+            resp6 = self.client.post(
+                "/api/noise",
+                json={
+                    "page_path": "/dashboard",
+                    "pos_x_percent": 70,
+                    "pos_y_percent": 70,
+                    "content": "Staff announcement #6",
+                },
+            )
+            self.assertEqual(resp6.status_code, 201)
+
+            bubbles_after = get_noise_bubbles_for_page(conn, "/dashboard")
+            self.assertEqual(len(bubbles_after), 5)
+            contents = [b["content"] for b in bubbles_after]
+            self.assertNotIn("Staff announcement #1", contents)
+            self.assertIn("Staff announcement #6", contents)
         finally:
             conn.close()
+
+    def test_visitors_cannot_see_noise(self):
+        user = self.create_user(role="user")
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        self.client.post(
+            "/api/noise",
+            json={
+                "page_path": "/stats",
+                "pos_x_percent": 20,
+                "pos_y_percent": 20,
+                "content": "Secret member banter",
+            },
+        )
+
+        # Clear session (visitor)
+        with self.client.session_transaction() as sess:
+            sess.clear()
+
+        resp = self.client.get("/api/noise?path=/stats")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data["bubbles"], [])
 
     def test_deletion_and_permissions(self):
         user_a = self.create_user(role="user")
@@ -248,7 +292,7 @@ class NoiseBubblesTest(unittest.TestCase):
 
         resp = self.client.post(
             "/settings/noise-mode",
-            data={"noise_display_mode": "always_indicators"},
+            data={"noise_display_mode": "transparent"},
             follow_redirects=True,
         )
         self.assertEqual(resp.status_code, 200)
@@ -256,7 +300,7 @@ class NoiseBubblesTest(unittest.TestCase):
         conn = get_accounts_connection()
         try:
             updated = get_user_by_id(conn, user["id"])
-            self.assertEqual(updated["noise_display_mode"], "always_indicators")
+            self.assertEqual(updated["noise_display_mode"], "transparent")
         finally:
             conn.close()
 
