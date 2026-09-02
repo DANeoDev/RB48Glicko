@@ -6,6 +6,7 @@ from scripts.database.db_matches import get_player_stats
 from scripts.frontend.view_models import build_leaderboard, build_match_history
 from scripts.analysis.model_analysis import analyze_model
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
+from web.services.security import Tier, require_tier
 from .news import get_dashboard_news
 
 stats_bp = Blueprint("stats", __name__)
@@ -34,6 +35,7 @@ def stats():
 
 
 @stats_bp.route("/player/<int:player_id>")
+@require_tier(Tier.USER)
 def player_profile(player_id):
     connection = get_connection()
     players = get_players(connection)
@@ -76,6 +78,7 @@ def match_history():
 
 
 @stats_bp.route("/model-analysis")
+@require_tier(Tier.GLICKO_USER)
 def model_analysis():
     mode = request.args.get("mode", "total")
     mode = mode if mode in ("total", "pitch") else "total"

@@ -8,6 +8,7 @@ from scripts.matches.match_entry import add_match, next_match_id, create_new_pla
 from scripts.matchmaking.matchmaker import generate_match
 from scripts.matchmaking.match_parser import parse_match_image, parse_match_text, resolve_player_names, normalize_player_name, MatchParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
+from web.services.security import require_admin
 
 match_center_bp = Blueprint("match_center", __name__)
 
@@ -90,6 +91,7 @@ def _get_prefilled_team_ids(form, team_name, players):
 
 
 @match_center_bp.route("/match-center", methods=["GET", "POST"])
+@require_admin
 def match_center():
     connection = get_connection()
     players = get_players(connection)

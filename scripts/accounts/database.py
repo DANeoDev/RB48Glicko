@@ -1,5 +1,7 @@
-import sqlite3
+"""SQLite database schema and queries for user authentication and authorization."""
+
 from pathlib import Path
+import sqlite3
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ACCOUNTS_DATABASE_FILE = PROJECT_ROOT / "data" / "accounts.db"
@@ -16,7 +18,7 @@ def get_accounts_connection():
 
 
 def create_account_tables(connection):
-    """Create the initial account tables if they do not exist yet."""
+    """Create the initial account tables if they do not exist yet and run migrations."""
     connection.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,6 +28,9 @@ def create_account_tables(connection):
             role TEXT NOT NULL DEFAULT 'user'
                 CHECK (role IN ('user', 'admin', 'webmaster')),
             email_verified INTEGER NOT NULL DEFAULT 0,
+            psychology_test_passed INTEGER NOT NULL DEFAULT 0,
+            psychology_test_date TEXT,
+            player_id INTEGER,
             created_at TEXT NOT NULL
         )
     """)
@@ -39,37 +44,157 @@ def create_account_tables(connection):
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """)
+
+    # Column migrations for existing tables
+    cursor = connection.execute("PRAGMA table_info(users)")
+    existing_columns = {row["name"] for row in cursor.fetchall()}
+
+    if "psychology_test_passed" not in existing_columns:
+        connection.execute("ALTER TABLE users ADD COLUMN psychology_test_passed INTEGER NOT NULL DEFAULT 0")
+    if "psychology_test_date" not in existing_columns:
+        connection.execute("ALTER TABLE users ADD COLUMN psychology_test_date TEXT")
+    if "player_id" not in existing_columns:
+        connection.execute("ALTER TABLE users ADD COLUMN player_id INTEGER")
+
     connection.commit()
 
 
 def get_user_by_id(connection, user_id):
+    """Retrieve full user profile by user id."""
     return connection.execute(
-        "SELECT id, username, email, password_hash, role, email_verified, created_at "
-        "FROM users WHERE id = ?",
+        """
+        SELECT
+            id,
+            username,
+            email,
+            password_hash,
+            role,
+            email_verified,
+            psychology_test_passed,
+            psychology_test_date,
+            player_id,
+            created_at
+        FROM users
+        WHERE id = ?
+        """,
         (user_id,),
     ).fetchone()
 
 
 def get_user_by_login(connection, login):
+    """Retrieve user profile by username or email."""
     return connection.execute(
-        "SELECT id, username, email, password_hash, role, email_verified, created_at "
-        "FROM users WHERE lower(username) = lower(?) OR lower(email) = lower(?)",
+        """
+        SELECT
+            id,
+            username,
+            email,
+            password_hash,
+            role,
+            email_verified,
+            psychology_test_passed,
+            psychology_test_date,
+            player_id,
+            created_at
+        FROM users
+        WHERE lower(username) = lower(?) OR lower(email) = lower(?)
+        """,
         (login, login),
     ).fetchone()
 
 
-def create_user(connection, username, email, password_hash, created_at):
+def get_user_by_email(connection, email):
+    """Retrieve user profile by exact email."""
+    return connection.execute(
+        """
+        SELECT
+            id,
+            username,
+            email,
+            password_hash,
+            role,
+            email_verified,
+            psychology_test_passed,
+            psychology_test_date,
+            player_id,
+            created_at
+        FROM users
+        WHERE lower(email) = lower(?)
+        """,
+        (email,),
+    ).fetchone()
+
+
+def create_user(connection, username, email, password_hash, created_at, role="user"):
+    """Insert a new user account."""
     cursor = connection.execute(
-        "INSERT INTO users (username, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-        (username, email, password_hash, created_at),
+        """
+        INSERT INTO users (
+            username,
+            email,
+            password_hash,
+            role,
+            created_at
+        )
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (username, email, password_hash, role, created_at),
     )
     connection.commit()
     return cursor.lastrowid
 
 
 def username_or_email_exists(connection, username, email):
+    """Check if username or email already exists."""
     row = connection.execute(
-        "SELECT 1 FROM users WHERE lower(username) = lower(?) OR lower(email) = lower(?) LIMIT 1",
+        """
+        SELECT 1
+        FROM users
+        WHERE lower(username) = lower(?) OR lower(email) = lower(?)
+        LIMIT 1
+        """,
         (username, email),
     ).fetchone()
     return row is not None
+
+
+def mark_email_verified(connection, user_id):
+    """Mark an account as email verified."""
+    connection.execute(
+        "UPDATE users SET email_verified = 1 WHERE id = ?",
+        (user_id,),
+    )
+    connection.commit()
+
+
+def set_psychology_test_status(connection, user_id, passed, test_date):
+    """Update user's psychology test status and date."""
+    connection.execute(
+        """
+        UPDATE users
+        SET psychology_test_passed = ?, psychology_test_date = ?
+        WHERE id = ?
+        """,
+        (1 if passed else 0, test_date, user_id),
+    )
+    connection.commit()
+
+
+def update_user_role(connection, user_id, role):
+    """Update a user's role (user, admin, webmaster)."""
+    if role not in ("user", "admin", "webmaster"):
+        raise ValueError(f"Invalid role: {role}")
+    connection.execute(
+        "UPDATE users SET role = ? WHERE id = ?",
+        (role, user_id),
+    )
+    connection.commit()
+
+
+def link_user_to_player(connection, user_id, player_id):
+    """Link a user account to a player ID."""
+    connection.execute(
+        "UPDATE users SET player_id = ? WHERE id = ?",
+        (player_id, user_id),
+    )
+    connection.commit()

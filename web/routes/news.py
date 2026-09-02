@@ -6,6 +6,7 @@ from scripts.database.news_database import get_news_connection, get_published_ne
 from web.services.ai_service import NewsAIError, format_news_markdown
 from web.services.markdown_service import render_markdown, MarkdownError
 from web.services.news_service import NewsFileError, create_news_file, read_news_file
+from web.services.security import require_admin
 
 news_bp = Blueprint("news", __name__)
 
@@ -44,6 +45,7 @@ def news_filename(markdown, timestamp):
 
 
 @news_bp.route("/news/format", methods=["POST"])
+@require_admin
 def format_news():
     payload = request.get_json(silent=True) or {}
     try:
@@ -65,6 +67,7 @@ def get_more_news():
 
 
 @news_bp.route("/news/create", methods=["POST"])
+@require_admin
 def create_news():
     markdown = request.form.get("markdown", "").strip()
     if not markdown:
