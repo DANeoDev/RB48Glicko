@@ -52,14 +52,14 @@ class NoiseBubblesTest(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user["id"]
 
-        # Post 3 bubbles
-        for i in range(1, 4):
+        # Post 5 bubbles
+        for i in range(1, 6):
             resp = self.client.post(
                 "/api/noise",
                 json={
                     "page_path": "/stats",
                     "pos_x_percent": 10 * i,
-                    "pos_y_percent": 20 * i,
+                    "pos_y_percent": 15 * i,
                     "content": f"Banter #{i}",
                     "bg_color": "#7B52C5",
                 },
@@ -69,28 +69,30 @@ class NoiseBubblesTest(unittest.TestCase):
         conn = get_accounts_connection()
         try:
             bubbles = get_noise_bubbles_for_page(conn, "/stats")
-            self.assertEqual(len(bubbles), 3)
+            self.assertEqual(len(bubbles), 5)
             self.assertEqual(bubbles[0]["content"], "Banter #1")
 
-            # Post 4th bubble -> Banter #1 should be evicted (FIFO)
-            resp4 = self.client.post(
+            # Post 6th bubble -> Banter #1 should be evicted (FIFO)
+            resp6 = self.client.post(
                 "/api/noise",
                 json={
                     "page_path": "/stats",
-                    "pos_x_percent": 50,
-                    "pos_y_percent": 50,
-                    "content": "Banter #4",
+                    "pos_x_percent": 60,
+                    "pos_y_percent": 60,
+                    "content": "Banter #6",
                 },
             )
-            self.assertEqual(resp4.status_code, 201)
+            self.assertEqual(resp6.status_code, 201)
 
             bubbles_after = get_noise_bubbles_for_page(conn, "/stats")
-            self.assertEqual(len(bubbles_after), 3)
+            self.assertEqual(len(bubbles_after), 5)
             contents = [b["content"] for b in bubbles_after]
             self.assertNotIn("Banter #1", contents)
             self.assertIn("Banter #2", contents)
             self.assertIn("Banter #3", contents)
             self.assertIn("Banter #4", contents)
+            self.assertIn("Banter #5", contents)
+            self.assertIn("Banter #6", contents)
         finally:
             conn.close()
 
@@ -112,26 +114,26 @@ class NoiseBubblesTest(unittest.TestCase):
         )
         self.assertEqual(resp_match.status_code, 201)
 
-        # Post 3 general bubbles on /stats
-        for i in range(1, 4):
+        # Post 5 general bubbles on /stats
+        for i in range(1, 6):
             self.client.post(
                 "/api/noise",
                 json={
                     "page_path": "/stats",
                     "pos_x_percent": 10 * i,
-                    "pos_y_percent": 20 * i,
+                    "pos_y_percent": 15 * i,
                     "content": f"General Banter #{i}",
                 },
             )
 
-        # Post 4th general bubble
+        # Post 6th general bubble
         self.client.post(
             "/api/noise",
             json={
                 "page_path": "/stats",
                 "pos_x_percent": 80,
                 "pos_y_percent": 80,
-                "content": "General Banter #4",
+                "content": "General Banter #6",
             },
         )
 
@@ -158,9 +160,9 @@ class NoiseBubblesTest(unittest.TestCase):
             matches_page_bubbles = get_noise_bubbles_for_page(conn, "/matches")
             self.assertEqual(len(matches_page_bubbles), 5)
 
-            # Stats general bubbles should have 3 (FIFO capped)
+            # Stats general bubbles should have 5 (FIFO capped at 5)
             stats_bubbles = get_noise_bubbles_for_page(conn, "/stats")
-            self.assertEqual(len(stats_bubbles), 3)
+            self.assertEqual(len(stats_bubbles), 5)
         finally:
             conn.close()
 

@@ -40,7 +40,7 @@
     {% if events %}
         <div class="planner-events-list">
             {% for event in events %}
-                <div class="planner-event-card {% if loop.first %}expanded{% endif %}" id="event-card-{{ event.id }}">
+                <div class="planner-event-card {% if event.is_next_upcoming %}expanded{% endif %}" id="event-card-{{ event.id }}">
                     <!-- Card Summary Header (Accordion Trigger) -->
                     <div class="planner-card-summary">
                         <div class="planner-summary-left">

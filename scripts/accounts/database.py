@@ -496,10 +496,10 @@ def add_noise_bubble(
         raise ValueError("User not found.")
 
     # Quota check: bubbles on match history (/matches or match_id) stay forever without quota eviction.
-    # On other pages, regular users max 3, staff max 5 active bubbles (FIFO eviction).
+    # On other pages, limit is 5 active bubbles for everyone (FIFO eviction).
     is_match_history_page = (match_id is not None) or (page_path and str(page_path).startswith("/matches"))
     if not is_match_history_page:
-        max_bubbles = 5 if user["role"] in ("admin", "webmaster") else 3
+        max_bubbles = 5
         active_bubbles = connection.execute(
             """
             SELECT id FROM noise_bubbles
