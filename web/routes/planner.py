@@ -274,18 +274,39 @@ def remove_event_attendee(event_id, attendee_id):
 @require_admin
 def create_event_route():
     """Schedule a new upcoming match event."""
-    event_date = request.form.get("event_date", "").strip()
+    event_date_raw = request.form.get("event_date", "").strip()
+    date_only = request.form.get("event_date_only", "").strip()
+    time_only = request.form.get("event_time_only", "").strip()
+
+    if date_only and time_only:
+        event_date = f"{date_only} {time_only}"
+    elif date_only:
+        event_date = date_only
+    elif "T" in event_date_raw:
+        event_date = event_date_raw.replace("T", " ")
+    else:
+        event_date = event_date_raw
+
     pitch = request.form.get("pitch", "box").lower()
     title = request.form.get("title", "").strip()
     location = request.form.get("location", "").strip()
+    max_players_raw = request.form.get("max_players", "").strip()
+    max_players = int(max_players_raw) if max_players_raw.isdigit() and int(max_players_raw) > 0 else None
 
-    if not event_date or pitch not in ("box", "hf"):
-        flash("Please provide a valid date and pitch type (BOX or HF).", "danger")
+    if not event_date or pitch not in ("box", "hf", "custom"):
+        flash("Please provide a valid date and pitch type (BOX, HF, or Custom).", "danger")
         return redirect(url_for("planner.planner"))
 
     connection = get_planner_connection()
     try:
-        create_event(connection, event_date, pitch, title=title or None, location=location or None)
+        create_event(
+            connection,
+            event_date=event_date,
+            pitch=pitch,
+            title=title or None,
+            location=location or None,
+            max_players=max_players,
+        )
         flash(f"New {pitch.upper()} matchday scheduled for {event_date}!", "success")
     finally:
         connection.close()
