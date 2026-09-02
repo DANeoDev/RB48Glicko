@@ -4,6 +4,8 @@ __pycache__/
 
 # Local databases and secrets
 data/
+
+#env
 .env
 *.env
 

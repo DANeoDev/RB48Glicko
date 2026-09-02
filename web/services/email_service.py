@@ -6,14 +6,32 @@ import logging
 import os
 import smtplib
 
+from pathlib import Path
+
 logger = logging.getLogger("rb48.email")
 
 # In-memory mailbox for automated tests and development inspection
 SENT_EMAILS = []
 
 
+def ensure_env_loaded():
+    """Ensure .env is loaded from project root if present."""
+    env_file = Path(__file__).resolve().parents[2] / ".env"
+    if env_file.exists():
+        with open(env_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    key = key.strip()
+                    value = value.strip().strip("'\"")
+                    if key and key not in os.environ:
+                        os.environ[key] = value
+
+
 def is_smtp_configured():
     """Return True if production SMTP credentials are provided in environment."""
+    ensure_env_loaded()
     return bool(os.environ.get("MAIL_SERVER") and os.environ.get("MAIL_USERNAME"))
 
 
