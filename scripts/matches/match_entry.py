@@ -51,7 +51,7 @@ def calibration_values(connection, level):
     return {"rating": _percentile(total_ratings, percentile), "rd": DEFAULT_RD, "sigma": DEFAULT_SIGMA}
 
 
-def create_new_player(connection, alias, positions=None, calibration_level="average"):
+def create_new_player(connection, alias, positions=None, calibration_level="average", main_position=None):
     alias = alias.strip()
     if not alias:
         raise ValueError("Player name cannot be empty.")
@@ -60,9 +60,18 @@ def create_new_player(connection, alias, positions=None, calibration_level="aver
     player_id = get_next_player_id(connection)
     create_player(connection, player_id)
     add_alias(connection, alias, player_id)
-    for position in positions or []:
-        if position.upper() in {"GK", "DEF", "MID", "ATT"}:
-            add_position(connection, player_id, position.upper())
+
+    main_pos_clean = main_position.replace("*", "").strip().upper() if main_position else None
+    all_positions = list(positions or [])
+    if main_pos_clean and main_pos_clean in {"GK", "DEF", "MID", "ATT"} and main_pos_clean not in [p.replace("*", "").strip().upper() for p in all_positions]:
+        all_positions.append(main_pos_clean)
+
+    for position in all_positions:
+        pos_clean = position.replace("*", "").strip().upper()
+        if pos_clean in {"GK", "DEF", "MID", "ATT"}:
+            is_pri = (main_pos_clean and pos_clean == main_pos_clean)
+            add_position(connection, player_id, pos_clean, is_primary=is_pri)
+
     values = calibration_values(connection, calibration_level)
     set_calibration(connection, player_id, values["rating"], values["rd"], values["sigma"])
     connection.commit()

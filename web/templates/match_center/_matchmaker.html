@@ -54,7 +54,15 @@
                             </span>
 
                             <span class="player-positions">
-                                {{ p.positions | join(', ') if p.positions else 'Any' }}
+                                {% if p.positions %}
+                                    {% for pos in p.positions %}
+                                        {% set is_pri = ('*' in pos) %}
+                                        {% set clean_pos = pos | replace('*', '') | upper %}
+                                        <span class="pos-tag {% if is_pri %}pos-main{% endif %}" {% if is_pri %}title="Main Position"{% endif %}>{{ clean_pos }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="pos-tag pos-any">Any</span>
+                                {% endif %}
                             </span>
 
                         </label>

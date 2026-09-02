@@ -27,10 +27,14 @@ def get_players(connection):
     """)
 
     for player_id, position, is_primary in cursor:
+        pos_clean = position.replace("*", "").strip().upper()
         if is_primary:
-            position += "*"
+            pos_formatted = pos_clean + "*"
+        else:
+            pos_formatted = pos_clean
 
-        players[player_id]["positions"].append(position)
+        if pos_formatted not in players[player_id]["positions"]:
+            players[player_id]["positions"].append(pos_formatted)
 
     return players
 
@@ -92,9 +96,9 @@ def add_position(
     position,
     is_primary=False
 ):
-
+    pos_clean = position.replace("*", "").strip().upper()
     connection.execute("""
-        INSERT INTO positions (
+        INSERT OR REPLACE INTO positions (
             player_id,
             position,
             is_primary
@@ -102,7 +106,7 @@ def add_position(
         VALUES (?, ?, ?)
     """, (
         player_id,
-        position,
+        pos_clean,
         int(is_primary)
     ))
 

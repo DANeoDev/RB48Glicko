@@ -421,12 +421,27 @@
             form.submit();
         });
 
+        const mainPosSelect = document.getElementById('new-main-position');
+        if (mainPosSelect) {
+            mainPosSelect.addEventListener('change', () => {
+                const val = mainPosSelect.value;
+                if (val) {
+                    const chk = document.querySelector(`input[name="new_positions"][value="${val}"]`);
+                    if (chk) chk.checked = true;
+                }
+            });
+        }
+
         document.getElementById('new-submit')?.addEventListener('click', () => {
+            const mainPos = document.getElementById('new-main-position')?.value || '';
             form.append(
                 hidden('action', 'create_parser_player'),
                 hidden('new_alias', document.getElementById('new-alias').value),
                 hidden('calibration', document.querySelector('input[name="new_calibration"]:checked')?.value || 'average')
             );
+            if (mainPos) {
+                form.append(hidden('main_position', mainPos));
+            }
             document.querySelectorAll('input[name="new_positions"]:checked').forEach(input => {
                 form.append(hidden('new_positions', input.value));
             });
