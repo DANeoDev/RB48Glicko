@@ -150,6 +150,22 @@ def planner():
         main_conn.close()
         acc_conn.close()
 
+    # Determine which match is the actual next upcoming match (datewise)
+    # A match has passed when the matchday has passed (event_date < today)
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    next_upcoming_found = False
+    for evt in events_data:
+        evt_date_prefix = evt["event_date"][:10]
+        if not next_upcoming_found and evt_date_prefix >= today_str:
+            evt["is_next_upcoming"] = True
+            next_upcoming_found = True
+        else:
+            evt["is_next_upcoming"] = False
+
+    # If all events in list are in the past, default to expanding the first event
+    if not next_upcoming_found and events_data:
+        events_data[0]["is_next_upcoming"] = True
+
     user_attendance_name = (user.get("attendance_name") or user.get("username")) if user else ""
     return render_template(
         "planner.html",

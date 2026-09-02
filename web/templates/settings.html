@@ -194,11 +194,7 @@
                 💬 My Authored Banter Bubbles ({{ authored_bubbles|length if authored_bubbles else 0 }})
             </h2>
             <span style="font-size: 12px; color: var(--text-muted);">
-                {% if user.role in ('admin', 'webmaster') %}
-                    Staff Quota: Max 5 active general bubbles
-                {% else %}
-                    Member Quota: Max 3 active general bubbles
-                {% endif %}
+                Quota: Max 5 active general bubbles (Match history banter stays permanent)
             </span>
         </div>
 
