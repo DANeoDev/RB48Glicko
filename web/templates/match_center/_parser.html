@@ -1,11 +1,18 @@
 <!-- ============================================================
-         IMPORT / PARSER
-         ============================================================ -->
+     IMPORT / PARSER
+     ============================================================ -->
 
-    <section class="card">
-        <h2>Import / Parser</h2>
+<section class="card">
+    <details
+        id="parser-details"
+        {% if parse_result or parse_error or parser_success %}open{% endif %}
+    >
+        <summary>
+            <strong>Import / AI Parser</strong>
+            <span class="muted parser-summary-subtext">(Extract from WhatsApp text or screenshot)</span>
+        </summary>
 
-        <p class="muted">
+        <p class="muted parser-intro">
             Paste a WhatsApp message or upload/paste a screenshot.
             The AI extracts the relevant facts without assuming a fixed source format.
         </p>
@@ -122,6 +129,9 @@
                                     {{ parse_result.goals_a }}
                                     :
                                     {{ parse_result.goals_b }}
+                                    {% if parse_result.is_friendly %}
+                                        <span class="muted">(Friendly match)</span>
+                                    {% endif %}
                                 {% else %}
                                     not found
                                 {% endif %}
@@ -189,15 +199,14 @@
 
                         <div class="conflict-list">
 
-                            <strong>Possible name conflicts</strong>
+                            <strong>Ambiguous Names (Multiple Matches)</strong>
 
                             <p
                                 class="muted"
-                                title="Names do not imply identity. Make sure the listed player is the person already in the database, or edit the name details and enter a new player."
+                                title="Multiple players share this alias. Click a player to specify the exact person."
                             >
-                                ⓘ Names do not imply identity — make sure each listed player
-                                is the person already in the database, or edit the name
-                                and enter a new player.
+                                ⓘ Multiple players share this alias. Click a player's name to specify the exact person,
+                                or enter a new player.
                             </p>
 
                             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -209,7 +218,7 @@
                                         class="name-button conflict-btn"
                                         data-index="{{ loop.index0 }}"
                                         data-name="{{ c.name | e }}"
-                                        title="Names do not imply identity. Click to edit the name details."
+                                        title="Click to select the specific player or create a new alias."
                                     >
                                         {{ c.name }}
                                     </button>
@@ -240,7 +249,7 @@
                                 name="action"
                                 value="resolve_conflicts"
                             >
-                                No possible name conflicts
+                                Confirm Identities &amp; Proceed
                             </button>
 
                         </div>
@@ -252,15 +261,14 @@
 
                         <div class="unknown">
 
-                            <strong>Players not in the database</strong>
+                            <strong>New / Unrecognized Players</strong>
 
                             <p
                                 class="muted"
-                                title="Names do not imply identity. Make sure the listed player is the person already in the database, or edit the name details and enter a new player."
+                                title="These names were not found in the database. You can add them as new players or map them to an existing alias."
                             >
-                                ⓘ Names do not imply identity — make sure each listed player
-                                is the person already in the database, or edit the name
-                                and enter a new player.
+                                ⓘ These names were not found in the database. You can add them as new players
+                                or map them to an existing alias.
                             </p>
 
 
@@ -290,7 +298,7 @@
                     {% if not parse_result.conflicts and not parse_result.unmatched %}
 
                         <div class="notice">
-                            All detected identities are resolved.
+                            ✓ All player names matched and verified.
                         </div>
 
                     {% endif %}
@@ -300,4 +308,5 @@
 
             </div>
         </form>
-    </section>
+    </details>
+</section>
