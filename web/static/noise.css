@@ -1,0 +1,263 @@
+/* ==========================================================================
+   Make Some Noise — Spatial Banter Bubbles CSS
+   ========================================================================== */
+
+#noise-overlay-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    min-height: 100%;
+    pointer-events: none;
+    z-index: 100;
+    overflow: visible;
+}
+
+/* Active Noise Mode Cursor & State */
+body.noise-mode-active {
+    cursor: crosshair !important;
+}
+
+body.noise-mode-active * {
+    cursor: crosshair !important;
+}
+
+#noise-mode-banner {
+    position: fixed;
+    top: 65px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #7B52C5, #00897b);
+    color: #ffffff;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    animation: fadeInBanner 0.2s ease-out;
+}
+
+@keyframes fadeInBanner {
+    from { opacity: 0; transform: translate(-50%, -10px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Nav Noise Button */
+.nav-noise-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ded6ed;
+    border-radius: 18px;
+    padding: 6px 14px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+.nav-noise-btn:hover {
+    background: rgba(123, 82, 197, 0.3);
+    border-color: #80deea;
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(128, 222, 234, 0.3);
+}
+
+.nav-noise-btn.active {
+    background: #80deea;
+    border-color: #80deea;
+    color: #19113C;
+    box-shadow: 0 0 14px rgba(128, 222, 234, 0.6);
+}
+
+/* ==========================================================================
+   Noise Bubble Elements
+   ========================================================================== */
+.noise-bubble-wrapper {
+    position: absolute;
+    pointer-events: auto;
+    z-index: 110;
+    transform: translate(-50%, -50%);
+    transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.noise-bubble {
+    position: relative;
+    max-width: 260px;
+    min-width: 140px;
+    padding: 12px 16px 10px;
+    border-radius: 14px;
+    color: #ffffff;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    word-break: break-word;
+    user-select: none;
+    animation: popInBubble 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popInBubble {
+    0% { transform: scale(0.6); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.noise-bubble::after {
+    content: "";
+    position: absolute;
+    bottom: -8px;
+    left: 20px;
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid inherit;
+}
+
+.noise-bubble-content {
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+
+.noise-bubble-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    opacity: 0.85;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    padding-top: 4px;
+    margin-top: 4px;
+}
+
+.noise-bubble-author {
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
+.noise-bubble-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.noise-btn-icon {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    opacity: 0.7;
+    transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.noise-btn-icon:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.noise-drag-handle {
+    cursor: grab;
+}
+
+.noise-drag-handle:active {
+    cursor: grabbing;
+}
+
+/* ==========================================================================
+   Translucent Indicator Pill (Smart Overlap Mode)
+   ========================================================================== */
+.noise-indicator-pill {
+    position: absolute;
+    pointer-events: auto;
+    transform: translate(-50%, -50%);
+    background: rgba(33, 21, 83, 0.85);
+    border: 1px solid rgba(128, 222, 234, 0.6);
+    color: #80deea;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    z-index: 105;
+}
+
+.noise-indicator-pill:hover {
+    background: #582DA1;
+    border-color: #a078f0;
+    color: #ffffff;
+    transform: translate(-50%, -50%) scale(1.08);
+    box-shadow: 0 6px 16px rgba(123, 82, 197, 0.5);
+}
+
+.noise-indicator-pill .pill-expanded-popover {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    pointer-events: auto;
+}
+
+.noise-indicator-pill:hover .pill-expanded-popover {
+    display: block;
+}
+
+/* ==========================================================================
+   Creation Composer Card Modal
+   ========================================================================== */
+#noise-creator-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 360px;
+    max-width: 90vw;
+    background: #19113C;
+    border: 2px solid #7B52C5;
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75);
+    z-index: 11000;
+    display: none;
+    color: #ffffff;
+    animation: popInCreator 0.2s ease-out;
+}
+
+@keyframes popInCreator {
+    from { opacity: 0; transform: translate(-50%, -46%) scale(0.95); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.noise-color-chip {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.noise-color-chip:hover {
+    transform: scale(1.15);
+}
+
+.noise-color-chip.selected {
+    border-color: #ffffff;
+    transform: scale(1.2);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}

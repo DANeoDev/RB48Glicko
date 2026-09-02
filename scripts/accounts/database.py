@@ -53,6 +53,22 @@ def create_account_tables(connection):
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS noise_bubbles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            page_path TEXT NOT NULL,
+            match_id INTEGER,
+            pos_x_percent REAL NOT NULL,
+            pos_y_percent REAL NOT NULL,
+            content TEXT NOT NULL,
+            bg_color TEXT NOT NULL DEFAULT '#7B52C5',
+            font_family TEXT NOT NULL DEFAULT 'Inter',
+            font_size INTEGER NOT NULL DEFAULT 15,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
 
     # Column migrations for existing tables
     cursor = connection.execute("PRAGMA table_info(users)")
@@ -75,6 +91,8 @@ def create_account_tables(connection):
         connection.execute("ALTER TABLE users ADD COLUMN player_id INTEGER")
     if "pending_player_id" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN pending_player_id INTEGER")
+    if "noise_display_mode" not in existing_columns:
+        connection.execute("ALTER TABLE users ADD COLUMN noise_display_mode TEXT NOT NULL DEFAULT 'smart'")
 
     connection.commit()
 
@@ -98,6 +116,7 @@ def get_user_by_id(connection, user_id):
             psychology_persona,
             player_id,
             pending_player_id,
+            noise_display_mode,
             created_at
         FROM users
         WHERE id = ?
@@ -125,6 +144,7 @@ def get_user_by_login(connection, login):
             psychology_persona,
             player_id,
             pending_player_id,
+            noise_display_mode,
             created_at
         FROM users
         WHERE lower(username) = lower(?) OR lower(email) = lower(?)
@@ -152,6 +172,7 @@ def get_user_by_email(connection, email):
             psychology_persona,
             player_id,
             pending_player_id,
+            noise_display_mode,
             created_at
         FROM users
         WHERE lower(email) = lower(?)
@@ -441,4 +462,176 @@ def backup_and_delete_user(connection, user_id):
     connection.commit()
 
     return user, backup_filename
+
+
+def add_noise_bubble(
+    connection,
+    user_id,
+    page_path,
+    pos_x_percent,
+    pos_y_percent,
+    content,
+    match_id=None,
+    bg_color="#7B52C5",
+    font_family="Inter",
+    font_size=15,
+):
+    """Add a new noise bubble on a page, applying the 3-bubble quota FIFO eviction for regular users."""
+    from datetime import datetime, timezone
+
+    user = get_user_by_id(connection, user_id)
+    if not user:
+        raise ValueError("User not found.")
+
+    # Quota check: regular users only have 3 active non-match bubbles
+    if user["role"] == "user" and match_id is None:
+        active_bubbles = connection.execute(
+            """
+            SELECT id FROM noise_bubbles
+            WHERE user_id = ? AND match_id IS NULL
+            ORDER BY id ASC
+            """,
+            (user_id,),
+        ).fetchall()
+
+        # If already at 3 (or more), evict oldest so total remains at 3 after insert
+        if len(active_bubbles) >= 3:
+            to_remove_count = len(active_bubbles) - 2
+            to_remove_ids = [b["id"] for b in active_bubbles[:to_remove_count]]
+            for b_id in to_remove_ids:
+                connection.execute("DELETE FROM noise_bubbles WHERE id = ?", (b_id,))
+
+    now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    cursor = connection.execute(
+        """
+        INSERT INTO noise_bubbles (
+            user_id, page_path, match_id, pos_x_percent, pos_y_percent,
+            content, bg_color, font_family, font_size, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            user_id,
+            page_path,
+            match_id,
+            float(pos_x_percent),
+            float(pos_y_percent),
+            content.strip(),
+            bg_color,
+            font_family,
+            int(font_size),
+            now_iso,
+        ),
+    )
+    connection.commit()
+    return cursor.lastrowid
+
+
+def get_noise_bubbles_for_page(connection, page_path, match_id=None):
+    """Retrieve all noise bubbles for a specific page path or match."""
+    query = """
+        SELECT
+            b.id,
+            b.user_id,
+            b.page_path,
+            b.match_id,
+            b.pos_x_percent,
+            b.pos_y_percent,
+            b.content,
+            b.bg_color,
+            b.font_family,
+            b.font_size,
+            b.created_at,
+            u.username,
+            u.avatar_file,
+            u.attendance_name,
+            u.role
+        FROM noise_bubbles b
+        JOIN users u ON b.user_id = u.id
+        WHERE b.page_path = ?
+    """
+    params = [page_path]
+    if match_id is not None:
+        query += " AND b.match_id = ?"
+        params.append(match_id)
+
+    query += " ORDER BY b.id ASC"
+    rows = connection.execute(query, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_noise_bubble_by_id(connection, bubble_id):
+    """Retrieve a single noise bubble by id."""
+    row = connection.execute(
+        """
+        SELECT
+            b.id,
+            b.user_id,
+            b.page_path,
+            b.match_id,
+            b.pos_x_percent,
+            b.pos_y_percent,
+            b.content,
+            b.bg_color,
+            b.font_family,
+            b.font_size,
+            b.created_at,
+            u.username,
+            u.avatar_file,
+            u.attendance_name,
+            u.role
+        FROM noise_bubbles b
+        JOIN users u ON b.user_id = u.id
+        WHERE b.id = ?
+        """,
+        (bubble_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_noise_bubble(connection, bubble_id, user_id=None, is_staff=False):
+    """Delete a noise bubble if requested by its author or staff (admin/webmaster)."""
+    bubble = get_noise_bubble_by_id(connection, bubble_id)
+    if not bubble:
+        return False
+
+    if not is_staff and bubble["user_id"] != user_id:
+        return False
+
+    connection.execute("DELETE FROM noise_bubbles WHERE id = ?", (bubble_id,))
+    connection.commit()
+    return True
+
+
+def update_noise_bubble_position(connection, bubble_id, pos_x_percent, pos_y_percent, user_id=None, is_staff=False):
+    """Update position of a bubble if user is author or staff."""
+    bubble = get_noise_bubble_by_id(connection, bubble_id)
+    if not bubble:
+        return False
+
+    if not is_staff and bubble["user_id"] != user_id:
+        return False
+
+    connection.execute(
+        """
+        UPDATE noise_bubbles
+        SET pos_x_percent = ?, pos_y_percent = ?
+        WHERE id = ?
+        """,
+        (float(pos_x_percent), float(pos_y_percent), bubble_id),
+    )
+    connection.commit()
+    return True
+
+
+def set_user_noise_display_mode(connection, user_id, mode):
+    """Update user's preferred noise display mode ('smart', 'always_show', 'always_indicators', 'hidden')."""
+    valid_modes = ("smart", "always_show", "always_indicators", "hidden")
+    mode = mode if mode in valid_modes else "smart"
+    connection.execute(
+        "UPDATE users SET noise_display_mode = ? WHERE id = ?",
+        (mode, user_id),
+    )
+    connection.commit()
+
 

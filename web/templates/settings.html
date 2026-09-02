@@ -131,6 +131,72 @@
         {% endif %}
     </div>
 
+    <!-- Page Noise & Banter Settings Card -->
+    <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 16px;">
+            <h2 style="margin: 0; font-size: 18px; color: #ffffff;">
+                📢 Page Noise &amp; Banter Bubbles
+            </h2>
+            <span style="font-size: 12px; color: #80deea; font-weight: 600;">
+                Spatial Banter Mode
+            </span>
+        </div>
+
+        <p class="reading-text" style="font-size: 14px; margin-bottom: 16px; color: #c9c2d8;">
+            Configure how member noise text bubbles interact with buttons, tables, and page content on your screen:
+        </p>
+
+        <form method="post" action="{{ url_for('noise.update_noise_display_mode') }}">
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
+                    <input type="radio" name="noise_display_mode" value="smart" {% if user.noise_display_mode == 'smart' or not user.noise_display_mode %}checked{% endif %} style="margin-top: 3px;">
+                    <div>
+                        <strong style="color: #ffffff; font-size: 14px; display: block;">Smart Overlap Collision (Recommended)</strong>
+                        <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
+                            Bubbles in open spaces stay fully expanded. Bubbles that overlap with buttons, inputs, or tables collapse into translucent indicator badges (<code>💭</code>) that pop into view on hover.
+                        </span>
+                    </div>
+                </label>
+
+                <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
+                    <input type="radio" name="noise_display_mode" value="always_show" {% if user.noise_display_mode == 'always_show' %}checked{% endif %} style="margin-top: 3px;">
+                    <div>
+                        <strong style="color: #ffffff; font-size: 14px; display: block;">Always Show Full Bubbles</strong>
+                        <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
+                            Always display full text bubbles in their exact positions as placed by authors.
+                        </span>
+                    </div>
+                </label>
+
+                <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
+                    <input type="radio" name="noise_display_mode" value="always_indicators" {% if user.noise_display_mode == 'always_indicators' %}checked{% endif %} style="margin-top: 3px;">
+                    <div>
+                        <strong style="color: #ffffff; font-size: 14px; display: block;">Minimal Indicator Pills</strong>
+                        <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
+                            Display all noise bubbles as small, non-intrusive indicator pills. Hover to expand banter.
+                        </span>
+                    </div>
+                </label>
+
+                <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
+                    <input type="radio" name="noise_display_mode" value="hidden" {% if user.noise_display_mode == 'hidden' %}checked{% endif %} style="margin-top: 3px;">
+                    <div>
+                        <strong style="color: #ff8888; font-size: 14px; display: block;">Mute Noise (Hide All)</strong>
+                        <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
+                            Hide all noise bubbles completely for a completely clean page view.
+                        </span>
+                    </div>
+                </label>
+            </div>
+
+            <div style="text-align: right;">
+                <button type="submit" class="secondary" style="padding: 8px 18px; font-size: 13.5px; cursor: pointer;">
+                    Save Noise Preferences
+                </button>
+            </div>
+        </form>
+    </div>
+
     <!-- Password Change Card -->
     <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
         <h2 style="margin: 0 0 16px; font-size: 18px; color: #ffffff; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
