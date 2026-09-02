@@ -141,6 +141,7 @@ def add_standard_wednesday_events(connection, count=4):
         SELECT event_date, pitch
         FROM events
         WHERE status = 'open'
+        AND LOWER(pitch) IN ('box', 'hf')
         ORDER BY event_date DESC, id DESC
         LIMIT 1
         """
