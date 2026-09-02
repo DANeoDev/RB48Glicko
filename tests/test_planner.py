@@ -88,6 +88,21 @@ class PlannerTests(unittest.TestCase):
         # 4th Wednesday must be BOX
         self.assertEqual(events[4]["pitch"], "box")
 
+    def test_add_standard_wednesday_events_ignores_custom_pitch(self):
+        # Create a BOX event on 2026-09-02 (Wednesday)
+        create_event(self.conn, "2026-09-02 20:00", "box")
+        # Create a CUSTOM event in the far future, e.g. 2026-12-25
+        create_event(self.conn, "2026-12-25 18:00", "custom", title="Christmas Special")
+
+        # Adding 4 standard matches should ignore the Dec 25 custom event and base off the Sep 02 BOX event!
+        created_ids = add_standard_wednesday_events(self.conn, count=4)
+        self.assertEqual(len(created_ids), 4)
+
+        # The first added event should be 2026-09-09 (the Wednesday following Sep 02), and its pitch should be HF
+        first_added = get_event_by_id(self.conn, created_ids[0])
+        self.assertIn("2026-09-09", first_added["event_date"])
+        self.assertEqual(first_added["pitch"], "hf")
+
     def test_chronological_ordering_and_waiting_list(self):
         event_id = create_event(self.conn, "2026-11-01 18:30", "box", max_players=3)
 
