@@ -63,6 +63,25 @@ class AuthTokensTest(unittest.TestCase):
         updated = get_user(user_id)
         self.assertEqual(updated["email_verified"], 1)
 
+    def test_verify_email_http_route(self):
+        from web.app import app
+        client = app.test_client()
+
+        unique_login = f"user_http_{int(time.time() * 1000)}"
+        email = f"{unique_login}@example.com"
+        user_id, error = register_user(unique_login, email, "password123")
+        self.assertIsNone(error)
+
+        token = generate_verification_token(user_id, email)
+        resp = client.get(f"/verify-email/{token}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Email Verified!", resp.data)
+        self.assertIn(unique_login.encode(), resp.data)
+
+        # Confirm user is now verified
+        user = get_user(user_id)
+        self.assertEqual(user["email_verified"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

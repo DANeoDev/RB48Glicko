@@ -13,6 +13,7 @@ from scripts.accounts.auth import (
     get_user,
     pass_psychology_test,
     register_user,
+    verify_email_token,
     verify_user_email,
 )
 from scripts.accounts.database import (
