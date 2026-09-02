@@ -1,15 +1,21 @@
-"""SQLite database schema initialization and connection management."""
-
+import os
 from pathlib import Path
 import sqlite3
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATABASE_FILE = PROJECT_ROOT / "data" / "rb48.db"
+
+
+def get_database_file():
+    override = os.environ.get("RB48_DATABASE_FILE")
+    return Path(override) if override else PROJECT_ROOT / "data" / "rb48.db"
+
+
+DATABASE_FILE = get_database_file()
 
 
 def get_connection():
     """Return a connection to the primary RB48 database with foreign keys enabled."""
-    connection = sqlite3.connect(DATABASE_FILE)
+    connection = sqlite3.connect(get_database_file())
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
