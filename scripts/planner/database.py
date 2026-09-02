@@ -60,7 +60,6 @@ def create_planner_tables(connection):
         connection.execute("DROP TABLE events_old")
         connection.execute("PRAGMA foreign_keys = ON")
         connection.commit()
-
     connection.execute("""
         CREATE TABLE IF NOT EXISTS attendees (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,6 +74,33 @@ def create_planner_tables(connection):
             FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
         )
     """)
+
+    # Repair attendees table if its foreign key is pointing to events_old
+    attendees_sql = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='attendees'"
+    ).fetchone()
+    if attendees_sql and attendees_sql[0] and "events_old" in attendees_sql[0]:
+        connection.execute("PRAGMA foreign_keys = OFF")
+        connection.execute("ALTER TABLE attendees RENAME TO attendees_old")
+        connection.execute("""
+            CREATE TABLE attendees (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id INTEGER NOT NULL,
+                user_id INTEGER,
+                name TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (status IN ('attending', 'declined')),
+                is_guest INTEGER NOT NULL DEFAULT 0,
+                registered_by_user_id INTEGER,
+                guest_index INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+            )
+        """)
+        connection.execute("INSERT INTO attendees SELECT * FROM attendees_old")
+        connection.execute("DROP TABLE attendees_old")
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.commit()
+
     connection.commit()
 
 
