@@ -665,17 +665,46 @@ def update_noise_bubble_position(connection, bubble_id, pos_x_percent, pos_y_per
 
 
 def set_user_noise_display_mode(connection, user_id, mode):
-    """Update user's preferred noise display mode ('transparent', 'always_expanded', 'hidden')."""
-    if mode in ("smart", "always_indicators"):
-        mode = "transparent"
-    elif mode == "always_show":
-        mode = "always_expanded"
-    valid_modes = ("transparent", "always_expanded", "hidden")
-    mode = mode if mode in valid_modes else "transparent"
+    """Update user's preferred noise display mode ('collapsed', 'expanded', 'muted')."""
+    if mode in ("transparent", "smart", "always_indicators", "collapsed"):
+        mode = "collapsed"
+    elif mode in ("always_expanded", "always_show", "expanded"):
+        mode = "expanded"
+    elif mode in ("hidden", "muted"):
+        mode = "muted"
+    else:
+        mode = "collapsed"
+
     connection.execute(
         "UPDATE users SET noise_display_mode = ? WHERE id = ?",
         (mode, user_id),
     )
     connection.commit()
+    return mode
+
+
+def get_user_authored_noise_bubbles(connection, user_id):
+    """Retrieve all noise bubbles authored by a specific user."""
+    rows = connection.execute(
+        """
+        SELECT
+            id,
+            user_id,
+            page_path,
+            match_id,
+            pos_x_percent,
+            pos_y_percent,
+            content,
+            bg_color,
+            font_family,
+            font_size,
+            created_at
+        FROM noise_bubbles
+        WHERE user_id = ?
+        ORDER BY id DESC
+        """,
+        (user_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
 
 

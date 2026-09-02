@@ -186,15 +186,19 @@ def delete_noise(bubble_id):
 @noise_bp.route("/settings/noise-mode", methods=["POST"])
 @require_tier(Tier.USER)
 def update_noise_display_mode():
-    """Update user's noise display mode preference."""
+    """Update user's noise display mode preference ('collapsed', 'expanded', 'muted')."""
     user = get_current_user()
-    mode = request.form.get("noise_display_mode", "smart").strip()
+    data = request.get_json(silent=True) or request.form
+    mode = str(data.get("noise_display_mode", "collapsed")).strip()
 
     conn = get_accounts_connection()
     try:
-        set_user_noise_display_mode(conn, user["id"], mode)
-        flash("Noise display mode updated!", "success")
+        saved_mode = set_user_noise_display_mode(conn, user["id"], mode)
     finally:
         conn.close()
 
-    return redirect(url_for("auth.settings"))
+    if request.is_json or request.headers.get("Accept") == "application/json":
+        return jsonify({"success": True, "mode": saved_mode})
+
+    flash("Noise display mode updated!", "success")
+    return redirect(request.referrer or url_for("auth.settings"))

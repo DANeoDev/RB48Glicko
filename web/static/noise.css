@@ -47,7 +47,7 @@ body.noise-mode-active * {
     to { opacity: 1; transform: translate(-50%, 0); }
 }
 
-/* Nav Noise Button */
+/* Nav Noise Buttons */
 .nav-noise-btn {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -61,6 +61,7 @@ body.noise-mode-active * {
     align-items: center;
     gap: 6px;
     transition: all 0.15s ease;
+    user-select: none;
 }
 
 .nav-noise-btn:hover {
@@ -140,7 +141,7 @@ body.noise-mode-active * {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 140px;
+    max-width: 130px;
     opacity: 0.9;
 }
 
@@ -184,12 +185,12 @@ body.noise-mode-active * {
 }
 
 /* ==========================================================================
-   Translucent Indicator Pill (Default Mode)
+   Translucent Indicator Pill (Collapsed Mode)
    ========================================================================== */
 .noise-indicator-pill {
     position: relative;
     pointer-events: auto;
-    background: rgba(25, 17, 60, 0.88);
+    background: rgba(25, 17, 60, 0.9);
     border: 1px solid rgba(128, 222, 234, 0.65);
     color: #80deea;
     padding: 5px 12px;
@@ -207,28 +208,12 @@ body.noise-mode-active * {
     user-select: none;
 }
 
-.noise-indicator-pill:hover,
-.noise-indicator-pill.is-pinned {
+.noise-indicator-pill:hover {
     background: #582DA1;
     border-color: #a078f0;
     color: #ffffff;
     transform: scale(1.06);
     box-shadow: 0 6px 18px rgba(123, 82, 197, 0.55);
-}
-
-.noise-indicator-pill .pill-expanded-popover {
-    display: none;
-    position: absolute;
-    bottom: calc(100% + 10px);
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1000;
-    pointer-events: auto;
-}
-
-.noise-indicator-pill:hover .pill-expanded-popover,
-.noise-indicator-pill.is-pinned .pill-expanded-popover {
-    display: block;
 }
 
 /* ==========================================================================

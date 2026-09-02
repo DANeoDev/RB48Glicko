@@ -19,8 +19,10 @@ from scripts.accounts.auth import (
 from scripts.accounts.database import (
     approve_player_link,
     approve_user,
+    backup_and_delete_user,
     get_accounts_connection,
     get_all_users,
+    get_user_authored_noise_bubbles,
     get_user_by_email,
     get_user_by_id,
     link_user_to_player,
@@ -28,6 +30,7 @@ from scripts.accounts.database import (
     request_player_link,
     update_user_password,
     update_user_profile,
+    update_user_role,
 )
 from scripts.database.database import get_connection as get_main_connection
 from scripts.database.db_players import get_players
@@ -289,12 +292,15 @@ def settings():
     """Profile & account settings page."""
     user = get_current_user()
     main_conn = get_main_connection()
+    accounts_conn = get_accounts_connection()
     try:
         players = get_players(main_conn)
+        authored_bubbles = get_user_authored_noise_bubbles(accounts_conn, user["id"])
     finally:
         main_conn.close()
+        accounts_conn.close()
 
-    return render_template("settings.html", user=user, players=players)
+    return render_template("settings.html", user=user, players=players, authored_bubbles=authored_bubbles)
 
 
 @auth_bp.route("/settings/profile", methods=["POST"])
