@@ -7,10 +7,12 @@ from scripts.accounts.auth import get_user
 from scripts.accounts.database import (
     add_noise_bubble,
     delete_noise_bubble,
+    dismiss_noise_for_user,
     get_accounts_connection,
     get_noise_bubble_by_id,
     get_noise_bubbles_for_page,
     set_user_noise_display_mode,
+    set_user_noise_override,
     update_noise_bubble_position,
 )
 from web.services.security import Tier, get_current_user, require_tier
@@ -30,7 +32,7 @@ def get_noise():
 
     conn = get_accounts_connection()
     try:
-        bubbles = get_noise_bubbles_for_page(conn, page_path, match_id=match_id)
+        bubbles = get_noise_bubbles_for_page(conn, page_path, viewer_user_id=user["id"], match_id=match_id)
     finally:
         conn.close()
 
@@ -89,7 +91,7 @@ def create_noise():
             font_family=font_family,
             font_size=font_size,
         )
-        bubble = get_noise_bubble_by_id(conn, bubble_id)
+        bubble = get_noise_bubble_by_id(conn, bubble_id, viewer_user_id=user["id"])
     finally:
         conn.close()
 
@@ -99,7 +101,7 @@ def create_noise():
 @noise_bp.route("/api/noise/<int:bubble_id>/move", methods=["POST"])
 @require_tier(Tier.USER)
 def move_noise(bubble_id):
-    """Update position coordinates of an existing bubble."""
+    """Update position coordinates of an existing bubble (per-user override and optional global author update)."""
     user = get_current_user()
     if not user:
         return jsonify({"success": False, "error": "Authentication required."}), 401
@@ -113,6 +115,7 @@ def move_noise(bubble_id):
 
     pos_x_percent = max(0.0, min(100.0, pos_x_percent))
     pos_y_percent = max(0.0, min(100.0, pos_y_percent))
+    global_update = bool(data.get("global_update", False))
 
     is_staff = user.get("role") in ("admin", "webmaster")
 
@@ -125,14 +128,32 @@ def move_noise(bubble_id):
             pos_y_percent=pos_y_percent,
             user_id=user["id"],
             is_staff=is_staff,
+            global_update=global_update,
         )
     finally:
         conn.close()
 
     if not ok:
-        return jsonify({"success": False, "error": "Permission denied or bubble not found."}), 403
+        return jsonify({"success": False, "error": "Bubble not found."}), 404
 
     return jsonify({"success": True, "bubble_id": bubble_id, "pos_x_percent": pos_x_percent, "pos_y_percent": pos_y_percent})
+
+
+@noise_bp.route("/api/noise/<int:bubble_id>/dismiss", methods=["POST"])
+@require_tier(Tier.USER)
+def dismiss_noise(bubble_id):
+    """Dismiss a bubble from the current user's view."""
+    user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Authentication required."}), 401
+
+    conn = get_accounts_connection()
+    try:
+        dismiss_noise_for_user(conn, user_id=user["id"], bubble_id=bubble_id)
+    finally:
+        conn.close()
+
+    return jsonify({"success": True, "dismissed_id": bubble_id})
 
 
 @noise_bp.route("/api/noise/<int:bubble_id>", methods=["DELETE", "POST"])

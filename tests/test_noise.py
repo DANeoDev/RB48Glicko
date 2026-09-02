@@ -279,11 +279,88 @@ class NoiseBubblesTest(unittest.TestCase):
 
         conn = get_accounts_connection()
         try:
-            bubbles = get_noise_bubbles_for_page(conn, "/stats")
+            bubbles = get_noise_bubbles_for_page(conn, "/stats", viewer_user_id=user["id"])
             self.assertAlmostEqual(bubbles[0]["pos_x_percent"], 75.5)
             self.assertAlmostEqual(bubbles[0]["pos_y_percent"], 85.2)
         finally:
             conn.close()
+
+    def test_per_user_distinct_positions(self):
+        user_a = self.create_user(role="user")
+        user_b = self.create_user(role="user")
+
+        # User A creates a bubble at (20, 30)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_a["id"]
+        resp_create = self.client.post(
+            "/api/noise",
+            json={
+                "page_path": "/stats",
+                "pos_x_percent": 20,
+                "pos_y_percent": 30,
+                "content": "Shared banter",
+            },
+        )
+        bubble_id = resp_create.get_json()["bubble"]["id"]
+
+        # User B moves the bubble to (65, 85) for User B's view
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_b["id"]
+        resp_move_b = self.client.post(
+            f"/api/noise/{bubble_id}/move",
+            json={"pos_x_percent": 65, "pos_y_percent": 85},
+        )
+        self.assertEqual(resp_move_b.status_code, 200)
+
+        # Query as User B -> should see (65, 85)
+        resp_b_view = self.client.get("/api/noise?path=/stats")
+        bubbles_b = resp_b_view.get_json()["bubbles"]
+        self.assertEqual(len(bubbles_b), 1)
+        self.assertAlmostEqual(bubbles_b[0]["pos_x_percent"], 65)
+        self.assertAlmostEqual(bubbles_b[0]["pos_y_percent"], 85)
+
+        # Query as User A -> should see original (20, 30)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_a["id"]
+        resp_a_view = self.client.get("/api/noise?path=/stats")
+        bubbles_a = resp_a_view.get_json()["bubbles"]
+        self.assertEqual(len(bubbles_a), 1)
+        self.assertAlmostEqual(bubbles_a[0]["pos_x_percent"], 20)
+        self.assertAlmostEqual(bubbles_a[0]["pos_y_percent"], 30)
+
+    def test_per_user_dismissal(self):
+        user_a = self.create_user(role="user")
+        user_b = self.create_user(role="user")
+
+        # User A creates a bubble
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_a["id"]
+        resp_create = self.client.post(
+            "/api/noise",
+            json={
+                "page_path": "/planner",
+                "pos_x_percent": 15,
+                "pos_y_percent": 25,
+                "content": "Banter to dismiss",
+            },
+        )
+        bubble_id = resp_create.get_json()["bubble"]["id"]
+
+        # User B dismisses the bubble from their view
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_b["id"]
+        resp_dismiss = self.client.post(f"/api/noise/{bubble_id}/dismiss")
+        self.assertEqual(resp_dismiss.status_code, 200)
+
+        # User B cannot see the bubble
+        resp_b_view = self.client.get("/api/noise?path=/planner")
+        self.assertEqual(len(resp_b_view.get_json()["bubbles"]), 0)
+
+        # User A STILL sees the bubble
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_a["id"]
+        resp_a_view = self.client.get("/api/noise?path=/planner")
+        self.assertEqual(len(resp_a_view.get_json()["bubbles"]), 1)
 
     def test_noise_display_mode_settings(self):
         user = self.create_user(role="user")

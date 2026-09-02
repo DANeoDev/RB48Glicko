@@ -9,6 +9,7 @@
     let isNoiseMode = false;
     let pendingCoords = { x: 50, y: 50 };
     let currentDrag = null;
+    let isDraggingJustEnded = false;
     let loadedBubbles = [];
 
     const PALETTE = [
@@ -39,11 +40,12 @@
             if (e.key === "Escape") {
                 if (isNoiseMode) toggleNoiseMode(false);
                 closeCreatorModal();
+                unpinAllPills();
             }
         });
 
-        // Click on page in Noise Mode
-        document.addEventListener("click", handlePageClickInNoiseMode, true);
+        // Click on page: handle noise mode and unpin pills on outside click
+        document.addEventListener("click", handleDocumentClick, true);
 
         // Window resize
         let resizeTimer;
@@ -51,36 +53,6 @@
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(renderAllBubbles, 200);
         });
-    }
-
-    function getDismissedIds() {
-        try {
-            return JSON.parse(localStorage.getItem("rb48_dismissed_noise_ids") || "[]");
-        } catch {
-            return [];
-        }
-    }
-
-    function addDismissedId(id) {
-        const list = getDismissedIds();
-        if (!list.includes(id)) {
-            list.push(id);
-            localStorage.setItem("rb48_dismissed_noise_ids", JSON.stringify(list));
-        }
-    }
-
-    function getLocalPositions() {
-        try {
-            return JSON.parse(localStorage.getItem("rb48_local_noise_positions") || "{}");
-        } catch {
-            return {};
-        }
-    }
-
-    function setLocalPosition(id, x, y) {
-        const positions = getLocalPositions();
-        positions[id] = { x: x, y: y };
-        localStorage.setItem("rb48_local_noise_positions", JSON.stringify(positions));
     }
 
     function getOrCreateContainer() {
@@ -133,7 +105,7 @@
                     <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 6px;">Banter Message (Live Preview):</label>
                     <textarea id="noise-text-input" placeholder="Type your banter or comment..." maxlength="160" rows="3" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; background: #7B52C5; border: 2px solid rgba(255,255,255,0.3); color: #ffffff; font-family: Inter, sans-serif; font-size: 15px; resize: vertical; box-shadow: 0 4px 14px rgba(0,0,0,0.4); transition: all 0.2s ease;"></textarea>
                     <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 4px;">
-                        <span>— ${escapeHtml(window.RB48_USER?.attendance_name || window.RB48_USER?.username || 'You')}</span>
+                        <span>Author: ${escapeHtml(window.RB48_USER?.attendance_name || window.RB48_USER?.username || 'You')}</span>
                         <span id="noise-char-count">0/160</span>
                     </div>
                 </div>
@@ -212,7 +184,7 @@
         if (!textarea) return;
 
         textarea.style.backgroundColor = selectedColor;
-        textarea.style.fontFamily = fontSelect ? fontSelect.value : "Inter";
+        textarea.style.fontFamily = fontSelect ? fontSelect.value : "Inter, sans-serif";
         textarea.style.fontSize = (sizeSelect ? sizeSelect.value : "15") + "px";
     }
 
@@ -233,32 +205,44 @@
         }
     }
 
-    function handlePageClickInNoiseMode(e) {
-        if (!isNoiseMode) return;
+    function handleDocumentClick(e) {
+        if (isNoiseMode) {
+            // Ignore clicks inside nav, modals, or dropdowns
+            if (e.target.closest("header, .site-header, #noise-creator-modal, #noise-mode-banner, .profile-dropdown")) {
+                return;
+            }
 
-        // Ignore clicks inside nav, modals, or dropdowns
-        if (e.target.closest("header, .site-header, #noise-creator-modal, #noise-mode-banner, .profile-dropdown")) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            updateContainerHeight();
+            const container = getOrCreateContainer();
+            const containerWidth = container.clientWidth || window.innerWidth;
+            const containerHeight = container.clientHeight || document.body.scrollHeight;
+
+            const posXPercent = (e.pageX / containerWidth) * 100;
+            const posYPercent = (e.pageY / containerHeight) * 100;
+
+            pendingCoords = {
+                x: Math.max(2, Math.min(98, posXPercent)),
+                y: Math.max(2, Math.min(98, posYPercent)),
+            };
+
+            toggleNoiseMode(false);
+            openCreatorModal();
             return;
         }
 
-        e.preventDefault();
-        e.stopPropagation();
+        // Check for click outside pinned pills
+        if (!e.target.closest(".noise-indicator-pill") && !e.target.closest(".noise-bubble-wrapper")) {
+            unpinAllPills();
+        }
+    }
 
-        updateContainerHeight();
-        const container = getOrCreateContainer();
-        const containerWidth = container.clientWidth || window.innerWidth;
-        const containerHeight = container.clientHeight || document.body.scrollHeight;
-
-        const posXPercent = (e.pageX / containerWidth) * 100;
-        const posYPercent = (e.pageY / containerHeight) * 100;
-
-        pendingCoords = {
-            x: Math.max(2, Math.min(98, posXPercent)),
-            y: Math.max(2, Math.min(98, posYPercent)),
-        };
-
-        toggleNoiseMode(false);
-        openCreatorModal();
+    function unpinAllPills() {
+        document.querySelectorAll(".noise-indicator-pill.is-pinned").forEach((pill) => {
+            pill.classList.remove("is-pinned");
+        });
     }
 
     function openCreatorModal() {
@@ -349,29 +333,20 @@
 
         const currentUserId = window.RB48_USER ? window.RB48_USER.id : null;
         const isStaff = window.RB48_USER && ["admin", "webmaster"].includes(window.RB48_USER.role);
-        const dismissedIds = getDismissedIds();
-        const localPositions = getLocalPositions();
 
         loadedBubbles.forEach((b) => {
-            // Filter out locally dismissed bubbles
-            if (dismissedIds.includes(b.id)) return;
-
-            // Apply local reposition override if present
-            const displayX = localPositions[b.id]?.x ?? b.pos_x_percent;
-            const displayY = localPositions[b.id]?.y ?? b.pos_y_percent;
-
             const isAuthorOrStaff = isStaff || (currentUserId && currentUserId === b.user_id);
-            const el = createBubbleDOM(b, isAuthorOrStaff, userDisplayMode, displayX, displayY);
+            const el = createBubbleDOM(b, isAuthorOrStaff, userDisplayMode);
             container.appendChild(el);
         });
     }
 
-    function createBubbleDOM(b, isAuthorOrStaff, userDisplayMode, posX, posY) {
+    function createBubbleDOM(b, isAuthorOrStaff, userDisplayMode) {
         const wrapper = document.createElement("div");
         wrapper.className = "noise-bubble-wrapper";
         wrapper.id = `noise-bubble-wrap-${b.id}`;
-        wrapper.style.left = `${posX}%`;
-        wrapper.style.top = `${posY}%`;
+        wrapper.style.left = `${b.pos_x_percent}%`;
+        wrapper.style.top = `${b.pos_y_percent}%`;
 
         const isAlwaysExpanded = userDisplayMode === "always_expanded" || userDisplayMode === "always_show";
 
@@ -389,10 +364,10 @@
             <div class="noise-bubble" style="background-color: ${escapeHtml(b.bg_color)}; font-family: ${escapeHtml(b.font_family)}; font-size: ${b.font_size}px;">
                 <div class="noise-bubble-content">${escapeHtml(b.content)}</div>
                 <div class="noise-bubble-footer">
-                    <span class="noise-bubble-author">— ${escapeHtml(b.attendance_name || b.username)}</span>
+                    <span class="noise-bubble-author" title="${escapeHtml(b.attendance_name || b.username)}">${escapeHtml(b.attendance_name || b.username)}</span>
                     <div class="noise-bubble-actions">
                         <span class="noise-drag-handle" title="Drag to move anywhere" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
-                        <button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">👁️‍🗨️</button>
+                        <button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>
                         ${isAuthorOrStaff ? `<button type="button" class="noise-btn-icon" title="Delete globally" style="color: #ff8888;" onclick="window.RB48Noise.deleteGlobal(${b.id})">🗑️</button>` : ""}
                     </div>
                 </div>
@@ -404,17 +379,17 @@
         wrapper.innerHTML = `
             <div class="noise-indicator-pill" id="pill-${b.id}">
                 <span class="noise-drag-handle" title="Drag to move" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
-                <span class="pill-label">💭 ${escapeHtml(b.attendance_name || b.username)}</span>
+                <span class="pill-label" title="Click to pin open">💭 ${escapeHtml(b.attendance_name || b.username)}</span>
                 <button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>
                 
                 <div class="pill-expanded-popover">
                     <div class="noise-bubble" style="background-color: ${escapeHtml(b.bg_color)}; font-family: ${escapeHtml(b.font_family)}; font-size: ${b.font_size}px;">
                         <div class="noise-bubble-content">${escapeHtml(b.content)}</div>
                         <div class="noise-bubble-footer">
-                            <span class="noise-bubble-author">— ${escapeHtml(b.attendance_name || b.username)}</span>
+                            <span class="noise-bubble-author" title="${escapeHtml(b.attendance_name || b.username)}">${escapeHtml(b.attendance_name || b.username)}</span>
                             <div class="noise-bubble-actions">
                                 <span class="noise-drag-handle" title="Drag to move" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
-                                <button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">👁️‍🗨️</button>
+                                <button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>
                                 ${isAuthorOrStaff ? `<button type="button" class="noise-btn-icon" title="Delete globally" style="color: #ff8888;" onclick="window.RB48Noise.deleteGlobal(${b.id})">🗑️</button>` : ""}
                             </div>
                         </div>
@@ -422,6 +397,15 @@
                 </div>
             </div>
         `;
+
+        const pill = wrapper.querySelector(".noise-indicator-pill");
+        if (pill) {
+            pill.addEventListener("click", (e) => {
+                if (isDraggingJustEnded) return;
+                if (e.target.closest(".noise-drag-handle") || e.target.closest("button")) return;
+                pill.classList.toggle("is-pinned");
+            });
+        }
     }
 
     function startDrag(e, bubbleId) {
@@ -436,10 +420,12 @@
             element: wrap,
             startX: e.clientX,
             startY: e.clientY,
+            didMove: false,
         };
 
         const onMouseMove = (moveEvt) => {
             if (!currentDrag) return;
+            currentDrag.didMove = true;
             const container = getOrCreateContainer();
             const containerWidth = container.clientWidth || window.innerWidth;
             const containerHeight = container.clientHeight || document.body.scrollHeight;
@@ -457,29 +443,30 @@
             document.removeEventListener("mousemove", onMouseMove);
             document.removeEventListener("mouseup", onMouseUp);
 
-            if (currentDrag && currentDrag.newX !== undefined) {
+            if (currentDrag && currentDrag.didMove && currentDrag.newX !== undefined) {
+                isDraggingJustEnded = true;
+                setTimeout(() => { isDraggingJustEnded = false; }, 150);
+
                 const bId = currentDrag.bubbleId;
                 const newX = currentDrag.newX;
                 const newY = currentDrag.newY;
 
-                // Always save local offset so the user sees it in their desired spot
-                setLocalPosition(bId, newX, newY);
-
-                // If author or staff, also update globally on server
+                // Update loadedBubble local cache
                 const b = loadedBubbles.find(item => item.id === bId);
-                const currentUserId = window.RB48_USER ? window.RB48_USER.id : null;
-                const isStaff = window.RB48_USER && ["admin", "webmaster"].includes(window.RB48_USER.role);
+                if (b) {
+                    b.pos_x_percent = newX;
+                    b.pos_y_percent = newY;
+                }
 
-                if (b && (isStaff || (currentUserId && currentUserId === b.user_id))) {
-                    try {
-                        await fetch(`/api/noise/${bId}/move`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ pos_x_percent: newX, pos_y_percent: newY }),
-                        });
-                    } catch (err) {
-                        console.error("Failed to persist bubble move globally:", err);
-                    }
+                // Persist move to server (per-user override and base update)
+                try {
+                    await fetch(`/api/noise/${bId}/move`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ pos_x_percent: newX, pos_y_percent: newY }),
+                    });
+                } catch (err) {
+                    console.error("Failed to persist bubble move:", err);
                 }
             }
             currentDrag = null;
@@ -489,14 +476,20 @@
         document.addEventListener("mouseup", onMouseUp);
     }
 
-    function dismissLocal(bubbleId) {
-        addDismissedId(bubbleId);
+    async function dismissLocal(bubbleId) {
         const wrap = document.getElementById(`noise-bubble-wrap-${bubbleId}`);
         if (wrap) {
             wrap.style.transition = "opacity 0.2s ease, transform 0.2s ease";
             wrap.style.opacity = "0";
             wrap.style.transform = "translate(-50%, -50%) scale(0.6)";
             setTimeout(() => wrap.remove(), 200);
+        }
+
+        try {
+            await fetch(`/api/noise/${bubbleId}/dismiss`, { method: "POST" });
+            loadedBubbles = loadedBubbles.filter(b => b.id !== bubbleId);
+        } catch (err) {
+            console.error("Error dismissing noise:", err);
         }
     }
 
