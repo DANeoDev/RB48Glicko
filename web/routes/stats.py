@@ -55,6 +55,15 @@ def player_profile(player_id):
     matches = build_match_history(connection, players, player_id, {"total": TOTAL, "box": BOX, "hf": HF}[selected_rating_type])
     connection.close()
     matches.reverse()
+
+    from scripts.accounts.database import get_accounts_connection, get_user_by_player_id
+    acc_conn = get_accounts_connection()
+    try:
+        linked_user = get_user_by_player_id(acc_conn, player_id)
+        linked_user = dict(linked_user) if linked_user else None
+    finally:
+        acc_conn.close()
+
     return render_template(
         "player.html",
         player=players[player_id],
@@ -64,7 +73,8 @@ def player_profile(player_id):
         rating_extremes=rating_extremes,
         matches=matches,
         selected_rating_type=selected_rating_type,
-        player_id=player_id
+        player_id=player_id,
+        linked_user=linked_user,
     )
 
 

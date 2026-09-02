@@ -30,6 +30,7 @@ def create_account_tables(connection):
             email_verified INTEGER NOT NULL DEFAULT 0,
             is_approved INTEGER NOT NULL DEFAULT 0,
             attendance_name TEXT,
+            avatar_file TEXT,
             psychology_test_passed INTEGER NOT NULL DEFAULT 0,
             psychology_test_date TEXT,
             player_id INTEGER,
@@ -53,10 +54,11 @@ def create_account_tables(connection):
 
     if "is_approved" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN is_approved INTEGER NOT NULL DEFAULT 0")
-        # Automatically mark existing admins and webmasters as approved
         connection.execute("UPDATE users SET is_approved = 1 WHERE role IN ('admin', 'webmaster')")
     if "attendance_name" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN attendance_name TEXT")
+    if "avatar_file" not in existing_columns:
+        connection.execute("ALTER TABLE users ADD COLUMN avatar_file TEXT")
     if "psychology_test_passed" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN psychology_test_passed INTEGER NOT NULL DEFAULT 0")
     if "psychology_test_date" not in existing_columns:
@@ -80,6 +82,7 @@ def get_user_by_id(connection, user_id):
             email_verified,
             is_approved,
             attendance_name,
+            avatar_file,
             psychology_test_passed,
             psychology_test_date,
             player_id,
@@ -104,6 +107,7 @@ def get_user_by_login(connection, login):
             email_verified,
             is_approved,
             attendance_name,
+            avatar_file,
             psychology_test_passed,
             psychology_test_date,
             player_id,
@@ -128,6 +132,7 @@ def get_user_by_email(connection, email):
             email_verified,
             is_approved,
             attendance_name,
+            avatar_file,
             psychology_test_passed,
             psychology_test_date,
             player_id,
@@ -136,6 +141,28 @@ def get_user_by_email(connection, email):
         WHERE lower(email) = lower(?)
         """,
         (email,),
+    ).fetchone()
+
+
+def get_user_by_player_id(connection, player_id):
+    """Retrieve user account linked to a specific player ID."""
+    return connection.execute(
+        """
+        SELECT
+            id,
+            username,
+            email,
+            role,
+            email_verified,
+            is_approved,
+            attendance_name,
+            avatar_file,
+            player_id
+        FROM users
+        WHERE player_id = ?
+        LIMIT 1
+        """,
+        (player_id,),
     ).fetchone()
 
 
@@ -151,7 +178,9 @@ def get_all_users(connection):
             email_verified,
             is_approved,
             attendance_name,
+            avatar_file,
             psychology_test_passed,
+            player_id,
             created_at
         FROM users
         ORDER BY id DESC
@@ -240,6 +269,38 @@ def set_user_attendance_name(connection, user_id, attendance_name):
     connection.execute(
         "UPDATE users SET attendance_name = ? WHERE id = ?",
         (attendance_name.strip(), user_id),
+    )
+    connection.commit()
+
+
+def update_user_profile(connection, user_id, attendance_name=None, player_id=None, avatar_file=None):
+    """Update general profile settings."""
+    updates = []
+    params = []
+    if attendance_name is not None:
+        updates.append("attendance_name = ?")
+        params.append(attendance_name.strip())
+    if player_id is not None:
+        updates.append("player_id = ?")
+        params.append(player_id if player_id > 0 else None)
+    if avatar_file is not None:
+        updates.append("avatar_file = ?")
+        params.append(avatar_file if avatar_file else None)
+
+    if updates:
+        params.append(user_id)
+        connection.execute(
+            f"UPDATE users SET {', '.join(updates)} WHERE id = ?",
+            tuple(params),
+        )
+        connection.commit()
+
+
+def update_user_password(connection, user_id, password_hash):
+    """Update user account password."""
+    connection.execute(
+        "UPDATE users SET password_hash = ? WHERE id = ?",
+        (password_hash, user_id),
     )
     connection.commit()
 

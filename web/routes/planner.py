@@ -239,6 +239,21 @@ def create_event_route():
     return redirect(url_for("planner.planner"))
 
 
+@planner_bp.route("/planner/events/auto-seed", methods=["POST"])
+@require_admin
+def auto_seed_events():
+    """Add 4 standard alternating Wednesday matchdays."""
+    from scripts.planner.database import add_standard_wednesday_events
+    connection = get_planner_connection()
+    try:
+        created_ids = add_standard_wednesday_events(connection, count=4)
+        flash(f"Successfully added {len(created_ids)} standard Wednesday matchdays!", "success")
+    finally:
+        connection.close()
+
+    return redirect(url_for("planner.planner"))
+
+
 @planner_bp.route("/planner/events/<int:event_id>/delete", methods=["POST"])
 @require_admin
 def delete_event_route(event_id):
