@@ -296,6 +296,16 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(created_cup["location"], "Jahnwiesen")
         self.assertEqual(created_cup["event_date"], "2026-11-15 19:30")
 
+        # Verify badge_label replaces pitch indicator
+        view_cup = format_event_view_data(dict(created_cup), None, [])
+        self.assertEqual(view_cup["badge_label"], "Sunday Cup")
+
+        # Verify without title, badge_label falls back to pitch
+        no_title_id = create_event(self.conn, "2026-11-20 20:00", "box", title=None)
+        no_title_evt = get_event_by_id(self.conn, no_title_id)
+        view_no_title = format_event_view_data(dict(no_title_evt), None, [])
+        self.assertEqual(view_no_title["badge_label"], "BOX")
+
 
 if __name__ == "__main__":
     unittest.main()

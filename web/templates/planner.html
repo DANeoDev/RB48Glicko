@@ -44,7 +44,7 @@
                     <!-- Card Summary Header (Accordion Trigger) -->
                     <div class="planner-card-summary">
                         <div class="planner-summary-left">
-                            <span class="planner-pitch-badge planner-pitch-{{ event.pitch_lower }}">{{ event.pitch }}</span>
+                            <span class="planner-pitch-badge planner-pitch-{{ event.pitch_lower }}" title="{{ event.title }}">{{ event.badge_label }}</span>
                             <span class="planner-date-title">{{ event.formatted_date }}</span>
                             <span class="planner-time-tag">@ {{ event.formatted_time }} · {{ event.location }}</span>
                         </div>

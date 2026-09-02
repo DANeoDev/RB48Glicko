@@ -154,12 +154,12 @@ def add_standard_wednesday_events(connection, count=4):
             time_str = "20:00"
             location = "Soccerbox - Uni Sport"
             max_players = 12
-            title = "RB48 BOX Matchday"
+            title = None
         else:
             time_str = "20:30"
             location = "Halbfeld - Zülpicher Wall 5"
             max_players = 18
-            title = "RB48 HF Matchday"
+            title = None
 
         date_formatted = f"{wed_date.strftime('%Y-%m-%d')} {time_str}"
         event_id = create_event(
