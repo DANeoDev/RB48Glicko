@@ -172,8 +172,9 @@ def match_center():
         alias = normalize_player_name(request.form.get("new_alias", ""))
         positions = request.form.getlist("new_positions")
         calibration = request.form.get("calibration", "average")
+        main_position = request.form.get("main_position") or request.form.get("new_main_position")
         try:
-            created_id, _ = create_new_player(connection, alias, positions, calibration)
+            created_id, _ = create_new_player(connection, alias, positions, calibration, main_position=main_position)
             players = get_players(connection)
             selected_ids = list(dict.fromkeys(selected_ids + [created_id]))
             parse_result = _rebuild_parser_result(request.form, players)
@@ -188,7 +189,8 @@ def match_center():
             alias = request.form.get("new_alias", "")
             positions = request.form.getlist("new_positions")
             calibration = request.form.get("calibration", "average")
-            created_id, values = create_new_player(connection, alias, positions, calibration)
+            main_position = request.form.get("main_position") or request.form.get("new_main_position")
+            created_id, values = create_new_player(connection, alias, positions, calibration, main_position=main_position)
             selected_ids.append(created_id)
             success = f"Created {alias.strip()} and added them to the match."
             calibration_message = f"Calibration rating: {values['rating']:.1f} (RD {values['rd']:.1f})."

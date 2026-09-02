@@ -9,6 +9,7 @@ import unittest
 from scripts.accounts.auth import register_user
 from scripts.accounts.database import get_accounts_connection, mark_email_verified, update_user_role
 from scripts.glicko.glicko2 import TOTAL
+from scripts.matches.match_entry import create_new_player
 from scripts.matchmaking.match_parser import normalize_player_name, resolve_player_names
 from scripts.matchmaking.matchmaker import generate_match
 from web.app import app
@@ -112,6 +113,21 @@ class MatchCenterFrontendTests(unittest.TestCase):
         self.assertEqual(len(result["team_a"]) + len(result["team_b"]), 4)
         self.assertIn("rating_difference", result)
         self.assertIn("position_penalty", result)
+
+    def test_create_player_with_main_position(self):
+        from scripts.database.database import get_connection
+        from scripts.database.db_players import get_players
+
+        conn = get_connection()
+        try:
+            pid, _ = create_new_player(conn, "Test Striker", ["MID", "ATT"], calibration_level="average", main_position="ATT")
+            players = get_players(conn)
+            self.assertIn(pid, players)
+            # In players data, main position is tagged with *
+            self.assertIn("ATT*", players[pid]["positions"])
+            self.assertIn("MID", players[pid]["positions"])
+        finally:
+            conn.close()
 
 
 if __name__ == "__main__":

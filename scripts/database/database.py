@@ -54,6 +54,21 @@ def create_positions_table(connection):
             FOREIGN KEY (player_id) REFERENCES players(player_id)
         )
     """)
+    # Normalize any legacy positions with asterisks
+    legacy_starred = connection.execute(
+        "SELECT player_id, position, is_primary FROM positions WHERE position LIKE '%*%'"
+    ).fetchall()
+    if legacy_starred:
+        for row in legacy_starred:
+            clean_p = row["position"].replace("*", "").strip().upper()
+            connection.execute(
+                "DELETE FROM positions WHERE player_id = ? AND position = ?",
+                (row["player_id"], row["position"])
+            )
+            connection.execute(
+                "INSERT OR REPLACE INTO positions (player_id, position, is_primary) VALUES (?, ?, ?)",
+                (row["player_id"], clean_p, 1)
+            )
     connection.commit()
 
 
