@@ -54,7 +54,7 @@ def get_actual_tier(user=_UNSET) -> Tier:
     if role == "admin":
         return Tier.ADMIN
 
-    if not user.get("email_verified"):
+    if not user.get("email_verified") or not user.get("is_approved"):
         return Tier.VISITOR
 
     if user.get("psychology_test_passed"):
@@ -102,6 +102,10 @@ def require_tier(required_tier):
                 if not user.get("email_verified"):
                     flash("Please verify your email address to access this feature.", "warning")
                     return redirect(url_for("auth.resend_verification"))
+
+                if not user.get("is_approved") and user.get("role") == "user":
+                    flash("Your account is pending manual approval by the Webmaster.", "info")
+                    return redirect(url_for("stats.home"))
 
                 if required_tier >= Tier.GLICKO_USER and not user.get("psychology_test_passed"):
                     flash("Please complete the sportsmanship questionnaire to unlock Glicko ratings.", "info")

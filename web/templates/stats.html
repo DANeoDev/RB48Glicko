@@ -19,27 +19,12 @@
     </a>
 </div>
 
-{% if not has_tier('user') %}
-    <div class="notice" style="margin-bottom: 20px; background: var(--bg-surface-alt); border-left: 3px solid var(--accent); padding: 14px;">
-        <strong>Visitor View:</strong> Log in to explore individual player profiles and head-to-head records.
-    </div>
-{% elif not has_tier('glicko_user') %}
-    <div class="notice" style="margin-bottom: 20px; background: var(--bg-surface-alt); border-left: 3px solid var(--accent); padding: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div>
-            <strong>Glicko Ratings Locked:</strong> You are viewing standard statistics. To unlock competitive Glicko ratings and ranking ladders, complete the sportsmanship test.
-        </div>
-        <a href="{{ url_for('auth.glicko_test') }}" class="primary" style="padding: 8px 16px; text-decoration: none; font-size: 13px;">
-            Unlock Ratings →
-        </a>
-    </div>
-{% endif %}
-
 <div class="stats-table-header">
     <div class="stats-header-spacer"></div>
     <div id="pitch-selector">
-        <button class="pitch-selector selected" data-pitch="total" title="Rating based on all matches, regardless of pitch type.">TOTAL</button>
-        <button class="pitch-selector" data-pitch="box" title="Rating based only on box matches.">BOX</button>
-        <button class="pitch-selector" data-pitch="hf" title="Rating based only on half-field matches.">HF</button>
+        <button class="pitch-selector selected" data-pitch="total" title="Statistics based on all matches, regardless of pitch type.">TOTAL</button>
+        <button class="pitch-selector" data-pitch="box" title="Statistics based only on box matches.">BOX</button>
+        <button class="pitch-selector" data-pitch="hf" title="Statistics based only on half-field matches.">HF</button>
     </div>
     <div class="stats-filter">
         <label for="game-filter" title="Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.">Filter</label>
@@ -57,8 +42,6 @@
                     <th data-column="total-conservative" data-pitch="total" title="Conservative rating: E Rating minus 3 × RD.">C Rating</th>
                     <th data-column="total-rating" data-pitch="total" title="Estimated rating: the player's current Glicko-2 rating.">E Rating</th>
                     <th data-column="total-rd" data-pitch="total" title="Rating Deviation: how uncertain the rating is.">RD</th>
-                {% else %}
-                    <th title="Glicko ratings locked.">Rating</th>
                 {% endif %}
                 <th data-column="total-games" data-pitch="total" title="Number of matches played in this category.">Games</th>
                 <th data-column="total-wins" data-pitch="total" title="Number of matches won.">Ws</th>
@@ -74,19 +57,13 @@
                 data-hf-conservative="{{ player['hf']['conservative'] }}" data-hf-rating="{{ player['hf']['rating'] }}" data-hf-rd="{{ player['hf']['rd'] }}" data-hf-games="{{ player['hf']['games'] }}" data-hf-wins="{{ player['hf']['wins'] }}" data-hf-losses="{{ player['hf']['losses'] }}" data-hf-win-percent="{{ player['hf']['win_percent'] }}">
                 <td>{{ loop.index }}</td>
                 <td>
-                    {% if has_tier('user') %}
-                        <a href="{{ url_for('stats.player_profile', player_id=player['player_id']) }}">{{ player["alias"] }}</a>
-                    {% else %}
-                        <span>{{ player["alias"] }}</span>
-                    {% endif %}
+                    <a href="{{ url_for('stats.player_profile', player_id=player['player_id']) }}">{{ player["alias"] }}</a>
                 </td>
                 {% for pitch in ["total", "box", "hf"] %}
                     {% if has_tier('glicko_user') %}
                         <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["conservative"] | round | int }}</td>
                         <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rating"] | round | int }}</td>
                         <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rd"] | round(1) }}</td>
-                    {% else %}
-                        <td data-pitch-cell="{{ pitch }}" class="muted" title="Unlocked after sportsmanship test">🔒</td>
                     {% endif %}
                     <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["games"] }}</td>
                     <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["wins"] }}</td>

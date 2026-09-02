@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}User Management · RB48{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width: 1000px; margin: 30px auto; padding: 0 20px;">
+    <div class="account-card" style="padding: 24px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <h1 style="margin: 0; color: #ffffff;">User Management</h1>
+                <p class="muted" style="margin-top: 4px;">Review registered accounts and approve memberships.</p>
+            </div>
+            <a href="{{ url_for('stats.home') }}" class="secondary" style="padding: 8px 16px; text-decoration: none;">← Dashboard</a>
+        </div>
+
+        {% if users %}
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border); color: #ffffff;">
+                            <th style="padding: 10px 8px;">ID</th>
+                            <th style="padding: 10px 8px;">Username</th>
+                            <th style="padding: 10px 8px;">Email</th>
+                            <th style="padding: 10px 8px;">Role</th>
+                            <th style="padding: 10px 8px;">Verified</th>
+                            <th style="padding: 10px 8px;">Glicko</th>
+                            <th style="padding: 10px 8px;">Status</th>
+                            <th style="padding: 10px 8px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in users %}
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 10px 8px;">#{{ u.id }}</td>
+                                <td style="padding: 10px 8px; font-weight: 600; color: #ffffff;">{{ u.username }}</td>
+                                <td style="padding: 10px 8px; color: var(--text-muted);">{{ u.email }}</td>
+                                <td style="padding: 10px 8px;">
+                                    <span style="background: rgba(88, 45, 161, 0.3); padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                                        {{ u.role | title }}
+                                    </span>
+                                </td>
+                                <td style="padding: 10px 8px;">
+                                    {% if u.email_verified %}
+                                        <span style="color: #28a745;">✓ Verified</span>
+                                    {% else %}
+                                        <span style="color: #ffc107;">Unverified</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 10px 8px;">
+                                    {% if u.psychology_test_passed %}
+                                        <span style="color: #80deea;">✓ Passed</span>
+                                    {% else %}
+                                        <span style="color: var(--text-muted);">—</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 10px 8px;">
+                                    {% if u.is_approved %}
+                                        <span style="color: #28a745; font-weight: bold;">Approved</span>
+                                    {% else %}
+                                        <span style="color: #ff8888; font-weight: bold;">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 10px 8px;">
+                                    {% if u.role == 'user' %}
+                                        <form method="post" action="{{ url_for('auth.toggle_approval', user_id=u.id) }}" style="margin: 0;">
+                                            {% if u.is_approved %}
+                                                <button type="submit" name="action" value="revoke" class="secondary" style="padding: 4px 10px; font-size: 12px; cursor: pointer;">
+                                                    Revoke
+                                                </button>
+                                            {% else %}
+                                                <button type="submit" name="action" value="approve" class="primary" style="padding: 4px 12px; font-size: 12px; cursor: pointer;">
+                                                    Approve
+                                                </button>
+                                            {% endif %}
+                                        </form>
+                                    {% else %}
+                                        <span class="muted" style="font-size: 12px;">Staff</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="muted">No registered accounts found.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -28,6 +28,7 @@ def create_account_tables(connection):
             role TEXT NOT NULL DEFAULT 'user'
                 CHECK (role IN ('user', 'admin', 'webmaster')),
             email_verified INTEGER NOT NULL DEFAULT 0,
+            is_approved INTEGER NOT NULL DEFAULT 0,
             psychology_test_passed INTEGER NOT NULL DEFAULT 0,
             psychology_test_date TEXT,
             player_id INTEGER,
@@ -49,6 +50,10 @@ def create_account_tables(connection):
     cursor = connection.execute("PRAGMA table_info(users)")
     existing_columns = {row["name"] for row in cursor.fetchall()}
 
+    if "is_approved" not in existing_columns:
+        connection.execute("ALTER TABLE users ADD COLUMN is_approved INTEGER NOT NULL DEFAULT 0")
+        # Automatically mark existing admins and webmasters as approved
+        connection.execute("UPDATE users SET is_approved = 1 WHERE role IN ('admin', 'webmaster')")
     if "psychology_test_passed" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN psychology_test_passed INTEGER NOT NULL DEFAULT 0")
     if "psychology_test_date" not in existing_columns:
@@ -70,6 +75,7 @@ def get_user_by_id(connection, user_id):
             password_hash,
             role,
             email_verified,
+            is_approved,
             psychology_test_passed,
             psychology_test_date,
             player_id,
@@ -92,6 +98,7 @@ def get_user_by_login(connection, login):
             password_hash,
             role,
             email_verified,
+            is_approved,
             psychology_test_passed,
             psychology_test_date,
             player_id,
@@ -114,6 +121,7 @@ def get_user_by_email(connection, email):
             password_hash,
             role,
             email_verified,
+            is_approved,
             psychology_test_passed,
             psychology_test_date,
             player_id,
@@ -125,8 +133,47 @@ def get_user_by_email(connection, email):
     ).fetchone()
 
 
-def create_user(connection, username, email, password_hash, created_at, role="user"):
+def get_all_users(connection):
+    """Retrieve all users ordered by creation date."""
+    return connection.execute(
+        """
+        SELECT
+            id,
+            username,
+            email,
+            role,
+            email_verified,
+            is_approved,
+            psychology_test_passed,
+            created_at
+        FROM users
+        ORDER BY id DESC
+        """
+    ).fetchall()
+
+
+def get_pending_users(connection):
+    """Retrieve verified users waiting for manual Webmaster approval."""
+    return connection.execute(
+        """
+        SELECT
+            id,
+            username,
+            email,
+            role,
+            email_verified,
+            created_at
+        FROM users
+        WHERE is_approved = 0 AND role = 'user'
+        ORDER BY id DESC
+        """
+    ).fetchall()
+
+
+def create_user(connection, username, email, password_hash, created_at, role="user", is_approved=0):
     """Insert a new user account."""
+    if role in ("admin", "webmaster"):
+        is_approved = 1
     cursor = connection.execute(
         """
         INSERT INTO users (
@@ -134,11 +181,12 @@ def create_user(connection, username, email, password_hash, created_at, role="us
             email,
             password_hash,
             role,
+            is_approved,
             created_at
         )
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (username, email, password_hash, role, created_at),
+        (username, email, password_hash, role, is_approved, created_at),
     )
     connection.commit()
     return cursor.lastrowid
@@ -167,6 +215,15 @@ def mark_email_verified(connection, user_id):
     connection.commit()
 
 
+def approve_user(connection, user_id, approved=True):
+    """Grant or revoke manual Webmaster approval for a user."""
+    connection.execute(
+        "UPDATE users SET is_approved = ? WHERE id = ?",
+        (1 if approved else 0, user_id),
+    )
+    connection.commit()
+
+
 def set_psychology_test_status(connection, user_id, passed, test_date):
     """Update user's psychology test status and date."""
     connection.execute(
@@ -184,9 +241,14 @@ def update_user_role(connection, user_id, role):
     """Update a user's role (user, admin, webmaster)."""
     if role not in ("user", "admin", "webmaster"):
         raise ValueError(f"Invalid role: {role}")
+    # Auto-approve admins and webmasters
     connection.execute(
-        "UPDATE users SET role = ? WHERE id = ?",
-        (role, user_id),
+        """
+        UPDATE users
+        SET role = ?, is_approved = CASE WHEN ? IN ('admin', 'webmaster') THEN 1 ELSE is_approved END
+        WHERE id = ?
+        """,
+        (role, role, user_id),
     )
     connection.commit()
 
