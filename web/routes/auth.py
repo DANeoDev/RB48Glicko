@@ -104,11 +104,24 @@ def logout():
 @auth_bp.route("/verify-email/<token>")
 def verify_email(token):
     """Verify account email via secure HMAC token."""
-    user = verify_user_email(token)
-    if not user:
-        return render_template("verify_result.html", success=False, error="Invalid or expired verification link.")
+    success, msg = verify_user_email(token)
+    if not success:
+        return render_template("verify_result.html", success=False, error=msg)
 
-    return render_template("verify_result.html", success=True, username=user["username"])
+    payload, _ = verify_email_token(token)
+    user_id = payload.get("user_id") if payload else None
+    user = None
+    if user_id:
+        conn = get_accounts_connection()
+        try:
+            user = get_user_by_id(conn, user_id)
+            if user:
+                session["user_id"] = user["id"]
+                session.pop("simulated_tier", None)
+        finally:
+            conn.close()
+
+    return render_template("verify_result.html", success=True, user=user)
 
 
 @auth_bp.route("/resend-verification", methods=["GET", "POST"])
