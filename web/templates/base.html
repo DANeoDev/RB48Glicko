@@ -19,6 +19,25 @@
         .add-btn { background: var(--accent-dark) !important; color: #ffffff !important; border-color: var(--accent-dark) !important; transition: background-color 0.15s ease, border-color 0.15s ease; }
         .add-btn:hover { background: var(--accent-hover) !important; border-color: var(--accent-hover) !important; }
 
+        /* Navigation locked indicators */
+        .nav-links a.nav-locked {
+            color: var(--text-muted);
+            opacity: 0.75;
+            position: relative;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .nav-links a.nav-locked:hover {
+            color: #ffffff;
+            opacity: 1;
+        }
+        .nav-lock-icon {
+            font-size: 11px;
+            opacity: 0.85;
+        }
+
         /* Webmaster View Simulation Bar */
         .webmaster-sim-bar {
             background: #2a1548;
@@ -127,11 +146,25 @@
         </a>
         <div class="nav-links">
             <a href="{{ url_for('stats.dashboard') }}" class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}active{% endif %}">Dashboard</a>
-            <a href="{{ url_for('stats.stats') }}" class="{% if request.endpoint == 'stats.stats' %}active{% endif %}">Stats</a>
+            
+            {% if has_tier('user') %}
+                <a href="{{ url_for('stats.stats') }}" class="{% if request.endpoint == 'stats.stats' %}active{% endif %}">Stats</a>
+            {% else %}
+                <a href="{{ url_for('auth.login', next=url_for('stats.stats')) }}" class="nav-locked" title="Stats — Register and get approved by the webmaster to access player statistics.">
+                    Stats <span class="nav-lock-icon">🔒</span>
+                </a>
+            {% endif %}
+
             <a href="{{ url_for('stats.match_history') }}" class="{% if request.endpoint == 'stats.match_history' %}active{% endif %}">Match History</a>
+
             {% if has_tier('admin') %}
                 <a href="{{ url_for('match_center.match_center') }}" class="{% if request.endpoint == 'match_center.match_center' %}active{% endif %}">Match Center</a>
+            {% else %}
+                <a href="{{ url_for('auth.login', next=url_for('match_center.match_center')) if not current_user else '#' }}" class="nav-locked" title="Match Center — Administrator access required for match recording and matchmaking.">
+                    Match Center <span class="nav-lock-icon">🔒</span>
+                </a>
             {% endif %}
+
             {% if has_tier('glicko_user') %}
                 <a href="{{ url_for('stats.model_analysis') }}" class="{% if request.endpoint == 'stats.model_analysis' %}active{% endif %}">Model Analysis</a>
             {% endif %}
@@ -149,13 +182,18 @@
                         <strong>{{ current_user["username"] }}</strong>
                         <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">
                             {{ current_user.get('role', 'user') | title }}
-                            {% if current_user.get('psychology_test_passed') %}
-                                · Glicko Verified
+                            {% if not current_user.get('is_approved') and current_user.get('role') == 'user' %}
+                                · <span style="color: #ffc107;">Pending Approval</span>
+                            {% elif current_user.get('psychology_test_passed') %}
+                                · Glicko Active
                             {% endif %}
                         </div>
                     </div>
+                    {% if current_user.role == 'webmaster' %}
+                        <a href="{{ url_for('auth.admin_users') }}" style="color: #80deea; font-weight: 600;">👥 User Management</a>
+                    {% endif %}
                     {% if has_tier('user') and not current_user.get('psychology_test_passed') %}
-                        <a href="{{ url_for('auth.glicko_test') }}" style="color: var(--accent-readable); font-weight: bold;">Unlock Glicko Ratings</a>
+                        <a href="{{ url_for('auth.glicko_test') }}" style="font-size: 12px; color: var(--text-muted);">Glicko Assessment</a>
                     {% endif %}
                     <a href="{{ url_for('auth.logout') }}">Log out</a>
                 {% else %}

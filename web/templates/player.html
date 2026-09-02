@@ -42,17 +42,6 @@
 
 <h2>Performance Overview</h2>
 
-{% if not has_tier('glicko_user') %}
-    <div class="notice" style="max-width: 600px; margin: 16px auto; background: var(--bg-surface-alt); border-left: 3px solid var(--accent); padding: 14px; text-align: left;">
-        <strong>Glicko Ratings Locked:</strong> You are viewing raw game statistics. Complete the sportsmanship test to unlock rating curves and probability estimates.
-        <div style="margin-top: 10px;">
-            <a href="{{ url_for('auth.glicko_test', next=request.path) }}" class="primary" style="padding: 6px 14px; text-decoration: none; font-size: 13px;">
-                Unlock Ratings →
-            </a>
-        </div>
-    </div>
-{% endif %}
-
 <table class="ratings-table"{% if rating_diverges and has_tier('glicko_user') %} title="How can the ratings diverge even though {{ player_name }} only has games in {{ exclusive_pitch }}? Well, this is a good question, but it works as intended. If you can figure out the reason, send a Mail to the webmaster — he will grant you a reward." style="cursor: help;"{% endif %}>
 
 <thead>

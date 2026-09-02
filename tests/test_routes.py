@@ -2,7 +2,7 @@ import time
 import unittest
 
 from scripts.accounts.auth import pass_psychology_test, register_user
-from scripts.accounts.database import get_accounts_connection, mark_email_verified, update_user_role
+from scripts.accounts.database import approve_user, get_accounts_connection, mark_email_verified, update_user_role
 from web.app import app
 
 
@@ -10,7 +10,7 @@ class RouteTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
 
-    def create_user_session(self, role="user", verified=True, psychology_passed=True):
+    def create_user_session(self, role="user", verified=True, approved=True, psychology_passed=True):
         unique_name = f"rt_user_{int(time.time() * 1000000)}"
         email = f"{unique_name}@example.com"
         user_id, _ = register_user(unique_name, email, "password123", role=role)
@@ -19,6 +19,8 @@ class RouteTests(unittest.TestCase):
         try:
             if verified:
                 mark_email_verified(connection, user_id)
+            if approved or role in ("admin", "webmaster"):
+                approve_user(connection, user_id, approved=True)
             if role != "user":
                 update_user_role(connection, user_id, role)
         finally:
@@ -33,7 +35,6 @@ class RouteTests(unittest.TestCase):
         public_routes = [
             "/",
             "/dashboard",
-            "/stats",
             "/matches",
             "/glickofaq",
             "/login",
@@ -46,19 +47,37 @@ class RouteTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
 
     def test_protected_routes_redirect_unauthenticated(self):
-        # Visitor trying to access model analysis or match center
+        # Visitor trying to access stats, model analysis, or match center
+        resp_stats = self.client.get("/stats")
+        self.assertEqual(resp_stats.status_code, 302)
+
         resp_model = self.client.get("/model-analysis")
         self.assertEqual(resp_model.status_code, 302)
 
         resp_mc = self.client.get("/match-center")
         self.assertEqual(resp_mc.status_code, 302)
 
-    def test_authenticated_glicko_user_access(self):
-        user_id = self.create_user_session(role="user", verified=True, psychology_passed=True)
+    def test_authenticated_approved_user_can_access_stats(self):
+        user_id = self.create_user_session(role="user", verified=True, approved=True, psychology_passed=False)
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        # Glicko user can access model analysis
+        resp_stats = self.client.get("/stats")
+        self.assertEqual(resp_stats.status_code, 200)
+
+        # But cannot access model analysis yet (requires psychology test)
+        resp_model = self.client.get("/model-analysis")
+        self.assertEqual(resp_model.status_code, 302)
+
+    def test_authenticated_glicko_user_access(self):
+        user_id = self.create_user_session(role="user", verified=True, approved=True, psychology_passed=True)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        # Glicko user can access stats and model analysis
+        resp_stats = self.client.get("/stats")
+        self.assertEqual(resp_stats.status_code, 200)
+
         resp = self.client.get("/model-analysis")
         self.assertEqual(resp.status_code, 200)
 
@@ -67,7 +86,7 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(resp_mc.status_code, 302)
 
     def test_admin_access(self):
-        admin_id = self.create_user_session(role="admin", verified=True, psychology_passed=True)
+        admin_id = self.create_user_session(role="admin", verified=True, approved=True, psychology_passed=True)
         with self.client.session_transaction() as sess:
             sess["user_id"] = admin_id
 

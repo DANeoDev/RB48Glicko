@@ -174,3 +174,40 @@ def switch_view():
 
     redirect_target = request.form.get("redirect_to") or request.referrer or url_for("stats.home")
     return redirect(redirect_target)
+
+
+@auth_bp.route("/admin/users")
+@require_webmaster
+def admin_users():
+    """User management dashboard to review and approve registrations."""
+    from scripts.accounts.database import get_accounts_connection, get_all_users
+    connection = get_accounts_connection()
+    try:
+        users = [dict(row) for row in get_all_users(connection)]
+        return render_template("admin_users.html", users=users)
+    finally:
+        connection.close()
+
+
+@auth_bp.route("/admin/users/<int:user_id>/approval", methods=["POST"])
+@require_webmaster
+def toggle_approval(user_id):
+    """Toggle manual Webmaster approval for an account."""
+    from scripts.accounts.database import get_accounts_connection, approve_user, get_user_by_id
+    action = request.form.get("action", "approve")
+    connection = get_accounts_connection()
+    try:
+        user = get_user_by_id(connection, user_id)
+        if not user:
+            flash("User not found.", "danger")
+            return redirect(url_for("auth.admin_users"))
+
+        if action == "approve":
+            approve_user(connection, user_id, approved=True)
+            flash(f"Account '{user['username']}' has been approved.", "success")
+        else:
+            approve_user(connection, user_id, approved=False)
+            flash(f"Approval for '{user['username']}' has been revoked.", "warning")
+        return redirect(url_for("auth.admin_users"))
+    finally:
+        connection.close()

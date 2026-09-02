@@ -25,6 +25,7 @@ def dashboard():
 
 
 @stats_bp.route("/stats")
+@require_tier(Tier.USER)
 def stats():
     connection = get_connection()
     ratings = get_ratings(connection)
