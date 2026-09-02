@@ -12,7 +12,7 @@
     let isDraggingJustEnded = false;
     let loadedBubbles = [];
 
-    const PALETTE = [
+    const BG_PALETTE = [
         { name: "Royal Purple", hex: "#7B52C5" },
         { name: "Deep Emerald", hex: "#00897b" },
         { name: "Crimson Fire", hex: "#dc2626" },
@@ -25,7 +25,35 @@
         { name: "Slate Charcoal", hex: "#334155" },
     ];
 
-    let selectedColor = PALETTE[0].hex;
+    const TEXT_PALETTE = [
+        { name: "Pure White", hex: "#ffffff" },
+        { name: "Deep Charcoal", hex: "#111827" },
+        { name: "Lemon Yellow", hex: "#fef08a" },
+        { name: "Neon Cyan", hex: "#22d3ee" },
+        { name: "Electric Lime", hex: "#a3e635" },
+        { name: "Hot Pink", hex: "#f472b6" },
+        { name: "Bright Lavender", hex: "#e9d5ff" },
+        { name: "Vivid Orange", hex: "#fb923c" },
+        { name: "Gold Sparkle", hex: "#fbbf24" },
+        { name: "Crimson Red", hex: "#ef4444" },
+    ];
+
+    const FONTS = [
+        { label: "Modern (Inter)", value: "Inter, sans-serif" },
+        { label: "Comic Punch (Bangers)", value: "'Bangers', Impact, cursive, sans-serif" },
+        { label: "Street Graffiti (Marker)", value: "'Permanent Marker', cursive, sans-serif" },
+        { label: "Handwritten (Caveat)", value: "'Caveat', cursive, sans-serif" },
+        { label: "8-Bit Arcade (Press Start)", value: "'Press Start 2P', monospace" },
+        { label: "Sci-Fi Cyber (Orbitron)", value: "'Orbitron', sans-serif" },
+        { label: "Spooky / Grunge (Creepster)", value: "'Creepster', cursive, sans-serif" },
+        { label: "Wild West (Rye)", value: "'Rye', serif" },
+        { label: "Fancy Script (Great Vibes)", value: "'Great Vibes', cursive, serif" },
+        { label: "Retro Typewriter (Courier)", value: "'Courier Prime', monospace" },
+        { label: "Luxury Editorial (Playfair)", value: "'Playfair Display', Georgia, serif" },
+    ];
+
+    let selectedBgColor = BG_PALETTE[0].hex;
+    let selectedTextColor = TEXT_PALETTE[0].hex;
 
     function initNoise() {
         // Only load if user is logged in
@@ -173,29 +201,31 @@
                 <!-- WYSIWYG Live Preview Textarea -->
                 <div style="margin-bottom: 14px;">
                     <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 6px;">Banter Message (Live Preview):</label>
-                    <textarea id="noise-text-input" placeholder="Type your banter or comment..." maxlength="160" rows="3" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; background: #7B52C5; border: 2px solid rgba(255,255,255,0.3); color: #ffffff; font-family: Inter, sans-serif; font-size: 15px; resize: vertical; box-shadow: 0 4px 14px rgba(0,0,0,0.4); transition: all 0.2s ease;"></textarea>
+                    <textarea id="noise-text-input" placeholder="Type your banter or comment..." maxlength="160" rows="3" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; background: #7B52C5; color: #ffffff; border: 2px solid rgba(255,255,255,0.3); font-family: Inter, sans-serif; font-size: 15px; resize: vertical; box-shadow: 0 4px 14px rgba(0,0,0,0.4); transition: background-color 0.15s ease, color 0.15s ease;"></textarea>
                     <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 4px;">
                         <span>Author: ${escapeHtml(window.RB48_USER?.attendance_name || window.RB48_USER?.username || 'You')}</span>
                         <span id="noise-char-count">0/160</span>
                     </div>
                 </div>
 
-                <!-- Color chips -->
-                <div style="margin-bottom: 14px;">
-                    <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 6px;">Bubble Color:</label>
-                    <div id="noise-color-chips" style="display: flex; gap: 7px; flex-wrap: wrap; align-items: center;"></div>
+                <!-- Bubble Background Color Chips -->
+                <div style="margin-bottom: 12px;">
+                    <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 6px;">Bubble Background Color:</label>
+                    <div id="noise-bg-color-chips" style="display: flex; gap: 7px; flex-wrap: wrap; align-items: center;"></div>
                 </div>
 
-                <!-- Font & Size -->
+                <!-- Font / Text Color Chips -->
+                <div style="margin-bottom: 14px;">
+                    <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 6px;">Font / Text Color:</label>
+                    <div id="noise-text-color-chips" style="display: flex; gap: 7px; flex-wrap: wrap; align-items: center;"></div>
+                </div>
+
+                <!-- Font Style & Size Selection -->
                 <div style="display: flex; gap: 10px; margin-bottom: 18px;">
                     <div style="flex: 1;">
                         <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 4px;">Font Style:</label>
                         <select id="noise-font-family" style="width: 100%; padding: 7px; border-radius: 6px; background: #24194A; border: 1px solid #5A4A83; color: #ffffff; font-size: 13px;">
-                            <option value="Inter, sans-serif">Clean (Inter)</option>
-                            <option value="'Comic Neue', 'Comic Sans MS', cursive, sans-serif">Banter (Comic)</option>
-                            <option value="Impact, Charcoal, sans-serif">Loud (Impact)</option>
-                            <option value="'Courier New', Courier, monospace">Retro (Mono)</option>
-                            <option value="Georgia, serif">Classic (Serif)</option>
+                            ${FONTS.map(f => `<option value="${escapeHtml(f.value)}">${escapeHtml(f.label)}</option>`).join("")}
                         </select>
                     </div>
                     <div style="width: 110px;">
@@ -218,20 +248,36 @@
             `;
             document.body.appendChild(modal);
 
-            // Populate palette chips
-            const chipContainer = document.getElementById("noise-color-chips");
-            PALETTE.forEach((c, idx) => {
+            // Populate background palette chips
+            const bgContainer = document.getElementById("noise-bg-color-chips");
+            BG_PALETTE.forEach((c, idx) => {
                 const chip = document.createElement("div");
                 chip.className = `noise-color-chip ${idx === 0 ? "selected" : ""}`;
                 chip.style.backgroundColor = c.hex;
                 chip.title = c.name;
                 chip.onclick = () => {
-                    selectedColor = c.hex;
-                    chipContainer.querySelectorAll(".noise-color-chip").forEach(ch => ch.classList.remove("selected"));
+                    selectedBgColor = c.hex;
+                    bgContainer.querySelectorAll(".noise-color-chip").forEach(ch => ch.classList.remove("selected"));
                     chip.classList.add("selected");
                     syncWysiwygPreview();
                 };
-                chipContainer.appendChild(chip);
+                bgContainer.appendChild(chip);
+            });
+
+            // Populate text color chips
+            const textContainer = document.getElementById("noise-text-color-chips");
+            TEXT_PALETTE.forEach((c, idx) => {
+                const chip = document.createElement("div");
+                chip.className = `noise-text-color-chip ${idx === 0 ? "selected" : ""}`;
+                chip.style.backgroundColor = c.hex;
+                chip.title = c.name;
+                chip.onclick = () => {
+                    selectedTextColor = c.hex;
+                    textContainer.querySelectorAll(".noise-text-color-chip").forEach(ch => ch.classList.remove("selected"));
+                    chip.classList.add("selected");
+                    syncWysiwygPreview();
+                };
+                textContainer.appendChild(chip);
             });
 
             // Character count & input listener
@@ -253,7 +299,8 @@
         const sizeSelect = document.getElementById("noise-font-size");
         if (!textarea) return;
 
-        textarea.style.backgroundColor = selectedColor;
+        textarea.style.backgroundColor = selectedBgColor;
+        textarea.style.color = selectedTextColor;
         textarea.style.fontFamily = fontSelect ? fontSelect.value : "Inter, sans-serif";
         textarea.style.fontSize = (sizeSelect ? sizeSelect.value : "15") + "px";
     }
@@ -336,7 +383,8 @@
             pos_x_percent: pendingCoords.x,
             pos_y_percent: pendingCoords.y,
             content: content,
-            bg_color: selectedColor,
+            bg_color: selectedBgColor,
+            text_color: selectedTextColor,
             font_family: fontSelect.value,
             font_size: parseInt(sizeSelect.value, 10) || 15,
         };
@@ -416,17 +464,18 @@
     }
 
     function renderExpandedBubble(wrapper, b, isAuthorOrStaff, canMinimize = true) {
+        const textColor = escapeHtml(b.text_color || "#ffffff");
         wrapper.innerHTML = `
-            <div class="noise-bubble" style="background-color: ${escapeHtml(b.bg_color)}; font-family: ${escapeHtml(b.font_family)}; font-size: ${b.font_size}px;">
+            <div class="noise-bubble" style="background-color: ${escapeHtml(b.bg_color)}; color: ${textColor}; font-family: ${escapeHtml(b.font_family)}; font-size: ${b.font_size}px;">
                 <div class="noise-bubble-content">${escapeHtml(b.content)}</div>
-                <div class="noise-bubble-footer">
-                    <span class="noise-bubble-author" title="${escapeHtml(b.attendance_name || b.username)}">${escapeHtml(b.attendance_name || b.username)}</span>
+                <div class="noise-bubble-footer" style="border-top-color: rgba(255, 255, 255, 0.25);">
+                    <span class="noise-bubble-author" style="color: ${textColor};" title="${escapeHtml(b.attendance_name || b.username)}">${escapeHtml(b.attendance_name || b.username)}</span>
                     <div class="noise-bubble-actions">
-                        <span class="noise-drag-handle" title="Drag to move anywhere" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
-                        ${canMinimize ? `<button type="button" class="noise-btn-icon" title="Collapse to indicator pill" onclick="window.RB48Noise.minimizeBubble(${b.id})">🔽</button>` : ""}
+                        <span class="noise-drag-handle" style="color: ${textColor};" title="Drag to move anywhere" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
+                        ${canMinimize ? `<button type="button" class="noise-btn-icon" style="color: ${textColor};" title="Collapse to indicator pill" onclick="window.RB48Noise.minimizeBubble(${b.id})">🔽</button>` : ""}
                         ${isAuthorOrStaff 
                             ? `<button type="button" class="noise-btn-icon" title="Delete banter globally for everyone" style="color: #ff9999;" onclick="window.RB48Noise.deleteGlobal(${b.id})">🗑️</button>`
-                            : `<button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>`
+                            : `<button type="button" class="noise-btn-icon" style="color: ${textColor};" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>`
                         }
                     </div>
                 </div>

@@ -437,6 +437,42 @@ class NoiseBubblesTest(unittest.TestCase):
         self.assertIn("Authored bubble 1", resp_settings.get_data(as_text=True))
         self.assertIn("Authored bubble 2", resp_settings.get_data(as_text=True))
 
+    def test_noise_text_color_and_custom_font(self):
+        user = self.create_user(role="user")
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        resp = self.client.post(
+            "/api/noise",
+            json={
+                "page_path": "/stats",
+                "pos_x_percent": 25,
+                "pos_y_percent": 35,
+                "content": "Retro 8-Bit Banter!",
+                "bg_color": "#24194A",
+                "text_color": "#22d3ee",
+                "font_family": "'Press Start 2P', monospace",
+                "font_size": 18,
+            },
+        )
+        self.assertEqual(resp.status_code, 201)
+        data = resp.get_json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["bubble"]["text_color"], "#22d3ee")
+        self.assertEqual(data["bubble"]["bg_color"], "#24194A")
+        self.assertEqual(data["bubble"]["font_family"], "'Press Start 2P', monospace")
+        self.assertEqual(data["bubble"]["font_size"], 18)
+
+        # Query page bubbles
+        get_resp = self.client.get("/api/noise?path=/stats")
+        self.assertEqual(get_resp.status_code, 200)
+        bubbles = get_resp.get_json()["bubbles"]
+        created = next((b for b in bubbles if b["content"] == "Retro 8-Bit Banter!"), None)
+        self.assertIsNotNone(created)
+        self.assertEqual(created["text_color"], "#22d3ee")
+        self.assertEqual(created["bg_color"], "#24194A")
+        self.assertEqual(created["font_family"], "'Press Start 2P', monospace")
+
 
 if __name__ == "__main__":
     unittest.main()
