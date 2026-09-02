@@ -177,10 +177,23 @@ def delete_noise(bubble_id):
     finally:
         conn.close()
 
-    if not ok:
-        return jsonify({"success": False, "error": "Permission denied or bubble not found."}), 403
+    is_json_or_delete = (
+        request.method == "DELETE"
+        or request.is_json
+        or request.headers.get("Accept") == "application/json"
+    )
 
-    return jsonify({"success": True, "deleted_id": bubble_id})
+    if not ok:
+        if is_json_or_delete:
+            return jsonify({"success": False, "error": "Permission denied or bubble not found."}), 403
+        flash("Could not delete bubble: permission denied or bubble not found.", "danger")
+        return redirect(request.referrer or url_for("auth.settings"))
+
+    if is_json_or_delete:
+        return jsonify({"success": True, "deleted_id": bubble_id})
+
+    flash("Banter bubble deleted successfully.", "success")
+    return redirect(request.referrer or url_for("auth.settings"))
 
 
 @noise_bp.route("/settings/noise-mode", methods=["POST"])

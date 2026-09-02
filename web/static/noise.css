@@ -190,30 +190,54 @@ body.noise-mode-active * {
 .noise-indicator-pill {
     position: relative;
     pointer-events: auto;
-    background: rgba(25, 17, 60, 0.9);
-    border: 1px solid rgba(128, 222, 234, 0.65);
-    color: #80deea;
-    padding: 5px 12px;
+    background: rgba(25, 17, 60, 0.22);
+    border: 1px solid rgba(128, 222, 234, 0.35);
+    color: rgba(128, 222, 234, 0.65);
+    padding: 4px 10px;
     border-radius: 16px;
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    gap: 7px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     cursor: pointer;
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     z-index: 105;
     user-select: none;
 }
 
+.noise-indicator-pill .pill-label {
+    color: rgba(128, 222, 234, 0.6);
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.9);
+    transition: color 0.15s ease;
+}
+
+.noise-indicator-pill .noise-btn-icon,
+.noise-indicator-pill .noise-drag-handle {
+    opacity: 0.55;
+    color: rgba(255, 255, 255, 0.7);
+    transition: opacity 0.15s ease, color 0.15s ease;
+}
+
 .noise-indicator-pill:hover {
-    background: #582DA1;
-    border-color: #a078f0;
+    background: rgba(88, 45, 161, 0.75);
+    border-color: rgba(160, 120, 240, 0.85);
     color: #ffffff;
     transform: scale(1.06);
     box-shadow: 0 6px 18px rgba(123, 82, 197, 0.55);
+}
+
+.noise-indicator-pill:hover .pill-label {
+    color: #ffffff;
+}
+
+.noise-indicator-pill:hover .noise-btn-icon,
+.noise-indicator-pill:hover .noise-drag-handle {
+    opacity: 0.95;
+    color: #ffffff;
 }
 
 /* ==========================================================================
