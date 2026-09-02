@@ -134,11 +134,17 @@
 }
 
 .planner-pitch-badge {
+    display: inline-block;
     font-size: 12px;
     font-weight: 700;
-    padding: 3px 8px;
+    padding: 3px 10px;
     border-radius: 4px;
     letter-spacing: 0.5px;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
 }
 
 .planner-pitch-box {

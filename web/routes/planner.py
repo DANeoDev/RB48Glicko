@@ -108,6 +108,9 @@ def format_event_view_data(event, current_user, attendees, alias_lookup=None, ac
         formatted_date = event["event_date"]
         formatted_time = "18:30"
 
+    custom_title = event["title"].strip() if event.get("title") and str(event["title"]).strip() else None
+    badge_label = custom_title if custom_title else event["pitch"].upper()
+
     return {
         "id": event["id"],
         "event_date": event["event_date"],
@@ -115,8 +118,9 @@ def format_event_view_data(event, current_user, attendees, alias_lookup=None, ac
         "formatted_time": formatted_time,
         "pitch": event["pitch"].upper(),
         "pitch_lower": event["pitch"].lower(),
+        "badge_label": badge_label,
         "max_players": capacity,
-        "title": event["title"] or f"RB48 {event['pitch'].upper()} Matchday",
+        "title": custom_title or f"RB48 {event['pitch'].upper()} Matchday",
         "location": event["location"] or "RB48 Arena",
         "active_roster": active_roster,
         "waiting_list": waiting_list,
