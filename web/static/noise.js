@@ -31,6 +31,8 @@
         // Only load if user is logged in
         if (!window.RB48_USER) return;
 
+        normalizeUserMode();
+        updateNavModeButton();
         getOrCreateContainer();
         ensureNoiseElements();
         loadPageBubbles();
@@ -40,11 +42,10 @@
             if (e.key === "Escape") {
                 if (isNoiseMode) toggleNoiseMode(false);
                 closeCreatorModal();
-                unpinAllPills();
             }
         });
 
-        // Click on page: handle noise mode and unpin pills on outside click
+        // Click on page: handle noise mode creation clicks
         document.addEventListener("click", handleDocumentClick, true);
 
         // Window resize
@@ -53,6 +54,75 @@
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(renderAllBubbles, 200);
         });
+    }
+
+    function normalizeUserMode() {
+        if (!window.RB48_USER) return;
+        let mode = window.RB48_USER.noise_display_mode;
+        if (mode === "transparent" || mode === "smart" || mode === "always_indicators" || mode === "collapsed" || !mode) {
+            window.RB48_USER.noise_display_mode = "collapsed";
+        } else if (mode === "always_expanded" || mode === "always_show" || mode === "expanded") {
+            window.RB48_USER.noise_display_mode = "expanded";
+        } else if (mode === "hidden" || mode === "muted") {
+            window.RB48_USER.noise_display_mode = "muted";
+        } else {
+            window.RB48_USER.noise_display_mode = "collapsed";
+        }
+    }
+
+    function updateNavModeButton() {
+        const iconEl = document.getElementById("nav-noise-mode-icon");
+        const labelEl = document.getElementById("nav-noise-mode-label");
+        if (!iconEl || !labelEl || !window.RB48_USER) return;
+
+        const mode = window.RB48_USER.noise_display_mode;
+        if (mode === "expanded") {
+            iconEl.textContent = "💬";
+            labelEl.textContent = "Expanded";
+        } else if (mode === "muted") {
+            iconEl.textContent = "🔇";
+            labelEl.textContent = "Muted";
+        } else {
+            iconEl.textContent = "💭";
+            labelEl.textContent = "Collapsed";
+        }
+    }
+
+    function cycleMode() {
+        if (!window.RB48_USER) return;
+        const current = window.RB48_USER.noise_display_mode || "collapsed";
+        let nextMode = "collapsed";
+
+        if (current === "collapsed") {
+            nextMode = "expanded";
+        } else if (current === "expanded") {
+            nextMode = "muted";
+        } else {
+            nextMode = "collapsed";
+        }
+
+        setMode(nextMode);
+    }
+
+    async function setMode(mode) {
+        if (!window.RB48_USER) return;
+        window.RB48_USER.noise_display_mode = mode;
+        normalizeUserMode();
+        updateNavModeButton();
+        renderAllBubbles();
+
+        try {
+            await fetch("/settings/noise-mode", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                body: JSON.stringify({ noise_display_mode: mode }),
+            });
+        } catch (err) {
+            console.error("Failed to save noise mode setting:", err);
+        }
     }
 
     function getOrCreateContainer() {
@@ -206,43 +276,31 @@
     }
 
     function handleDocumentClick(e) {
-        if (isNoiseMode) {
-            // Ignore clicks inside nav, modals, or dropdowns
-            if (e.target.closest("header, .site-header, #noise-creator-modal, #noise-mode-banner, .profile-dropdown")) {
-                return;
-            }
+        if (!isNoiseMode) return;
 
-            e.preventDefault();
-            e.stopPropagation();
-
-            updateContainerHeight();
-            const container = getOrCreateContainer();
-            const containerWidth = container.clientWidth || window.innerWidth;
-            const containerHeight = container.clientHeight || document.body.scrollHeight;
-
-            const posXPercent = (e.pageX / containerWidth) * 100;
-            const posYPercent = (e.pageY / containerHeight) * 100;
-
-            pendingCoords = {
-                x: Math.max(2, Math.min(98, posXPercent)),
-                y: Math.max(2, Math.min(98, posYPercent)),
-            };
-
-            toggleNoiseMode(false);
-            openCreatorModal();
+        // Ignore clicks inside nav, modals, or dropdowns
+        if (e.target.closest("header, .site-header, #noise-creator-modal, #noise-mode-banner, .profile-dropdown")) {
             return;
         }
 
-        // Check for click outside pinned pills
-        if (!e.target.closest(".noise-indicator-pill") && !e.target.closest(".noise-bubble-wrapper")) {
-            unpinAllPills();
-        }
-    }
+        e.preventDefault();
+        e.stopPropagation();
 
-    function unpinAllPills() {
-        document.querySelectorAll(".noise-indicator-pill.is-pinned").forEach((pill) => {
-            pill.classList.remove("is-pinned");
-        });
+        updateContainerHeight();
+        const container = getOrCreateContainer();
+        const containerWidth = container.clientWidth || window.innerWidth;
+        const containerHeight = container.clientHeight || document.body.scrollHeight;
+
+        const posXPercent = (e.pageX / containerWidth) * 100;
+        const posYPercent = (e.pageY / containerHeight) * 100;
+
+        pendingCoords = {
+            x: Math.max(2, Math.min(98, posXPercent)),
+            y: Math.max(2, Math.min(98, posYPercent)),
+        };
+
+        toggleNoiseMode(false);
+        openCreatorModal();
     }
 
     function openCreatorModal() {
@@ -328,8 +386,8 @@
         const container = getOrCreateContainer();
         container.innerHTML = "";
 
-        const userDisplayMode = (window.RB48_USER && window.RB48_USER.noise_display_mode) || "transparent";
-        if (userDisplayMode === "hidden") return;
+        const userDisplayMode = (window.RB48_USER && window.RB48_USER.noise_display_mode) || "collapsed";
+        if (userDisplayMode === "muted") return;
 
         const currentUserId = window.RB48_USER ? window.RB48_USER.id : null;
         const isStaff = window.RB48_USER && ["admin", "webmaster"].includes(window.RB48_USER.role);
@@ -348,18 +406,16 @@
         wrapper.style.left = `${b.pos_x_percent}%`;
         wrapper.style.top = `${b.pos_y_percent}%`;
 
-        const isAlwaysExpanded = userDisplayMode === "always_expanded" || userDisplayMode === "always_show";
-
-        if (isAlwaysExpanded) {
-            renderAsFullBubble(wrapper, b, isAuthorOrStaff);
+        if (userDisplayMode === "expanded") {
+            renderExpandedBubble(wrapper, b, isAuthorOrStaff);
         } else {
-            renderAsPill(wrapper, b, isAuthorOrStaff);
+            renderCollapsedPill(wrapper, b, isAuthorOrStaff);
         }
 
         return wrapper;
     }
 
-    function renderAsFullBubble(wrapper, b, isAuthorOrStaff) {
+    function renderExpandedBubble(wrapper, b, isAuthorOrStaff, canMinimize = true) {
         wrapper.innerHTML = `
             <div class="noise-bubble" style="background-color: ${escapeHtml(b.bg_color)}; font-family: ${escapeHtml(b.font_family)}; font-size: ${b.font_size}px;">
                 <div class="noise-bubble-content">${escapeHtml(b.content)}</div>
@@ -367,8 +423,9 @@
                     <span class="noise-bubble-author" title="${escapeHtml(b.attendance_name || b.username)}">${escapeHtml(b.attendance_name || b.username)}</span>
                     <div class="noise-bubble-actions">
                         <span class="noise-drag-handle" title="Drag to move anywhere" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
+                        ${canMinimize ? `<button type="button" class="noise-btn-icon" title="Collapse to indicator pill" onclick="window.RB48Noise.minimizeBubble(${b.id})">🔽</button>` : ""}
                         ${isAuthorOrStaff 
-                            ? `<button type="button" class="noise-btn-icon" title="Delete banter globally for everyone" style="color: #ff9999;" onclick="window.RB48Noise.deleteGlobal(${b.id})">✕</button>`
+                            ? `<button type="button" class="noise-btn-icon" title="Delete banter globally for everyone" style="color: #ff9999;" onclick="window.RB48Noise.deleteGlobal(${b.id})">🗑️</button>`
                             : `<button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>`
                         }
                     </div>
@@ -377,41 +434,40 @@
         `;
     }
 
-    function renderAsPill(wrapper, b, isAuthorOrStaff) {
+    function renderCollapsedPill(wrapper, b, isAuthorOrStaff) {
         wrapper.innerHTML = `
             <div class="noise-indicator-pill" id="pill-${b.id}">
                 <span class="noise-drag-handle" title="Drag to move" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
-                <span class="pill-label" title="Click to pin open">💭 ${escapeHtml(b.attendance_name || b.username)}</span>
+                <span class="pill-label" title="Click or hover to expand banter">💭 ${escapeHtml(b.attendance_name || b.username)}</span>
+                <button type="button" class="noise-btn-icon" title="Mute all noise across site" onclick="window.RB48Noise.setMode('muted')">🔇</button>
                 ${isAuthorOrStaff 
                     ? `<button type="button" class="noise-btn-icon" title="Delete banter globally for everyone" style="color: #ff9999;" onclick="window.RB48Noise.deleteGlobal(${b.id})">✕</button>`
                     : `<button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>`
                 }
-                
-                <div class="pill-expanded-popover">
-                    <div class="noise-bubble" style="background-color: ${escapeHtml(b.bg_color)}; font-family: ${escapeHtml(b.font_family)}; font-size: ${b.font_size}px;">
-                        <div class="noise-bubble-content">${escapeHtml(b.content)}</div>
-                        <div class="noise-bubble-footer">
-                            <span class="noise-bubble-author" title="${escapeHtml(b.attendance_name || b.username)}">${escapeHtml(b.attendance_name || b.username)}</span>
-                            <div class="noise-bubble-actions">
-                                <span class="noise-drag-handle" title="Drag to move" onmousedown="window.RB48Noise.startDrag(event, ${b.id})">✥</span>
-                                ${isAuthorOrStaff 
-                                    ? `<button type="button" class="noise-btn-icon" title="Delete banter globally for everyone" style="color: #ff9999;" onclick="window.RB48Noise.deleteGlobal(${b.id})">🗑️</button>`
-                                    : `<button type="button" class="noise-btn-icon" title="Hide from my view" onclick="window.RB48Noise.dismissLocal(${b.id})">✕</button>`
-                                }
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         `;
 
         const pill = wrapper.querySelector(".noise-indicator-pill");
         if (pill) {
-            pill.addEventListener("click", (e) => {
+            const expandInPlace = (e) => {
                 if (isDraggingJustEnded) return;
-                if (e.target.closest(".noise-drag-handle") || e.target.closest("button")) return;
-                pill.classList.toggle("is-pinned");
-            });
+                if (e && (e.target.closest(".noise-drag-handle") || e.target.closest("button"))) return;
+                renderExpandedBubble(wrapper, b, isAuthorOrStaff, true);
+            };
+
+            pill.addEventListener("mouseenter", expandInPlace);
+            pill.addEventListener("click", expandInPlace);
+        }
+    }
+
+    function minimizeBubble(bubbleId) {
+        const wrap = document.getElementById(`noise-bubble-wrap-${bubbleId}`);
+        const b = loadedBubbles.find(item => item.id === bubbleId);
+        if (wrap && b) {
+            const currentUserId = window.RB48_USER ? window.RB48_USER.id : null;
+            const isStaff = window.RB48_USER && ["admin", "webmaster"].includes(window.RB48_USER.role);
+            const isAuthorOrStaff = isStaff || (currentUserId && currentUserId === b.user_id);
+            renderCollapsedPill(wrap, b, isAuthorOrStaff);
         }
     }
 
@@ -531,6 +587,9 @@
     // Export global controller
     window.RB48Noise = {
         toggle: toggleNoiseMode,
+        cycleMode: cycleMode,
+        setMode: setMode,
+        minimizeBubble: minimizeBubble,
         openCreator: openCreatorModal,
         closeCreator: closeCreatorModal,
         saveBubble: saveBubble,

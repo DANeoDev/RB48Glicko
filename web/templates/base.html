@@ -248,10 +248,14 @@
                 <a href="{{ url_for('stats.model_analysis') }}" class="{% if request.endpoint == 'stats.model_analysis' %}active{% endif %}">Model Analysis</a>
             {% endif %}
         </div>
-        <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
             {% if current_user and has_tier('user') %}
                 <button type="button" id="nav-noise-toggle-btn" class="nav-noise-btn" onclick="window.RB48Noise.toggle()" title="Make some noise anywhere on the page">
                     📢 Noise
+                </button>
+                <button type="button" id="nav-noise-mode-btn" class="nav-noise-btn" onclick="window.RB48Noise.cycleMode()" title="Noise View Mode: Click to switch between Collapsed, Expanded, and Muted" style="padding: 6px 10px; font-size: 12.5px;">
+                    <span id="nav-noise-mode-icon">💭</span>
+                    <span id="nav-noise-mode-label">Collapsed</span>
                 </button>
             {% endif %}
             <div class="profile-menu">

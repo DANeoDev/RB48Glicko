@@ -383,9 +383,10 @@ class NoiseBubblesTest(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user["id"]
 
+        # 1. Test form post 'expanded'
         resp = self.client.post(
             "/settings/noise-mode",
-            data={"noise_display_mode": "transparent"},
+            data={"noise_display_mode": "expanded"},
             follow_redirects=True,
         )
         self.assertEqual(resp.status_code, 200)
@@ -393,9 +394,46 @@ class NoiseBubblesTest(unittest.TestCase):
         conn = get_accounts_connection()
         try:
             updated = get_user_by_id(conn, user["id"])
-            self.assertEqual(updated["noise_display_mode"], "transparent")
+            self.assertEqual(updated["noise_display_mode"], "expanded")
         finally:
             conn.close()
+
+        # 2. Test JSON post 'muted'
+        resp_json = self.client.post(
+            "/settings/noise-mode",
+            json={"noise_display_mode": "muted"},
+        )
+        self.assertEqual(resp_json.status_code, 200)
+        self.assertEqual(resp_json.get_json()["mode"], "muted")
+
+    def test_user_authored_bubbles(self):
+        user = self.create_user(role="user")
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        self.client.post(
+            "/api/noise",
+            json={
+                "page_path": "/stats",
+                "pos_x_percent": 10,
+                "pos_y_percent": 20,
+                "content": "Authored bubble 1",
+            },
+        )
+        self.client.post(
+            "/api/noise",
+            json={
+                "page_path": "/matches",
+                "pos_x_percent": 30,
+                "pos_y_percent": 40,
+                "content": "Authored bubble 2",
+            },
+        )
+
+        resp_settings = self.client.get("/settings")
+        self.assertEqual(resp_settings.status_code, 200)
+        self.assertIn("Authored bubble 1", resp_settings.get_data(as_text=True))
+        self.assertIn("Authored bubble 2", resp_settings.get_data(as_text=True))
 
 
 if __name__ == "__main__":

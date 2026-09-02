@@ -138,42 +138,42 @@
                 📢 Page Noise &amp; Banter Bubbles
             </h2>
             <span style="font-size: 12px; color: #80deea; font-weight: 600;">
-                Spatial Banter Mode
+                Noise View Mode
             </span>
         </div>
 
         <p class="reading-text" style="font-size: 14px; margin-bottom: 16px; color: #c9c2d8;">
-            Configure how member noise text bubbles interact with page content and buttons on your screen:
+            Configure how member noise text bubbles appear across the website on your screen:
         </p>
 
         <form method="post" action="{{ url_for('noise.update_noise_display_mode') }}">
             <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
                 <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
-                    <input type="radio" name="noise_display_mode" value="transparent" {% if user.noise_display_mode == 'transparent' or not user.noise_display_mode or user.noise_display_mode == 'smart' or user.noise_display_mode == 'always_indicators' %}checked{% endif %} style="margin-top: 3px;">
+                    <input type="radio" name="noise_display_mode" value="collapsed" {% if user.noise_display_mode == 'collapsed' or not user.noise_display_mode or user.noise_display_mode == 'transparent' or user.noise_display_mode == 'smart' or user.noise_display_mode == 'always_indicators' %}checked{% endif %} style="margin-top: 3px;">
                     <div>
-                        <strong style="color: #80deea; font-size: 14px; display: block;">Translucent Indicator Pills (Default / Recommended)</strong>
+                        <strong style="color: #80deea; font-size: 14px; display: block;">💭 Collapsed Indicator Pills (Default / Recommended)</strong>
                         <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
-                            All banter bubbles start as compact translucent pills (<code>💭 [Author]</code>) with drag handles. Hovering or tapping pops open the full banter message without blocking buttons or tables.
+                            Banter bubbles start as compact translucent pills. Hovering or tapping expands them in-place with a minimize button without blocking buttons or tables.
                         </span>
                     </div>
                 </label>
 
                 <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
-                    <input type="radio" name="noise_display_mode" value="always_expanded" {% if user.noise_display_mode == 'always_expanded' or user.noise_display_mode == 'always_show' %}checked{% endif %} style="margin-top: 3px;">
+                    <input type="radio" name="noise_display_mode" value="expanded" {% if user.noise_display_mode == 'expanded' or user.noise_display_mode == 'always_expanded' or user.noise_display_mode == 'always_show' %}checked{% endif %} style="margin-top: 3px;">
                     <div>
-                        <strong style="color: #ffffff; font-size: 14px; display: block;">Always Show Expanded Bubbles</strong>
+                        <strong style="color: #ffffff; font-size: 14px; display: block;">💬 Always Show Expanded Bubbles</strong>
                         <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
-                            Always display full text speech bubbles directly on the page.
+                            Always display full text speech bubbles directly on every page.
                         </span>
                     </div>
                 </label>
 
                 <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
-                    <input type="radio" name="noise_display_mode" value="hidden" {% if user.noise_display_mode == 'hidden' %}checked{% endif %} style="margin-top: 3px;">
+                    <input type="radio" name="noise_display_mode" value="muted" {% if user.noise_display_mode == 'muted' or user.noise_display_mode == 'hidden' %}checked{% endif %} style="margin-top: 3px;">
                     <div>
-                        <strong style="color: #ff8888; font-size: 14px; display: block;">Mute Noise (Hide All)</strong>
+                        <strong style="color: #ff8888; font-size: 14px; display: block;">🔇 Mute All Noise (Hide All)</strong>
                         <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
-                            Hide all noise bubbles completely for a clean page view.
+                            Hide all noise bubbles completely for a completely quiet page view.
                         </span>
                     </div>
                 </label>
@@ -185,6 +185,55 @@
                 </button>
             </div>
         </form>
+    </div>
+
+    <!-- My Active Banter Bubbles Card -->
+    <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 16px;">
+            <h2 style="margin: 0; font-size: 18px; color: #ffffff;">
+                💬 My Authored Banter Bubbles ({{ authored_bubbles|length if authored_bubbles else 0 }})
+            </h2>
+            <span style="font-size: 12px; color: var(--text-muted);">
+                {% if user.role in ('admin', 'webmaster') %}
+                    Staff Quota: Max 5 active general bubbles
+                {% else %}
+                    Member Quota: Max 3 active general bubbles
+                {% endif %}
+            </span>
+        </div>
+
+        {% if authored_bubbles %}
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                {% for b in authored_bubbles %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 12px 16px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                                <span style="font-size: 12px; font-weight: 700; color: #80deea; background: rgba(128,222,234,0.1); padding: 2px 8px; border-radius: 4px;">
+                                    📍 <a href="{{ b.page_path }}" style="color: #80deea; text-decoration: none;">{{ b.page_path }}</a>
+                                </span>
+                                {% if b.match_id or b.page_path.startswith('/matches') %}
+                                    <span style="font-size: 11px; color: #81c784; background: rgba(129,199,132,0.1); padding: 2px 6px; border-radius: 4px;">Permanent Match Banter</span>
+                                {% endif %}
+                                <span style="font-size: 11px; color: var(--text-muted);">{{ b.created_at[:10] if b.created_at else '' }}</span>
+                            </div>
+                            <div style="padding: 8px 12px; border-radius: 8px; background-color: {{ b.bg_color }}; font-family: {{ b.font_family }}; font-size: {{ b.font_size }}px; color: #ffffff; display: inline-block; max-width: 100%; word-break: break-word; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                                {{ b.content }}
+                            </div>
+                        </div>
+
+                        <form method="post" action="{{ url_for('noise.delete_noise', bubble_id=b.id) }}" style="margin: 0;">
+                            <button type="submit" class="secondary" style="color: #ff9999; border-color: rgba(255,100,100,0.4); font-size: 12.5px; padding: 6px 12px; cursor: pointer; border-radius: 6px;" onclick="return confirm('Permanently delete this banter bubble for everyone?')">
+                                🗑️ Delete
+                            </button>
+                        </form>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 13.5px; background: rgba(255,255,255,0.02); border-radius: 8px;">
+                You haven't posted any banter bubbles yet. Click the <strong>📢 Noise</strong> button in the top navigation bar to drop a bubble anywhere!
+            </div>
+        {% endif %}
     </div>
 
     <!-- Password Change Card -->
