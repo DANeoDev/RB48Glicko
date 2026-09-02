@@ -130,28 +130,60 @@ def resend_verification():
 @auth_bp.route("/glicko-test", methods=["GET", "POST"])
 @require_tier(Tier.USER)
 def glicko_test():
-    """Glicko sportsmanship and rating acceptance questionnaire."""
+    """Glicko sportsmanship and personality assessment (Jagged Alliance 2 I.M.P. style)."""
+    from datetime import datetime, timezone
+    from scripts.accounts.database import get_accounts_connection, set_user_persona
+    from scripts.accounts.psychology import IMP_QUESTIONS, PSYCHOLOGY_PERSONAS, evaluate_psychology_submission
+
     user = get_current_user()
+    step = request.args.get("step", "intro")
 
-    if user.get("psychology_test_passed"):
-        flash("You have already passed the Glicko assessment!", "info")
-        return redirect(url_for("stats.stats"))
-
+    # If POST -> evaluate questionnaire
     if request.method == "POST":
-        q1 = request.form.get("q1")
-        q2 = request.form.get("q2")
-        q3 = request.form.get("q3")
-        q4 = request.form.get("q4")
+        persona, scores = evaluate_psychology_submission(request.form)
+        now_str = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-        passed = (q1 == "b" and q2 == "a" and q3 == "a" and q4 == "a") or (q1 == "yes" and q2 == "yes" and q3 == "yes")
-        if passed:
-            pass_psychology_test(user["id"])
-            flash("Congratulations! You passed the assessment and now have full access to Glicko ratings.", "success")
-            return redirect(url_for("stats.stats"))
+        conn = get_accounts_connection()
+        try:
+            set_user_persona(conn, user["id"], persona["key"], persona["passed"], now_str)
+        finally:
+            conn.close()
+
+        if persona["passed"]:
+            flash(f"Assessment Passed! You have been certified as: {persona['title']}.", "success")
         else:
-            return render_template("psychology_test.html", error="Your responses do not meet the criteria for Glicko access. Please review sportsmanship principles."), 400
+            flash(f"Assessment Inconclusive: Assigned archetype '{persona['title']}'. Glicko clearance denied.", "warning")
 
-    return render_template("psychology_test.html")
+        status_code = 200 if persona["passed"] else 400
+        return render_template(
+            "psychology_test.html",
+            stage="result",
+            persona=persona,
+            scores=scores,
+            user=user,
+            questions=IMP_QUESTIONS,
+        ), status_code
+
+    # If GET and user already has an assigned persona and didn't request a retake/assessment step
+    if user.get("psychology_persona") and step == "intro":
+        existing_persona = PSYCHOLOGY_PERSONAS.get(user["psychology_persona"], PSYCHOLOGY_PERSONAS["legend"])
+        return render_template(
+            "psychology_test.html",
+            stage="result",
+            persona=existing_persona,
+            scores={},
+            user=user,
+            questions=IMP_QUESTIONS,
+            existing=True,
+        )
+
+    # Render intro or questionnaire assessment
+    return render_template(
+        "psychology_test.html",
+        stage="assessment" if step == "assessment" else "intro",
+        questions=IMP_QUESTIONS,
+        user=user,
+    )
 
 
 @auth_bp.route("/switch-view", methods=["POST"])

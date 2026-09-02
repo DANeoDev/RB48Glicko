@@ -1,120 +1,187 @@
 {% extends "base.html" %}
 
-{% block title %}Glicko Sportsmanship & Variance Test · RB48{% endblock %}
+{% block title %}RB48 — I.M.P. Football Personality Assessment{% endblock %}
 
 {% block content %}
-<div class="page-container account-page" style="max-width: 800px; margin: 30px auto;">
-    <div class="account-card" style="padding: 30px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);">
-        <div class="account-header" style="margin-bottom: 24px;">
-            <h1 style="margin-top: 0; color: #ffffff;">Glicko Sportsmanship &amp; Variance Test</h1>
-            <p class="muted" style="line-height: 1.5;">
-                In RB48, Glicko-2 ratings, rating deviations (RD), and predictive models track competitive performance.
-                To prevent toxicity and maintain a healthy, fun recreational football community, members must pass this brief questionnaire to unlock the Glicko ratings layer.
-            </p>
-        </div>
+<div class="page-container" style="max-width: 860px; margin: 30px auto 60px; padding: 0 16px;">
 
-        {% if error %}
-            <div class="notice" style="margin-bottom: 20px; background: rgba(220, 53, 69, 0.2); border-left: 3px solid #dc3545; padding: 14px; color: #ff8888;">
-                {{ error }}
+    <!-- STAGE 1: INTRODUCTORY BRIEFING -->
+    {% if stage == "intro" %}
+        <div class="card" style="background: var(--bg-surface); border: 1px solid #7B52C5; border-radius: var(--radius); padding: 32px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 20px;">
+                <div>
+                    <span style="font-size: 11px; font-weight: 700; color: #80deea; letter-spacing: 1px; text-transform: uppercase;">
+                        Institute for Mercenary & Matchday Profiling (I.M.P.)
+                    </span>
+                    <h1 style="margin: 4px 0 0; color: #ffffff; font-size: 26px;">
+                        Glicko-2 Assessment & Clearance Briefing
+                    </h1>
+                </div>
+                <div style="font-size: 36px;">📐⚽</div>
             </div>
-        {% endif %}
 
-        <form method="post" class="account-form">
-            <input type="hidden" name="next" value="{{ next_url }}">
-
-            <!-- Question 1 -->
-            <div class="form-field" style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
-                <label style="font-weight: 600; font-size: 16px; display: block; margin-bottom: 10px; color: #ffffff;">
-                    1. What does your Glicko rating represent in RB48?
-                </label>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                        <input type="radio" name="q1" value="a" required style="margin-top: 4px;">
-                        <span>A permanent measure of my personal worth and status.</span>
-                    </label>
-                    <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                        <input type="radio" name="q1" value="b" required style="margin-top: 4px;">
-                        <span>A dynamic statistical estimate of recent match outcomes that fluctuates naturally with match results.</span>
-                    </label>
-                    <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                        <input type="radio" name="q1" value="c" required style="margin-top: 4px;">
-                        <span>A score that must only go up, regardless of match results.</span>
-                    </label>
+            <!-- Section 1: Scope of Glicko-2 -->
+            <div style="margin-bottom: 24px;">
+                <h3 style="color: #ffffff; font-size: 17px; margin-bottom: 8px;">
+                    1. Scope of the Rating System (What Glicko Is & Isn't)
+                </h3>
+                <p style="font-size: 14px; line-height: 1.6; color: #c9c2d8; margin-bottom: 10px;">
+                    RB48 uses an adapted <strong>Glicko-2 rating system</strong>. Its sole mathematical purpose is to summarize historical <strong>match results and lineup compositions</strong> to calculate expected win probabilities and help the Matchmaker generate competitive, balanced teams.
+                </p>
+                <div style="background: rgba(123, 82, 197, 0.1); border-left: 3px solid #7B52C5; padding: 12px 16px; border-radius: 4px; font-size: 13px; color: #e0dcf0;">
+                    <strong>Important:</strong> Glicko is a <em>result-based performance model</em>. It does <strong>not</strong> measure individual physical stamina, dribbling quality, defensive pressing, leadership, or human worth. The predictive power of the model is mathematically validated and continuously monitored under <a href="{{ url_for('stats.model_analysis') if has_tier('glicko_user') else url_for('stats.glicko_explainer') }}" style="color: #80deea; font-weight: 600;">Model Analysis</a>.
                 </div>
             </div>
 
-            <!-- Question 2 -->
-            <div class="form-field" style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
-                <label style="font-weight: 600; font-size: 16px; display: block; margin-bottom: 10px; color: #ffffff;">
-                    2. Your team loses a close match 4:5 and your rating drops. What is the appropriate reaction?
-                </label>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                        <input type="radio" name="q2" value="a" required style="margin-top: 4px;">
-                        <span>Accept the result with sportsmanship, enjoy the recreational game, and understand ratings adjust over time.</span>
-                    </label>
-                    <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                        <input type="radio" name="q2" value="b" required style="margin-top: 4px;">
-                        <span>Publicly blame teammates in the chat for the rating loss.</span>
-                    </label>
-                    <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                        <input type="radio" name="q2" value="c" required style="margin-top: 4px;">
-                        <span>Refuse to play with lower-rated players in future matches.</span>
-                    </label>
+            <!-- Section 2: Why Access is Gated -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="color: #ffffff; font-size: 17px; margin-bottom: 8px;">
+                    2. Why is Access Gated? (The Psychology of Rated Games)
+                </h3>
+                <p style="font-size: 14px; line-height: 1.6; color: #c9c2d8; margin-bottom: 10px;">
+                    In competitive gaming and recreational sports, introducing numerical ratings frequently triggers a well-documented psychological effect: <strong>the deterioration of intrinsic motivation</strong>.
+                </p>
+                <p style="font-size: 14px; line-height: 1.6; color: #c9c2d8; margin-bottom: 12px;">
+                    When players fixate on external rating scores rather than the pure joy of playing football with friends, harmless recreational sessions can morph into post-match blame games, rating anxiety, and locker-room toxicity.
+                </p>
+                <div style="background: rgba(0, 137, 123, 0.1); border-left: 3px solid #00897b; padding: 12px 16px; border-radius: 4px; font-size: 13px; color: #b2dfdb;">
+                    <strong>Our Community Standard:</strong> We gate access behind this psychological evaluation to ensure all Glicko-tier members understand variance, respect sportsmanship, and prioritize the fun and camaraderie of Tuesday night football over a number.
                 </div>
             </div>
 
-            <!-- Question 3 -->
-            <div class="form-field" style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
-                <label style="font-weight: 600; font-size: 16px; display: block; margin-bottom: 10px; color: #ffffff;">
-                    3. Why does a player's Rating Deviation (RD) increase after missing matches?
-                </label>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                        <input type="radio" name="q3" value="a" required style="margin-top: 4px;">
-                        <span>Because inactivity increases statistical uncertainty about a player's current playing form.</span>
-                    </label>
-                    <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                        <input type="radio" name="q3" value="b" required style="margin-top: 4px;">
-                        <span>Because the admin manually penalizes players who miss sessions.</span>
-                    </label>
-                    <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                        <input type="radio" name="q3" value="c" required style="margin-top: 4px;">
-                        <span>Because the database is corrupted.</span>
-                    </label>
-                </div>
-            </div>
-
-            <!-- Question 4 -->
-            <div class="form-field" style="margin-bottom: 28px;">
-                <label style="font-weight: 600; font-size: 16px; display: block; margin-bottom: 10px; color: #ffffff;">
-                    4. The Matchmaker shows Team A has an expected win probability of 58%. What does this mean?
-                </label>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                        <input type="radio" name="q4" value="a" required style="margin-top: 4px;">
-                        <span>Team A has a slight statistical edge on paper, but football is unpredictable and either team can win.</span>
-                    </label>
-                    <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                        <input type="radio" name="q4" value="b" required style="margin-top: 4px;">
-                        <span>Team A is 100% guaranteed to win and Team B has no chance.</span>
-                    </label>
-                    <label style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
-                        <input type="radio" name="q4" value="c" required style="margin-top: 4px;">
-                        <span>The algorithm has determined the match outcome in advance.</span>
-                    </label>
-                </div>
-            </div>
-
-            <div class="actions" style="display: flex; gap: 14px;">
-                <button type="submit" class="primary" style="padding: 12px 24px; font-size: 16px; cursor: pointer;">
-                    Submit Questionnaire &amp; Unlock Ratings
-                </button>
-                <a href="{{ url_for('stats.home') }}" class="secondary" style="padding: 12px 20px; text-decoration: none;">
-                    Return to Dashboard
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; border-top: 1px solid var(--border); padding-top: 20px;">
+                <a href="{{ url_for('auth.settings') }}" class="secondary" style="padding: 10px 18px; text-decoration: none; font-size: 13px;">
+                    ← Back to Settings
+                </a>
+                <a href="{{ url_for('auth.glicko_test', step='assessment') }}" class="primary" style="padding: 10px 24px; text-decoration: none; font-weight: 700; font-size: 14px; letter-spacing: 0.5px;">
+                    Begin Personality Assessment →
                 </a>
             </div>
-        </form>
-    </div>
+        </div>
+
+    <!-- STAGE 2: I.M.P. QUESTIONNAIRE FORM -->
+    {% elif stage == "assessment" %}
+        <div class="card" style="background: var(--bg-surface); border: 1px solid #7B52C5; border-radius: var(--radius); padding: 32px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+            <div style="border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 24px;">
+                <span style="font-size: 11px; font-weight: 700; color: #80deea; letter-spacing: 1px; text-transform: uppercase;">
+                    I.M.P. Football Psychology Evaluation
+                </span>
+                <h1 style="margin: 4px 0 0; color: #ffffff; font-size: 24px;">
+                    Situational Personality Test
+                </h1>
+                <p class="muted" style="margin: 4px 0 0; font-size: 13px;">
+                    Answer the following 7 scenarios honestly. Your profile archetype will be determined upon completion.
+                </p>
+            </div>
+
+            <form method="post" action="{{ url_for('auth.glicko_test') }}">
+                {% for q in questions %}
+                    <div style="margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                        <div style="font-size: 12px; font-weight: 700; color: #7B52C5; text-transform: uppercase; margin-bottom: 4px;">
+                            {{ q.scenario }}
+                        </div>
+                        <label style="font-size: 15px; font-weight: 600; color: #ffffff; display: block; margin-bottom: 12px; line-height: 1.4;">
+                            {{ q.question }}
+                        </label>
+
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            {% for opt_val, opt_text, opt_persona in q.options %}
+                                <label style="display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer; transition: background 0.15s ease;" onmouseover="this.style.background='rgba(123,82,197,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                                    <input type="radio" name="{{ q.id }}" value="{{ opt_val }}" required style="margin-top: 3px;">
+                                    <span style="font-size: 13.5px; color: #e0dcf0; line-height: 1.4;">
+                                        {{ opt_text }}
+                                    </span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; padding-top: 10px;">
+                    <a href="{{ url_for('auth.glicko_test') }}" class="secondary" style="padding: 10px 18px; text-decoration: none; font-size: 13px;">
+                        ← Back to Briefing
+                    </a>
+                    <button type="submit" class="primary" style="padding: 11px 28px; font-size: 14px; font-weight: 700; cursor: pointer; border-radius: 20px;">
+                        Submit Profile for Evaluation →
+                    </button>
+                </div>
+            </form>
+        </div>
+
+    <!-- STAGE 3: PERSONA DOSSIER RESULT -->
+    {% elif stage == "result" %}
+        <div class="card" style="background: var(--bg-surface); border: 2px solid {% if persona.passed %}#28a745{% else %}#dc3545{% endif %}; border-radius: var(--radius); padding: 32px; box-shadow: 0 10px 36px rgba(0,0,0,0.4);">
+            <div style="text-align: center; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border);">
+                <div style="font-size: 54px; margin-bottom: 8px;">
+                    {{ persona.badge_icon }}
+                </div>
+                <span style="font-size: 12px; font-weight: 700; color: #80deea; letter-spacing: 1px; text-transform: uppercase;">
+                    I.M.P. Psychological Dossier
+                </span>
+                <h1 style="margin: 4px 0 6px; color: #ffffff; font-size: 28px;">
+                    {{ persona.title }}
+                </h1>
+                <div style="display: inline-block; font-size: 13px; font-style: italic; color: #c9c2d8; max-width: 550px;">
+                    "{{ persona.tagline }}"
+                </div>
+            </div>
+
+            <!-- Clearance Status Banner -->
+            <div style="margin-bottom: 24px; padding: 16px 20px; border-radius: var(--radius); background: {% if persona.passed %}rgba(40, 167, 69, 0.15){% else %}rgba(220, 53, 69, 0.15){% endif %}; border: 1px solid {% if persona.passed %}rgba(40, 167, 69, 0.4){% else %}rgba(220, 53, 69, 0.4){% endif %};">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                    <span style="font-size: 18px;">{% if persona.passed %}✅{% else %}⛔{% endif %}</span>
+                    <strong style="color: {% if persona.passed %}#88ff88{% else %}#ff8888{% endif %}; font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px;">
+                        {% if persona.passed %}Assessment Result: Glicko Clearance Approved{% else %}Assessment Result: Glicko Clearance Denied{% endif %}
+                    </strong>
+                </div>
+                <p style="margin: 0; font-size: 13.5px; line-height: 1.5; color: #e0dcf0;">
+                    {{ persona.clearance_text }}
+                </p>
+            </div>
+
+            <!-- Detailed Psychological Analysis -->
+            <div style="margin-bottom: 24px;">
+                <h3 style="color: #ffffff; font-size: 16px; margin-bottom: 8px;">
+                    Behavioral Profile Analysis
+                </h3>
+                <p style="font-size: 14px; line-height: 1.6; color: #c9c2d8;">
+                    {{ persona.description }}
+                </p>
+            </div>
+
+            <!-- Character Traits -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="color: #ffffff; font-size: 15px; margin-bottom: 10px;">
+                    Identified Character Attributes:
+                </h3>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    {% for trait in persona.traits %}
+                        <span style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); padding: 4px 12px; border-radius: 12px; font-size: 12.5px; color: #80deea;">
+                            • {{ trait }}
+                        </span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Actions Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-top: 1px solid var(--border); padding-top: 20px;">
+                <a href="{{ url_for('auth.glicko_test', step='assessment') }}" class="secondary" style="padding: 10px 18px; text-decoration: none; font-size: 13px;">
+                    🔄 Retake Assessment
+                </a>
+                <div style="display: flex; gap: 10px;">
+                    {% if persona.passed %}
+                        <a href="{{ url_for('stats.stats') }}" class="primary" style="padding: 10px 22px; text-decoration: none; font-size: 13px; font-weight: 700; border-radius: 20px;">
+                            View Player Stats →
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('auth.settings') }}" class="secondary" style="padding: 10px 18px; text-decoration: none; font-size: 13px;">
+                            Back to Settings
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
 </div>
 {% endblock %}
