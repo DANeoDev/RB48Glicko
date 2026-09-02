@@ -69,6 +69,18 @@ def create_account_tables(connection):
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS user_noise_overrides (
+            user_id INTEGER NOT NULL,
+            bubble_id INTEGER NOT NULL,
+            custom_x_percent REAL,
+            custom_y_percent REAL,
+            is_dismissed INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, bubble_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (bubble_id) REFERENCES noise_bubbles(id) ON DELETE CASCADE
+        )
+    """)
 
     # Column migrations for existing tables
     cursor = connection.execute("PRAGMA table_info(users)")
@@ -528,16 +540,16 @@ def add_noise_bubble(
     return cursor.lastrowid
 
 
-def get_noise_bubbles_for_page(connection, page_path, match_id=None):
-    """Retrieve all noise bubbles for a specific page path or match."""
+def get_noise_bubbles_for_page(connection, page_path, viewer_user_id=None, match_id=None):
+    """Retrieve all noise bubbles for a specific page path, applying viewer's custom positions & dismissing."""
     query = """
         SELECT
             b.id,
             b.user_id,
             b.page_path,
             b.match_id,
-            b.pos_x_percent,
-            b.pos_y_percent,
+            COALESCE(o.custom_x_percent, b.pos_x_percent) AS pos_x_percent,
+            COALESCE(o.custom_y_percent, b.pos_y_percent) AS pos_y_percent,
             b.content,
             b.bg_color,
             b.font_family,
@@ -549,9 +561,10 @@ def get_noise_bubbles_for_page(connection, page_path, match_id=None):
             u.role
         FROM noise_bubbles b
         JOIN users u ON b.user_id = u.id
-        WHERE b.page_path = ?
+        LEFT JOIN user_noise_overrides o ON b.id = o.bubble_id AND o.user_id = ?
+        WHERE b.page_path = ? AND (o.is_dismissed IS NULL OR o.is_dismissed = 0)
     """
-    params = [page_path]
+    params = [viewer_user_id, page_path]
     if match_id is not None:
         query += " AND b.match_id = ?"
         params.append(match_id)
@@ -561,7 +574,7 @@ def get_noise_bubbles_for_page(connection, page_path, match_id=None):
     return [dict(r) for r in rows]
 
 
-def get_noise_bubble_by_id(connection, bubble_id):
+def get_noise_bubble_by_id(connection, bubble_id, viewer_user_id=None):
     """Retrieve a single noise bubble by id."""
     row = connection.execute(
         """
@@ -570,8 +583,8 @@ def get_noise_bubble_by_id(connection, bubble_id):
             b.user_id,
             b.page_path,
             b.match_id,
-            b.pos_x_percent,
-            b.pos_y_percent,
+            COALESCE(o.custom_x_percent, b.pos_x_percent) AS pos_x_percent,
+            COALESCE(o.custom_y_percent, b.pos_y_percent) AS pos_y_percent,
             b.content,
             b.bg_color,
             b.font_family,
@@ -583,9 +596,10 @@ def get_noise_bubble_by_id(connection, bubble_id):
             u.role
         FROM noise_bubbles b
         JOIN users u ON b.user_id = u.id
+        LEFT JOIN user_noise_overrides o ON b.id = o.bubble_id AND o.user_id = ?
         WHERE b.id = ?
         """,
-        (bubble_id,),
+        (viewer_user_id, bubble_id),
     ).fetchone()
     return dict(row) if row else None
 
@@ -604,24 +618,47 @@ def delete_noise_bubble(connection, bubble_id, user_id=None, is_staff=False):
     return True
 
 
-def update_noise_bubble_position(connection, bubble_id, pos_x_percent, pos_y_percent, user_id=None, is_staff=False):
-    """Update position of a bubble if user is author or staff."""
+def set_user_noise_override(connection, user_id, bubble_id, custom_x=None, custom_y=None, is_dismissed=0):
+    """Save a user's personal position override or local dismissal for a bubble."""
+    connection.execute(
+        """
+        INSERT INTO user_noise_overrides (user_id, bubble_id, custom_x_percent, custom_y_percent, is_dismissed)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, bubble_id) DO UPDATE SET
+            custom_x_percent = COALESCE(excluded.custom_x_percent, user_noise_overrides.custom_x_percent),
+            custom_y_percent = COALESCE(excluded.custom_y_percent, user_noise_overrides.custom_y_percent),
+            is_dismissed = excluded.is_dismissed
+        """,
+        (user_id, bubble_id, custom_x, custom_y, is_dismissed),
+    )
+    connection.commit()
+
+
+def dismiss_noise_for_user(connection, user_id, bubble_id):
+    """Dismiss a bubble from a specific user's view."""
+    set_user_noise_override(connection, user_id, bubble_id, is_dismissed=1)
+
+
+def update_noise_bubble_position(connection, bubble_id, pos_x_percent, pos_y_percent, user_id=None, is_staff=False, global_update=False):
+    """Update position of a bubble. If global_update and (author or staff), updates base position; otherwise saves user override."""
     bubble = get_noise_bubble_by_id(connection, bubble_id)
     if not bubble:
         return False
 
-    if not is_staff and bubble["user_id"] != user_id:
-        return False
+    if global_update and (is_staff or bubble["user_id"] == user_id):
+        connection.execute(
+            """
+            UPDATE noise_bubbles
+            SET pos_x_percent = ?, pos_y_percent = ?
+            WHERE id = ?
+            """,
+            (float(pos_x_percent), float(pos_y_percent), bubble_id),
+        )
+        connection.commit()
 
-    connection.execute(
-        """
-        UPDATE noise_bubbles
-        SET pos_x_percent = ?, pos_y_percent = ?
-        WHERE id = ?
-        """,
-        (float(pos_x_percent), float(pos_y_percent), bubble_id),
-    )
-    connection.commit()
+    if user_id:
+        set_user_noise_override(connection, user_id, bubble_id, custom_x=float(pos_x_percent), custom_y=float(pos_y_percent), is_dismissed=0)
+
     return True
 
 
