@@ -53,6 +53,9 @@
             z-index: 1000;
             transition: all 0.2s ease;
         }
+        .webmaster-sim-bar.webmaster-bar-hidden {
+            display: none !important;
+        }
         .webmaster-sim-header {
             display: flex;
             align-items: center;
@@ -113,21 +116,40 @@
             font-weight: bold;
         }
 
-        /* Collapsed state */
-        .webmaster-sim-bar.collapsed {
-            padding: 4px 12px;
-            border-bottom: 1px solid #7B52C5;
-            background: rgba(42, 21, 72, 0.85);
+        /* Closed Eye Reopen Button (matches footer reopen pattern) */
+        .webmaster-sim-reopen {
+            display: none;
+            position: fixed;
+            top: 14px;
+            right: 58px;
+            z-index: 1005;
+            background: rgba(42, 21, 72, 0.9);
+            border: 1px solid #7B52C5;
+            color: rgba(255, 255, 255, 0.85);
+            border-radius: 14px;
+            padding: 3px 8px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            backdrop-filter: blur(8px);
+            transition: all 0.15s ease;
         }
-        .webmaster-sim-bar.collapsed .webmaster-sim-label,
-        .webmaster-sim-bar.collapsed .webmaster-sim-controls {
-            display: none !important;
+        .webmaster-sim-reopen:hover {
+            background: #582DA1;
+            color: #ffffff;
+            border-color: #80deea;
         }
-        .webmaster-sim-bar.collapsed .eye-open {
-            display: none !important;
+        .webmaster-sim-reopen.visible {
+            display: flex !important;
         }
-        .webmaster-sim-bar.collapsed .eye-closed {
-            display: block !important;
+        .webmaster-reopen-badge {
+            background: #7B52C5;
+            padding: 1px 5px;
+            border-radius: 8px;
+            font-size: 10px;
+            text-transform: uppercase;
         }
 
         /* Flash Messages */
@@ -155,14 +177,10 @@
 {% if current_user and current_user.role == 'webmaster' %}
     <div class="webmaster-sim-bar" id="webmaster-sim-bar">
         <div class="webmaster-sim-header">
-            <button type="button" class="webmaster-eye-toggle" id="webmaster-eye-toggle" aria-label="Toggle View Simulation Bar" title="Click to hide/show View Simulation Bar">
-                <svg class="eye-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" class="webmaster-eye-toggle" id="webmaster-eye-toggle" aria-label="Hide View Simulation Bar" title="Click to hide View Simulation Bar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="3" r="3"></circle>
-                </svg>
-                <svg class="eye-closed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                    <circle cx="12" cy="12" r="3"></circle>
                 </svg>
             </button>
             <span class="webmaster-sim-label">Webmaster View Simulation:</span>
@@ -174,7 +192,7 @@
                 {% endif %}
             </span>
         </div>
-        <div class="webmaster-sim-controls" id="webmaster-sim-controls">
+        <div class="webmaster-sim-controls">
             <form method="post" action="{{ url_for('auth.switch_view') }}" class="webmaster-sim-form">
                 <input type="hidden" name="redirect_to" value="{{ request.full_path }}">
                 <button type="submit" name="view_mode" value="visitor" class="webmaster-sim-btn {% if simulated_tier == 'visitor' %}active{% endif %}">Visitor</button>
@@ -187,6 +205,15 @@
             </form>
         </div>
     </div>
+    <button type="button" class="webmaster-sim-reopen" id="webmaster-sim-reopen" aria-label="Show Webmaster View Simulation" title="Click to show Webmaster View Simulation Bar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+        </svg>
+        {% if simulated_tier %}
+            <span class="webmaster-reopen-badge">{{ simulated_tier | replace('_', ' ') | title }}</span>
+        {% endif %}
+    </button>
 {% endif %}
 
 <header class="site-header">
@@ -295,16 +322,24 @@ window.addEventListener("load", () => {
     sessionStorage.removeItem("rb48ScrollPosition");
 });
 
-// Webmaster simulation bar collapse toggle
+// Webmaster simulation bar hide / reopen toggle (matches footer pattern)
 const simBar = document.getElementById("webmaster-sim-bar");
 const eyeToggle = document.getElementById("webmaster-eye-toggle");
-if (simBar && eyeToggle) {
-    if (localStorage.getItem("rb48WebmasterSimCollapsed") === "true") {
-        simBar.classList.add("collapsed");
+const simReopen = document.getElementById("webmaster-sim-reopen");
+if (simBar && eyeToggle && simReopen) {
+    if (localStorage.getItem("rb48WebmasterSimHidden") === "true") {
+        simBar.classList.add("webmaster-bar-hidden");
+        simReopen.classList.add("visible");
     }
     eyeToggle.addEventListener("click", () => {
-        simBar.classList.toggle("collapsed");
-        localStorage.setItem("rb48WebmasterSimCollapsed", simBar.classList.contains("collapsed") ? "true" : "false");
+        simBar.classList.add("webmaster-bar-hidden");
+        simReopen.classList.add("visible");
+        localStorage.setItem("rb48WebmasterSimHidden", "true");
+    });
+    simReopen.addEventListener("click", () => {
+        simBar.classList.remove("webmaster-bar-hidden");
+        simReopen.classList.remove("visible");
+        localStorage.setItem("rb48WebmasterSimHidden", "false");
     });
 }
 
