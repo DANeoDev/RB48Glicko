@@ -212,7 +212,7 @@
                                 {% endif %}
                                 <span style="font-size: 11px; color: var(--text-muted);">{{ b.created_at[:10] if b.created_at else '' }}</span>
                             </div>
-                            <div style="padding: 8px 12px; border-radius: 8px; background-color: {{ b.bg_color }}; font-family: {{ b.font_family }}; font-size: {{ b.font_size }}px; color: #ffffff; display: inline-block; max-width: 100%; word-break: break-word; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                            <div style="padding: 8px 12px; border-radius: 8px; background-color: {{ b.bg_color }}; font-family: {{ b.font_family }}; font-size: {{ b.font_size }}px; color: {{ b.text_color or '#ffffff' }}; display: inline-block; max-width: 100%; word-break: break-word; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
                                 {{ b.content }}
                             </div>
                         </div>

@@ -69,6 +69,7 @@ def create_noise():
     pos_y_percent = max(0.0, min(100.0, pos_y_percent))
 
     bg_color = str(data.get("bg_color", "#7B52C5")).strip()
+    text_color = str(data.get("text_color", "#ffffff")).strip() or "#ffffff"
     font_family = str(data.get("font_family", "Inter")).strip()
     try:
         font_size = int(data.get("font_size", 15))
@@ -88,6 +89,7 @@ def create_noise():
             content=content,
             match_id=match_id,
             bg_color=bg_color,
+            text_color=text_color,
             font_family=font_family,
             font_size=font_size,
         )

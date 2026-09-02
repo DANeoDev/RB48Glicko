@@ -63,6 +63,7 @@ def create_account_tables(connection):
             pos_y_percent REAL NOT NULL,
             content TEXT NOT NULL,
             bg_color TEXT NOT NULL DEFAULT '#7B52C5',
+            text_color TEXT NOT NULL DEFAULT '#ffffff',
             font_family TEXT NOT NULL DEFAULT 'Inter',
             font_size INTEGER NOT NULL DEFAULT 15,
             created_at TEXT NOT NULL,
@@ -104,7 +105,12 @@ def create_account_tables(connection):
     if "pending_player_id" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN pending_player_id INTEGER")
     if "noise_display_mode" not in existing_columns:
-        connection.execute("ALTER TABLE users ADD COLUMN noise_display_mode TEXT NOT NULL DEFAULT 'smart'")
+        connection.execute("ALTER TABLE users ADD COLUMN noise_display_mode TEXT NOT NULL DEFAULT 'collapsed'")
+
+    bubble_cursor = connection.execute("PRAGMA table_info(noise_bubbles)")
+    existing_bubble_cols = {row["name"] for row in bubble_cursor.fetchall()}
+    if "text_color" not in existing_bubble_cols:
+        connection.execute("ALTER TABLE noise_bubbles ADD COLUMN text_color TEXT NOT NULL DEFAULT '#ffffff'")
 
     connection.commit()
 
@@ -485,10 +491,11 @@ def add_noise_bubble(
     content,
     match_id=None,
     bg_color="#7B52C5",
+    text_color="#ffffff",
     font_family="Inter",
     font_size=15,
 ):
-    """Add a new noise bubble on a page, applying the 3-bubble quota FIFO eviction for regular users."""
+    """Add a new noise bubble on a page, applying the quota FIFO eviction for general pages."""
     from datetime import datetime, timezone
 
     user = get_user_by_id(connection, user_id)
@@ -521,9 +528,9 @@ def add_noise_bubble(
         """
         INSERT INTO noise_bubbles (
             user_id, page_path, match_id, pos_x_percent, pos_y_percent,
-            content, bg_color, font_family, font_size, created_at
+            content, bg_color, text_color, font_family, font_size, created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             user_id,
@@ -533,6 +540,7 @@ def add_noise_bubble(
             float(pos_y_percent),
             content.strip(),
             bg_color,
+            text_color,
             font_family,
             int(font_size),
             now_iso,
@@ -554,6 +562,7 @@ def get_noise_bubbles_for_page(connection, page_path, viewer_user_id=None, match
             COALESCE(o.custom_y_percent, b.pos_y_percent) AS pos_y_percent,
             b.content,
             b.bg_color,
+            b.text_color,
             b.font_family,
             b.font_size,
             b.created_at,
@@ -589,6 +598,7 @@ def get_noise_bubble_by_id(connection, bubble_id, viewer_user_id=None):
             COALESCE(o.custom_y_percent, b.pos_y_percent) AS pos_y_percent,
             b.content,
             b.bg_color,
+            b.text_color,
             b.font_family,
             b.font_size,
             b.created_at,
@@ -696,6 +706,7 @@ def get_user_authored_noise_bubbles(connection, user_id):
             pos_y_percent,
             content,
             bg_color,
+            text_color,
             font_family,
             font_size,
             created_at
