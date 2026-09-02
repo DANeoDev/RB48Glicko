@@ -3,9 +3,13 @@
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
-from scripts.accounts.database import get_accounts_connection, set_user_attendance_name
+from scripts.accounts.database import get_accounts_connection, get_user_by_id, set_user_attendance_name
+from scripts.database.database import get_connection as get_main_connection
+from scripts.database.db_players import get_alias_lookup
+from scripts.matchmaking.match_parser import normalize_player_name
 from scripts.planner.database import (
     add_guest_rsvp,
+    add_standard_wednesday_events,
     cancel_user_rsvp,
     create_event,
     delete_event,
@@ -48,8 +52,31 @@ def is_guest_registration_unlocked(event_date_str):
     return datetime.now() >= unlock_time
 
 
-def format_event_view_data(event, current_user, attendees):
-    """Prepare view data for an event, including roster split and guest permissions."""
+def resolve_active_roster_player_ids(active_roster, alias_lookup, acc_conn):
+    """Resolve matched player IDs in RB48 database for attendees in active roster."""
+    resolved_ids = []
+    norm_lookup = {normalize_player_name(a).casefold(): pid for a, pid in alias_lookup.items()}
+
+    for a in active_roster:
+        pid = None
+        if a["user_id"]:
+            u = get_user_by_id(acc_conn, a["user_id"])
+            if u and u["player_id"]:
+                pid = u["player_id"]
+
+        if not pid:
+            raw_name = a["name"].split("(")[0].strip()
+            norm = normalize_player_name(raw_name).casefold()
+            pid = norm_lookup.get(norm)
+
+        if pid and pid not in resolved_ids:
+            resolved_ids.append(pid)
+
+    return resolved_ids
+
+
+def format_event_view_data(event, current_user, attendees, alias_lookup=None, acc_conn=None):
+    """Prepare view data for an event, including roster split, preselected player IDs, and guest permissions."""
     attending = [a for a in attendees if a["status"] == "attending"]
     declined = [a for a in attendees if a["status"] == "declined"]
     capacity = event["max_players"]
@@ -59,6 +86,10 @@ def format_event_view_data(event, current_user, attendees):
 
     unlock_time = calculate_guest_unlock_time(event["event_date"])
     guest_unlocked = datetime.now() >= unlock_time
+
+    matched_player_ids = []
+    if alias_lookup and acc_conn:
+        matched_player_ids = resolve_active_roster_player_ids(active_roster, alias_lookup, acc_conn)
 
     user_rsvp = None
     user_guests = []
@@ -94,6 +125,7 @@ def format_event_view_data(event, current_user, attendees):
         "declined_count": len(declined),
         "guest_unlocked": guest_unlocked,
         "guest_unlock_time_formatted": unlock_time.strftime("%A, %d.%m.%Y at 00:00"),
+        "matched_player_ids_str": ",".join(map(str, matched_player_ids)),
         "user_rsvp": user_rsvp,
         "user_guests": user_guests,
     }
@@ -104,14 +136,19 @@ def planner():
     """Main Attendance Planner overview showing upcoming game dates."""
     user = get_current_user()
     connection = get_planner_connection()
+    main_conn = get_main_connection()
+    acc_conn = get_accounts_connection()
     try:
+        alias_lookup = get_alias_lookup(main_conn)
         events = get_upcoming_events(connection)
         events_data = []
         for evt in events:
             attendees = [dict(a) for a in get_event_attendees(connection, evt["id"])]
-            events_data.append(format_event_view_data(dict(evt), user, attendees))
+            events_data.append(format_event_view_data(dict(evt), user, attendees, alias_lookup, acc_conn))
     finally:
         connection.close()
+        main_conn.close()
+        acc_conn.close()
 
     user_attendance_name = (user.get("attendance_name") or user.get("username")) if user else ""
     return render_template(
@@ -154,7 +191,7 @@ def rsvp_event(event_id):
 
 @planner_bp.route("/planner/<int:event_id>/guest", methods=["POST"])
 def add_guest(event_id):
-    """Add a guest player (for visitor or registered member)."""
+    """Add a guest player (for visitor, registered member, or admin)."""
     user = get_current_user()
     guest_name = request.form.get("guest_name", "").strip()
 
@@ -169,8 +206,9 @@ def add_guest(event_id):
             flash("Match event not found.", "danger")
             return redirect(url_for("planner.planner"))
 
-        # Check Sunday time lock
-        if not is_guest_registration_unlocked(event["event_date"]):
+        # Check Sunday time lock (Admins & Webmasters are exempt)
+        is_admin = has_tier(Tier.ADMIN)
+        if not is_admin and not is_guest_registration_unlocked(event["event_date"]):
             unlock_time = calculate_guest_unlock_time(event["event_date"])
             formatted = unlock_time.strftime("%A, %d.%m.%Y at 00:00")
             flash(f"Guest player registration for this match opens on {formatted}.", "warning")
@@ -243,7 +281,6 @@ def create_event_route():
 @require_admin
 def auto_seed_events():
     """Add 4 standard alternating Wednesday matchdays."""
-    from scripts.planner.database import add_standard_wednesday_events
     connection = get_planner_connection()
     try:
         created_ids = add_standard_wednesday_events(connection, count=4)

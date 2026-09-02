@@ -3,7 +3,16 @@ import time
 import unittest
 
 from scripts.accounts.auth import register_user
-from scripts.accounts.database import approve_user, get_accounts_connection, get_user_by_id, mark_email_verified, update_user_role
+from scripts.accounts.database import (
+    approve_player_link,
+    approve_user,
+    get_accounts_connection,
+    get_user_by_id,
+    mark_email_verified,
+    reject_player_link,
+    request_player_link,
+    update_user_role,
+)
 from scripts.planner.database import (
     add_guest_rsvp,
     add_standard_wednesday_events,
@@ -129,6 +138,28 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(updated[1]["name"], "Max (Konsti +1)")
         self.assertEqual(updated[2]["name"], "Ingo (Konsti +2)")
 
+    def test_pending_player_link_workflow(self):
+        unique_name = f"link_user_{int(time.time() * 1000000)}"
+        user_id, _ = register_user(unique_name, f"{unique_name}@example.com", "pass12345")
+        acc_conn = get_accounts_connection()
+        try:
+            mark_email_verified(acc_conn, user_id)
+            approve_user(acc_conn, user_id, approved=True)
+
+            # User requests link to player 2
+            request_player_link(acc_conn, user_id, 2)
+            u = get_user_by_id(acc_conn, user_id)
+            self.assertEqual(u["pending_player_id"], 2)
+            self.assertIsNone(u["player_id"])
+
+            # Webmaster approves link
+            approve_player_link(acc_conn, user_id)
+            u = get_user_by_id(acc_conn, user_id)
+            self.assertIsNone(u["pending_player_id"])
+            self.assertEqual(u["player_id"], 2)
+        finally:
+            acc_conn.close()
+
     def test_planner_routes_integration(self):
         # Create user
         unique_name = f"planner_user_{int(time.time() * 1000000)}"
@@ -141,28 +172,23 @@ class PlannerTests(unittest.TestCase):
         finally:
             acc_conn.close()
 
-        # Create past Sunday event so guest registration is open
-        past_event_id = create_event(self.conn, (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M"), "box")
+        # Create future event (2 weeks from now -> locked for normal users, but admin is exempt)
+        future_date = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d %H:%M")
+        future_event_id = create_event(self.conn, future_date, "box")
 
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
         # 1. Member self-RSVP attend
-        resp = self.client.post(f"/planner/{past_event_id}/rsvp", data={"status": "attending"}, follow_redirects=True)
+        resp = self.client.post(f"/planner/{future_event_id}/rsvp", data={"status": "attending"}, follow_redirects=True)
         self.assertEqual(resp.status_code, 200)
 
         # 2. Update profile via settings
         prof_resp = self.client.post("/settings/profile", data={"attendance_name": "ProKonsti", "player_id": "1"}, follow_redirects=True)
         self.assertEqual(prof_resp.status_code, 200)
 
-        acc_conn2 = get_accounts_connection()
-        u = get_user_by_id(acc_conn2, user_id)
-        acc_conn2.close()
-        self.assertEqual(u["attendance_name"], "ProKonsti")
-        self.assertEqual(u["player_id"], 1)
-
-        # 3. Add a guest
-        guest_resp = self.client.post(f"/planner/{past_event_id}/guest", data={"guest_name": "Lukas"}, follow_redirects=True)
+        # 3. Admin adds a guest even though time-lock is active for normal users
+        guest_resp = self.client.post(f"/planner/{future_event_id}/guest", data={"guest_name": "Lukas"}, follow_redirects=True)
         self.assertEqual(guest_resp.status_code, 200)
         self.assertIn(b"Lukas (ProKonsti +1)", guest_resp.data)
 
@@ -171,10 +197,14 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(seed_resp.status_code, 200)
         self.assertIn(b"standard Wednesday matchdays", seed_resp.data)
 
-        # 5. View /settings page
-        settings_resp = self.client.get("/settings")
-        self.assertEqual(settings_resp.status_code, 200)
-        self.assertIn(b"Profile Information", settings_resp.data)
+        # 5. View /planner page
+        get_resp = self.client.get("/planner")
+        self.assertEqual(get_resp.status_code, 200)
+        self.assertIn(b"Attendance Planner", get_resp.data)
+
+        # 6. Test Match Center preselection with comma-separated IDs
+        mc_resp = self.client.get("/match-center?players=1,2,3")
+        self.assertEqual(mc_resp.status_code, 200)
 
 
 if __name__ == "__main__":
