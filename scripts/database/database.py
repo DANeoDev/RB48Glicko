@@ -1,26 +1,31 @@
-import sqlite3
+"""SQLite database schema initialization and connection management."""
+
 from pathlib import Path
+import sqlite3
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATABASE_FILE = PROJECT_ROOT / "data" / "rb48.db"
 
 
 def get_connection():
+    """Return a connection to the primary RB48 database."""
     connection = sqlite3.connect(DATABASE_FILE)
     connection.row_factory = sqlite3.Row
     return connection
 
 
-def create_players_table(connection): # table of player_ids, which are unique identifiers for players
+def create_players_table(connection):
+    """Table of unique player identifiers."""
     connection.execute("""
         CREATE TABLE IF NOT EXISTS players (
             player_id INTEGER PRIMARY KEY
         )
     """)
-
     connection.commit()
 
-def create_aliases_table(connection): # table to store aliases for players, with a foreign key reference to the player_id in the players table
+
+def create_aliases_table(connection):
+    """Table to store aliases for players."""
     connection.execute("""
         CREATE TABLE IF NOT EXISTS aliases (
             alias TEXT PRIMARY KEY,
@@ -28,10 +33,11 @@ def create_aliases_table(connection): # table to store aliases for players, with
             FOREIGN KEY (player_id) REFERENCES players(player_id)
         )
     """)
-
     connection.commit()
 
-def create_positions_table(connection): # table to store player positions, with a flag for primary position
+
+def create_positions_table(connection):
+    """Table to store player positions with an optional primary flag."""
     connection.execute("""
         CREATE TABLE IF NOT EXISTS positions (
             player_id INTEGER NOT NULL,
@@ -43,39 +49,40 @@ def create_positions_table(connection): # table to store player positions, with 
     """)
     connection.commit()
 
-def create_ignored_aliases_table(connection): # table to store aliases that should be ignored when processing match data
+
+def create_ignored_aliases_table(connection):
+    """Table to store aliases that should be ignored during match processing."""
     connection.execute("""
         CREATE TABLE IF NOT EXISTS ignored_aliases (
-            alias TEXT NOT NULL, 
-            PRIMARY KEY (alias)
+            alias TEXT NOT NULL PRIMARY KEY
         )
     """)
-
     connection.commit()
 
-def create_matches_table(connection): # table to store match information
+
+def create_matches_table(connection):
+    """Table to store match headers and results."""
     connection.execute("""
         CREATE TABLE IF NOT EXISTS matches (
-            match_id TEXT NOT NULL, 
+            match_id TEXT NOT NULL PRIMARY KEY,
             date TEXT NOT NULL,
-            pitch TEXT NOT NULL, 
+            pitch TEXT NOT NULL,
             players_a INTEGER NOT NULL,
             players_b INTEGER NOT NULL,
             goals_a INTEGER NOT NULL,
-            goals_b INTEGER NOT NULL,
-            PRIMARY KEY (match_id)
+            goals_b INTEGER NOT NULL
         )
     """)
-
     connection.commit()
 
 
-def create_match_players_table(connection): # table to link players to matches they played in
+def create_match_players_table(connection):
+    """Table to link players to matches they played in."""
     connection.execute("""
         CREATE TABLE IF NOT EXISTS match_players (
-            match_id TEXT NOT NULL,   
-            player_id INTEGER NOT NULL, 
-            team TEXT NOT NULL, 
+            match_id TEXT NOT NULL,
+            player_id INTEGER NOT NULL,
+            team TEXT NOT NULL,
             PRIMARY KEY (match_id, player_id),
             FOREIGN KEY (match_id) REFERENCES matches(match_id),
             FOREIGN KEY (player_id) REFERENCES players(player_id)
@@ -83,74 +90,71 @@ def create_match_players_table(connection): # table to link players to matches t
     """)
     connection.commit()
 
-def create_calibrations_table(connection): # Calibration table - used if new players are very far from avarage
+
+def create_calibrations_table(connection):
+    """Table to store custom initial rating calibrations for new players."""
     connection.execute("""
         CREATE TABLE IF NOT EXISTS calibrations (
-            player_id INTEGER NOT NULL,
+            player_id INTEGER NOT NULL PRIMARY KEY,
             rating REAL NOT NULL,
             rd REAL NOT NULL,
             sigma REAL NOT NULL,
-
-            PRIMARY KEY (player_id),
-
             FOREIGN KEY (player_id) REFERENCES players(player_id)
         )
     """)
-
     connection.commit()
 
 
-
-def create_match_ratings_table(connection): #ratings of ALL players in the DB at the time of the match, not just those who played
+def create_match_ratings_table(connection):
+    """Historical rating snapshot for all players at the time of each match."""
     connection.execute("""
         CREATE TABLE IF NOT EXISTS match_ratings (
             match_id TEXT NOT NULL,
             player_id INTEGER NOT NULL,
-            rating_type TEXT NOT NULL, 
+            rating_type TEXT NOT NULL,
             rating REAL NOT NULL,
             rd REAL NOT NULL,
             sigma REAL NOT NULL,
-
             PRIMARY KEY (match_id, player_id, rating_type),
             FOREIGN KEY (match_id) REFERENCES matches(match_id),
             FOREIGN KEY (player_id) REFERENCES players(player_id)
         )
     """)
-
     connection.commit()
 
-def create_ratings_table(connection): # table of current ratings of all players in the DB
+
+def create_ratings_table(connection):
+    """Current Glicko ratings for all players across rating types."""
     connection.execute("""
         CREATE TABLE IF NOT EXISTS ratings (
             player_id INTEGER NOT NULL,
+            rating_type TEXT NOT NULL,
             rating REAL NOT NULL,
-            rating_type TEXT NOT NULL, 
             rd REAL NOT NULL,
             sigma REAL NOT NULL,
-
             PRIMARY KEY (player_id, rating_type),
-
             FOREIGN KEY (player_id) REFERENCES players(player_id)
         )
     """)
-
     connection.commit()
 
+
 def main():
+    DATABASE_FILE.parent.mkdir(parents=True, exist_ok=True)
     connection = get_connection()
-
-    create_players_table(connection)
-    create_aliases_table(connection)
-    create_positions_table(connection)
-    create_ignored_aliases_table(connection)
-    create_matches_table(connection)
-    create_match_players_table(connection)
-    create_calibrations_table(connection)
-    create_match_ratings_table(connection)
-    create_ratings_table(connection)
-    connection.close()
-
-    print(f"Database created at: {DATABASE_FILE}")
+    try:
+        create_players_table(connection)
+        create_aliases_table(connection)
+        create_positions_table(connection)
+        create_ignored_aliases_table(connection)
+        create_matches_table(connection)
+        create_match_players_table(connection)
+        create_calibrations_table(connection)
+        create_match_ratings_table(connection)
+        create_ratings_table(connection)
+        print(f"Database created at: {DATABASE_FILE}")
+    finally:
+        connection.close()
 
 
 if __name__ == "__main__":

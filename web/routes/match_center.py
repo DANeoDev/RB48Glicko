@@ -5,7 +5,6 @@ from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_ratings
 from scripts.database.db_players import get_players, get_alias_lookup, add_alias
 from scripts.matches.match_entry import add_match, next_match_id, create_new_player, CALIBRATION_LEVELS, process_new_matches
-from scripts.matches.matchhistory_sync import sync_matchhistory_csv
 from scripts.matchmaking.matchmaker import generate_match
 from scripts.matchmaking.match_parser import parse_match_image, parse_match_text, resolve_player_names, normalize_player_name, MatchParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
@@ -219,7 +218,6 @@ def match_center():
             date.fromisoformat(match_date)
             match_id = add_match(connection, match_date, pitch, team_a, team_b, goals_a_int, goals_b_int, len(team_a) + external_a, len(team_b) + external_b)
             processed = process_new_matches(connection)
-            sync_matchhistory_csv(connection)
             success = f"Saved {match_id} and updated Glicko ({processed} match processed)."
             calibration_message = None
         except (ValueError, RuntimeError) as exc:

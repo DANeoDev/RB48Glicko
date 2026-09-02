@@ -1,19 +1,37 @@
-# this will calculate Glicko rating for each player (using matchhistory.csv and players.csv) and update the ratings.csv
-from scripts.glicko.glicko2 import (Glicko2, Rating, DEFAULT_RATING, DEFAULT_RD, IGNORED_RD, DEFAULT_SIGMA, WIN, LOSS, DRAW, TOTAL, BOX, HF, INACTIVITY_RD_TICK)
+"""Glicko-2 calculator for full database recalculation.
+
+This module processes all matches chronologically from SQLite, computes
+historical match ratings and current ratings across Total, BOX, and HF pitches,
+and persists the results into the database.
+"""
+
+from datetime import datetime
+import math
 from pathlib import Path
+import shutil
+
 from scripts.database.database import get_connection
 from scripts.database.db_matches import get_matches, get_match_teams
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_calibrations
-import math
-import shutil
-from datetime import datetime
+from scripts.glicko.glicko2 import (
+    Glicko2,
+    Rating,
+    DEFAULT_RATING,
+    DEFAULT_RD,
+    IGNORED_RD,
+    DEFAULT_SIGMA,
+    WIN,
+    LOSS,
+    DRAW,
+    TOTAL,
+    BOX,
+    HF,
+    INACTIVITY_RD_TICK,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-RATINGS_FOLDER = PROJECT_ROOT / "data" / "ratings"
-MATCHHISTORY_FILE = PROJECT_ROOT / "data" / "matchhistory.csv"
-PLAYERS_FILE = PROJECT_ROOT / "data" / "players.csv"
-CALIBRATION_FILE = PROJECT_ROOT / "data" / "calibrations.csv"
+
 
 def backup_database():
     database_file = PROJECT_ROOT / "data" / "rb48.db"
@@ -24,20 +42,26 @@ def backup_database():
     shutil.copy2(database_file, backup_file)
     print(f"Database backup created: {backup_file}")
 
+
 def clear_ratings(connection):
     connection.execute("DELETE FROM match_ratings")
     connection.execute("DELETE FROM ratings")
     connection.commit()
 
+
 def initialize_player_ratings(player_id, ratings, calibration=None):
     if player_id in ratings:
         return
-    initial_rating = (calibration or {}).get(player_id, {"rating": DEFAULT_RATING, "rd": DEFAULT_RD, "sigma": DEFAULT_SIGMA})
+    initial = (calibration or {}).get(
+        player_id,
+        {"rating": DEFAULT_RATING, "rd": DEFAULT_RD, "sigma": DEFAULT_SIGMA},
+    )
     ratings[player_id] = {
-        TOTAL: Rating(initial_rating["rating"], initial_rating["rd"], initial_rating["sigma"]),
-        BOX: Rating(initial_rating["rating"], initial_rating["rd"], initial_rating["sigma"]),
-        HF: Rating(initial_rating["rating"], initial_rating["rd"], initial_rating["sigma"]),
+        TOTAL: Rating(initial["rating"], initial["rd"], initial["sigma"]),
+        BOX: Rating(initial["rating"], initial["rd"], initial["sigma"]),
+        HF: Rating(initial["rating"], initial["rd"], initial["sigma"]),
     }
+
 
 def prepare_glicko_table(connection, matches, calibration_ratings):
     prepared_glicko = {}
@@ -45,13 +69,17 @@ def prepare_glicko_table(connection, matches, calibration_ratings):
         team_a, team_b = get_match_teams(connection, match["match_id"])
         for player_id in team_a + team_b:
             if player_id not in prepared_glicko:
-                initial_rating = calibration_ratings.get(player_id, {"rating": DEFAULT_RATING, "rd": DEFAULT_RD, "sigma": DEFAULT_SIGMA})
+                initial = calibration_ratings.get(
+                    player_id,
+                    {"rating": DEFAULT_RATING, "rd": DEFAULT_RD, "sigma": DEFAULT_SIGMA},
+                )
                 prepared_glicko[player_id] = {
-                    TOTAL: initial_rating.copy(),
-                    BOX: initial_rating.copy(),
-                    HF: initial_rating.copy(),
+                    TOTAL: initial.copy(),
+                    BOX: initial.copy(),
+                    HF: initial.copy(),
                 }
     return prepared_glicko
+
 
 def glicko_table_to_ratings(glicko_table):
     ratings = {}
@@ -61,27 +89,41 @@ def glicko_table_to_ratings(glicko_table):
             ratings[player_id][rating_type] = Rating(data["rating"], data["rd"], data["sigma"])
     return ratings
 
+
 def ratings_to_glicko_table(ratings):
     glicko_table = {}
     for player_id, rating_types in ratings.items():
         glicko_table[player_id] = {}
         for rating_type, rating in rating_types.items():
-            glicko_table[player_id][rating_type] = {"rating": rating.rating, "rd": rating.rd, "sigma": rating.sigma}
+            glicko_table[player_id][rating_type] = {
+                "rating": rating.rating,
+                "rd": rating.rd,
+                "sigma": rating.sigma,
+            }
     return glicko_table
+
 
 def calculate_team_rating(player_ids, total_players, ratings, rating_type):
     if not player_ids:
         return None
     ignored_players = total_players - len(player_ids)
     average_rating = sum(ratings[player][rating_type].rating for player in player_ids) / len(player_ids)
-    average_rd = math.sqrt((sum(ratings[player][rating_type].rd ** 2 for player in player_ids) + IGNORED_RD**2 * ignored_players) / total_players)
-    average_sigma = math.sqrt((sum(ratings[player][rating_type].sigma ** 2 for player in player_ids) + DEFAULT_SIGMA**2 * ignored_players) / total_players)
+    average_rd = math.sqrt(
+        (sum(ratings[player][rating_type].rd ** 2 for player in player_ids) + IGNORED_RD ** 2 * ignored_players)
+        / total_players
+    )
+    average_sigma = math.sqrt(
+        (sum(ratings[player][rating_type].sigma ** 2 for player in player_ids) + DEFAULT_SIGMA ** 2 * ignored_players)
+        / total_players
+    )
     return Rating(average_rating, average_rd, average_sigma)
+
 
 def create_virtual_rating(player_id, team_rating, ratings, rating_type):
     player = ratings[player_id][rating_type]
-    virtual_RD = math.sqrt((player.rd**2 + team_rating.rd**2) / 2)
-    return Rating(team_rating.rating, virtual_RD, player.sigma)
+    virtual_rd = math.sqrt((player.rd ** 2 + team_rating.rd ** 2) / 2)
+    return Rating(team_rating.rating, virtual_rd, player.sigma)
+
 
 def calculate_glicko(connection, matches, prepared_glicko, debug_player=None):
     engine = Glicko2()
@@ -92,11 +134,16 @@ def calculate_glicko(connection, matches, prepared_glicko, debug_player=None):
         update_match(connection, match, ratings, engine, debug_player)
     return ratings_to_glicko_table(ratings)
 
+
 def get_first_alias(connection, player_id):
-    row = connection.execute("SELECT alias FROM aliases WHERE player_id = ? ORDER BY alias LIMIT 1", (player_id,)).fetchone()
+    row = connection.execute(
+        "SELECT alias FROM aliases WHERE player_id = ? ORDER BY alias LIMIT 1",
+        (player_id,),
+    ).fetchone()
     if row is None:
         return f"Player {player_id}"
     return row[0]
+
 
 def select_debug_player(connection):
     answer = input("\nDebug a player? (y/n): ")
@@ -115,6 +162,7 @@ def select_debug_player(connection):
         except ValueError:
             pass
         print("Please enter a valid player number.")
+
 
 def update_match(connection, match, ratings, engine, debug_player=None):
     team1_ids, team2_ids = get_match_teams(connection, match["match_id"])
@@ -193,7 +241,6 @@ def update_match(connection, match, ratings, engine, debug_player=None):
         pitch_virtual_player = create_virtual_rating(player_id, pitch_team2_rating, ratings, pitch_rating_type)
         pitch_updated_virtual = engine.update_rating(pitch_virtual_player, [(team2_result, pitch_team1_rating)])
         pitch_player.rating += pitch_updated_virtual.rating - pitch_virtual_player.rating
-        # Keep Team 2's pitch RD/sigma update symmetric with Team 1 and TOTAL.
         pitch_player.rd += pitch_updated_virtual.rd - pitch_virtual_player.rd
         pitch_player.sigma += pitch_updated_virtual.sigma - pitch_virtual_player.sigma
 
@@ -219,50 +266,66 @@ def update_match(connection, match, ratings, engine, debug_player=None):
 
     for player_id in ratings:
         if player_id not in active_players:
-            ratings[player_id][TOTAL].rd = min(ratings[player_id][TOTAL].rd + INACTIVITY_RD_TICK, DEFAULT_RD)
-            ratings[player_id][pitch_rating_type].rd = min(ratings[player_id][pitch_rating_type].rd + INACTIVITY_RD_TICK, DEFAULT_RD)
+            ratings[player_id][TOTAL].rd = min(
+                ratings[player_id][TOTAL].rd + INACTIVITY_RD_TICK, DEFAULT_RD
+            )
+            ratings[player_id][pitch_rating_type].rd = min(
+                ratings[player_id][pitch_rating_type].rd + INACTIVITY_RD_TICK, DEFAULT_RD
+            )
+
 
 def write_match_ratings(connection, match_id, ratings):
     for player_id, rating_types in ratings.items():
         for rating_type, rating in rating_types.items():
-            connection.execute("""
+            connection.execute(
+                """
                 INSERT INTO match_ratings (match_id, player_id, rating_type, rating, rd, sigma)
                 VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(match_id, player_id, rating_type) DO UPDATE SET
                     rating = excluded.rating,
                     rd = excluded.rd,
                     sigma = excluded.sigma
-                """, (match_id, player_id, rating_type, rating["rating"], rating["rd"], rating["sigma"]))
+                """,
+                (match_id, player_id, rating_type, rating["rating"], rating["rd"], rating["sigma"]),
+            )
     connection.commit()
+
 
 def write_glicko(connection, glickos):
     for player_id, rating_types in glickos.items():
         for rating_type, rating in rating_types.items():
-            connection.execute("""
+            connection.execute(
+                """
                 INSERT INTO ratings (player_id, rating_type, rating, rd, sigma)
                 VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(player_id, rating_type) DO UPDATE SET
                     rating = excluded.rating,
                     rd = excluded.rd,
                     sigma = excluded.sigma
-                """, (player_id, rating_type, rating["rating"], rating["rd"], rating["sigma"]))
+                """,
+                (player_id, rating_type, rating["rating"], rating["rd"], rating["sigma"]),
+            )
     connection.commit()
+
 
 def main():
     backup_database()
     connection = get_connection()
-    matches = get_matches(connection)
-    print(f"Loaded {len(matches)} matches")
-    calibrations = get_calibrations(connection)
-    print(f"Loaded {len(calibrations)} calibrations")
-    clear_ratings(connection)
-    prepared_glicko = prepare_glicko_table(connection, matches, calibrations)
-    print(f"Prepared ratings for {len(prepared_glicko)} players")
-    debug_player = select_debug_player(connection)
-    glickos = calculate_glicko(connection, matches, prepared_glicko, debug_player)
-    print(f"Calculated ratings for {len(glickos)} players")
-    write_glicko(connection, glickos)
-    connection.close()
+    try:
+        matches = get_matches(connection)
+        print(f"Loaded {len(matches)} matches")
+        calibrations = get_calibrations(connection)
+        print(f"Loaded {len(calibrations)} calibrations")
+        clear_ratings(connection)
+        prepared_glicko = prepare_glicko_table(connection, matches, calibrations)
+        print(f"Prepared ratings for {len(prepared_glicko)} players")
+        debug_player = select_debug_player(connection)
+        glickos = calculate_glicko(connection, matches, prepared_glicko, debug_player)
+        print(f"Calculated ratings for {len(glickos)} players")
+        write_glicko(connection, glickos)
+    finally:
+        connection.close()
+
 
 if __name__ == "__main__":
     main()

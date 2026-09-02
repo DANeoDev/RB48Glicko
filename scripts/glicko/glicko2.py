@@ -116,15 +116,14 @@ class Glicko2:
         )
 
 
-    def _scale_up(self, player: Rating) -> _GlickoRating:
-
+    def _scale_up(self, player: _GlickoRating) -> Rating:
         return Rating(
             rating=player.mu * GLICKO2_SCALE + DEFAULT_RATING,
             rd=player.phi * GLICKO2_SCALE,
             sigma=player.sigma,
         )
 
-        # -----------------------------------------------------------------------
+    # -----------------------------------------------------------------------
     # Glicko-2 mathematical helpers
     # -----------------------------------------------------------------------
 
@@ -135,11 +134,9 @@ class Glicko2:
         Higher uncertainty in the opponent means their result influences
         your rating less.
         """
-
         return 1 / math.sqrt(
             1 + (3 * opponent.phi ** 2) / (math.pi ** 2)
         )
-
 
     def _expected_score(
         self,
@@ -150,17 +147,15 @@ class Glicko2:
         """
         Calculate expected score against an opponent.
         """
-
         return 1 / (
             1 + math.exp(
                 -impact * (player.mu - opponent.mu)
             )
         )
 
-
     def _determine_sigma(
         self,
-        player: Rating,
+        player: _GlickoRating,
         difference: float,
         variance: float,
     ) -> float:
