@@ -197,6 +197,7 @@ body {
    Main content
    ========================= */
 main {
+    position: relative;
     max-width: var(--content-width);
     margin: 0 auto;
     padding: 40px 24px 60px;

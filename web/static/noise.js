@@ -55,6 +55,24 @@
     let selectedBgColor = BG_PALETTE[0].hex;
     let selectedTextColor = TEXT_PALETTE[0].hex;
 
+    function getMainElement() {
+        return document.querySelector("main") || document.body;
+    }
+
+    function getContentMetrics() {
+        const mainEl = getMainElement();
+        const rect = mainEl.getBoundingClientRect();
+        const scrollX = window.scrollX || window.pageXOffset || 0;
+        const scrollY = window.scrollY || window.pageYOffset || 0;
+        return {
+            element: mainEl,
+            left: rect.left + scrollX,
+            top: rect.top + scrollY,
+            width: mainEl.offsetWidth || rect.width || window.innerWidth,
+            height: mainEl.offsetHeight || rect.height || document.body.scrollHeight,
+        };
+    }
+
     function initNoise() {
         // Only load if user is logged in
         if (!window.RB48_USER) return;
@@ -76,11 +94,20 @@
         // Click on page: handle noise mode creation clicks
         document.addEventListener("click", handleDocumentClick, true);
 
-        // Window resize
+        // ResizeObserver on main container to instantly adapt on zoom in/out or resize
+        const mainEl = getMainElement();
+        if (window.ResizeObserver && mainEl) {
+            const ro = new ResizeObserver(() => {
+                updateContainerHeight();
+            });
+            ro.observe(mainEl);
+        }
+
+        // Window resize fallback
         let resizeTimer;
         window.addEventListener("resize", () => {
             clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(renderAllBubbles, 200);
+            resizeTimer = setTimeout(renderAllBubbles, 150);
         });
     }
 
@@ -155,10 +182,13 @@
 
     function getOrCreateContainer() {
         let container = document.getElementById("noise-overlay-container");
+        const mainEl = getMainElement();
         if (!container) {
             container = document.createElement("div");
             container.id = "noise-overlay-container";
-            document.body.appendChild(container);
+            mainEl.appendChild(container);
+        } else if (container.parentElement !== mainEl) {
+            mainEl.appendChild(container);
         }
         updateContainerHeight();
         return container;
@@ -166,13 +196,10 @@
 
     function updateContainerHeight() {
         const container = document.getElementById("noise-overlay-container");
-        if (container) {
-            const bodyHeight = Math.max(
-                document.body.scrollHeight,
-                document.documentElement.scrollHeight,
-                window.innerHeight
-            );
-            container.style.height = `${bodyHeight}px`;
+        const mainEl = getMainElement();
+        if (container && mainEl) {
+            container.style.height = `${mainEl.offsetHeight}px`;
+            container.style.width = "100%";
         }
     }
 
@@ -325,8 +352,8 @@
     function handleDocumentClick(e) {
         if (!isNoiseMode) return;
 
-        // Ignore clicks inside nav, modals, or dropdowns
-        if (e.target.closest("header, .site-header, #noise-creator-modal, #noise-mode-banner, .profile-dropdown")) {
+        // Ignore clicks inside nav, modals, banners, or dropdowns
+        if (e.target.closest("header, .site-header, #noise-creator-modal, #noise-mode-banner, .profile-dropdown, .webmaster-sim-bar, footer, .site-footer")) {
             return;
         }
 
@@ -334,16 +361,17 @@
         e.stopPropagation();
 
         updateContainerHeight();
-        const container = getOrCreateContainer();
-        const containerWidth = container.clientWidth || window.innerWidth;
-        const containerHeight = container.clientHeight || document.body.scrollHeight;
+        const metrics = getContentMetrics();
 
-        const posXPercent = (e.pageX / containerWidth) * 100;
-        const posYPercent = (e.pageY / containerHeight) * 100;
+        const relX = e.pageX - metrics.left;
+        const relY = e.pageY - metrics.top;
+
+        const posXPercent = Math.max(1, Math.min(99, (relX / metrics.width) * 100));
+        const posYPercent = Math.max(1, Math.min(99, (relY / metrics.height) * 100));
 
         pendingCoords = {
-            x: Math.max(2, Math.min(98, posXPercent)),
-            y: Math.max(2, Math.min(98, posYPercent)),
+            x: parseFloat(posXPercent.toFixed(2)),
+            y: parseFloat(posYPercent.toFixed(2)),
         };
 
         toggleNoiseMode(false);
@@ -574,12 +602,13 @@
         const onMouseMove = (moveEvt) => {
             if (!currentDrag) return;
             currentDrag.didMove = true;
-            const container = getOrCreateContainer();
-            const containerWidth = container.clientWidth || window.innerWidth;
-            const containerHeight = container.clientHeight || document.body.scrollHeight;
 
-            const posXPercent = Math.max(1, Math.min(99, (moveEvt.pageX / containerWidth) * 100));
-            const posYPercent = Math.max(1, Math.min(99, (moveEvt.pageY / containerHeight) * 100));
+            const metrics = getContentMetrics();
+            const relX = moveEvt.pageX - metrics.left;
+            const relY = moveEvt.pageY - metrics.top;
+
+            const posXPercent = Math.max(1, Math.min(99, (relX / metrics.width) * 100));
+            const posYPercent = Math.max(1, Math.min(99, (relY / metrics.height) * 100));
 
             currentDrag.element.style.left = `${posXPercent}%`;
             if (isMatchHistoryPage()) {
@@ -589,8 +618,8 @@
                 currentDrag.element.style.top = `${posYPercent}%`;
                 currentDrag.element.style.bottom = "auto";
             }
-            currentDrag.newX = posXPercent;
-            currentDrag.newY = posYPercent;
+            currentDrag.newX = parseFloat(posXPercent.toFixed(2));
+            currentDrag.newY = parseFloat(posYPercent.toFixed(2));
         };
 
         const onMouseUp = async () => {
