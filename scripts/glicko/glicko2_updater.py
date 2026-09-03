@@ -7,6 +7,8 @@ from scripts.database.db_ratings import get_ratings, get_processed_match_ids, ge
 from scripts.glicko.glicko2_calculator import (
     glicko_table_to_ratings,
     ratings_to_glicko_table,
+    group_matches_by_date,
+    update_session,
     update_match,
     write_match_ratings,
     write_glicko,
@@ -79,32 +81,35 @@ def update_glicko(
         ratings
     )
 
-    for match in matches:
-        team1_ids, team2_ids = get_match_teams(
-            connection,
-            match["match_id"]
-        )
+    sessions = group_matches_by_date(matches)
 
-        for player_id in team1_ids + team2_ids:
-            initialize_player_ratings(
-                player_id,
-                rating_objects,
-                calibrations
+    for session_date, session_matches in sessions.items():
+        for match in session_matches:
+            team1_ids, team2_ids = get_match_teams(
+                connection,
+                match["match_id"]
             )
+            for player_id in team1_ids + team2_ids:
+                initialize_player_ratings(
+                    player_id,
+                    rating_objects,
+                    calibrations
+                )
 
         current_glicko = ratings_to_glicko_table(
             rating_objects
         )
 
-        write_match_ratings(
-            connection,
-            match["match_id"],
-            current_glicko,
-        )
+        for match in session_matches:
+            write_match_ratings(
+                connection,
+                match["match_id"],
+                current_glicko,
+            )
 
-        update_match(
+        update_session(
             connection,
-            match,
+            session_matches,
             rating_objects,
             engine,
         )

@@ -30,8 +30,8 @@
                 </button>
             {% endif %}
             {% if current_user and current_user.role == 'webmaster' and events %}
-                <button type="button" class="planner-btn-pill planner-btn-danger" id="open-clear-all-modal-btn" title="Webmaster tool: Archive and wipe all upcoming match dates with 2-step verification">
-                    🗑️ Clear All Dates
+                <button type="button" class="planner-btn-pill planner-btn-danger" id="open-clear-all-modal-btn" title="Webmaster tool: Archive and clear match dates with 2-step verification">
+                    🗑️ Clear Dates
                 </button>
             {% endif %}
         </div>
@@ -312,39 +312,57 @@
 </div>
 {% endif %}
 
-<!-- Modal 5: Webmaster Clear All Dates (2-Step Verification) -->
+<!-- Modal 5: Webmaster Clear Dates (2-Step Verification) -->
 {% if current_user and current_user.role == 'webmaster' %}
 <div class="planner-modal-overlay" id="clear-all-modal">
-    <div class="planner-modal-card" style="border-color: #dc3545; max-width: 480px;">
+    <div class="planner-modal-card" style="border-color: #dc3545; max-width: 520px;">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
             <span style="font-size: 26px;">⚠️</span>
-            <h2 style="margin: 0; color: #ff8888; font-size: 20px;">Clear All Upcoming Dates</h2>
+            <h2 style="margin: 0; color: #ff8888; font-size: 20px;">Clear Dates</h2>
         </div>
-        <p style="font-size: 13px; color: #c9c2d8; line-height: 1.5; margin-bottom: 16px;">
-            This will remove all scheduled matchdays and active player RSVPs from the planner. A full SQLite backup will automatically be archived to <code>data/backups/upcoming_matchdates/</code>.
+        <p style="font-size: 13px; color: #c9c2d8; line-height: 1.5; margin-bottom: 14px;">
+            Select the matchdays you want to clear. Deselect any dates you wish to keep. A full SQLite backup will automatically be archived to <code>data/backups/upcoming_matchdates/</code>.
         </p>
 
-        <form method="post" action="{{ url_for('planner.clear_all_events') }}" class="planner-modal-form" id="clear-all-form">
-            <!-- Step 1 Verification -->
-            <div style="background: rgba(220, 53, 69, 0.12); border: 1px solid rgba(220, 53, 69, 0.35); border-radius: 6px; padding: 12px; margin-bottom: 16px;">
-                <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin: 0; font-size: 13px; color: #ffffff;">
-                    <input type="checkbox" id="clear_confirm_1" name="confirm_1" value="yes" required style="margin-top: 3px; width: auto;">
-                    <span><strong>Verification 1 of 2:</strong> I confirm that I want to wipe the active upcoming match list and create a backup.</span>
-                </label>
+        <form method="post" action="{{ url_for('planner.clear_dates') }}" class="planner-modal-form" id="clear-dates-form">
+            <!-- Step 1: Date Selection Checkboxes (Pre-selected) -->
+            <div style="margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label style="font-size: 13px; font-weight: 700; color: #ffffff; margin: 0;">
+                        <strong>Step 1:</strong> Select Dates to Clear (<span id="clear-selected-count">{{ events|length }}</span> of {{ events|length }} selected):
+                    </label>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" id="clear-select-all-btn" style="background: none; border: none; color: #80deea; font-size: 11.5px; cursor: pointer; text-decoration: underline; padding: 0;">Select All</button>
+                        <span style="color: rgba(255,255,255,0.2);">|</span>
+                        <button type="button" id="clear-deselect-all-btn" style="background: none; border: none; color: #c9c2d8; font-size: 11.5px; cursor: pointer; text-decoration: underline; padding: 0;">Deselect All</button>
+                    </div>
+                </div>
+
+                <div class="planner-clear-list" style="max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px;">
+                    {% for event in events %}
+                        <label class="planner-clear-item" style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 6px 8px; border-radius: 6px; margin: 0; transition: background 0.15s ease; color: #ffffff; font-size: 13px;">
+                            <input type="checkbox" name="event_ids" value="{{ event.id }}" checked class="clear-date-checkbox" style="margin: 0; width: 16px; height: 16px; accent-color: #dc3545;">
+                            <span class="planner-pitch-badge planner-pitch-{{ event.pitch_lower }}" style="font-size: 10px; padding: 2px 6px;">{{ event.badge_label }}</span>
+                            <span style="font-weight: 600;">{{ event.formatted_date }}</span>
+                            <span style="color: var(--text-muted); font-size: 12px;">@ {{ event.formatted_time }}</span>
+                            <span style="margin-left: auto; color: #80cbc4; font-size: 11.5px;">👍 {{ event.attending_count }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
             </div>
 
-            <!-- Step 2 Verification -->
+            <!-- Step 2: Confirmation text verification -->
             <div style="margin-bottom: 20px;">
-                <label for="clear_confirm_2" style="font-size: 13px; font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
-                    <strong>Verification 2 of 2:</strong> Type <code style="color: #ff8888; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">CLEAR ALL DATES</code> below:
+                <label for="clear_confirm_text" style="font-size: 13px; font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                    <strong>Step 2:</strong> Type <code style="color: #ff8888; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">CLEAR DATES</code> below:
                 </label>
-                <input type="text" id="clear_confirm_2" name="confirm_2" placeholder="CLEAR ALL DATES" required autocomplete="off" style="margin-bottom: 0;">
+                <input type="text" id="clear_confirm_text" name="confirm_text" placeholder="CLEAR DATES" required autocomplete="off" style="margin-bottom: 0;">
             </div>
 
             <div class="planner-modal-actions">
                 <button type="button" class="secondary modal-cancel-btn">Cancel</button>
-                <button type="submit" id="clear-all-submit-btn" class="primary" style="background: #dc3545; border-color: #dc3545;" disabled>
-                    Confirm &amp; Clear All Dates
+                <button type="submit" id="clear-dates-submit-btn" class="primary" style="background: #dc3545; border-color: #dc3545;" disabled>
+                    Confirm &amp; Clear Dates
                 </button>
             </div>
         </form>

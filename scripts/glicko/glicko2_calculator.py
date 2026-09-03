@@ -119,19 +119,60 @@ def calculate_team_rating(player_ids, total_players, ratings, rating_type):
     return Rating(average_rating, average_rd, average_sigma)
 
 
+def calculate_teammates_rd(player_id, player_ids, total_players, ratings, rating_type):
+    """
+    Calculate the root-mean-square RD of a player's teammates.
+
+    Excludes the player themselves so personal uncertainty does not bias
+    the measurement of teammate uncertainty. Missing/external players on
+    the team are accounted for using IGNORED_RD.
+
+    Returns None if there are no teammates (e.g., in a 1v1 match).
+    """
+    other_player_ids = [pid for pid in player_ids if pid != player_id]
+    num_teammates = total_players - 1
+    if num_teammates <= 0:
+        return None
+    ignored_players = num_teammates - len(other_player_ids)
+    teammates_rd = math.sqrt(
+        (sum(ratings[pid][rating_type].rd ** 2 for pid in other_player_ids) + IGNORED_RD ** 2 * ignored_players)
+        / num_teammates
+    )
+    return teammates_rd
+
+
 def create_virtual_rating(player_id, team_rating, ratings, rating_type):
     player = ratings[player_id][rating_type]
-    virtual_rd = math.sqrt((player.rd ** 2 + team_rating.rd ** 2) / 2)
-    return Rating(team_rating.rating, virtual_rd, player.sigma)
+    return Rating(team_rating.rating, player.rd, player.sigma)
+
+
+def group_matches_by_date(matches):
+    """
+    Group matches chronologically by match date.
+
+    Supports matches as a dict (keyed by match_id) or as a list.
+    Preserves chronological order of dates and match IDs within each date.
+    """
+    match_list = list(matches.values()) if isinstance(matches, dict) else list(matches)
+    match_list.sort(key=lambda m: m["match_id"])
+    sessions = {}
+    for match in match_list:
+        sessions.setdefault(match["date"], []).append(match)
+    return sessions
 
 
 def calculate_glicko(connection, matches, prepared_glicko, debug_player=None):
     engine = Glicko2()
     ratings = glicko_table_to_ratings(prepared_glicko)
-    for match in matches.values():
+    sessions = group_matches_by_date(matches)
+
+    for session_date, session_matches in sessions.items():
+        # Pre-session snapshot written for all matches on this date
         current_glicko = ratings_to_glicko_table(ratings)
-        write_match_ratings(connection, match["match_id"], current_glicko)
-        update_match(connection, match, ratings, engine, debug_player)
+        for match in session_matches:
+            write_match_ratings(connection, match["match_id"], current_glicko)
+        update_session(connection, session_matches, ratings, engine, debug_player)
+
     return ratings_to_glicko_table(ratings)
 
 
@@ -164,114 +205,128 @@ def select_debug_player(connection):
         print("Please enter a valid player number.")
 
 
-def update_match(connection, match, ratings, engine, debug_player=None):
-    team1_ids, team2_ids = get_match_teams(connection, match["match_id"])
-    if not team1_ids or not team2_ids:
+def update_session(connection, session_matches, ratings, engine, debug_player=None):
+    """
+    Update ratings for a session (all matches played on the same calendar date).
+
+    Evidence from all matches in the session is pooled together before updating
+    player ratings and RDs simultaneously, eliminating intra-session order dependency.
+    """
+    if not session_matches:
         return
-    team1_total_players = match["players_a"]
-    team2_total_players = match["players_b"]
-    active_players = set(team1_ids + team2_ids)
-    if match["pitch"] == "box":
-        pitch_rating_type = BOX
-    elif match["pitch"] == "hf":
-        pitch_rating_type = HF
-    else:
-        raise ValueError(f"Unknown pitch type: {match['pitch']}")
 
-    total_team1_rating = calculate_team_rating(team1_ids, team1_total_players, ratings, TOTAL)
-    total_team2_rating = calculate_team_rating(team2_ids, team2_total_players, ratings, TOTAL)
-    pitch_team1_rating = calculate_team_rating(team1_ids, team1_total_players, ratings, pitch_rating_type)
-    pitch_team2_rating = calculate_team_rating(team2_ids, team2_total_players, ratings, pitch_rating_type)
+    pre_session_ratings = {}
+    if debug_player:
+        pre_session_ratings = {
+            rtype: Rating(r.rating, r.rd, r.sigma)
+            for rtype, r in ratings.get(debug_player, {}).items()
+        }
 
-    if match["goals_a"] > match["goals_b"]:
-        team1_result, team2_result = WIN, LOSS
-    elif match["goals_a"] < match["goals_b"]:
-        team1_result, team2_result = LOSS, WIN
-    else:
-        team1_result = team2_result = DRAW
+    player_games = {}
+    session_active_players = set()
+    session_pitches = set()
 
-    for player_id in team1_ids:
-        total_player = ratings[player_id][TOTAL]
-        old_total_rating, old_total_rd, old_total_sigma = total_player.rating, total_player.rd, total_player.sigma
-        total_virtual_player = create_virtual_rating(player_id, total_team1_rating, ratings, TOTAL)
-        total_updated_virtual = engine.update_rating(total_virtual_player, [(team1_result, total_team2_rating)])
-        total_player.rating += total_updated_virtual.rating - total_virtual_player.rating
-        total_player.rd += total_updated_virtual.rd - total_virtual_player.rd
-        total_player.sigma += total_updated_virtual.sigma - total_virtual_player.sigma
+    for match in session_matches:
+        team1_ids, team2_ids = get_match_teams(connection, match["match_id"])
+        if not team1_ids or not team2_ids:
+            continue
 
-        pitch_player = ratings[player_id][pitch_rating_type]
-        old_pitch_rating, old_pitch_rd, old_pitch_sigma = pitch_player.rating, pitch_player.rd, pitch_player.sigma
-        pitch_virtual_player = create_virtual_rating(player_id, pitch_team1_rating, ratings, pitch_rating_type)
-        pitch_updated_virtual = engine.update_rating(pitch_virtual_player, [(team1_result, pitch_team2_rating)])
-        pitch_player.rating += pitch_updated_virtual.rating - pitch_virtual_player.rating
-        pitch_player.rd += pitch_updated_virtual.rd - pitch_virtual_player.rd
-        pitch_player.sigma += pitch_updated_virtual.sigma - pitch_virtual_player.sigma
+        team1_total = match["players_a"]
+        team2_total = match["players_b"]
 
-        if player_id == debug_player:
-            print(f"\nDEBUG PLAYER: {get_first_alias(connection, player_id)}")
-            print(f"Match: {match['match_id']}")
-            print("Team: Team 1")
-            print(f"Result: {team1_result}")
-            print("\nTOTAL:")
-            print(f"  Team rating: {total_team1_rating.rating:.3f}")
-            print(f"  Team RD: {total_team1_rating.rd:.3f}")
-            print(f"  Opponent rating: {total_team2_rating.rating:.3f}")
-            print(f"  Rating: {old_total_rating:.3f} -> {total_player.rating:.3f}")
-            print(f"  RD: {old_total_rd:.3f} -> {total_player.rd:.3f}")
-            print(f"  Sigma: {old_total_sigma:.6f} -> {total_player.sigma:.6f}")
-            print(f"\n{pitch_rating_type.upper()}:")
-            print(f"  Team rating: {pitch_team1_rating.rating:.3f}")
-            print(f"  Team RD: {pitch_team1_rating.rd:.3f}")
-            print(f"  Opponent rating: {pitch_team2_rating.rating:.3f}")
-            print(f"  Rating: {old_pitch_rating:.3f} -> {pitch_player.rating:.3f}")
-            print(f"  RD: {old_pitch_rd:.3f} -> {pitch_player.rd:.3f}")
-            print(f"  Sigma: {old_pitch_sigma:.6f} -> {pitch_player.sigma:.6f}")
+        if match["pitch"] == "box":
+            pitch_type = BOX
+        elif match["pitch"] == "hf":
+            pitch_type = HF
+        else:
+            raise ValueError(f"Unknown pitch type: {match['pitch']}")
 
-    for player_id in team2_ids:
-        total_player = ratings[player_id][TOTAL]
-        old_total_rating, old_total_rd, old_total_sigma = total_player.rating, total_player.rd, total_player.sigma
-        total_virtual_player = create_virtual_rating(player_id, total_team2_rating, ratings, TOTAL)
-        total_updated_virtual = engine.update_rating(total_virtual_player, [(team2_result, total_team1_rating)])
-        total_player.rating += total_updated_virtual.rating - total_virtual_player.rating
-        total_player.rd += total_updated_virtual.rd - total_virtual_player.rd
-        total_player.sigma += total_updated_virtual.sigma - total_virtual_player.sigma
+        session_pitches.add(pitch_type)
+        session_active_players.update(team1_ids)
+        session_active_players.update(team2_ids)
 
-        pitch_player = ratings[player_id][pitch_rating_type]
-        old_pitch_rating, old_pitch_rd, old_pitch_sigma = pitch_player.rating, pitch_player.rd, pitch_player.sigma
-        pitch_virtual_player = create_virtual_rating(player_id, pitch_team2_rating, ratings, pitch_rating_type)
-        pitch_updated_virtual = engine.update_rating(pitch_virtual_player, [(team2_result, pitch_team1_rating)])
-        pitch_player.rating += pitch_updated_virtual.rating - pitch_virtual_player.rating
-        pitch_player.rd += pitch_updated_virtual.rd - pitch_virtual_player.rd
-        pitch_player.sigma += pitch_updated_virtual.sigma - pitch_virtual_player.sigma
+        if match["goals_a"] > match["goals_b"]:
+            res1, res2 = WIN, LOSS
+        elif match["goals_a"] < match["goals_b"]:
+            res1, res2 = LOSS, WIN
+        else:
+            res1 = res2 = DRAW
 
-        if player_id == debug_player:
-            print(f"\nDEBUG PLAYER: {get_first_alias(connection, player_id)}")
-            print(f"Match: {match['match_id']}")
-            print("Team: Team 2")
-            print(f"Result: {team2_result}")
-            print("\nTOTAL:")
-            print(f"  Team rating: {total_team2_rating.rating:.3f}")
-            print(f"  Team RD: {total_team2_rating.rd:.3f}")
-            print(f"  Opponent rating: {total_team1_rating.rating:.3f}")
-            print(f"  Rating: {old_total_rating:.3f} -> {total_player.rating:.3f}")
-            print(f"  RD: {old_total_rd:.3f} -> {total_player.rd:.3f}")
-            print(f"  Sigma: {old_total_sigma:.6f} -> {total_player.sigma:.6f}")
-            print(f"\n{pitch_rating_type.upper()}:")
-            print(f"  Team rating: {pitch_team2_rating.rating:.3f}")
-            print(f"  Team RD: {pitch_team2_rating.rd:.3f}")
-            print(f"  Opponent rating: {pitch_team1_rating.rating:.3f}")
-            print(f"  Rating: {old_pitch_rating:.3f} -> {pitch_player.rating:.3f}")
-            print(f"  RD: {old_pitch_rd:.3f} -> {pitch_player.rd:.3f}")
-            print(f"  Sigma: {old_pitch_sigma:.6f} -> {pitch_player.sigma:.6f}")
+        t1_total = calculate_team_rating(team1_ids, team1_total, ratings, TOTAL)
+        t2_total = calculate_team_rating(team2_ids, team2_total, ratings, TOTAL)
+        t1_pitch = calculate_team_rating(team1_ids, team1_total, ratings, pitch_type)
+        t2_pitch = calculate_team_rating(team2_ids, team2_total, ratings, pitch_type)
 
+        for player_id in team1_ids:
+            player_games.setdefault(player_id, {}).setdefault(TOTAL, []).append((
+                t1_total,
+                t2_total,
+                res1,
+                calculate_teammates_rd(player_id, team1_ids, team1_total, ratings, TOTAL),
+            ))
+            player_games[player_id].setdefault(pitch_type, []).append((
+                t1_pitch,
+                t2_pitch,
+                res1,
+                calculate_teammates_rd(player_id, team1_ids, team1_total, ratings, pitch_type),
+            ))
+
+        for player_id in team2_ids:
+            player_games.setdefault(player_id, {}).setdefault(TOTAL, []).append((
+                t2_total,
+                t1_total,
+                res2,
+                calculate_teammates_rd(player_id, team2_ids, team2_total, ratings, TOTAL),
+            ))
+            player_games[player_id].setdefault(pitch_type, []).append((
+                t2_pitch,
+                t1_pitch,
+                res2,
+                calculate_teammates_rd(player_id, team2_ids, team2_total, ratings, pitch_type),
+            ))
+
+    # Apply session batch update for all active players
+    for player_id, rtypes in player_games.items():
+        for rtype, games in rtypes.items():
+            ratings[player_id][rtype] = engine.update_player_session(
+                ratings[player_id][rtype],
+                games,
+            )
+
+    # Apply inactivity tick once per session for inactive players
     for player_id in ratings:
-        if player_id not in active_players:
+        if player_id not in session_active_players:
             ratings[player_id][TOTAL].rd = min(
                 ratings[player_id][TOTAL].rd + INACTIVITY_RD_TICK, DEFAULT_RD
             )
-            ratings[player_id][pitch_rating_type].rd = min(
-                ratings[player_id][pitch_rating_type].rd + INACTIVITY_RD_TICK, DEFAULT_RD
-            )
+        for pitch_type in session_pitches:
+            pitch_active = {
+                pid for pid in session_active_players
+                if pid in player_games and pitch_type in player_games[pid]
+            }
+            if player_id not in pitch_active:
+                ratings[player_id][pitch_type].rd = min(
+                    ratings[player_id][pitch_type].rd + INACTIVITY_RD_TICK, DEFAULT_RD
+                )
+
+    if debug_player and debug_player in session_active_players:
+        print(f"\nDEBUG PLAYER: {get_first_alias(connection, debug_player)}")
+        print(f"Session Date: {session_matches[0]['date']}")
+        print(f"Matches in Session: {len(session_matches)}")
+        for rtype in (TOTAL, *session_pitches):
+            if debug_player in player_games and rtype in player_games[debug_player]:
+                old = pre_session_ratings[rtype]
+                new = ratings[debug_player][rtype]
+                print(f"\n{rtype.upper()}:")
+                print(f"  Games played: {len(player_games[debug_player][rtype])}")
+                print(f"  Rating: {old.rating:.3f} -> {new.rating:.3f}")
+                print(f"  RD: {old.rd:.3f} -> {new.rd:.3f}")
+                print(f"  Sigma: {old.sigma:.6f} -> {new.sigma:.6f}")
+
+
+def update_match(connection, match, ratings, engine, debug_player=None):
+    """Convenience wrapper to update a single match as a 1-match session."""
+    update_session(connection, [match], ratings, engine, debug_player)
 
 
 def write_match_ratings(connection, match_id, ratings):

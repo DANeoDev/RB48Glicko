@@ -203,17 +203,26 @@ def add_standard_wednesday_events(connection, count=4):
     return created_ids
 
 
-def get_upcoming_events(connection, limit=10):
+def get_upcoming_events(connection, limit=None):
     """Retrieve upcoming open events ordered by event_date ASC."""
+    if limit is not None:
+        return connection.execute(
+            """
+            SELECT id, event_date, pitch, max_players, title, location, status, created_at
+            FROM events
+            WHERE status = 'open'
+            ORDER BY event_date ASC, id ASC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
     return connection.execute(
         """
         SELECT id, event_date, pitch, max_players, title, location, status, created_at
         FROM events
         WHERE status = 'open'
         ORDER BY event_date ASC, id ASC
-        LIMIT ?
-        """,
-        (limit,),
+        """
     ).fetchall()
 
 
@@ -348,13 +357,22 @@ def remove_attendee(connection, attendee_id):
     connection.commit()
 
 
-def backup_and_clear_all_events(connection):
-    """Back up planner database to data/backups/upcoming_matchdates/ and wipe working copy."""
-    from datetime import datetime
+def get_planner_backup_dir():
+    override = os.environ.get("RB48_PLANNER_BACKUP_DIR")
+    p = Path(override) if override else PROJECT_ROOT / "data" / "backups" / "upcoming_matchdates"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
+
+def backup_and_clear_events(connection, event_ids=None):
+    """Back up planner database and clear all or selected events.
+
+    - Creates a single full SQLite snapshot in data/backups/upcoming_matchdates/.
+    - If event_ids is None: clears all events and attendees.
+    - If event_ids is provided: clears only those specific event records.
+    """
     db_file = get_planner_db_file()
-    backup_dir = PROJECT_ROOT / "data" / "backups" / "upcoming_matchdates"
-    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_dir = get_planner_backup_dir()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_filename = f"planner_backup_{timestamp}.db"
@@ -369,11 +387,26 @@ def backup_and_clear_all_events(connection):
         connection.backup(backup_conn)
         backup_conn.close()
 
-    # Wipe working copy
-    connection.execute("DELETE FROM attendees")
-    connection.execute("DELETE FROM events")
-    connection.commit()
-    connection.execute("VACUUM")
+    if event_ids is None:
+        connection.execute("DELETE FROM attendees")
+        connection.execute("DELETE FROM events")
+        connection.commit()
+        connection.execute("VACUUM")
+        cleared_count = "all"
+    else:
+        id_list = [int(eid) for eid in event_ids if str(eid).isdigit()]
+        if id_list:
+            placeholders = ",".join("?" for _ in id_list)
+            connection.execute(f"DELETE FROM attendees WHERE event_id IN ({placeholders})", id_list)
+            connection.execute(f"DELETE FROM events WHERE id IN ({placeholders})", id_list)
+            connection.commit()
+        cleared_count = len(id_list)
 
-    return backup_filename
+    return backup_filename, cleared_count
+
+
+def backup_and_clear_all_events(connection):
+    """Backwards-compatible wrapper to clear all events."""
+    backup_name, _ = backup_and_clear_events(connection, event_ids=None)
+    return backup_name
 

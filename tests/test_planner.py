@@ -20,10 +20,12 @@ from scripts.planner.database import (
     add_guest_rsvp,
     add_standard_wednesday_events,
     backup_and_clear_all_events,
+    backup_and_clear_events,
     cancel_user_rsvp,
     create_event,
     get_event_attendees,
     get_event_by_id,
+    get_planner_backup_dir,
     get_planner_connection,
     get_upcoming_events,
     remove_attendee,
@@ -38,9 +40,11 @@ class PlannerTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.test_planner_db = Path(self.temp_dir.name) / "test_planner.db"
         self.test_accounts_db = Path(self.temp_dir.name) / "test_accounts.db"
+        self.test_backup_dir = Path(self.temp_dir.name) / "test_backups"
 
         os.environ["RB48_PLANNER_DATABASE_FILE"] = str(self.test_planner_db)
         os.environ["RB48_ACCOUNTS_DATABASE_FILE"] = str(self.test_accounts_db)
+        os.environ["RB48_PLANNER_BACKUP_DIR"] = str(self.test_backup_dir)
 
         self.app = app
         self.client = self.app.test_client()
@@ -50,6 +54,7 @@ class PlannerTests(unittest.TestCase):
         self.conn.close()
         os.environ.pop("RB48_PLANNER_DATABASE_FILE", None)
         os.environ.pop("RB48_ACCOUNTS_DATABASE_FILE", None)
+        os.environ.pop("RB48_PLANNER_BACKUP_DIR", None)
         self.temp_dir.cleanup()
 
     def test_create_events_capacity_defaults(self):
@@ -184,7 +189,7 @@ class PlannerTests(unittest.TestCase):
         finally:
             acc_conn.close()
 
-    def test_webmaster_clear_all_dates_with_backup_and_2step_verification(self):
+    def test_webmaster_clear_dates_with_backup_and_2step_verification(self):
         # 1. Create webmaster user
         unique_name = f"wm_user_{int(time.time() * 1000000)}"
         wm_id, _ = register_user(unique_name, f"{unique_name}@example.com", "pass12345")
@@ -196,28 +201,57 @@ class PlannerTests(unittest.TestCase):
         finally:
             acc_conn.close()
 
-        # Seed some events
-        create_event(self.conn, "2026-10-10 20:00", "box")
-        create_event(self.conn, "2026-10-17 20:30", "hf")
-        self.assertEqual(len(get_upcoming_events(self.conn)), 2)
+        # Seed 3 events
+        id1 = create_event(self.conn, "2026-10-10 20:00", "box")
+        id2 = create_event(self.conn, "2026-10-17 20:30", "hf")
+        id3 = create_event(self.conn, "2026-10-24 20:00", "box")
+        self.assertEqual(len(get_upcoming_events(self.conn)), 3)
 
         with self.client.session_transaction() as sess:
             sess["user_id"] = wm_id
 
-        # 2. Failed verification (only step 1 checked, wrong text)
-        fail_resp = self.client.post("/planner/events/clear-all", data={"confirm_1": "yes", "confirm_2": "WRONG"}, follow_redirects=True)
+        # 2. Failed verification (wrong text)
+        fail_resp = self.client.post("/planner/events/clear-dates", data={"event_ids": [id1, id2], "confirm_text": "WRONG"}, follow_redirects=True)
         self.assertEqual(fail_resp.status_code, 200)
         self.assertIn(b"Two-step verification failed", fail_resp.data)
-        self.assertEqual(len(get_upcoming_events(self.conn)), 2)
+        self.assertEqual(len(get_upcoming_events(self.conn)), 3)
 
-        # 3. Successful 2-step verification
-        success_resp = self.client.post("/planner/events/clear-all", data={"confirm_1": "yes", "confirm_2": "CLEAR ALL DATES"}, follow_redirects=True)
+        # 3. Successful selective verification: Clear id1 and id2, but KEEP id3!
+        success_resp = self.client.post(
+            "/planner/events/clear-dates",
+            data={"event_ids": [id1, id2], "confirm_text": "CLEAR DATES"},
+            follow_redirects=True,
+        )
         self.assertEqual(success_resp.status_code, 200)
-        self.assertIn(b"archived to data/backups/upcoming_matchdates/", success_resp.data)
+        self.assertIn(b"Successfully cleared 2 match date(s)", success_resp.data)
 
-        # Database is now completely clean
-        events_after = get_upcoming_events(self.conn)
-        self.assertEqual(len(events_after), 0)
+        # Event 3 still remains, id1 and id2 were removed
+        remaining = get_upcoming_events(self.conn)
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0]["id"], id3)
+
+        # 4. Clear all remaining
+        clear_all_resp = self.client.post(
+            "/planner/events/clear-dates",
+            data={"event_ids": [id3], "confirm_text": "CLEAR DATES"},
+            follow_redirects=True,
+        )
+        self.assertEqual(clear_all_resp.status_code, 200)
+        self.assertEqual(len(get_upcoming_events(self.conn)), 0)
+
+    def test_get_upcoming_events_unlimited_and_scrollable(self):
+        # Create 15 events
+        for i in range(15):
+            date_str = (datetime.now() + timedelta(days=i + 1)).strftime("%Y-%m-%d %H:%M")
+            create_event(self.conn, date_str, "box")
+
+        # Must retrieve all 15 events when limit is None (default)
+        all_events = get_upcoming_events(self.conn)
+        self.assertEqual(len(all_events), 15)
+
+        # When limit is explicitly specified, respects limit
+        limited_events = get_upcoming_events(self.conn, limit=5)
+        self.assertEqual(len(limited_events), 5)
 
     def test_planner_routes_integration(self):
         # Create user
