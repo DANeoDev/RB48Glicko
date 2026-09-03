@@ -4,7 +4,8 @@ try:
 except ImportError:
     request = None
 
-from scripts.database.db_matches import get_matches, get_match_teams
+from datetime import datetime, timedelta
+from scripts.database.db_matches import get_matches, get_match_players, get_match_teams
 from scripts.database.db_ratings import get_match_ratings
 from scripts.glicko.glicko2 import (
     Glicko2,
@@ -18,10 +19,116 @@ from scripts.glicko.glicko2 import (
 )
 
 
-def build_leaderboard(ratings, players, stats):
+def compute_leaderboard_deltas(connection, ratings, players):
+    """Compute rating and performance deltas across game, month, quarter, and year intervals."""
+    matches = get_matches(connection)
+    sorted_matches = sorted(matches.values(), key=lambda m: (m["date"], m["match_id"]))
+
+    today = datetime.now().date()
+    cutoff_month = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    cutoff_quarter = (today - timedelta(days=90)).strftime("%Y-%m-%d")
+    cutoff_year = (today - timedelta(days=365)).strftime("%Y-%m-%d")
+
+    match_data_cache = {}
+    for m in sorted_matches:
+        mid = m["match_id"]
+        mr = get_match_ratings(connection, mid)
+        mps = get_match_players(connection, mid)
+        match_data_cache[mid] = (mr, mps)
+
+    player_events = {pid: {TOTAL: [], BOX: [], HF: []} for pid in players}
+    for m in sorted_matches:
+        mid = m["match_id"]
+        mr, mps = match_data_cache[mid]
+        goals_a = m["goals_a"]
+        goals_b = m["goals_b"]
+        m_pitch = m["pitch"].lower()
+        pitch_type = BOX if m_pitch == "box" else HF
+
+        for mp in mps:
+            pid = mp["player_id"]
+            if pid not in player_events:
+                player_events[pid] = {TOTAL: [], BOX: [], HF: []}
+            team = mp["team"]
+            is_win = (team == "a" and goals_a > goals_b) or (team == "b" and goals_b > goals_a)
+            is_loss = (team == "a" and goals_a < goals_b) or (team == "b" and goals_b < goals_a)
+
+            p_ratings_before = mr.get(pid, {})
+            event_entry = {
+                "match_id": mid,
+                "date": m["date"],
+                "pitch": m_pitch,
+                "is_win": is_win,
+                "is_loss": is_loss,
+                "rating_before_total": p_ratings_before.get(TOTAL, {}).get("rating"),
+                "rating_before_pitch": p_ratings_before.get(pitch_type, {}).get("rating"),
+            }
+            player_events[pid][TOTAL].append(event_entry)
+            if pitch_type in player_events[pid]:
+                player_events[pid][pitch_type].append(event_entry)
+
+    deltas = {}
+    for pid in players:
+        deltas[pid] = {}
+        for pitch_key, pitch_const in [("total", TOTAL), ("box", BOX), ("hf", HF)]:
+            evts = player_events.get(pid, {}).get(pitch_const, [])
+            curr_r = ratings.get(pid, {}).get(pitch_const, {}).get("rating", 1500.0)
+
+            if evts:
+                last_evt = evts[-1]
+                before_r = last_evt["rating_before_total"] if pitch_const == TOTAL else last_evt["rating_before_pitch"]
+                game_delta_r = (curr_r - before_r) if before_r is not None else 0.0
+            else:
+                game_delta_r = 0.0
+
+            def period_metrics(cutoff_str):
+                p_evts = [e for e in evts if e["date"] >= cutoff_str]
+                g = len(p_evts)
+                w = sum(1 for e in p_evts if e["is_win"])
+                l = sum(1 for e in p_evts if e["is_loss"])
+                wp = (w / g * 100) if g > 0 else 0.0
+                if p_evts:
+                    first_e = p_evts[0]
+                    first_before_r = first_e["rating_before_total"] if pitch_const == TOTAL else first_e["rating_before_pitch"]
+                    delta_r = (curr_r - first_before_r) if first_before_r is not None else 0.0
+                else:
+                    delta_r = 0.0
+                return {
+                    "rating": delta_r,
+                    "games": g,
+                    "wins": w,
+                    "losses": l,
+                    "win_percent": wp,
+                }
+
+            deltas[pid][pitch_key] = {
+                "game": {
+                    "rating": game_delta_r,
+                    "games": 1 if evts else 0,
+                    "wins": 1 if (evts and evts[-1]["is_win"]) else 0,
+                    "losses": 1 if (evts and evts[-1]["is_loss"]) else 0,
+                    "win_percent": 100.0 if (evts and evts[-1]["is_win"]) else 0.0,
+                },
+                "month": period_metrics(cutoff_month),
+                "quarter": period_metrics(cutoff_quarter),
+                "year": period_metrics(cutoff_year),
+            }
+
+    return deltas
+
+
+def build_leaderboard(ratings, players, stats, deltas=None):
+    deltas = deltas or {}
+    default_deltas = {
+        "game": {"rating": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
+        "month": {"rating": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
+        "quarter": {"rating": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
+        "year": {"rating": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
+    }
     leaderboard = []
     for player_id, rating in ratings.items():
         player_stats = stats.get(player_id, {})
+        p_deltas = deltas.get(player_id, {})
         leaderboard.append({
             "player_id": player_id,
             "alias": players[player_id]["aliases"][0],
@@ -30,18 +137,21 @@ def build_leaderboard(ratings, players, stats):
                 "rd": rating["total"]["rd"],
                 "conservative": rating["total"]["rating"] - 3 * rating["total"]["rd"],
                 **player_stats.get("total", {}),
+                "deltas": p_deltas.get("total", default_deltas),
             },
             "box": {
                 "rating": rating["box"]["rating"],
                 "rd": rating["box"]["rd"],
                 "conservative": rating["box"]["rating"] - 3 * rating["box"]["rd"],
                 **player_stats.get("box", {}),
+                "deltas": p_deltas.get("box", default_deltas),
             },
             "hf": {
                 "rating": rating["hf"]["rating"],
                 "rd": rating["hf"]["rd"],
                 "conservative": rating["hf"]["rating"] - 3 * rating["hf"]["rd"],
                 **player_stats.get("hf", {}),
+                "deltas": p_deltas.get("hf", default_deltas),
             },
         })
     leaderboard.sort(key=lambda player: player["total"]["conservative"], reverse=True)

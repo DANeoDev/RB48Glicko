@@ -3,7 +3,7 @@ from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_ratings, get_player_rating_history
 from scripts.database.db_players import get_players
 from scripts.database.db_matches import get_player_stats
-from scripts.frontend.view_models import build_leaderboard, build_match_history
+from scripts.frontend.view_models import build_leaderboard, build_match_history, compute_leaderboard_deltas
 from scripts.analysis.model_analysis import analyze_model
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
 from web.services.security import Tier, require_tier
@@ -31,8 +31,9 @@ def stats():
     ratings = get_ratings(connection)
     players = get_players(connection)
     player_stats = get_player_stats(connection)
+    deltas = compute_leaderboard_deltas(connection, ratings, players)
     connection.close()
-    return render_template("stats.html", leaderboard=build_leaderboard(ratings, players, player_stats))
+    return render_template("stats.html", leaderboard=build_leaderboard(ratings, players, player_stats, deltas=deltas))
 
 
 @stats_bp.route("/player/<int:player_id>")
