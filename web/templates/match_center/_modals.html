@@ -59,9 +59,11 @@
 
     <div class="modal">
 
-        <h3>Add player</h3>
+        <h3 id="add-modal-title">Add player</h3>
 
-        <p>
+        <div id="add-modal-error" style="display: none; margin-bottom: 12px; color: #ff8888; background: rgba(255, 100, 100, 0.1); border: 1px solid rgba(255, 100, 100, 0.3); padding: 8px 12px; border-radius: var(--radius); font-size: 13.5px;"></div>
+
+        <p id="add-detected-row">
             Detected name:
             <strong id="add-name"></strong>
         </p>
@@ -182,29 +184,45 @@
             </div>
 
 
+            <div style="margin-top: 12px; margin-bottom: 6px;">
+                <label style="display: block; font-size: 13px; font-weight: 600; color: var(--text-main);">
+                    Estimated Initial Strength:
+                </label>
+            </div>
             <div class="calibration">
-
                 {% for key, item in calibration_levels.items() %}
-
                     <label>
-
                         <input
                             type="radio"
                             name="new_calibration"
                             value="{{ key }}"
                             {% if key == 'average' %}checked{% endif %}
                         >
-
                         {{ item[1] }}
-
                         {% if item[0] %}
                             ({{ (item[0] * 100) | int }}th percentile)
                         {% endif %}
-
                     </label>
-
                 {% endfor %}
+            </div>
 
+            <div style="margin-top: 14px; margin-bottom: 6px;">
+                <label style="display: block; font-size: 13px; font-weight: 600; color: var(--text-main);">
+                    How certain are you about the strength of this player?
+                </label>
+            </div>
+            <div class="calibration">
+                {% for key, item in certainty_levels.items() %}
+                    <label>
+                        <input
+                            type="radio"
+                            name="new_certainty"
+                            value="{{ key }}"
+                            {% if key == 'uncertain' %}checked{% endif %}
+                        >
+                        {{ item[1] }}
+                    </label>
+                {% endfor %}
             </div>
 
 

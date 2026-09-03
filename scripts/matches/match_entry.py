@@ -26,6 +26,14 @@ CALIBRATION_LEVELS = {
     "extremely_strong": (0.85, "Extremely strong"),
 }
 
+CERTAINTY_LEVELS = {
+    "uncertain": (DEFAULT_RD, "Uncertain (standard — 350 RD)"),
+    "somewhat_uncertain": (250.0, "Somewhat uncertain (250 RD)"),
+    "moderate": (180.0, "Moderately certain (180 RD)"),
+    "high": (120.0, "Very certain (120 RD)"),
+    "extremely_certain": (80.0, "Extremely certain (80 RD)"),
+}
+
 
 def _percentile(values, percentile):
     if not values:
@@ -40,18 +48,29 @@ def _percentile(values, percentile):
     return values[lower] + (values[upper] - values[lower]) * fraction
 
 
-def calibration_values(connection, level):
+def calibration_values(connection, level="average", certainty="uncertain"):
     if level not in CALIBRATION_LEVELS:
         raise ValueError("Invalid calibration level.")
+    if certainty not in CERTAINTY_LEVELS:
+        raise ValueError("Invalid certainty level.")
+
+    rd = CERTAINTY_LEVELS[certainty][0]
     percentile, _ = CALIBRATION_LEVELS[level]
     if percentile is None:
-        return {"rating": DEFAULT_RATING, "rd": DEFAULT_RD, "sigma": DEFAULT_SIGMA}
+        return {"rating": DEFAULT_RATING, "rd": rd, "sigma": DEFAULT_SIGMA}
     ratings = get_ratings(connection)
     total_ratings = [data["total"]["rating"] for data in ratings.values() if "total" in data]
-    return {"rating": _percentile(total_ratings, percentile), "rd": DEFAULT_RD, "sigma": DEFAULT_SIGMA}
+    return {"rating": _percentile(total_ratings, percentile), "rd": rd, "sigma": DEFAULT_SIGMA}
 
 
-def create_new_player(connection, alias, positions=None, calibration_level="average", main_position=None):
+def create_new_player(
+    connection,
+    alias,
+    positions=None,
+    calibration_level="average",
+    main_position=None,
+    certainty_level="uncertain",
+):
     alias = alias.strip()
     if not alias:
         raise ValueError("Player name cannot be empty.")
@@ -69,10 +88,10 @@ def create_new_player(connection, alias, positions=None, calibration_level="aver
     for position in all_positions:
         pos_clean = position.replace("*", "").strip().upper()
         if pos_clean in {"GK", "DEF", "MID", "ATT"}:
-            is_pri = (main_pos_clean and pos_clean == main_pos_clean)
+            is_pri = bool(main_pos_clean and pos_clean == main_pos_clean)
             add_position(connection, player_id, pos_clean, is_primary=is_pri)
 
-    values = calibration_values(connection, calibration_level)
+    values = calibration_values(connection, calibration_level, certainty_level)
     set_calibration(connection, player_id, values["rating"], values["rd"], values["sigma"])
     connection.commit()
     return player_id, values

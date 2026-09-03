@@ -364,22 +364,86 @@
     // Add-player modal
     // ------------------------------------------------------------
     function initAddPlayerModal() {
-        const form = document.getElementById('mc-form');
+        const mcForm = document.getElementById('mc-form');
         const addModal = document.getElementById('add-modal');
-        let addPlayerName = '';
+        const errorEl = document.getElementById('add-modal-error');
+        const titleEl = document.getElementById('add-modal-title');
+        const detectedRow = document.getElementById('add-detected-row');
+        const choiceDiv = document.getElementById('choice');
+        const aliasForm = document.getElementById('alias-form');
+        const newForm = document.getElementById('new-form');
+        const newAliasInput = document.getElementById('new-alias');
+        const newSubmitBtn = document.getElementById('new-submit');
 
-        if (!form || !addModal) {
+        let addPlayerName = '';
+        let addTargetTeam = null;
+
+        if (!addModal) {
             return;
         }
 
+        function clearErrors() {
+            if (errorEl) {
+                errorEl.style.display = 'none';
+                errorEl.textContent = '';
+            }
+        }
+
+        function showModalError(msg) {
+            if (errorEl) {
+                errorEl.textContent = msg;
+                errorEl.style.display = 'block';
+            } else {
+                alert(msg);
+            }
+        }
+
+        // Called from parser (unmatched player name)
         function openAdd(name) {
+            addTargetTeam = null;
             addPlayerName = name;
-            document.getElementById('add-name').textContent = name;
-            document.getElementById('choice').style.display = 'block';
-            document.getElementById('alias-form').style.display = 'none';
-            document.getElementById('new-form').style.display = 'none';
+            clearErrors();
+            if (titleEl) titleEl.textContent = 'Add player';
+            if (detectedRow) {
+                detectedRow.style.display = 'block';
+                const nameEl = document.getElementById('add-name');
+                if (nameEl) nameEl.textContent = name;
+            }
+            if (choiceDiv) choiceDiv.style.display = 'block';
+            if (aliasForm) aliasForm.style.display = 'none';
+            if (newForm) newForm.style.display = 'none';
             addModal.style.display = 'flex';
         }
+
+        // Called from "+ Add new player" button on Team A / Team B
+        window.openPlayerModal = function (team) {
+            addTargetTeam = team;
+            addPlayerName = '';
+            clearErrors();
+
+            const teamLabel = team === 'a' ? 'Team A' : team === 'b' ? 'Team B' : '';
+            if (titleEl) {
+                titleEl.textContent = teamLabel ? `Add new player (${teamLabel})` : 'Add new player';
+            }
+            if (detectedRow) {
+                detectedRow.style.display = 'none';
+            }
+            if (choiceDiv) choiceDiv.style.display = 'none';
+            if (aliasForm) aliasForm.style.display = 'none';
+            if (newForm) newForm.style.display = 'block';
+
+            // Prefill with search input value if user already typed something
+            const searchInput = document.getElementById(`search-${team}`);
+            const query = searchInput ? searchInput.value.trim() : '';
+            if (newAliasInput) {
+                newAliasInput.value = query;
+            }
+
+            addModal.style.display = 'flex';
+            setTimeout(() => {
+                newAliasInput?.focus();
+            }, 50);
+        };
 
         document.querySelectorAll('.add-btn').forEach(button => {
             button.addEventListener('click', () => openAdd(button.dataset.name));
@@ -387,23 +451,30 @@
 
         document.getElementById('add-cancel')?.addEventListener('click', () => {
             addModal.style.display = 'none';
+            clearErrors();
+        });
+
+        addModal.addEventListener('click', (e) => {
+            if (e.target === addModal) {
+                addModal.style.display = 'none';
+                clearErrors();
+            }
         });
 
         document.getElementById('alias-choice')?.addEventListener('click', () => {
-            document.getElementById('choice').style.display = 'none';
-            document.getElementById('alias-form').style.display = 'block';
+            if (choiceDiv) choiceDiv.style.display = 'none';
+            if (aliasForm) aliasForm.style.display = 'block';
         });
 
         document.getElementById('new-choice')?.addEventListener('click', () => {
-            document.getElementById('choice').style.display = 'none';
-            document.getElementById('new-form').style.display = 'block';
-            document.getElementById('new-alias').value = addPlayerName;
+            if (choiceDiv) choiceDiv.style.display = 'none';
+            if (newForm) newForm.style.display = 'block';
+            if (newAliasInput) newAliasInput.value = addPlayerName;
         });
 
         // ------------------------------------------------------------
         // Form helpers
         // ------------------------------------------------------------
-
         function hidden(name, value) {
             const input = document.createElement('input');
             input.type = 'hidden';
@@ -413,12 +484,13 @@
         }
 
         document.getElementById('alias-submit')?.addEventListener('click', () => {
-            form.append(
+            if (!mcForm) return;
+            mcForm.append(
                 hidden('action', 'add_parser_alias'),
                 hidden('new_alias', addPlayerName),
                 hidden('target_player_id', document.getElementById('alias-id').value)
             );
-            form.submit();
+            mcForm.submit();
         });
 
         const mainPosSelect = document.getElementById('new-main-position');
@@ -432,20 +504,83 @@
             });
         }
 
-        document.getElementById('new-submit')?.addEventListener('click', () => {
-            const mainPos = document.getElementById('new-main-position')?.value || '';
-            form.append(
-                hidden('action', 'create_parser_player'),
-                hidden('new_alias', document.getElementById('new-alias').value),
-                hidden('calibration', document.querySelector('input[name="new_calibration"]:checked')?.value || 'average')
-            );
-            if (mainPos) {
-                form.append(hidden('main_position', mainPos));
+        newSubmitBtn?.addEventListener('click', async () => {
+            const alias = newAliasInput ? newAliasInput.value.trim() : '';
+            if (!alias) {
+                showModalError('Please enter a player name / alias.');
+                newAliasInput?.focus();
+                return;
             }
-            document.querySelectorAll('input[name="new_positions"]:checked').forEach(input => {
-                form.append(hidden('new_positions', input.value));
-            });
-            form.submit();
+
+            const mainPos = mainPosSelect ? mainPosSelect.value : '';
+            const calibration = document.querySelector('input[name="new_calibration"]:checked')?.value || 'average';
+            const certainty = document.querySelector('input[name="new_certainty"]:checked')?.value || 'uncertain';
+            const positions = Array.from(document.querySelectorAll('input[name="new_positions"]:checked')).map(i => i.value);
+
+            // If opened from "+ Add new player" under Team A / Team B, create and add dynamically!
+            if (addTargetTeam) {
+                newSubmitBtn.disabled = true;
+                clearErrors();
+
+                const formData = new FormData();
+                formData.set('action', 'create_player');
+                formData.set('new_alias', alias);
+                formData.set('calibration', calibration);
+                formData.set('certainty', certainty);
+                formData.set('target_team', addTargetTeam);
+                if (mainPos) formData.set('main_position', mainPos);
+                positions.forEach(pos => formData.append('new_positions', pos));
+
+                try {
+                    const response = await fetch('/match-center', {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    if (response.ok && data.success) {
+                        const pid = String(data.player_id);
+                        matchPlayers[pid] = {
+                            aliases: [data.alias],
+                            main_position: data.main_position || mainPos || null
+                        };
+
+                        addTeamPlayer(addTargetTeam, pid);
+
+                        // Clear search input if it had the alias
+                        const searchInput = document.getElementById(`search-${addTargetTeam}`);
+                        if (searchInput) searchInput.value = '';
+
+                        addModal.style.display = 'none';
+                        clearErrors();
+                    } else {
+                        showModalError(data.error || 'Failed to create player.');
+                    }
+                } catch (err) {
+                    console.error('Error creating player:', err);
+                    showModalError('Error connecting to server. Please try again.');
+                } finally {
+                    newSubmitBtn.disabled = false;
+                }
+            } else if (mcForm) {
+                // Parser flow
+                mcForm.append(
+                    hidden('action', 'create_parser_player'),
+                    hidden('new_alias', alias),
+                    hidden('calibration', calibration),
+                    hidden('certainty', certainty)
+                );
+                if (mainPos) {
+                    mcForm.append(hidden('main_position', mainPos));
+                }
+                positions.forEach(pos => {
+                    mcForm.append(hidden('new_positions', pos));
+                });
+                mcForm.submit();
+            }
         });
     }
 
@@ -575,27 +710,6 @@
 
 
     // ------------------------------------------------------------
-    // "Add new player" button
-    // ------------------------------------------------------------
-
-    function initAddPlayerButton() {
-        window.openPlayerModal = function (team) {
-
-        const input =
-            document.getElementById(`search-${team}`);
-
-        input?.focus();
-
-        input?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-        });
-
-        };
-    }
-
-
-    // ------------------------------------------------------------
     // Future Date Easter Egg Modal
     // ------------------------------------------------------------
 
@@ -642,7 +756,6 @@
     initAddPlayerModal();
     initGeneratedTeamTransfer();
     initMatchSaveForm();
-    initAddPlayerButton();
     initFutureDateModal();
 
 })();

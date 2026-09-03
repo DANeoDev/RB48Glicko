@@ -388,6 +388,33 @@ class TeamRatingCalculatorTests(unittest.TestCase):
         # Player won Game 1 and drew Game 2 -> net session delta is positive
         self.assertGreater(personal_history[1]["player_delta"], 0.0)
 
+    def test_calibration_values_certainty_levels(self):
+        from scripts.matches.match_entry import calibration_values, CERTAINTY_LEVELS
+
+        # Default uncertain
+        vals_default = calibration_values(None, "average", "uncertain")
+        self.assertEqual(vals_default["rd"], CERTAINTY_LEVELS["uncertain"][0])
+
+        # Extremely certain
+        vals_certain = calibration_values(None, "average", "extremely_certain")
+        self.assertEqual(vals_certain["rd"], 80.0)
+
+        # High certainty
+        vals_high = calibration_values(None, "average", "high")
+        self.assertEqual(vals_high["rd"], 120.0)
+
+        # Moderate certainty
+        vals_mod = calibration_values(None, "average", "moderate")
+        self.assertEqual(vals_mod["rd"], 180.0)
+
+        # Somewhat uncertain
+        vals_some = calibration_values(None, "average", "somewhat_uncertain")
+        self.assertEqual(vals_some["rd"], 250.0)
+
+        # Invalid certainty
+        with self.assertRaises(ValueError):
+            calibration_values(None, "average", "invalid_certainty")
+
 
 if __name__ == "__main__":
     unittest.main()

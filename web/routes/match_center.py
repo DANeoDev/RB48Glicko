@@ -4,7 +4,14 @@ from flask import Blueprint, render_template, request, redirect, url_for, jsonif
 from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_ratings
 from scripts.database.db_players import get_players, get_alias_lookup, add_alias
-from scripts.matches.match_entry import add_match, next_match_id, create_new_player, CALIBRATION_LEVELS, process_new_matches
+from scripts.matches.match_entry import (
+    add_match,
+    next_match_id,
+    create_new_player,
+    CALIBRATION_LEVELS,
+    CERTAINTY_LEVELS,
+    process_new_matches,
+)
 from scripts.matchmaking.matchmaker import generate_match
 from scripts.matchmaking.match_parser import parse_match_image, parse_match_text, resolve_player_names, normalize_player_name, MatchParserError
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
@@ -172,9 +179,17 @@ def match_center():
         alias = normalize_player_name(request.form.get("new_alias", ""))
         positions = request.form.getlist("new_positions")
         calibration = request.form.get("calibration", "average")
+        certainty = request.form.get("certainty", "uncertain")
         main_position = request.form.get("main_position") or request.form.get("new_main_position")
         try:
-            created_id, _ = create_new_player(connection, alias, positions, calibration, main_position=main_position)
+            created_id, _ = create_new_player(
+                connection,
+                alias,
+                positions,
+                calibration,
+                main_position=main_position,
+                certainty_level=certainty,
+            )
             players = get_players(connection)
             selected_ids = list(dict.fromkeys(selected_ids + [created_id]))
             parse_result = _rebuild_parser_result(request.form, players)
@@ -186,18 +201,45 @@ def match_center():
 
     elif request.method == "POST" and action == "create_player":
         try:
-            alias = request.form.get("new_alias", "")
+            alias = normalize_player_name(request.form.get("new_alias", ""))
             positions = request.form.getlist("new_positions")
             calibration = request.form.get("calibration", "average")
+            certainty = request.form.get("certainty", "uncertain")
             main_position = request.form.get("main_position") or request.form.get("new_main_position")
-            created_id, values = create_new_player(connection, alias, positions, calibration, main_position=main_position)
+            target_team = request.form.get("target_team", "a")
+            created_id, values = create_new_player(
+                connection,
+                alias,
+                positions,
+                calibration,
+                main_position=main_position,
+                certainty_level=certainty,
+            )
             selected_ids.append(created_id)
             success = f"Created {alias.strip()} and added them to the match."
             calibration_message = f"Calibration rating: {values['rating']:.1f} (RD {values['rd']:.1f})."
             players = get_players(connection)
             selected_ids = list(dict.fromkeys(selected_ids))
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                connection.close()
+                return jsonify({
+                    "success": True,
+                    "player_id": created_id,
+                    "alias": alias,
+                    "rating": values["rating"],
+                    "rd": values["rd"],
+                    "target_team": target_team,
+                    "main_position": main_position,
+                    "message": success,
+                })
         except ValueError as exc:
             error = str(exc)
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                connection.close()
+                return jsonify({
+                    "success": False,
+                    "error": error,
+                }), 400
 
     elif request.method == "POST" and action == "save":
         match_date = request.form.get("date", date.today().isoformat())
@@ -283,6 +325,7 @@ def match_center():
         parse_error=parse_error,
         parser_success=parser_success,
         calibration_levels=CALIBRATION_LEVELS,
+        certainty_levels=CERTAINTY_LEVELS,
         matchmaker_date=match_date,
         match_date=match_date,
         team_a=team_a,
