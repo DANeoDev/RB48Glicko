@@ -120,7 +120,7 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
         self.assertIn("delta-mode-select", html)
-        self.assertIn("delta-column-toggles", html)
+        self.assertIn("delta-toggle-btn", html)
         self.assertIn("Last Game", html)
         self.assertIn("Last Month", html)
         self.assertIn("Last Quarter", html)
