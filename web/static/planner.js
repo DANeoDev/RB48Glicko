@@ -118,23 +118,49 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // Webmaster Clear All Dates Modal & 2-Step Validation Watcher
+    // Webmaster Clear Dates Modal & 2-Step Validation Watcher
     const clearAllBtn = document.getElementById("open-clear-all-modal-btn");
     if (clearAllBtn) {
         clearAllBtn.addEventListener("click", () => openModal("clear-all-modal"));
     }
 
-    const clearCheck = document.getElementById("clear_confirm_1");
-    const clearInput = document.getElementById("clear_confirm_2");
-    const clearSubmit = document.getElementById("clear-all-submit-btn");
+    const clearCheckboxes = document.querySelectorAll(".clear-date-checkbox");
+    const selectAllBtn = document.getElementById("clear-select-all-btn");
+    const deselectAllBtn = document.getElementById("clear-deselect-all-btn");
+    const selectedCountSpan = document.getElementById("clear-selected-count");
+    const clearInput = document.getElementById("clear_confirm_text");
+    const clearSubmit = document.getElementById("clear-dates-submit-btn");
 
-    if (clearCheck && clearInput && clearSubmit) {
-        const validateClear = () => {
-            const isChecked = clearCheck.checked;
-            const isTyped = clearInput.value.trim().toUpperCase() === "CLEAR ALL DATES";
-            clearSubmit.disabled = !(isChecked && isTyped);
-        };
-        clearCheck.addEventListener("change", validateClear);
-        clearInput.addEventListener("input", validateClear);
+    const updateClearValidation = () => {
+        const checkedCount = document.querySelectorAll(".clear-date-checkbox:checked").length;
+        if (selectedCountSpan) {
+            selectedCountSpan.textContent = checkedCount.toString();
+        }
+        const isTyped = clearInput ? clearInput.value.trim().toUpperCase() === "CLEAR DATES" : false;
+        if (clearSubmit) {
+            clearSubmit.disabled = !(checkedCount > 0 && isTyped);
+        }
+    };
+
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener("click", () => {
+            clearCheckboxes.forEach((cb) => { cb.checked = true; });
+            updateClearValidation();
+        });
+    }
+
+    if (deselectAllBtn) {
+        deselectAllBtn.addEventListener("click", () => {
+            clearCheckboxes.forEach((cb) => { cb.checked = false; });
+            updateClearValidation();
+        });
+    }
+
+    clearCheckboxes.forEach((cb) => {
+        cb.addEventListener("change", updateClearValidation);
+    });
+
+    if (clearInput) {
+        clearInput.addEventListener("input", updateClearValidation);
     }
 });

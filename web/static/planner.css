@@ -543,3 +543,17 @@
     border: 1px dashed var(--border);
     border-radius: var(--radius);
 }
+
+.planner-clear-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.planner-clear-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.planner-clear-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+

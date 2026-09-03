@@ -359,7 +359,171 @@ class Glicko2:
             )
         )
 
-        # -----------------------------------------------------------------------
+    def teammate_impact(self, teammates_rd: float | None) -> float:
+        """
+        Calculate the information clarity impact factor g(phi_teammates).
+
+        Higher uncertainty in teammates means the match outcome provides less
+        information about individual contributions, dampening both rating and RD changes.
+        Returns 1.0 if teammates_rd is None (e.g. in a 1v1 match).
+        """
+        if teammates_rd is None:
+            return 1.0
+        teammates_phi = teammates_rd / GLICKO2_SCALE
+        return self._reduce_impact(_GlickoRating(mu=0.0, phi=teammates_phi, sigma=0.0))
+
+    def update_player_rd(
+        self,
+        player: Rating,
+        opponent_team: Rating,
+        team_rating: Rating,
+        teammates_rd: float | None = None,
+    ) -> float:
+        """
+        Calculate updated Rating Deviation (RD) for an individual player in a team match.
+
+        Instead of directly applying an additive virtual team delta (which collapses
+        veteran RD when playing with uncertain teammates), this updates RD based on
+        the player's personal prior uncertainty and volatility, using Glicko's native
+        impact function g(phi_teammates) to gracefully dampen information gain when
+        teammates have high uncertainty.
+
+        Parameters:
+            player: The player's current Rating object.
+            opponent_team: The opposing team's Rating object.
+            team_rating: The player's team Rating object (used for expected match outcome).
+            teammates_rd: Root-mean-square RD of teammates (None if no teammates / 1v1).
+
+        Returns:
+            The player's new rating deviation (float).
+        """
+        player_scaled = self._scale_down(player)
+        opponent_scaled = self._scale_down(opponent_team)
+        team_scaled = self._scale_down(team_rating)
+
+        opponent_impact = self._reduce_impact(opponent_scaled)
+        expected = self._expected_score(
+            team_scaled,
+            opponent_scaled,
+            opponent_impact,
+        )
+
+        match_precision = (
+            opponent_impact ** 2
+            * expected
+            * (1.0 - expected)
+        )
+
+        teammate_impact = self.teammate_impact(teammates_rd)
+        effective_precision = teammate_impact * match_precision
+
+        phi_star = math.sqrt(
+            player_scaled.phi ** 2
+            + player_scaled.sigma ** 2
+        )
+
+        new_phi = 1.0 / math.sqrt(
+            1.0 / (phi_star ** 2)
+            + effective_precision
+        )
+
+        return new_phi * GLICKO2_SCALE
+
+    def update_player_session(
+        self,
+        player: Rating,
+        games: list[tuple[Rating, Rating, float, float | None]],
+    ) -> Rating:
+        """
+        Update a player's rating after a session (batch of matches on the same date).
+
+        Each entry in `games` is a tuple of:
+            (own_team_rating, opponent_team_rating, actual_score, teammates_rd)
+
+        Pools observational precision and surprise across all matches in the session,
+        applies teammate clarity dampening, computes new volatility sigma, and returns
+        the updated Rating object.
+
+        Order of games within the session is mathematically invariant.
+        """
+        player_scaled = self._scale_down(player)
+
+        if not games:
+            phi_star = math.sqrt(
+                player_scaled.phi ** 2
+                + player_scaled.sigma ** 2
+            )
+            return self._scale_up(
+                _GlickoRating(
+                    mu=player_scaled.mu,
+                    phi=phi_star,
+                    sigma=player_scaled.sigma,
+                )
+            )
+
+        total_effective_precision = 0.0
+        total_effective_difference = 0.0
+
+        for own_team, opp_team, score, tm_rd in games:
+            own_scaled = self._scale_down(own_team)
+            opp_scaled = self._scale_down(opp_team)
+
+            opp_impact = self._reduce_impact(opp_scaled)
+            expected = self._expected_score(
+                own_scaled,
+                opp_scaled,
+                opp_impact,
+            )
+
+            match_precision = (
+                opp_impact ** 2
+                * expected
+                * (1.0 - expected)
+            )
+            match_diff = (
+                opp_impact
+                * (score - expected)
+            )
+
+            tm_weight = self.teammate_impact(tm_rd)
+
+            total_effective_precision += tm_weight * match_precision
+            total_effective_difference += tm_weight * match_diff
+
+        variance = 1.0 / total_effective_precision
+        difference = total_effective_difference / total_effective_precision
+
+        sigma = self._determine_sigma(
+            player_scaled,
+            difference,
+            variance,
+        )
+
+        phi_star = math.sqrt(
+            player_scaled.phi ** 2
+            + sigma ** 2
+        )
+
+        new_phi = 1.0 / math.sqrt(
+            1.0 / (phi_star ** 2)
+            + total_effective_precision
+        )
+
+        new_mu = (
+            player_scaled.mu
+            + new_phi ** 2
+            * total_effective_difference
+        )
+
+        return self._scale_up(
+            _GlickoRating(
+                mu=new_mu,
+                phi=new_phi,
+                sigma=sigma,
+            )
+        )
+
+    # -----------------------------------------------------------------------
     # Convenience methods
     # -----------------------------------------------------------------------
 

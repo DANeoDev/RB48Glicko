@@ -144,7 +144,7 @@ def planner():
     acc_conn = get_accounts_connection()
     try:
         alias_lookup = get_alias_lookup(main_conn)
-        events = get_upcoming_events(connection)
+        events = get_upcoming_events(connection, limit=None)
         events_data = []
         for evt in events:
             attendees = [dict(a) for a in get_event_attendees(connection, evt["id"])]
@@ -332,23 +332,36 @@ def auto_seed_events():
     return redirect(url_for("planner.planner"))
 
 
+@planner_bp.route("/planner/events/clear-dates", methods=["POST"])
 @planner_bp.route("/planner/events/clear-all", methods=["POST"])
 @require_webmaster
-def clear_all_events():
-    """Webmaster tool: Wipe all upcoming matchdates with 2-step verification after saving a backup."""
-    from scripts.planner.database import backup_and_clear_all_events
+def clear_dates():
+    """Webmaster tool: Wipe selected upcoming matchdates with 2-step verification after saving a backup."""
+    from scripts.planner.database import backup_and_clear_events
 
-    confirm_1 = request.form.get("confirm_1") == "yes"
-    confirm_2 = request.form.get("confirm_2", "").strip().upper() == "CLEAR ALL DATES"
+    confirm_text = request.form.get("confirm_text", "").strip().upper()
+    if not confirm_text:
+        confirm_text = request.form.get("confirm_2", "").strip().upper()
 
-    if not (confirm_1 and confirm_2):
-        flash("Two-step verification failed. Upcoming match dates were not modified.", "warning")
+    if confirm_text not in ("CLEAR DATES", "CLEAR ALL DATES"):
+        flash("Two-step verification failed. Please type CLEAR DATES to confirm.", "warning")
+        return redirect(url_for("planner.planner"))
+
+    event_ids = request.form.getlist("event_ids")
+    if not event_ids and request.form.get("confirm_1") == "yes":
+        event_ids = None
+    elif not event_ids:
+        flash("No match dates were selected to be cleared.", "info")
         return redirect(url_for("planner.planner"))
 
     connection = get_planner_connection()
     try:
-        backup_name = backup_and_clear_all_events(connection)
-        flash(f"All match dates archived to data/backups/upcoming_matchdates/{backup_name} and planner reset to clean state.", "success")
+        backup_name, cleared_count = backup_and_clear_events(connection, event_ids=event_ids)
+        if cleared_count == "all":
+            msg = f"All match dates archived to data/backups/upcoming_matchdates/{backup_name} and planner reset to clean state."
+        else:
+            msg = f"Successfully cleared {cleared_count} match date(s) (archived to data/backups/upcoming_matchdates/{backup_name})."
+        flash(msg, "success")
     finally:
         connection.close()
 
