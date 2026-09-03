@@ -54,14 +54,18 @@ def compute_leaderboard_deltas(connection, ratings, players):
             is_loss = (team == "a" and goals_a < goals_b) or (team == "b" and goals_b < goals_a)
 
             p_ratings_before = mr.get(pid, {})
+            tot_b = p_ratings_before.get(TOTAL, {})
+            pitch_b = p_ratings_before.get(pitch_type, {})
             event_entry = {
                 "match_id": mid,
                 "date": m["date"],
                 "pitch": m_pitch,
                 "is_win": is_win,
                 "is_loss": is_loss,
-                "rating_before_total": p_ratings_before.get(TOTAL, {}).get("rating"),
-                "rating_before_pitch": p_ratings_before.get(pitch_type, {}).get("rating"),
+                "rating_before_total": tot_b.get("rating"),
+                "rd_before_total": tot_b.get("rd"),
+                "rating_before_pitch": pitch_b.get("rating"),
+                "rd_before_pitch": pitch_b.get("rd"),
             }
             player_events[pid][TOTAL].append(event_entry)
             if pitch_type in player_events[pid]:
@@ -72,14 +76,28 @@ def compute_leaderboard_deltas(connection, ratings, players):
         deltas[pid] = {}
         for pitch_key, pitch_const in [("total", TOTAL), ("box", BOX), ("hf", HF)]:
             evts = player_events.get(pid, {}).get(pitch_const, [])
-            curr_r = ratings.get(pid, {}).get(pitch_const, {}).get("rating", 1500.0)
+            p_rating_data = ratings.get(pid, {}).get(pitch_const, {})
+            curr_r = p_rating_data.get("rating", 1500.0)
+            curr_rd = p_rating_data.get("rd", 350.0)
+            curr_c = curr_r - 3 * curr_rd
 
             if evts:
                 last_evt = evts[-1]
-                before_r = last_evt["rating_before_total"] if pitch_const == TOTAL else last_evt["rating_before_pitch"]
-                game_delta_r = (curr_r - before_r) if before_r is not None else 0.0
+                b_r = last_evt["rating_before_total"] if pitch_const == TOTAL else last_evt["rating_before_pitch"]
+                b_rd = last_evt["rd_before_total"] if pitch_const == TOTAL else last_evt["rd_before_pitch"]
+                if b_r is not None and b_rd is not None:
+                    b_c = b_r - 3 * b_rd
+                    game_delta_r = curr_r - b_r
+                    game_delta_rd = curr_rd - b_rd
+                    game_delta_c = curr_c - b_c
+                else:
+                    game_delta_r = 0.0
+                    game_delta_rd = 0.0
+                    game_delta_c = 0.0
             else:
                 game_delta_r = 0.0
+                game_delta_rd = 0.0
+                game_delta_c = 0.0
 
             def period_metrics(cutoff_str):
                 p_evts = [e for e in evts if e["date"] >= cutoff_str]
@@ -89,12 +107,25 @@ def compute_leaderboard_deltas(connection, ratings, players):
                 wp = (w / g * 100) if g > 0 else 0.0
                 if p_evts:
                     first_e = p_evts[0]
-                    first_before_r = first_e["rating_before_total"] if pitch_const == TOTAL else first_e["rating_before_pitch"]
-                    delta_r = (curr_r - first_before_r) if first_before_r is not None else 0.0
+                    first_b_r = first_e["rating_before_total"] if pitch_const == TOTAL else first_e["rating_before_pitch"]
+                    first_b_rd = first_e["rd_before_total"] if pitch_const == TOTAL else first_e["rd_before_pitch"]
+                    if first_b_r is not None and first_b_rd is not None:
+                        first_b_c = first_b_r - 3 * first_b_rd
+                        delta_r = curr_r - first_b_r
+                        delta_rd = curr_rd - first_b_rd
+                        delta_c = curr_c - first_b_c
+                    else:
+                        delta_r = 0.0
+                        delta_rd = 0.0
+                        delta_c = 0.0
                 else:
                     delta_r = 0.0
+                    delta_rd = 0.0
+                    delta_c = 0.0
                 return {
+                    "conservative": delta_c,
                     "rating": delta_r,
+                    "rd": delta_rd,
                     "games": g,
                     "wins": w,
                     "losses": l,
@@ -103,7 +134,9 @@ def compute_leaderboard_deltas(connection, ratings, players):
 
             deltas[pid][pitch_key] = {
                 "game": {
+                    "conservative": game_delta_c,
                     "rating": game_delta_r,
+                    "rd": game_delta_rd,
                     "games": 1 if evts else 0,
                     "wins": 1 if (evts and evts[-1]["is_win"]) else 0,
                     "losses": 1 if (evts and evts[-1]["is_loss"]) else 0,
@@ -120,10 +153,10 @@ def compute_leaderboard_deltas(connection, ratings, players):
 def build_leaderboard(ratings, players, stats, deltas=None):
     deltas = deltas or {}
     default_deltas = {
-        "game": {"rating": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
-        "month": {"rating": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
-        "quarter": {"rating": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
-        "year": {"rating": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
+        "game": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
+        "month": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
+        "quarter": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
+        "year": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
     }
     leaderboard = []
     for player_id, rating in ratings.items():

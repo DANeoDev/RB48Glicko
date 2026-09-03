@@ -37,6 +37,17 @@
                 <option value="year">Last Year</option>
             </select>
         </div>
+        <div id="delta-column-toggles" class="delta-toggles-container" style="display: none;">
+            {% if has_tier('glicko_user') %}
+                <button type="button" class="delta-toggle-chip active" data-toggle="conservative" title="Toggle Δ C Rating column">Δ C</button>
+                <button type="button" class="delta-toggle-chip active" data-toggle="rating" title="Toggle Δ E Rating column">Δ E</button>
+                <button type="button" class="delta-toggle-chip active" data-toggle="rd" title="Toggle Δ RD column">Δ RD</button>
+            {% endif %}
+            <button type="button" class="delta-toggle-chip active" data-toggle="games" title="Toggle Δ Games column">Δ G</button>
+            <button type="button" class="delta-toggle-chip active" data-toggle="wins" title="Toggle Δ Wins column">Δ W</button>
+            <button type="button" class="delta-toggle-chip active" data-toggle="losses" title="Toggle Δ Losses column">Δ L</button>
+            <button type="button" class="delta-toggle-chip active" data-toggle="win-percent" title="Toggle Δ Win% column">Δ W%</button>
+        </div>
         <div class="stats-filter">
             <label for="game-filter" title="Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.">Filter</label>
             <input type="text" id="game-filter" value="-" placeholder="-" title="Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.">
@@ -52,9 +63,11 @@
                 <th>Player</th>
                 {% if has_tier('glicko_user') %}
                     <th data-base-column="conservative" data-column="total-conservative" title="Conservative rating: E Rating minus 3 × RD.">C Rating</th>
+                    <th data-base-column="delta-conservative" data-column="total-delta-conservative" class="delta-col delta-conservative-col" title="Conservative rating change over selected timeframe." style="display: none;">Δ C Rating</th>
                     <th data-base-column="rating" data-column="total-rating" title="Estimated rating: the player's current Glicko-2 rating.">E Rating</th>
-                    <th data-base-column="delta-rating" data-column="total-delta-rating" class="delta-col delta-rating-col" title="Rating change over the selected timeframe." style="display: none;">Δ Rating</th>
+                    <th data-base-column="delta-rating" data-column="total-delta-rating" class="delta-col delta-rating-col" title="Estimated rating change over selected timeframe." style="display: none;">Δ E Rating</th>
                     <th data-base-column="rd" data-column="total-rd" title="Rating Deviation: how uncertain the rating is.">RD</th>
+                    <th data-base-column="delta-rd" data-column="total-delta-rd" class="delta-col delta-rd-col" title="Rating Deviation change over selected timeframe." style="display: none;">Δ RD</th>
                 {% endif %}
                 <th data-base-column="games" data-column="total-games" title="Number of matches played in this category.">Games</th>
                 <th data-base-column="delta-games" data-column="total-delta-games" class="delta-col delta-games-col" title="Matches played in the selected timeframe." style="display: none;">Δ G</th>
@@ -78,7 +91,9 @@
                     data-{{ pitch }}-losses="{{ player[pitch]['losses'] }}"
                     data-{{ pitch }}-win-percent="{{ player[pitch]['win_percent'] }}"
                     {% for interval in ["game", "month", "quarter", "year"] %}
+                        data-{{ pitch }}-delta-{{ interval }}-conservative="{{ player[pitch]['deltas'][interval]['conservative'] }}"
                         data-{{ pitch }}-delta-{{ interval }}-rating="{{ player[pitch]['deltas'][interval]['rating'] }}"
+                        data-{{ pitch }}-delta-{{ interval }}-rd="{{ player[pitch]['deltas'][interval]['rd'] }}"
                         data-{{ pitch }}-delta-{{ interval }}-games="{{ player[pitch]['deltas'][interval]['games'] }}"
                         data-{{ pitch }}-delta-{{ interval }}-wins="{{ player[pitch]['deltas'][interval]['wins'] }}"
                         data-{{ pitch }}-delta-{{ interval }}-losses="{{ player[pitch]['deltas'][interval]['losses'] }}"
@@ -93,9 +108,11 @@
                 {% for pitch in ["total", "box", "hf"] %}
                     {% if has_tier('glicko_user') %}
                         <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["conservative"] | round | int }}</td>
+                        <td data-pitch-cell="{{ pitch }}" class="delta-col delta-conservative-col" data-delta-type="conservative" style="display: none;"></td>
                         <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rating"] | round | int }}</td>
                         <td data-pitch-cell="{{ pitch }}" class="delta-col delta-rating-col" data-delta-type="rating" style="display: none;"></td>
                         <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rd"] | round(1) }}</td>
+                        <td data-pitch-cell="{{ pitch }}" class="delta-col delta-rd-col" data-delta-type="rd" style="display: none;"></td>
                     {% endif %}
                     <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["games"] }}</td>
                     <td data-pitch-cell="{{ pitch }}" class="delta-col delta-games-col" data-delta-type="games" style="display: none;"></td>
@@ -123,25 +140,37 @@ const pitchSelectors = document.querySelectorAll(".pitch-selector");
 const columnHeaders = table.querySelectorAll("th[data-column]");
 const gameFilter = document.getElementById("game-filter");
 const deltaModeSelect = document.getElementById("delta-mode-select");
+const deltaTogglesContainer = document.getElementById("delta-column-toggles");
+const deltaToggleChips = document.querySelectorAll(".delta-toggle-chip");
 
 let currentPitch = "total";
 let currentSortColumn = "games";
 let currentDeltaMode = "none";
 const isGlickoUser = {{ 'true' if has_tier('glicko_user') else 'false' }};
 
+const activeToggles = {
+    conservative: true,
+    rating: true,
+    rd: true,
+    games: true,
+    wins: true,
+    losses: true,
+    "win-percent": true,
+};
+
 function formatDelta(val, type) {
     if (val === undefined || val === null || isNaN(val)) return { text: "—", cls: "zero" };
     const num = Number(val);
     if (Math.abs(num) < 0.0001) {
         if (type === "win-percent") return { text: "0.0%", cls: "zero" };
-        if (type === "rating") return { text: "0.0", cls: "zero" };
+        if (type === "conservative" || type === "rating" || type === "rd") return { text: "0.0", cls: "zero" };
         return { text: "0", cls: "zero" };
     }
     const isPos = num > 0;
     const cls = isPos ? "positive" : "negative";
     const sign = isPos ? "+" : "";
 
-    if (type === "rating") {
+    if (type === "conservative" || type === "rating" || type === "rd") {
         return { text: `${sign}${num.toFixed(1)}`, cls: cls };
     } else if (type === "win-percent") {
         return { text: `${sign}${num.toFixed(1)}%`, cls: cls };
@@ -158,13 +187,17 @@ function syncDeltaRowAttributesAndCells() {
 
     rows.forEach(row => {
         pitches.forEach(pitch => {
+            const dConservative = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-conservative`) || "0");
             const dRating = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-rating`) || "0");
+            const dRd = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-rd`) || "0");
             const dGames = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-games`) || "0");
             const dWins = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-wins`) || "0");
             const dLosses = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-losses`) || "0");
             const dWinPercent = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-win-percent`) || "0");
 
+            row.setAttribute(`data-${pitch}-delta-conservative`, dConservative);
             row.setAttribute(`data-${pitch}-delta-rating`, dRating);
+            row.setAttribute(`data-${pitch}-delta-rd`, dRd);
             row.setAttribute(`data-${pitch}-delta-games`, dGames);
             row.setAttribute(`data-${pitch}-delta-wins`, dWins);
             row.setAttribute(`data-${pitch}-delta-losses`, dLosses);
@@ -175,7 +208,9 @@ function syncDeltaRowAttributesAndCells() {
             cells.forEach(cell => {
                 const type = cell.dataset.deltaType;
                 let fmt;
-                if (type === "rating") fmt = formatDelta(dRating, type);
+                if (type === "conservative") fmt = formatDelta(dConservative, type);
+                else if (type === "rating") fmt = formatDelta(dRating, type);
+                else if (type === "rd") fmt = formatDelta(dRd, type);
                 else if (type === "games") fmt = formatDelta(dGames, type);
                 else if (type === "wins") fmt = formatDelta(dWins, type);
                 else if (type === "losses") fmt = formatDelta(dLosses, type);
@@ -192,17 +227,18 @@ function syncDeltaRowAttributesAndCells() {
 
 function updateColumnVisibility() {
     const isNone = currentDeltaMode === "none";
-    const isGame = currentDeltaMode === "game";
-    const isTimeRange = ["month", "quarter", "year"].includes(currentDeltaMode);
+
+    // Toggle container
+    if (deltaTogglesContainer) {
+        deltaTogglesContainer.style.display = isNone ? "none" : "inline-flex";
+    }
 
     // Header visibility
     table.querySelectorAll("th.delta-col").forEach(th => {
-        const isRating = th.classList.contains("delta-rating-col");
-        if (isNone) {
+        const type = th.dataset.baseColumn.replace("delta-", "");
+        if (isNone || !activeToggles[type]) {
             th.style.display = "none";
-        } else if (isGame) {
-            th.style.display = isRating ? "" : "none";
-        } else if (isTimeRange) {
+        } else {
             th.style.display = "";
         }
     });
@@ -216,14 +252,10 @@ function updateColumnVisibility() {
 
         // Delta pitch cells
         row.querySelectorAll("td[data-pitch-cell].delta-col").forEach(cell => {
-            const isRating = cell.classList.contains("delta-rating-col");
-            if (cell.dataset.pitchCell !== currentPitch) {
+            const type = cell.dataset.deltaType;
+            if (cell.dataset.pitchCell !== currentPitch || isNone || !activeToggles[type]) {
                 cell.style.display = "none";
-            } else if (isNone) {
-                cell.style.display = "none";
-            } else if (isGame) {
-                cell.style.display = isRating ? "" : "none";
-            } else if (isTimeRange) {
+            } else {
                 cell.style.display = "";
             }
         });
@@ -295,10 +327,13 @@ function selectPitch(pitch) {
 function setDeltaMode(mode) {
     currentDeltaMode = mode;
 
-    // If currently sorted by a standard delta column that is now hidden, fallback to games
-    if ((mode === "none" && currentSortColumn.startsWith("delta-")) ||
-        (mode === "game" && currentSortColumn.startsWith("delta-") && currentSortColumn !== "delta-rating")) {
+    // When switching to last game, default standard stats toggles off if desired or keep user active
+    // If currently sorted by a delta column that is now hidden, fallback to games
+    if (mode === "none" && currentSortColumn.startsWith("delta-")) {
         currentSortColumn = "games";
+    } else if (currentSortColumn.startsWith("delta-")) {
+        const type = currentSortColumn.replace("delta-", "");
+        if (!activeToggles[type]) currentSortColumn = "games";
     }
 
     syncDeltaRowAttributesAndCells();
@@ -316,6 +351,23 @@ if (deltaModeSelect) {
         setDeltaMode(e.target.value);
     });
 }
+
+deltaToggleChips.forEach(chip => {
+    chip.addEventListener("click", () => {
+        const toggleType = chip.dataset.toggle;
+        activeToggles[toggleType] = !activeToggles[toggleType];
+        chip.classList.toggle("active", activeToggles[toggleType]);
+
+        // If active sort column got turned off, fallback to games
+        if (currentSortColumn === `delta-${toggleType}` && !activeToggles[toggleType]) {
+            currentSortColumn = "games";
+        }
+
+        updateColumnVisibility();
+        sortRows(`${currentPitch}-${currentSortColumn}`);
+        updateSelectedSortHeader();
+    });
+});
 
 pitchSelectors.forEach(selector => {
     selector.addEventListener("click", () => selectPitch(selector.dataset.pitch));
