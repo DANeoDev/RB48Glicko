@@ -137,6 +137,40 @@ class RouteTests(unittest.TestCase):
         self.assertIn("data-total-delta-game-rd", html)
         self.assertIn("data-total-delta-month-games", html)
 
+    def test_match_center_create_player_ajax(self):
+        admin_id = self.create_user_session(role="admin", verified=True, approved=True, psychology_passed=True)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = admin_id
+
+        # First verify match center renders + Add new player button and modal
+        get_res = self.client.get("/match-center")
+        self.assertEqual(get_res.status_code, 200)
+        self.assertIn("+ Add new player", get_res.get_data(as_text=True))
+        self.assertIn("add-modal", get_res.get_data(as_text=True))
+
+        # Test AJAX player creation
+        import time
+        unique_name = f"AjaxPlayer_{int(time.time() * 1000)}"
+        post_res = self.client.post(
+            "/match-center",
+            data={
+                "action": "create_player",
+                "new_alias": unique_name,
+                "new_positions": ["MID", "ATT"],
+                "main_position": "ATT",
+                "calibration": "average",
+                "certainty": "uncertain",
+                "target_team": "a",
+            },
+            headers={"X-Requested-With": "XMLHttpRequest"}
+        )
+        self.assertEqual(post_res.status_code, 200)
+        data = post_res.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertEqual(data.get("alias"), unique_name)
+        self.assertEqual(data.get("target_team"), "a")
+        self.assertIn("player_id", data)
+
 
 if __name__ == "__main__":
     unittest.main()

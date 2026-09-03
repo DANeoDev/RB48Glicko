@@ -130,6 +130,40 @@ class MatchCenterFrontendTests(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_create_player_with_certainty_level(self):
+        from scripts.database.database import get_connection
+        from scripts.database.db_ratings import get_calibrations
+        from scripts.matches.match_entry import CERTAINTY_LEVELS
+
+        conn = get_connection()
+        try:
+            unique_name = f"Veteran_{int(time.time() * 1000000)}"
+            pid, values = create_new_player(
+                conn,
+                unique_name,
+                ["DEF"],
+                calibration_level="strong",
+                certainty_level="extremely_certain",
+            )
+            calibrations = get_calibrations(conn)
+            self.assertIn(pid, calibrations)
+            self.assertEqual(calibrations[pid]["rd"], 80.0)
+            self.assertEqual(values["rd"], 80.0)
+
+            # Test default uncertain
+            unique_name2 = f"Rookie_{int(time.time() * 1000000)}"
+            pid2, values2 = create_new_player(
+                conn,
+                unique_name2,
+                ["ATT"],
+                calibration_level="average",
+            )
+            calibrations = get_calibrations(conn)
+            self.assertEqual(calibrations[pid2]["rd"], CERTAINTY_LEVELS["uncertain"][0])
+            self.assertEqual(values2["rd"], CERTAINTY_LEVELS["uncertain"][0])
+        finally:
+            conn.close()
+
     def test_calculate_match_details_asymmetric_deltas(self):
         from scripts.frontend.view_models import calculate_match_details
 

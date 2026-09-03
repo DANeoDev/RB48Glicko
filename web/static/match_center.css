@@ -295,8 +295,7 @@ details summary {
     align-items: center;
 }
 
-.remove-player,
-.add-player {
+.remove-player {
     border: 0;
     background: none;
     color: var(--text-muted);
@@ -311,13 +310,34 @@ details summary {
 }
 
 .add-player {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 12px;
+    margin-top: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface-alt);
     color: var(--accent-readable);
-    margin-top: 9px;
-    transition: color 0.2s ease, opacity 0.2s ease;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
 }
 
 .add-player:hover {
-    opacity: 0.85;
+    background: var(--bg-surface);
+    border-color: var(--accent);
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+.add-player:active {
+    transform: translateY(0);
 }
 
 .entry-grid {

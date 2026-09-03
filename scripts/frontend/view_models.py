@@ -303,8 +303,9 @@ def calculate_match_details(match, team_a, team_b, match_ratings, rating_type=TO
 
 
 def build_match_history(connection, players, player_id=None, rating_type=TOTAL):
-    requested = request.args.get("rating_type", "total").lower() if request else "total"
-    rating_type = {"total": TOTAL, "box": BOX, "hf": HF}.get(requested, rating_type)
+    if request and "rating_type" in request.args:
+        requested = request.args.get("rating_type", "").lower()
+        rating_type = {"total": TOTAL, "box": BOX, "hf": HF}.get(requested, rating_type)
     matches = get_matches(connection)
     history = []
 
