@@ -111,6 +111,27 @@ class RouteTests(unittest.TestCase):
         self.assertIn("news", data)
         self.assertIn("has_more", data)
 
+    def test_stats_page_renders_delta_selector_and_data_attributes(self):
+        user_id = self.create_user_session(role="user", verified=True, approved=True, psychology_passed=True)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        response = self.client.get("/stats")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("delta-mode-select", html)
+        self.assertIn("Last Game", html)
+        self.assertIn("Last Month", html)
+        self.assertIn("Last Quarter", html)
+        self.assertIn("Last Year", html)
+        self.assertIn("Δ Rating", html)
+        self.assertIn("Δ G", html)
+        self.assertIn("Δ W", html)
+        self.assertIn("Δ L", html)
+        self.assertIn("Δ W%", html)
+        self.assertIn("data-total-delta-game-rating", html)
+        self.assertIn("data-total-delta-month-games", html)
+
 
 if __name__ == "__main__":
     unittest.main()

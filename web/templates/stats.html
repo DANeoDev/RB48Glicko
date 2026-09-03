@@ -26,9 +26,21 @@
         <button class="pitch-selector" data-pitch="box" title="Statistics based only on box matches.">BOX</button>
         <button class="pitch-selector" data-pitch="hf" title="Statistics based only on half-field matches.">HF</button>
     </div>
-    <div class="stats-filter">
-        <label for="game-filter" title="Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.">Filter</label>
-        <input type="text" id="game-filter" value="-" placeholder="-" title="Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.">
+    <div class="stats-controls-right">
+        <div class="stats-delta-selector">
+            <label for="delta-mode-select" title="Display performance delta changes over time.">Delta</label>
+            <select id="delta-mode-select" title="Select delta timeframe: None, Last Game, Last Month, Last Quarter, or Last Year.">
+                <option value="none" selected>No Delta</option>
+                <option value="game">Last Game</option>
+                <option value="month">Last Month</option>
+                <option value="quarter">Last Quarter</option>
+                <option value="year">Last Year</option>
+            </select>
+        </div>
+        <div class="stats-filter">
+            <label for="game-filter" title="Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.">Filter</label>
+            <input type="text" id="game-filter" value="-" placeholder="-" title="Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.">
+        </div>
     </div>
 </div>
 
@@ -39,22 +51,41 @@
                 <th>Order</th>
                 <th>Player</th>
                 {% if has_tier('glicko_user') %}
-                    <th data-column="total-conservative" data-pitch="total" title="Conservative rating: E Rating minus 3 × RD.">C Rating</th>
-                    <th data-column="total-rating" data-pitch="total" title="Estimated rating: the player's current Glicko-2 rating.">E Rating</th>
-                    <th data-column="total-rd" data-pitch="total" title="Rating Deviation: how uncertain the rating is.">RD</th>
+                    <th data-base-column="conservative" data-column="total-conservative" title="Conservative rating: E Rating minus 3 × RD.">C Rating</th>
+                    <th data-base-column="rating" data-column="total-rating" title="Estimated rating: the player's current Glicko-2 rating.">E Rating</th>
+                    <th data-base-column="delta-rating" data-column="total-delta-rating" class="delta-col delta-rating-col" title="Rating change over the selected timeframe." style="display: none;">Δ Rating</th>
+                    <th data-base-column="rd" data-column="total-rd" title="Rating Deviation: how uncertain the rating is.">RD</th>
                 {% endif %}
-                <th data-column="total-games" data-pitch="total" title="Number of matches played in this category.">Games</th>
-                <th data-column="total-wins" data-pitch="total" title="Number of matches won.">Ws</th>
-                <th data-column="total-losses" data-pitch="total" title="Number of matches lost.">Ls</th>
-                <th data-column="total-win-percent" data-pitch="total" title="Win percentage: wins divided by games played.">W%</th>
+                <th data-base-column="games" data-column="total-games" title="Number of matches played in this category.">Games</th>
+                <th data-base-column="delta-games" data-column="total-delta-games" class="delta-col delta-games-col" title="Matches played in the selected timeframe." style="display: none;">Δ G</th>
+                <th data-base-column="wins" data-column="total-wins" title="Number of matches won.">Ws</th>
+                <th data-base-column="delta-wins" data-column="total-delta-wins" class="delta-col delta-wins-col" title="Wins in the selected timeframe." style="display: none;">Δ W</th>
+                <th data-base-column="losses" data-column="total-losses" title="Number of matches lost.">Ls</th>
+                <th data-base-column="delta-losses" data-column="total-delta-losses" class="delta-col delta-losses-col" title="Losses in the selected timeframe." style="display: none;">Δ L</th>
+                <th data-base-column="win-percent" data-column="total-win-percent" title="Win percentage: wins divided by games played.">W%</th>
+                <th data-base-column="delta-win-percent" data-column="total-delta-win-percent" class="delta-col delta-win-percent-col" title="Win percentage in the selected timeframe." style="display: none;">Δ W%</th>
             </tr>
         </thead>
         <tbody>
             {% for player in leaderboard %}
             <tr
-                data-total-conservative="{{ player['total']['conservative'] }}" data-total-rating="{{ player['total']['rating'] }}" data-total-rd="{{ player['total']['rd'] }}" data-total-games="{{ player['total']['games'] }}" data-total-wins="{{ player['total']['wins'] }}" data-total-losses="{{ player['total']['losses'] }}" data-total-win-percent="{{ player['total']['win_percent'] }}"
-                data-box-conservative="{{ player['box']['conservative'] }}" data-box-rating="{{ player['box']['rating'] }}" data-box-rd="{{ player['box']['rd'] }}" data-box-games="{{ player['box']['games'] }}" data-box-wins="{{ player['box']['wins'] }}" data-box-losses="{{ player['box']['losses'] }}" data-box-win-percent="{{ player['box']['win_percent'] }}"
-                data-hf-conservative="{{ player['hf']['conservative'] }}" data-hf-rating="{{ player['hf']['rating'] }}" data-hf-rd="{{ player['hf']['rd'] }}" data-hf-games="{{ player['hf']['games'] }}" data-hf-wins="{{ player['hf']['wins'] }}" data-hf-losses="{{ player['hf']['losses'] }}" data-hf-win-percent="{{ player['hf']['win_percent'] }}">
+                {% for pitch in ["total", "box", "hf"] %}
+                    data-{{ pitch }}-conservative="{{ player[pitch]['conservative'] }}"
+                    data-{{ pitch }}-rating="{{ player[pitch]['rating'] }}"
+                    data-{{ pitch }}-rd="{{ player[pitch]['rd'] }}"
+                    data-{{ pitch }}-games="{{ player[pitch]['games'] }}"
+                    data-{{ pitch }}-wins="{{ player[pitch]['wins'] }}"
+                    data-{{ pitch }}-losses="{{ player[pitch]['losses'] }}"
+                    data-{{ pitch }}-win-percent="{{ player[pitch]['win_percent'] }}"
+                    {% for interval in ["game", "month", "quarter", "year"] %}
+                        data-{{ pitch }}-delta-{{ interval }}-rating="{{ player[pitch]['deltas'][interval]['rating'] }}"
+                        data-{{ pitch }}-delta-{{ interval }}-games="{{ player[pitch]['deltas'][interval]['games'] }}"
+                        data-{{ pitch }}-delta-{{ interval }}-wins="{{ player[pitch]['deltas'][interval]['wins'] }}"
+                        data-{{ pitch }}-delta-{{ interval }}-losses="{{ player[pitch]['deltas'][interval]['losses'] }}"
+                        data-{{ pitch }}-delta-{{ interval }}-win-percent="{{ player[pitch]['deltas'][interval]['win_percent'] }}"
+                    {% endfor %}
+                {% endfor %}
+            >
                 <td>{{ loop.index }}</td>
                 <td>
                     <a href="{{ url_for('stats.player_profile', player_id=player['player_id']) }}">{{ player["alias"] }}</a>
@@ -63,12 +94,17 @@
                     {% if has_tier('glicko_user') %}
                         <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["conservative"] | round | int }}</td>
                         <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rating"] | round | int }}</td>
+                        <td data-pitch-cell="{{ pitch }}" class="delta-col delta-rating-col" data-delta-type="rating" style="display: none;"></td>
                         <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rd"] | round(1) }}</td>
                     {% endif %}
                     <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["games"] }}</td>
+                    <td data-pitch-cell="{{ pitch }}" class="delta-col delta-games-col" data-delta-type="games" style="display: none;"></td>
                     <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["wins"] }}</td>
+                    <td data-pitch-cell="{{ pitch }}" class="delta-col delta-wins-col" data-delta-type="wins" style="display: none;"></td>
                     <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["losses"] }}</td>
+                    <td data-pitch-cell="{{ pitch }}" class="delta-col delta-losses-col" data-delta-type="losses" style="display: none;"></td>
                     <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["win_percent"] | round(1) }}%</td>
+                    <td data-pitch-cell="{{ pitch }}" class="delta-col delta-win-percent-col" data-delta-type="win-percent" style="display: none;"></td>
                 {% endfor %}
             </tr>
             {% endfor %}
@@ -81,19 +117,220 @@
 {% block scripts %}
 <style>#leaderboard th.sort-selected { color: var(--accent-readable); }</style>
 <script>
-const table=document.getElementById("leaderboard"),tbody=table.querySelector("tbody"),pitchSelectors=document.querySelectorAll(".pitch-selector"),columnHeaders=table.querySelectorAll("th[data-column]"),gameFilter=document.getElementById("game-filter");
-let currentPitch="total",currentSortColumn="games";
-const isGlickoUser = {{ 'true' if has_tier('glicko_user') else 'false' }};
-const pitchColumns = isGlickoUser
-    ? {total:["total-conservative","total-rating","total-rd","total-games","total-wins","total-losses","total-win-percent"],box:["box-conservative","box-rating","box-rd","box-games","box-wins","box-losses","box-win-percent"],hf:["hf-conservative","hf-rating","hf-rd","hf-games","hf-wins","hf-losses","hf-win-percent"]}
-    : {total:["total-games","total-wins","total-losses","total-win-percent"],box:["box-games","box-wins","box-losses","box-win-percent"],hf:["hf-games","hf-wins","hf-losses","hf-win-percent"]};
-const columnLabels = isGlickoUser ? ["C Rating","E Rating","RD","Games","Ws","Ls","W%"] : ["Games","Ws","Ls","W%"];
+const table = document.getElementById("leaderboard");
+const tbody = table.querySelector("tbody");
+const pitchSelectors = document.querySelectorAll(".pitch-selector");
+const columnHeaders = table.querySelectorAll("th[data-column]");
+const gameFilter = document.getElementById("game-filter");
+const deltaModeSelect = document.getElementById("delta-mode-select");
 
-function sortRows(column){const rows=Array.from(tbody.querySelectorAll("tr"));rows.sort((a,b)=>parseFloat(b.getAttribute("data-"+column))-parseFloat(a.getAttribute("data-"+column)));rows.forEach(row=>tbody.appendChild(row));updateVisibleRanks();}
-function updateSelectedSortHeader(){const selected=currentPitch+"-"+currentSortColumn;columnHeaders.forEach(header=>header.classList.toggle("sort-selected",header.dataset.column===selected));}
-function updateVisibleRanks(){let rank=1;tbody.querySelectorAll("tr").forEach(row=>{if(row.style.display!=="none")row.cells[0].textContent=rank++;});}
-function applyGameFilter(){const value=gameFilter.value.trim();if(value===""||value==="-"){tbody.querySelectorAll("tr").forEach(row=>row.style.display="");updateVisibleRanks();return;}const minimum=Number(value);if(!Number.isFinite(minimum)||minimum<0){tbody.querySelectorAll("tr").forEach(row=>row.style.display="");updateVisibleRanks();return;}const gamesColumn=currentPitch+"-games";tbody.querySelectorAll("tr").forEach(row=>row.style.display=Number(row.getAttribute("data-"+gamesColumn))>=minimum?"":"none");updateVisibleRanks();}
-function selectPitch(pitch){currentPitch=pitch;pitchSelectors.forEach(s=>s.classList.toggle("selected",s.dataset.pitch===pitch));pitchColumns[pitch].forEach((column,index)=>{if(columnHeaders[index]){columnHeaders[index].dataset.column=column;columnHeaders[index].textContent=columnLabels[index];}});tbody.querySelectorAll("tr").forEach(row=>row.querySelectorAll("td[data-pitch-cell]").forEach(cell=>cell.style.display=cell.dataset.pitchCell===pitch?"":"none"));sortRows(pitch+"-"+currentSortColumn);updateSelectedSortHeader();applyGameFilter();}
-gameFilter.addEventListener("input",applyGameFilter);pitchSelectors.forEach(selector=>selector.addEventListener("click",()=>selectPitch(selector.dataset.pitch)));columnHeaders.forEach(header=>{header.style.cursor="pointer";header.addEventListener("click",()=>{currentSortColumn=header.dataset.column.replace(currentPitch+"-","");sortRows(header.dataset.column);updateSelectedSortHeader();});});selectPitch("total");
+let currentPitch = "total";
+let currentSortColumn = "games";
+let currentDeltaMode = "none";
+const isGlickoUser = {{ 'true' if has_tier('glicko_user') else 'false' }};
+
+function formatDelta(val, type) {
+    if (val === undefined || val === null || isNaN(val)) return { text: "—", cls: "zero" };
+    const num = Number(val);
+    if (Math.abs(num) < 0.0001) {
+        if (type === "win-percent") return { text: "0.0%", cls: "zero" };
+        if (type === "rating") return { text: "0.0", cls: "zero" };
+        return { text: "0", cls: "zero" };
+    }
+    const isPos = num > 0;
+    const cls = isPos ? "positive" : "negative";
+    const sign = isPos ? "+" : "";
+
+    if (type === "rating") {
+        return { text: `${sign}${num.toFixed(1)}`, cls: cls };
+    } else if (type === "win-percent") {
+        return { text: `${sign}${num.toFixed(1)}%`, cls: cls };
+    } else {
+        return { text: `${sign}${Math.round(num)}`, cls: cls };
+    }
+}
+
+function syncDeltaRowAttributesAndCells() {
+    if (currentDeltaMode === "none") return;
+
+    const rows = tbody.querySelectorAll("tr");
+    const pitches = ["total", "box", "hf"];
+
+    rows.forEach(row => {
+        pitches.forEach(pitch => {
+            const dRating = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-rating`) || "0");
+            const dGames = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-games`) || "0");
+            const dWins = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-wins`) || "0");
+            const dLosses = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-losses`) || "0");
+            const dWinPercent = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-win-percent`) || "0");
+
+            row.setAttribute(`data-${pitch}-delta-rating`, dRating);
+            row.setAttribute(`data-${pitch}-delta-games`, dGames);
+            row.setAttribute(`data-${pitch}-delta-wins`, dWins);
+            row.setAttribute(`data-${pitch}-delta-losses`, dLosses);
+            row.setAttribute(`data-${pitch}-delta-win-percent`, dWinPercent);
+
+            // Update cells for this pitch
+            const cells = row.querySelectorAll(`td[data-pitch-cell="${pitch}"].delta-col`);
+            cells.forEach(cell => {
+                const type = cell.dataset.deltaType;
+                let fmt;
+                if (type === "rating") fmt = formatDelta(dRating, type);
+                else if (type === "games") fmt = formatDelta(dGames, type);
+                else if (type === "wins") fmt = formatDelta(dWins, type);
+                else if (type === "losses") fmt = formatDelta(dLosses, type);
+                else if (type === "win-percent") fmt = formatDelta(dWinPercent, type);
+
+                if (fmt) {
+                    cell.textContent = fmt.text;
+                    cell.className = `delta-col delta-${type}-col delta-val ${fmt.cls}`;
+                }
+            });
+        });
+    });
+}
+
+function updateColumnVisibility() {
+    const isNone = currentDeltaMode === "none";
+    const isGame = currentDeltaMode === "game";
+    const isTimeRange = ["month", "quarter", "year"].includes(currentDeltaMode);
+
+    // Header visibility
+    table.querySelectorAll("th.delta-col").forEach(th => {
+        const isRating = th.classList.contains("delta-rating-col");
+        if (isNone) {
+            th.style.display = "none";
+        } else if (isGame) {
+            th.style.display = isRating ? "" : "none";
+        } else if (isTimeRange) {
+            th.style.display = "";
+        }
+    });
+
+    // Cell visibility
+    tbody.querySelectorAll("tr").forEach(row => {
+        // Normal pitch cells
+        row.querySelectorAll("td[data-pitch-cell]:not(.delta-col)").forEach(cell => {
+            cell.style.display = cell.dataset.pitchCell === currentPitch ? "" : "none";
+        });
+
+        // Delta pitch cells
+        row.querySelectorAll("td[data-pitch-cell].delta-col").forEach(cell => {
+            const isRating = cell.classList.contains("delta-rating-col");
+            if (cell.dataset.pitchCell !== currentPitch) {
+                cell.style.display = "none";
+            } else if (isNone) {
+                cell.style.display = "none";
+            } else if (isGame) {
+                cell.style.display = isRating ? "" : "none";
+            } else if (isTimeRange) {
+                cell.style.display = "";
+            }
+        });
+    });
+}
+
+function sortRows(columnAttr) {
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+    rows.sort((a, b) => {
+        const valA = parseFloat(a.getAttribute("data-" + columnAttr)) || 0;
+        const valB = parseFloat(b.getAttribute("data-" + columnAttr)) || 0;
+        return valB - valA;
+    });
+    rows.forEach(row => tbody.appendChild(row));
+    updateVisibleRanks();
+}
+
+function updateSelectedSortHeader() {
+    columnHeaders.forEach(header => {
+        const isSelected = header.dataset.baseColumn === currentSortColumn;
+        header.classList.toggle("sort-selected", isSelected);
+    });
+}
+
+function updateVisibleRanks() {
+    let rank = 1;
+    tbody.querySelectorAll("tr").forEach(row => {
+        if (row.style.display !== "none") {
+            row.cells[0].textContent = rank++;
+        }
+    });
+}
+
+function applyGameFilter() {
+    const value = gameFilter.value.trim();
+    if (value === "" || value === "-") {
+        tbody.querySelectorAll("tr").forEach(row => row.style.display = "");
+        updateVisibleRanks();
+        return;
+    }
+    const minimum = Number(value);
+    if (!Number.isFinite(minimum) || minimum < 0) {
+        tbody.querySelectorAll("tr").forEach(row => row.style.display = "");
+        updateVisibleRanks();
+        return;
+    }
+    const gamesColumn = currentPitch + "-games";
+    tbody.querySelectorAll("tr").forEach(row => {
+        row.style.display = Number(row.getAttribute("data-" + gamesColumn)) >= minimum ? "" : "none";
+    });
+    updateVisibleRanks();
+}
+
+function selectPitch(pitch) {
+    currentPitch = pitch;
+    pitchSelectors.forEach(s => s.classList.toggle("selected", s.dataset.pitch === pitch));
+    
+    // Update data-column attributes on headers
+    columnHeaders.forEach(header => {
+        header.dataset.column = `${pitch}-${header.dataset.baseColumn}`;
+    });
+
+    updateColumnVisibility();
+    sortRows(`${currentPitch}-${currentSortColumn}`);
+    updateSelectedSortHeader();
+    applyGameFilter();
+}
+
+function setDeltaMode(mode) {
+    currentDeltaMode = mode;
+
+    // If currently sorted by a standard delta column that is now hidden, fallback to games
+    if ((mode === "none" && currentSortColumn.startsWith("delta-")) ||
+        (mode === "game" && currentSortColumn.startsWith("delta-") && currentSortColumn !== "delta-rating")) {
+        currentSortColumn = "games";
+    }
+
+    syncDeltaRowAttributesAndCells();
+    updateColumnVisibility();
+    sortRows(`${currentPitch}-${currentSortColumn}`);
+    updateSelectedSortHeader();
+    applyGameFilter();
+}
+
+// Event Listeners
+gameFilter.addEventListener("input", applyGameFilter);
+
+if (deltaModeSelect) {
+    deltaModeSelect.addEventListener("change", (e) => {
+        setDeltaMode(e.target.value);
+    });
+}
+
+pitchSelectors.forEach(selector => {
+    selector.addEventListener("click", () => selectPitch(selector.dataset.pitch));
+});
+
+columnHeaders.forEach(header => {
+    header.style.cursor = "pointer";
+    header.addEventListener("click", () => {
+        currentSortColumn = header.dataset.baseColumn;
+        sortRows(`${currentPitch}-${currentSortColumn}`);
+        updateSelectedSortHeader();
+    });
+});
+
+// Initial Setup
+selectPitch("total");
 </script>
 {% endblock %}
