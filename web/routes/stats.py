@@ -36,6 +36,18 @@ def stats():
     return render_template("stats.html", leaderboard=build_leaderboard(ratings, players, player_stats, deltas=deltas))
 
 
+@stats_bp.route("/my-stats")
+@require_tier(Tier.USER)
+def my_stats():
+    from web.services.security import get_current_user
+    from flask import redirect, url_for, flash
+    user = get_current_user()
+    if user and user.get("player_id"):
+        return redirect(url_for("stats.player_profile", player_id=user["player_id"]))
+    flash("Bitte verknüpfe dein Benutzerkonto in den Einstellungen mit einem Spieler, um deine persönlichen Statistiken direkt aufzurufen.", "info")
+    return redirect(url_for("auth.settings"))
+
+
 @stats_bp.route("/player/<int:player_id>")
 @require_tier(Tier.USER)
 def player_profile(player_id):
@@ -65,6 +77,8 @@ def player_profile(player_id):
     finally:
         acc_conn.close()
 
+    players_map = {pid: p["aliases"][0] for pid, p in players.items()}
+
     return render_template(
         "player.html",
         player=players[player_id],
@@ -76,6 +90,7 @@ def player_profile(player_id):
         selected_rating_type=selected_rating_type,
         player_id=player_id,
         linked_user=linked_user,
+        players_map=players_map,
     )
 
 

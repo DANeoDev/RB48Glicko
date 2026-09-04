@@ -326,7 +326,7 @@ def build_match_history(connection, players, player_id=None, rating_type=TOTAL):
 
         def player_entry(pid):
             rating = match_ratings.get(pid, {}).get(rating_type, {}).get("rating")
-            return {"name": players[pid]["aliases"][0], "rating": rating}
+            return {"name": players[pid]["aliases"][0], "rating": rating, "player_id": pid}
 
         team_a_players = [player_entry(pid) for pid in team_a]
         team_b_players = [player_entry(pid) for pid in team_b]
@@ -335,6 +335,30 @@ def build_match_history(connection, players, player_id=None, rating_type=TOTAL):
                 key=lambda p: (p["rating"] is not None, p["rating"] if p["rating"] is not None else 0),
                 reverse=True,
             )
+
+        p_team = details.get("player_team")
+        own_ids = []
+        opp_ids = []
+        is_win = False
+        is_loss = False
+        is_draw = match["goals_a"] == match["goals_b"]
+        goals_for = None
+        goals_against = None
+
+        if p_team == "a":
+            own_ids = [pid for pid in team_a if pid != player_id]
+            opp_ids = list(team_b)
+            is_win = match["goals_a"] > match["goals_b"]
+            is_loss = match["goals_a"] < match["goals_b"]
+            goals_for = match["goals_a"]
+            goals_against = match["goals_b"]
+        elif p_team == "b":
+            own_ids = [pid for pid in team_b if pid != player_id]
+            opp_ids = list(team_a)
+            is_win = match["goals_b"] > match["goals_a"]
+            is_loss = match["goals_b"] < match["goals_a"]
+            goals_for = match["goals_b"]
+            goals_against = match["goals_a"]
 
         history.append({
             "match_id": match_id,
@@ -350,6 +374,14 @@ def build_match_history(connection, players, player_id=None, rating_type=TOTAL):
             "external_b": external_b,
             "team_a_ids": team_a,
             "team_b_ids": team_b,
+            "own_team_ids": own_ids,
+            "opp_team_ids": opp_ids,
+            "is_win": is_win,
+            "is_loss": is_loss,
+            "is_draw": is_draw,
+            "goals_for": goals_for,
+            "goals_against": goals_against,
+            "individual_player_delta": details.get("player_delta"),
             **details,
         })
 

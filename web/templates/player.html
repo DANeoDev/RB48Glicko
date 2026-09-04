@@ -17,13 +17,285 @@
 .rating-extremes { margin-top: 8px; font-size: 0.85em; line-height: 1.5; }
 .rating-extremes strong { display: inline-block; width: 42px; }
 .ratings-table { border-collapse: collapse; margin: 20px auto; }
-.player-history-controls { display:flex; flex-direction:column; align-items:center; gap:12px; margin:30px 0 26px; }
+.player-history-controls { display:flex; flex-direction:column; align-items:center; gap:12px; margin:30px 0 20px; }
 .player-rating-selector { display:inline-flex; border-radius:var(--radius); overflow:hidden; box-shadow:0 0 0 1px var(--border); }
 .player-rating-selector a { padding:7px 12px; border:0; border-right:1px solid var(--border); background:var(--bg-surface); color:var(--text-main); font:inherit; font-size:12px; font-weight:600; text-decoration:none; }
 .player-rating-selector a:last-child { border-right:0; }
 .player-rating-selector a.active { background:var(--accent); color:#ffffff; }
 .player-rating-selector a:hover { background:var(--accent-hover); color:#ffffff; }
 .player-rating-help { cursor:help; color:var(--text-muted); font-size:11px; }
+
+/* Filter Card & Popovers */
+.player-filter-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin: 16px auto 26px;
+    max-width: 900px;
+    text-align: left;
+}
+.filter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.filter-title {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.btn-reset-filters {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 14px;
+    padding: 3px 10px;
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.btn-reset-filters:hover {
+    background: rgba(220, 53, 69, 0.2);
+    border-color: #dc3545;
+    color: #ff8888;
+}
+.filter-sections-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+@media (max-width: 700px) {
+    .filter-sections-grid { grid-template-columns: 1fr; }
+}
+.filter-group {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.filter-group-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+}
+.filter-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 24px;
+    align-items: center;
+}
+.filter-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 14px;
+    padding: 3px 9px 3px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    animation: filterTagFade .15s ease;
+}
+.filter-tag-tm {
+    background: rgba(40, 167, 69, 0.22);
+    border: 1px solid #28a745;
+    color: #88ff88;
+}
+.filter-tag-opp {
+    background: rgba(220, 53, 69, 0.22);
+    border: 1px solid #dc3545;
+    color: #ff8888;
+}
+.filter-tag-remove {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 2px;
+    line-height: 1;
+    opacity: 0.75;
+    transition: opacity .15s;
+}
+.filter-tag-remove:hover { opacity: 1; }
+.filter-add-wrapper {
+    position: relative;
+    display: inline-block;
+}
+.btn-add-filter {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-muted);
+    border-radius: 12px;
+    padding: 4px 10px;
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.btn-add-teammate:hover {
+    border-color: #28a745;
+    color: #88ff88;
+    background: rgba(40, 167, 69, 0.1);
+}
+.btn-add-opponent:hover {
+    border-color: #dc3545;
+    color: #ff8888;
+    background: rgba(220, 53, 69, 0.1);
+}
+.filter-search-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    background: #1e1338;
+    border: 1px solid #7B52C5;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    width: 260px;
+    padding: 10px;
+}
+.filter-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: #140b28;
+    border: 1px solid #5A4A83;
+    border-radius: 6px;
+    color: #ffffff;
+    padding: 6px 10px;
+    font-size: 12.5px;
+    margin-bottom: 8px;
+    outline: none;
+}
+.filter-search-input:focus {
+    border-color: var(--accent);
+}
+.filter-player-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 180px;
+    overflow-y: auto;
+}
+.filter-player-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    cursor: pointer;
+    color: #ffffff;
+    transition: background 0.12s;
+}
+.filter-player-item:hover, .filter-player-item.selected {
+    background: #582DA1;
+}
+.filter-player-item .badge-count {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+.filter-player-empty {
+    padding: 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* Filtered Stats Summary */
+.filtered-stats-summary {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    animation: filterTagFade .2s ease;
+}
+.filtered-stats-heading {
+    margin: 0 0 10px 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.filtered-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+}
+.filtered-stat-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.filtered-stat-card .stat-num {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+.filtered-stat-card .stat-lbl {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+.filtered-stat-card .stat-sub {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+.delta-pos { color: #88ff88 !important; }
+.delta-neg { color: #ff8888 !important; }
+
+/* In-match highlighted tags */
+.highlight-filter-tm {
+    background: rgba(40, 167, 69, 0.28) !important;
+    border-radius: 3px;
+    padding: 1px 4px;
+    color: #88ff88 !important;
+    font-weight: 700;
+}
+.highlight-filter-opp {
+    background: rgba(220, 53, 69, 0.28) !important;
+    border-radius: 3px;
+    padding: 1px 4px;
+    color: #ff8888 !important;
+    font-weight: 700;
+}
+.no-filtered-matches {
+    text-align: center;
+    padding: 30px 20px;
+    background: var(--card-bg);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    margin: 20px auto;
+    max-width: 900px;
+}
+@keyframes filterTagFade {
+    from { opacity: 0; transform: translateY(-3px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 </style>
 {% endblock %}
 
@@ -103,24 +375,113 @@
 <h2>{{ t('player.personal_history', 'Personal Match History') }}</h2>
 <div class="player-history-controls">
 <div class="player-rating-selector" title="Select which match history to display: Total, BOX, or HF.">
-<a data-preserve-scroll class="{% if selected_rating_type == 'total' %}active{% endif %}" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='total') if player_id is defined else request.path + '?rating_type=total' }}" title="Show Total match history.">{{ t('matches.filter_all', 'Total') }}</a>
-<a data-preserve-scroll class="{% if selected_rating_type == 'box' %}active{% endif %}" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='box') if player_id is defined else request.path + '?rating_type=box' }}" title="Show BOX match history.">BOX</a>
-<a data-preserve-scroll class="{% if selected_rating_type == 'hf' %}active{% endif %}" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='hf') if player_id is defined else request.path + '?rating_type=hf' }}" title="Show HF match history.">HF</a>
+<a data-preserve-scroll class="{% if selected_rating_type == 'total' %}active{% endif %}" id="btn-tab-total" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='total') }}" title="Show Total match history.">{{ t('matches.filter_all', 'Total') }}</a>
+<a data-preserve-scroll class="{% if selected_rating_type == 'box' %}active{% endif %}" id="btn-tab-box" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='box') }}" title="Show BOX match history.">BOX</a>
+<a data-preserve-scroll class="{% if selected_rating_type == 'hf' %}active{% endif %}" id="btn-tab-hf" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='hf') }}" title="Show HF match history.">HF</a>
 </div>
 </div>
 
-<div class="match-history">
+<!-- Interactive Teammate & Opponent Filter Card -->
+<div class="player-filter-card" id="player-filter-card">
+    <div class="filter-header">
+        <h3 class="filter-title">🔍 {{ t('player.filters_title', 'Mitspieler- & Gegner-Filter') }}</h3>
+        <button type="button" class="btn-reset-filters" id="btn-reset-filters" style="display: none;" onclick="window.PlayerFilter.reset()">
+            ↺ {{ t('player.reset_filters', 'Filter zurücksetzen') }}
+        </button>
+    </div>
+
+    <div class="filter-sections-grid">
+        <!-- Teammates Filter Group -->
+        <div class="filter-group">
+            <span class="filter-group-label">🤝 {{ t('player.filter_teammates', 'Mitspieler') }}:</span>
+            <div class="filter-tags" id="teammate-tags"></div>
+            <div class="filter-add-wrapper">
+                <button type="button" class="btn-add-filter btn-add-teammate" id="btn-add-teammate" onclick="window.PlayerFilter.openSearch('teammate')">
+                    {{ t('player.add_teammate', '+ Mitspieler') }}
+                </button>
+                <div class="filter-search-popover" id="popover-teammate" style="display: none;">
+                    <input type="text" class="filter-search-input" id="search-input-teammate" placeholder="{{ t('player.search_player', 'Spieler suchen...') }}" autocomplete="off">
+                    <ul class="filter-player-list" id="player-list-teammate"></ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Opponents Filter Group -->
+        <div class="filter-group">
+            <span class="filter-group-label">⚔️ {{ t('player.filter_opponents', 'Gegner') }}:</span>
+            <div class="filter-tags" id="opponent-tags"></div>
+            <div class="filter-add-wrapper">
+                <button type="button" class="btn-add-filter btn-add-opponent" id="btn-add-opponent" onclick="window.PlayerFilter.openSearch('opponent')">
+                    {{ t('player.add_opponent', '+ Gegner') }}
+                </button>
+                <div class="filter-search-popover" id="popover-opponent" style="display: none;">
+                    <input type="text" class="filter-search-input" id="search-input-opponent" placeholder="{{ t('player.search_player', 'Spieler suchen...') }}" autocomplete="off">
+                    <ul class="filter-player-list" id="player-list-opponent"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Filtered Stats Summary -->
+    <div class="filtered-stats-summary" id="filtered-stats-summary" style="display: none;">
+        <h4 class="filtered-stats-heading">{{ t('player.filtered_stats_title', 'Statistik für ausgewählte Konstellation') }}</h4>
+        <div class="filtered-stats-grid">
+            <div class="filtered-stat-card">
+                <span class="stat-num" id="stat-filtered-games">0</span>
+                <span class="stat-lbl">{{ t('player.filtered_games', 'Gefilterte Spiele') }}</span>
+                <span class="stat-sub" id="stat-total-games-sub"></span>
+            </div>
+            <div class="filtered-stat-card">
+                <span class="stat-num" id="stat-filtered-record">0 - 0 - 0</span>
+                <span class="stat-lbl">{{ t('player.filtered_record', 'Bilanz (S-U-N)') }}</span>
+            </div>
+            <div class="filtered-stat-card">
+                <span class="stat-num" id="stat-filtered-winrate">0.0%</span>
+                <span class="stat-lbl">{{ t('player.filtered_win_rate', 'Siegquote') }}</span>
+            </div>
+            {% if has_tier('glicko_user') %}
+            <div class="filtered-stat-card">
+                <span class="stat-num" id="stat-filtered-delta">0.0</span>
+                <span class="stat-lbl">{{ t('player.filtered_delta', 'Rating-Delta') }}</span>
+            </div>
+            {% endif %}
+            <div class="filtered-stat-card">
+                <span class="stat-num" id="stat-filtered-goals">+0</span>
+                <span class="stat-lbl">{{ t('player.filtered_goals', 'Tordifferenz') }}</span>
+                <span class="stat-sub" id="stat-filtered-goals-sub"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="no-filtered-matches" id="no-filtered-matches" style="display: none;">
+    <p>{{ t('player.no_filtered_matches', 'Keine Spiele mit der gewählten Filter-Kombination gefunden.') }}</p>
+</div>
+
+<div class="match-history" id="match-history-container">
 {% for match in matches %}
-<div class="match">
+<div class="match" id="match-card-{{ match['match_id'] }}" 
+     data-match-id="{{ match['match_id'] }}"
+     data-own-ids="{{ match['own_team_ids'] | join(',') }}"
+     data-opp-ids="{{ match['opp_team_ids'] | join(',') }}"
+     data-team-a-ids="{{ match['team_a_ids'] | join(',') }}"
+     data-team-b-ids="{{ match['team_b_ids'] | join(',') }}"
+     data-player-team="{{ match['player_team'] }}"
+     data-is-win="{{ 'true' if match['is_win'] else 'false' }}"
+     data-is-loss="{{ 'true' if match['is_loss'] else 'false' }}"
+     data-is-draw="{{ 'true' if match['is_draw'] else 'false' }}"
+     data-goals-for="{{ match['goals_for'] if match['goals_for'] is not none else 0 }}"
+     data-goals-against="{{ match['goals_against'] if match['goals_against'] is not none else 0 }}"
+     data-player-delta="{{ match['individual_player_delta'] if match['individual_player_delta'] is not none else (match['rating_delta'] if match['rating_delta'] is not none else 0.0) }}">
 <div class="match-header">{{ match["match_id"] }} — {{ match["pitch"] | upper }}</div>
 <div class="match-info">
 <div class="team team-a"><strong>{{ t('matches.team_a', 'Team A') }}</strong><div class="players">
-{% for team_player in match["team_a_players"] %}<span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}{% if has_tier('glicko_user') %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
+{% for team_player in match["team_a_players"] %}<span class="match-player" data-player-id="{{ team_player['player_id'] }}">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}<span class="player-name-text">{{ team_player["name"] }}</span>{% endif %}{% if has_tier('glicko_user') %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
 {% if match["external_a"] > 0 %}{% if match["team_a_players"] %}, {% endif %}{% if match["external_a"] == 1 %}{{ t('matches.external_player', count=match['external_a']) }}{% else %}{{ t('matches.external_players', count=match['external_a']) }}{% endif %}{% endif %}
 </div></div>
 <div class="score">{{ match["goals_a"] }} - {{ match["goals_b"] }}</div>
 <div class="team team-b"><strong>{{ t('matches.team_b', 'Team B') }}</strong><div class="players">
-{% for team_player in match["team_b_players"] %}<span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}{% if has_tier('glicko_user') %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
+{% for team_player in match["team_b_players"] %}<span class="match-player" data-player-id="{{ team_player['player_id'] }}">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}<span class="player-name-text">{{ team_player["name"] }}</span>{% endif %}{% if has_tier('glicko_user') %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
 {% if match["external_b"] > 0 %}{% if match["team_b_players"] %}, {% endif %}{% if match["external_b"] == 1 %}{{ t('matches.external_player', count=match['external_b']) }}{% else %}{{ t('matches.external_players', count=match['external_b']) }}{% endif %}{% endif %}
 </div></div>
 </div>
@@ -164,8 +525,6 @@
 </div>
 {% endfor %}
 </div>
-</div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -185,5 +544,339 @@ createRatingChart("hfChart", "hf");
 {% endif %}
 <script>
 document.querySelectorAll(".match").forEach(match => { match.addEventListener("click", () => match.classList.toggle("expanded")); });
+
+// =========================================================================
+// Reactive Teammate & Opponent Filter System
+// =========================================================================
+(function() {
+    const currentPlayerId = {{ player_id }};
+    const playersMap = {{ players_map | tojson }};
+    const allMatchesData = [
+        {% for match in matches %}
+        {
+            match_id: {{ match["match_id"] }},
+            own_team_ids: {{ match["own_team_ids"] | tojson }},
+            opp_team_ids: {{ match["opp_team_ids"] | tojson }},
+            is_win: {{ 'true' if match["is_win"] else 'false' }},
+            is_loss: {{ 'true' if match["is_loss"] else 'false' }},
+            is_draw: {{ 'true' if match["is_draw"] else 'false' }},
+            goals_for: {{ match["goals_for"] if match["goals_for"] is not none else 0 }},
+            goals_against: {{ match["goals_against"] if match["goals_against"] is not none else 0 }},
+            player_delta: {{ match["individual_player_delta"] if match["individual_player_delta"] is not none else (match["rating_delta"] if match["rating_delta"] is not none else 0.0) }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    let activeTeammates = [];
+    let activeOpponents = [];
+    let currentOpenType = null;
+
+    // Elements
+    const tmTagsEl = document.getElementById("teammate-tags");
+    const oppTagsEl = document.getElementById("opponent-tags");
+    const resetBtnEl = document.getElementById("btn-reset-filters");
+    const summaryCardEl = document.getElementById("filtered-stats-summary");
+    const noMatchesEl = document.getElementById("no-filtered-matches");
+    const matchHistoryEl = document.getElementById("match-history-container");
+
+    const popoverTm = document.getElementById("popover-teammate");
+    const popoverOpp = document.getElementById("popover-opponent");
+    const searchInputTm = document.getElementById("search-input-teammate");
+    const searchInputOpp = document.getElementById("search-input-opponent");
+    const playerListTm = document.getElementById("player-list-teammate");
+    const playerListOpp = document.getElementById("player-list-opponent");
+
+    function getMatchingMatches(t_ids, o_ids) {
+        return allMatchesData.filter(m => {
+            for (const pid of t_ids) {
+                if (!m.own_team_ids.includes(pid)) return false;
+            }
+            for (const pid of o_ids) {
+                if (!m.opp_team_ids.includes(pid)) return false;
+            }
+            return true;
+        });
+    }
+
+    function getAvailableCandidates(type) {
+        const matchingMatches = getMatchingMatches(activeTeammates, activeOpponents);
+        const counts = {};
+
+        matchingMatches.forEach(m => {
+            const list = (type === "teammate") ? m.own_team_ids : m.opp_team_ids;
+            list.forEach(pid => {
+                if (pid === currentPlayerId) return;
+                if (type === "teammate" && activeTeammates.includes(pid)) return;
+                if (type === "opponent" && activeOpponents.includes(pid)) return;
+                counts[pid] = (counts[pid] || 0) + 1;
+            });
+        });
+
+        const candidates = Object.keys(counts).map(pidStr => {
+            const pid = Number(pidStr);
+            return {
+                id: pid,
+                name: playersMap[pid] || ("Player " + pid),
+                count: counts[pid]
+            };
+        });
+
+        candidates.sort((a, b) => {
+            if (b.count !== a.count) return b.count - a.count;
+            return a.name.localeCompare(b.name);
+        });
+
+        return candidates;
+    }
+
+    function renderCandidates(type, filterText = "") {
+        const listEl = (type === "teammate") ? playerListTm : playerListOpp;
+        const query = filterText.trim().toLowerCase();
+        let candidates = getAvailableCandidates(type);
+
+        if (query) {
+            candidates = candidates.filter(c => c.name.toLowerCase().includes(query));
+        }
+
+        listEl.innerHTML = "";
+        if (candidates.length === 0) {
+            const emptyLi = document.createElement("li");
+            emptyLi.className = "filter-player-empty";
+            emptyLi.textContent = "{{ t('player.no_players_available', 'Keine weiteren Spieler möglich') }}";
+            listEl.appendChild(emptyLi);
+            return;
+        }
+
+        candidates.forEach(c => {
+            const li = document.createElement("li");
+            li.className = "filter-player-item";
+            li.innerHTML = `<span>${c.name}</span><span class="badge-count">${c.count} ${c.count === 1 ? 'Spiel' : 'Spiele'}</span>`;
+            li.addEventListener("click", () => {
+                addFilter(type, c.id);
+                closePopovers();
+            });
+            listEl.appendChild(li);
+        });
+    }
+
+    function addFilter(type, playerId) {
+        if (type === "teammate") {
+            if (!activeTeammates.includes(playerId)) activeTeammates.push(playerId);
+        } else {
+            if (!activeOpponents.includes(playerId)) activeOpponents.push(playerId);
+        }
+        updateUI();
+    }
+
+    function removeFilter(type, playerId) {
+        if (type === "teammate") {
+            activeTeammates = activeTeammates.filter(id => id !== playerId);
+        } else {
+            activeOpponents = activeOpponents.filter(id => id !== playerId);
+        }
+        updateUI();
+    }
+
+    function resetFilters() {
+        activeTeammates = [];
+        activeOpponents = [];
+        closePopovers();
+        updateUI();
+    }
+
+    function closePopovers() {
+        if (popoverTm) popoverTm.style.display = "none";
+        if (popoverOpp) popoverOpp.style.display = "none";
+        currentOpenType = null;
+    }
+
+    function openSearch(type) {
+        closePopovers();
+        currentOpenType = type;
+        const popover = (type === "teammate") ? popoverTm : popoverOpp;
+        const input = (type === "teammate") ? searchInputTm : searchInputOpp;
+        if (!popover || !input) return;
+
+        input.value = "";
+        renderCandidates(type);
+        popover.style.display = "block";
+        input.focus();
+    }
+
+    function updateTags() {
+        tmTagsEl.innerHTML = "";
+        activeTeammates.forEach(pid => {
+            const name = playersMap[pid] || ("Player " + pid);
+            const tag = document.createElement("span");
+            tag.className = "filter-tag filter-tag-tm";
+            tag.innerHTML = `<span>${name}</span><button type="button" class="filter-tag-remove" aria-label="Remove ${name}" title="Entfernen">×</button>`;
+            tag.querySelector(".filter-tag-remove").addEventListener("click", () => removeFilter("teammate", pid));
+            tmTagsEl.appendChild(tag);
+        });
+
+        oppTagsEl.innerHTML = "";
+        activeOpponents.forEach(pid => {
+            const name = playersMap[pid] || ("Player " + pid);
+            const tag = document.createElement("span");
+            tag.className = "filter-tag filter-tag-opp";
+            tag.innerHTML = `<span>${name}</span><button type="button" class="filter-tag-remove" aria-label="Remove ${name}" title="Entfernen">×</button>`;
+            tag.querySelector(".filter-tag-remove").addEventListener("click", () => removeFilter("opponent", pid));
+            oppTagsEl.appendChild(tag);
+        });
+    }
+
+    function updateStatsAndMatches() {
+        const hasFilters = activeTeammates.length > 0 || activeOpponents.length > 0;
+        resetBtnEl.style.display = hasFilters ? "inline-block" : "none";
+
+        const matchingMatches = getMatchingMatches(activeTeammates, activeOpponents);
+        const matchingIds = new Set(matchingMatches.map(m => m.match_id));
+
+        // Update matches DOM visibility and player highlighting
+        let visibleCount = 0;
+        document.querySelectorAll(".match").forEach(matchCard => {
+            const matchId = Number(matchCard.dataset.matchId);
+            const isVisible = matchingIds.has(matchId);
+
+            if (isVisible) {
+                matchCard.style.display = "";
+                visibleCount++;
+
+                // Highlight filtered teammates / opponents in team lists
+                matchCard.querySelectorAll(".match-player").forEach(pSpan => {
+                    const pid = Number(pSpan.dataset.playerId);
+                    const nameSpan = pSpan.querySelector(".player-name-text") || pSpan.querySelector(".highlight-player");
+                    if (!nameSpan) return;
+
+                    nameSpan.classList.remove("highlight-filter-tm", "highlight-filter-opp");
+                    if (activeTeammates.includes(pid)) {
+                        nameSpan.classList.add("highlight-filter-tm");
+                        nameSpan.title = "Ausgewählter Mitspieler";
+                    } else if (activeOpponents.includes(pid)) {
+                        nameSpan.classList.add("highlight-filter-opp");
+                        nameSpan.title = "Ausgewählter Gegner";
+                    }
+                });
+            } else {
+                matchCard.style.display = "none";
+            }
+        });
+
+        noMatchesEl.style.display = (hasFilters && visibleCount === 0) ? "block" : "none";
+
+        if (hasFilters && matchingMatches.length > 0) {
+            summaryCardEl.style.display = "block";
+            const totalCount = allMatchesData.length;
+            const count = matchingMatches.length;
+            const wins = matchingMatches.filter(m => m.is_win).length;
+            const losses = matchingMatches.filter(m => m.is_loss).length;
+            const draws = matchingMatches.filter(m => m.is_draw).length;
+            const winRate = (wins / count) * 100;
+            const totalDelta = matchingMatches.reduce((acc, m) => acc + (m.player_delta || 0), 0);
+            const goalsFor = matchingMatches.reduce((acc, m) => acc + (m.goals_for || 0), 0);
+            const goalsAgainst = matchingMatches.reduce((acc, m) => acc + (m.goals_against || 0), 0);
+            const goalDiff = goalsFor - goalsAgainst;
+            const avgDiff = (goalDiff / count);
+
+            document.getElementById("stat-filtered-games").textContent = count;
+            document.getElementById("stat-total-games-sub").textContent = `von ${totalCount} Spielen`;
+            document.getElementById("stat-filtered-record").textContent = `${wins}S - ${draws}U - ${losses}N`;
+            document.getElementById("stat-filtered-winrate").textContent = `${winRate.toFixed(1)}%`;
+
+            const deltaEl = document.getElementById("stat-filtered-delta");
+            if (deltaEl) {
+                const sign = totalDelta > 0 ? "+" : "";
+                deltaEl.textContent = `${sign}${totalDelta.toFixed(1)}`;
+                deltaEl.className = "stat-num " + (totalDelta > 0 ? "delta-pos" : (totalDelta < 0 ? "delta-neg" : ""));
+            }
+
+            const goalsEl = document.getElementById("stat-filtered-goals");
+            if (goalsEl) {
+                const diffSign = goalDiff > 0 ? "+" : "";
+                goalsEl.textContent = `${diffSign}${goalDiff}`;
+                goalsEl.className = "stat-num " + (goalDiff > 0 ? "delta-pos" : (goalDiff < 0 ? "delta-neg" : ""));
+                const avgSign = avgDiff > 0 ? "+" : "";
+                document.getElementById("stat-filtered-goals-sub").textContent = `(${goalsFor}:${goalsAgainst} · Ø ${avgSign}${avgDiff.toFixed(1)})`;
+            }
+        } else {
+            summaryCardEl.style.display = "none";
+        }
+
+        // Sync URL query parameters
+        const url = new URL(window.location.href);
+        if (activeTeammates.length > 0) {
+            url.searchParams.set("teammates", activeTeammates.join(","));
+        } else {
+            url.searchParams.delete("teammates");
+        }
+        if (activeOpponents.length > 0) {
+            url.searchParams.set("opponents", activeOpponents.join(","));
+        } else {
+            url.searchParams.delete("opponents");
+        }
+        window.history.replaceState({}, "", url.toString());
+
+        // Update selector tab links to preserve active filters
+        ["total", "box", "hf"].forEach(mode => {
+            const link = document.getElementById("btn-tab-" + mode);
+            if (link) {
+                const linkUrl = new URL(link.href, window.location.origin);
+                if (activeTeammates.length > 0) linkUrl.searchParams.set("teammates", activeTeammates.join(","));
+                else linkUrl.searchParams.delete("teammates");
+                if (activeOpponents.length > 0) linkUrl.searchParams.set("opponents", activeOpponents.join(","));
+                else linkUrl.searchParams.delete("opponents");
+                link.href = linkUrl.pathname + linkUrl.search;
+            }
+        });
+    }
+
+    function updateUI() {
+        updateTags();
+        updateStatsAndMatches();
+    }
+
+    // Input listeners
+    if (searchInputTm) {
+        searchInputTm.addEventListener("input", (e) => renderCandidates("teammate", e.target.value));
+        searchInputTm.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") closePopovers();
+        });
+    }
+    if (searchInputOpp) {
+        searchInputOpp.addEventListener("input", (e) => renderCandidates("opponent", e.target.value));
+        searchInputOpp.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") closePopovers();
+        });
+    }
+
+    // Click outside to close popovers
+    document.addEventListener("click", (e) => {
+        if (!e.target.closest(".filter-add-wrapper")) {
+            closePopovers();
+        }
+    });
+
+    // Parse URL on load
+    const params = new URLSearchParams(window.location.search);
+    const tmParam = params.get("teammates");
+    const oppParam = params.get("opponents");
+
+    if (tmParam) {
+        activeTeammates = tmParam.split(",").map(Number).filter(n => !isNaN(n) && playersMap[n]);
+    }
+    if (oppParam) {
+        activeOpponents = oppParam.split(",").map(Number).filter(n => !isNaN(n) && playersMap[n]);
+    }
+
+    // Public API
+    window.PlayerFilter = {
+        openSearch: openSearch,
+        add: addFilter,
+        remove: removeFilter,
+        reset: resetFilters
+    };
+
+    updateUI();
+})();
 </script>
 {% endblock %}
