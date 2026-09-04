@@ -268,6 +268,7 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
             "log_loss": None,
             "mean_absolute_error": None,
             "accuracy": None,
+            "expected_accuracy": None,
             "calibration": [],
             "lowess": [],
             "goal_diff_lowess": [],
@@ -282,6 +283,11 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
     mean_absolute_error = sum(abs(item["prediction"] - item["actual"]) for item in observations) / count
     decisive = [item for item in observations if item["actual"] in (0.0, 1.0)]
     accuracy = sum(item["actual"] == 1.0 for item in decisive) / len(decisive) if decisive else None
+    expected_accuracy = (
+        sum(item["prediction"] for item in decisive) / len(decisive)
+        if decisive
+        else (sum(item["prediction"] for item in observations) / count if count else None)
+    )
 
     return {
         "mode": mode,
@@ -292,6 +298,7 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
         "log_loss": log_loss,
         "mean_absolute_error": mean_absolute_error,
         "accuracy": accuracy,
+        "expected_accuracy": expected_accuracy,
         "calibration": _calibration_baskets(observations),
         "lowess": _lowess(observations, "actual", min_val=0.0, max_val=1.0),
         "goal_diff_lowess": _lowess(observations, "goal_diff", min_val=0.0, max_val=float(goal_diff_max)),

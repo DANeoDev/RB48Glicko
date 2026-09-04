@@ -110,6 +110,8 @@ class TestModelAnalysis(unittest.TestCase):
             self.assertIn("calibration", res_total)
             self.assertIn("goal_diff_lowess", res_total)
             self.assertIn("goal_diff_reference", res_total)
+            self.assertIn("expected_accuracy", res_total)
+            self.assertIsNotNone(res_total["expected_accuracy"])
             self.assertEqual(res_total["goal_diff_max"], 10)
             self.assertEqual(res_total["goal_diff_ticks"], [0, 2, 4, 6, 8, 10])
 
