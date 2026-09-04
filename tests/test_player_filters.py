@@ -113,6 +113,17 @@ class TestPlayerFilters(unittest.TestCase):
         self.assertIn("active-filters-banner", html)
         self.assertIn("PlayerFilter", html)
 
+    def test_player_profile_with_filter_query_params(self):
+        user_id = self.create_user_session(player_id=1)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        resp = self.client.get("/player/1?teammates=2&opponents=9")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("Performance Übersicht", html)
+        self.assertIn("Persönliche Spielhistorie", html)
+
 
 if __name__ == "__main__":
     unittest.main()

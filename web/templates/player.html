@@ -649,7 +649,7 @@ document.querySelectorAll(".match").forEach(match => { match.addEventListener("c
     const allMatchesData = [
         {% for match in matches %}
         {
-            match_id: {{ match["match_id"] }},
+            match_id: {{ match["match_id"] | tojson }},
             own_team_ids: {{ match["own_team_ids"] | tojson if match["own_team_ids"] is defined else '[]' }},
             opp_team_ids: {{ match["opp_team_ids"] | tojson if match["opp_team_ids"] is defined else '[]' }},
             is_win: {{ 'true' if match["is_win"] else 'false' }},
@@ -877,12 +877,12 @@ document.querySelectorAll(".match").forEach(match => { match.addEventListener("c
         }
 
         const matchingMatches = getMatchingMatches(activeTeammates, activeOpponents);
-        const matchingIds = new Set(matchingMatches.map(m => m.match_id));
+        const matchingIds = new Set(matchingMatches.map(m => String(m.match_id)));
 
         // Update match cards DOM visibility
         let visibleCount = 0;
         document.querySelectorAll(".match").forEach(matchCard => {
-            const matchId = Number(matchCard.dataset.matchId);
+            const matchId = String(matchCard.dataset.matchId || "");
             const isVisible = hasFilters ? matchingIds.has(matchId) : true;
 
             if (isVisible) {
