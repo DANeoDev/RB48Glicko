@@ -62,34 +62,29 @@ def _log_loss(prediction, actual):
     return -(actual * math.log(prediction) + (1 - actual) * math.log(1 - prediction))
 
 
-def _goal_diff_percentiles(observations):
-    """Assign an empirical, pitch-specific percentile to each goal difference."""
+def _goal_diff_distribution(matches_list):
+    """Return historical goal-difference frequency and shares by pitch."""
     by_pitch = {}
-    for item in observations:
-        by_pitch.setdefault(item["pitch"], []).append(item["goal_diff"])
+    for match in matches_list:
+        pitch = match["pitch"]
+        diff = abs(match["goals_a"] - match["goals_b"])
+        by_pitch.setdefault(pitch, []).append(diff)
 
-    percentile_by_pitch = {}
-    reference = {}
-    for pitch, values in by_pitch.items():
-        values = sorted(values)
-        count = len(values)
-        percentile_by_pitch[pitch] = {}
-        reference[pitch] = []
-        for value in sorted(set(values)):
-            percentile = (
-                sum(other < value for other in values) + 0.5 * sum(other == value for other in values)
-            ) / count
-            percentile_by_pitch[pitch][value] = percentile
-            reference[pitch].append({
-                "goal_diff": value,
-                "percentile": percentile,
-                "count": values.count(value),
+    distribution = {}
+    totals = {}
+    for pitch, diffs in by_pitch.items():
+        total = len(diffs)
+        totals[pitch] = total
+        distribution[pitch] = []
+        for diff in sorted(set(diffs)):
+            count = diffs.count(diff)
+            distribution[pitch].append({
+                "goal_diff": diff,
+                "count": count,
+                "share": (count / total) * 100 if total else 0.0,
             })
 
-    for item in observations:
-        item["goal_diff_percentile"] = percentile_by_pitch[item["pitch"]][item["goal_diff"]]
-
-    return reference
+    return distribution, totals
 
 
 def _calibration_baskets(predictions, step=0.05):
@@ -118,13 +113,15 @@ def _calibration_baskets(predictions, step=0.05):
 
         predictions_only = [item["prediction"] for item in values]
         actuals = [item["actual"] for item in values]
-        goal_diff_percentiles = [item["goal_diff_percentile"] for item in values]
+        goal_diffs = [item["goal_diff"] for item in values]
+        avg_diff = sum(goal_diffs) / len(values)
         baskets.append({
             "label": f"{bin_start * 100:.0f}% – {bin_end * 100:.0f}%",
             "count": len(values),
             "predicted": sum(predictions_only) / len(values),
             "actual": sum(actuals) / len(values),
-            "goal_diff_percentile": sum(goal_diff_percentiles) / len(values),
+            "avg_goal_diff": avg_diff,
+            "goal_diff": avg_diff,
         })
 
     return baskets
@@ -133,7 +130,7 @@ def _calibration_baskets(predictions, step=0.05):
 _quantile_baskets = _calibration_baskets
 
 
-def _lowess(predictions, value_key="actual", points=50, fraction=0.35):
+def _lowess(predictions, value_key="actual", points=50, fraction=0.35, min_val=0.0, max_val=1.0):
     """Return a LOWESS curve for one observation field against prediction."""
     if len(predictions) < 10:
         return []
@@ -163,7 +160,11 @@ def _lowess(predictions, value_key="actual", points=50, fraction=0.35):
         sxx = sum(weight * (x - mean_x) ** 2 for weight, x in zip(weights, xs))
         sxy = sum(weight * (x - mean_x) * (y - mean_y) for weight, x, y in zip(weights, xs, ys))
         slope = sxy / sxx if sxx > 1e-12 else 0.0
-        fitted = min(1.0, max(0.0, mean_y + slope * (x0 - mean_x)))
+        fitted = mean_y + slope * (x0 - mean_x)
+        if min_val is not None:
+            fitted = max(min_val, fitted)
+        if max_val is not None:
+            fitted = min(max_val, fitted)
         curve.append({"predicted": x0, value_key: fitted})
 
     return curve
@@ -219,15 +220,44 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
             excluded += 1
             continue
 
+        goals_a = match["goals_a"]
+        goals_b = match["goals_b"]
+        w = max(goals_a, goals_b)
+        l = min(goals_a, goals_b)
+        raw_diff = w - l
+
+        if mode == TOTAL and match["pitch"] == HF:
+            # Scale HF games to 10 goals for winner (e.g. 4:1 -> 10:2.5, diff = 7.5)
+            if w > 0:
+                goal_diff = 10.0 * (w - l) / w
+            else:
+                goal_diff = 0.0
+        else:
+            goal_diff = float(raw_diff)
+
         prediction, actual = _favourite_observation(raw_prediction, _actual_score(match))
         observations.append({
             "prediction": prediction,
             "actual": actual,
             "pitch": match["pitch"],
-            "goal_diff": abs(match["goals_a"] - match["goals_b"]),
+            "goal_diff": goal_diff,
+            "raw_goal_diff": raw_diff,
         })
 
     count = len(observations)
+    relevant_matches = [m for m in matches.values() if pitch is None or m["pitch"] == pitch]
+    goal_diff_reference, goal_diff_pitch_totals = _goal_diff_distribution(relevant_matches)
+
+    if mode == TOTAL or pitch == BOX:
+        max_obs = max((item["goal_diff"] for item in observations), default=10.0)
+        goal_diff_max = max(10, int(math.ceil(max_obs)))
+        goal_diff_ticks = list(range(0, goal_diff_max + 1, 2))
+    else:
+        max_obs = max((item["goal_diff"] for item in observations), default=5.0)
+        goal_diff_max = max(5, int(math.ceil(max_obs)))
+        step = 1 if goal_diff_max <= 6 else 2
+        goal_diff_ticks = list(range(0, goal_diff_max + 1, step))
+
     if not count:
         return {
             "mode": mode,
@@ -241,10 +271,12 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
             "calibration": [],
             "lowess": [],
             "goal_diff_lowess": [],
-            "goal_diff_reference": {},
+            "goal_diff_reference": goal_diff_reference,
+            "goal_diff_pitch_totals": goal_diff_pitch_totals,
+            "goal_diff_max": goal_diff_max,
+            "goal_diff_ticks": goal_diff_ticks,
         }
 
-    goal_diff_reference = _goal_diff_percentiles(observations)
     brier = sum((item["prediction"] - item["actual"]) ** 2 for item in observations) / count
     log_loss = sum(_log_loss(item["prediction"], item["actual"]) for item in observations) / count
     mean_absolute_error = sum(abs(item["prediction"] - item["actual"]) for item in observations) / count
@@ -261,7 +293,10 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
         "mean_absolute_error": mean_absolute_error,
         "accuracy": accuracy,
         "calibration": _calibration_baskets(observations),
-        "lowess": _lowess(observations, "actual"),
-        "goal_diff_lowess": _lowess(observations, "goal_diff_percentile"),
+        "lowess": _lowess(observations, "actual", min_val=0.0, max_val=1.0),
+        "goal_diff_lowess": _lowess(observations, "goal_diff", min_val=0.0, max_val=float(goal_diff_max)),
         "goal_diff_reference": goal_diff_reference,
+        "goal_diff_pitch_totals": goal_diff_pitch_totals,
+        "goal_diff_max": goal_diff_max,
+        "goal_diff_ticks": goal_diff_ticks,
     }
