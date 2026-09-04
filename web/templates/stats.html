@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 
 {% block title %}
-    RB48 — Stats
+    RB48 — {{ t('stats.title', 'Stats') }}
 {% endblock %}
 
 {% block content %}
 
 <div class="page-header-row">
-    <h1>Stats</h1>
-    <p>RB48 performance statistics</p>
+    <h1>{{ t('stats.title', 'Stats') }}</h1>
+    <p>{{ t('stats.subtitle', 'RB48 performance statistics') }}</p>
     <a
         href="{{ url_for('stats.glicko_explainer') }}"
         class="info-button"
-        title="How is the performance evaluated?"
-        aria-label="How is the performance evaluated?"
+        title="{{ t('stats.help_title', 'How is the performance evaluated?') }}"
+        aria-label="{{ t('stats.help_title', 'How is the performance evaluated?') }}"
     >
         ?
     </a>
@@ -22,25 +22,25 @@
 <div class="stats-table-header">
     <div class="stats-header-spacer"></div>
     <div id="pitch-selector">
-        <button class="pitch-selector selected" data-pitch="total" title="Statistics based on all matches, regardless of pitch type.">TOTAL</button>
-        <button class="pitch-selector" data-pitch="box" title="Statistics based only on box matches.">BOX</button>
-        <button class="pitch-selector" data-pitch="hf" title="Statistics based only on half-field matches.">HF</button>
+        <button class="pitch-selector selected" data-pitch="total" title="{{ t('stats.total_title', 'Statistics based on all matches, regardless of pitch type.') }}">{{ t('stats.total', 'TOTAL') }}</button>
+        <button class="pitch-selector" data-pitch="box" title="{{ t('stats.box_title', 'Statistics based only on box matches.') }}">{{ t('stats.box', 'BOX') }}</button>
+        <button class="pitch-selector" data-pitch="hf" title="{{ t('stats.hf_title', 'Statistics based only on half-field matches.') }}">{{ t('stats.hf', 'HF') }}</button>
     </div>
     <div class="stats-controls-right">
         <div class="stats-delta-selector">
-            <label for="delta-mode-select" title="Display performance delta changes over time.">Delta</label>
-            <select id="delta-mode-select" title="Select delta timeframe: Last Game, Last Month, Last Quarter, or Last Year.">
-                <option value="none">Off</option>
-                <option value="game" selected>Last Game</option>
-                <option value="month">Last Month</option>
-                <option value="quarter">Last Quarter</option>
-                <option value="year">Last Year</option>
+            <label for="delta-mode-select" title="{{ t('stats.delta_title', 'Display performance delta changes over time.') }}">{{ t('stats.delta', 'Delta') }}</label>
+            <select id="delta-mode-select" title="{{ t('stats.delta_title', 'Select delta timeframe: Last Game, Last Month, Last Quarter, or Last Year.') }}">
+                <option value="none">{{ t('stats.delta_off', 'Off') }}</option>
+                <option value="game" selected>{{ t('stats.delta_game', 'Last Game') }}</option>
+                <option value="month">{{ t('stats.delta_month', 'Last Month') }}</option>
+                <option value="quarter">{{ t('stats.delta_quarter', 'Last Quarter') }}</option>
+                <option value="year">{{ t('stats.delta_year', 'Last Year') }}</option>
             </select>
-            <button type="button" id="delta-toggle-btn" class="delta-toggle-btn active" title="Toggle visibility of delta columns">Δ Deltas</button>
+            <button type="button" id="delta-toggle-btn" class="delta-toggle-btn active" title="{{ t('stats.delta_toggle_title', 'Toggle visibility of delta columns') }}">{{ t('stats.delta_toggle', 'Δ Deltas') }}</button>
         </div>
         <div class="stats-filter">
-            <label for="game-filter" title="Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.">Filter</label>
-            <input type="text" id="game-filter" value="-" placeholder="-" title="Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.">
+            <label for="game-filter" title="{{ t('stats.filter_title', 'Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.') }}">{{ t('stats.filter', 'Filter') }}</label>
+            <input type="text" id="game-filter" value="-" placeholder="-" title="{{ t('stats.filter_title', 'Only players with at least this many matches in the selected pitch category are shown. Leave empty or use - for no filter.') }}">
         </div>
     </div>
 </div>
@@ -49,26 +49,27 @@
     <table id="leaderboard">
         <thead>
             <tr>
-                <th>Order</th>
-                <th>Player</th>
+                <th>{{ t('stats.th_order', 'Order') }}</th>
+                <th>{{ t('stats.th_player', 'Player') }}</th>
                 {% if has_tier('glicko_user') %}
-                    <th data-base-column="conservative" data-column="total-conservative" title="Conservative rating: E Rating minus 3 × RD.">C Rating</th>
-                    <th data-base-column="delta-conservative" data-column="total-delta-conservative" class="delta-col delta-conservative-col" title="Conservative rating change over selected timeframe.">Δ C Rating</th>
-                    <th data-base-column="rating" data-column="total-rating" title="Estimated rating: the player's current Glicko-2 rating.">E Rating</th>
-                    <th data-base-column="delta-rating" data-column="total-delta-rating" class="delta-col delta-rating-col" title="Estimated rating change over selected timeframe.">Δ E Rating</th>
-                    <th data-base-column="rd" data-column="total-rd" title="Rating Deviation: how uncertain the rating is.">RD</th>
-                    <th data-base-column="delta-rd" data-column="total-delta-rd" class="delta-col delta-rd-col" title="Rating Deviation change over selected timeframe.">Δ RD</th>
+                    <th data-base-column="conservative" data-column="total-conservative" title="{{ t('stats.th_conservative_title', 'Conservative rating: E Rating minus 3 × RD.') }}">{{ t('stats.th_conservative', 'C Rating') }}</th>
+                    <th data-base-column="delta-conservative" data-column="total-delta-conservative" class="delta-col delta-conservative-col" title="{{ t('stats.th_delta_conservative_title', 'Conservative rating change over selected timeframe.') }}">{{ t('stats.th_delta_conservative', 'Δ C Rating') }}</th>
+                    <th data-base-column="rating" data-column="total-rating" title="{{ t('stats.th_rating_title', 'Estimated rating: the player\'s current Glicko-2 rating.') }}">{{ t('stats.th_rating', 'E Rating') }}</th>
+                    <th data-base-column="delta-rating" data-column="total-delta-rating" class="delta-col delta-rating-col" title="{{ t('stats.th_delta_rating_title', 'Estimated rating change over selected timeframe.') }}">{{ t('stats.th_delta_rating', 'Δ E Rating') }}</th>
+                    <th data-base-column="rd" data-column="total-rd" title="{{ t('stats.th_rd_title', 'Rating Deviation: how uncertain the rating is.') }}">{{ t('stats.th_rd', 'RD') }}</th>
+                    <th data-base-column="delta-rd" data-column="total-delta-rd" class="delta-col delta-rd-col" title="{{ t('stats.th_delta_rd_title', 'Rating Deviation change over selected timeframe.') }}">{{ t('stats.th_delta_rd', 'Δ RD') }}</th>
                 {% endif %}
-                <th data-base-column="games" data-column="total-games" title="Number of matches played in this category.">Games</th>
-                <th data-base-column="delta-games" data-column="total-delta-games" class="delta-col delta-games-col" title="Matches played in the selected timeframe." style="display: none;">Δ G</th>
-                <th data-base-column="wins" data-column="total-wins" title="Number of matches won.">Ws</th>
-                <th data-base-column="delta-wins" data-column="total-delta-wins" class="delta-col delta-wins-col" title="Wins in the selected timeframe." style="display: none;">Δ W</th>
-                <th data-base-column="losses" data-column="total-losses" title="Number of matches lost.">Ls</th>
-                <th data-base-column="delta-losses" data-column="total-delta-losses" class="delta-col delta-losses-col" title="Losses in the selected timeframe." style="display: none;">Δ L</th>
-                <th data-base-column="win-percent" data-column="total-win-percent" title="Win percentage: wins divided by games played.">W%</th>
-                <th data-base-column="delta-win-percent" data-column="total-delta-win-percent" class="delta-col delta-win-percent-col" title="Win percentage in the selected timeframe." style="display: none;">Δ W%</th>
+                <th data-base-column="games" data-column="total-games" title="{{ t('stats.th_games_title', 'Number of matches played in this category.') }}">{{ t('stats.th_games', 'Games') }}</th>
+                <th data-base-column="delta-games" data-column="total-delta-games" class="delta-col delta-games-col" title="{{ t('stats.th_delta_games_title', 'Matches played in the selected timeframe.') }}" style="display: none;">{{ t('stats.th_delta_games', 'Δ G') }}</th>
+                <th data-base-column="wins" data-column="total-wins" title="{{ t('stats.th_wins_title', 'Number of matches won.') }}">{{ t('stats.th_wins', 'Ws') }}</th>
+                <th data-base-column="delta-wins" data-column="total-delta-wins" class="delta-col delta-wins-col" title="{{ t('stats.th_delta_wins_title', 'Wins in the selected timeframe.') }}" style="display: none;">{{ t('stats.th_delta_wins', 'Δ W') }}</th>
+                <th data-base-column="losses" data-column="total-losses" title="{{ t('stats.th_losses_title', 'Number of matches lost.') }}">{{ t('stats.th_losses', 'Ls') }}</th>
+                <th data-base-column="delta-losses" data-column="total-delta-losses" class="delta-col delta-losses-col" title="{{ t('stats.th_delta_losses_title', 'Losses in the selected timeframe.') }}" style="display: none;">{{ t('stats.th_delta_losses', 'Δ L') }}</th>
+                <th data-base-column="win-percent" data-column="total-win-percent" title="{{ t('stats.th_win_percent_title', 'Win percentage: wins divided by games played.') }}">{{ t('stats.th_win_percent', 'W%') }}</th>
+                <th data-base-column="delta-win-percent" data-column="total-delta-win-percent" class="delta-col delta-win-percent-col" title="{{ t('stats.th_delta_win_percent_title', 'Win percentage in the selected timeframe.') }}" style="display: none;">{{ t('stats.th_delta_win_percent', 'Δ W%') }}</th>
             </tr>
         </thead>
+
         <tbody>
             {% for player in leaderboard %}
             <tr

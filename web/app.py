@@ -2,6 +2,11 @@ import os
 from pathlib import Path
 from flask import Flask, session
 from web.routes import register_routes
+from web.services.translations import (
+    format_date_localized,
+    get_current_lang,
+    t,
+)
 from web.services.security import (
     Tier,
     get_actual_tier,
@@ -33,8 +38,9 @@ def create_app():
     app.secret_key = os.environ.get("RB48_SECRET_KEY") or os.urandom(32)
 
     @app.context_processor
-    def inject_security_context():
+    def inject_template_context():
         user = get_current_user()
+        lang = get_current_lang()
         return {
             "current_user": user,
             "effective_tier": get_effective_tier(),
@@ -42,6 +48,10 @@ def create_app():
             "Tier": Tier,
             "has_tier": has_tier,
             "simulated_tier": session.get("simulated_tier") if user and user.get("role") == "webmaster" else None,
+            "current_lang": lang,
+            "t": t,
+            "get_current_lang": get_current_lang,
+            "format_date_localized": format_date_localized,
         }
 
     register_routes(app)

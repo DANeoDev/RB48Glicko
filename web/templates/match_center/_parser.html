@@ -8,13 +8,12 @@
         {% if parse_result or parse_error or parser_success %}open{% endif %}
     >
         <summary>
-            <strong>Import / AI Parser</strong>
-            <span class="muted parser-summary-subtext">(Extract from WhatsApp text or screenshot)</span>
+            <strong>{{ t('match_center.parser_title', 'Import / AI Parser') }}</strong>
+            <span class="muted parser-summary-subtext">{{ t('match_center.parser_sub', '(Extract from WhatsApp text or screenshot)') }}</span>
         </summary>
 
         <p class="muted parser-intro">
-            Paste a WhatsApp message or upload/paste a screenshot.
-            The AI extracts the relevant facts without assuming a fixed source format.
+            {{ t('match_center.parser_intro', 'Paste a WhatsApp message or upload/paste a screenshot. The AI extracts the relevant facts without assuming a fixed source format.') }}
         </p>
 
         <form
@@ -27,18 +26,18 @@
                 <div class="grid">
 
                     <div class="field">
-                        <label for="match-text">Paste text</label>
+                        <label for="match-text">{{ t('match_center.paste_text', 'Paste text') }}</label>
 
                         <textarea
                             id="match-text"
                             name="match_text"
-                            placeholder="Paste an attendance list or match report here..."
+                            placeholder="{{ t('match_center.paste_placeholder', 'Paste an attendance list or match report here...') }}"
                         ></textarea>
                     </div>
 
 
                     <div class="field">
-                        <label for="match-image">Upload or paste image</label>
+                        <label for="match-image">{{ t('match_center.upload_image', 'Upload or paste image') }}</label>
 
                         <input
                             id="match-image"
@@ -48,7 +47,7 @@
                         >
 
                         <p id="paste-status" class="muted">
-                            You can press Ctrl+V to paste a screenshot.
+                            {{ t('match_center.paste_status', 'You can press Ctrl+V to paste a screenshot.') }}
                         </p>
                     </div>
 
@@ -62,7 +61,7 @@
                         name="action"
                         value="parse_source"
                     >
-                        Parse
+                        {{ t('match_center.parse_btn', 'Parse') }}
                     </button>
                 </div>
 
@@ -85,13 +84,13 @@
 
                     <div class="notice">
 
-                        <strong>Detected:</strong>
+                        <strong>{{ t('match_center.detected', 'Detected:') }}</strong>
                         {{ parse_result.kind }}
 
                         ·
 
-                        <strong>Date:</strong>
-                        {{ parse_result.match_date or 'not found' }}
+                        <strong>{{ t('match_center.date_label', 'Date:') }}</strong>
+                        {{ parse_result.match_date or t('match_center.not_found', 'not found') }}
 
 
                         {% if parse_result.kind == 'match' %}
@@ -99,7 +98,7 @@
                             <div class="teams">
 
                                 <div class="team">
-                                    <strong>Team A</strong>
+                                    <strong>{{ t('matches.team_a', 'Team A') }}</strong>
 
                                     <ul>
                                         {% for n in parse_result.team_a %}
@@ -110,7 +109,7 @@
 
 
                                 <div class="team">
-                                    <strong>Team B</strong>
+                                    <strong>{{ t('matches.team_b', 'Team B') }}</strong>
 
                                     <ul>
                                         {% for n in parse_result.team_b %}
@@ -123,24 +122,24 @@
 
 
                             <p>
-                                <strong>Result:</strong>
+                                <strong>{{ t('match_center.result_label', 'Result:') }}</strong>
 
                                 {% if parse_result.goals_a is not none %}
                                     {{ parse_result.goals_a }}
                                     :
                                     {{ parse_result.goals_b }}
                                     {% if parse_result.is_friendly %}
-                                        <span class="muted">(Friendly match)</span>
+                                        <span class="muted">{{ t('match_center.friendly_match', '(Friendly match)') }}</span>
                                     {% endif %}
                                 {% else %}
-                                    not found
+                                    {{ t('match_center.not_found', 'not found') }}
                                 {% endif %}
                             </p>
 
                         {% else %}
 
                             <p>
-                                <strong>Attending:</strong>
+                                <strong>{{ t('match_center.attending_label', 'Attending:') }}</strong>
                                 {{ parse_result.players | join(', ') }}
                             </p>
 
@@ -199,14 +198,13 @@
 
                         <div class="conflict-list">
 
-                            <strong>Ambiguous Names (Multiple Matches)</strong>
+                            <strong>{{ t('match_center.ambiguous_title', 'Ambiguous Names (Multiple Matches)') }}</strong>
 
                             <p
                                 class="muted"
                                 title="Multiple players may share this alias. Click a player to specify the exact person."
                             >
-                                ⓘ Multiple players may share this alias. Click a player's name to specify the exact person,
-                                or enter a new player.
+                                {{ t('match_center.ambiguous_desc', 'ⓘ Multiple players may share this alias. Click a player\'s name to specify the exact person, or enter a new player.') }}
                             </p>
 
                             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -249,7 +247,7 @@
                                 name="action"
                                 value="resolve_conflicts"
                             >
-                                Confirm Identities &amp; Proceed
+                                {{ t('match_center.confirm_identities', 'Confirm Identities & Proceed') }}
                             </button>
 
                         </div>
@@ -261,14 +259,13 @@
 
                         <div class="unknown">
 
-                            <strong>New / Unrecognized Players</strong>
+                            <strong>{{ t('match_center.unrecognized_title', 'New / Unrecognized Players') }}</strong>
 
                             <p
                                 class="muted"
                                 title="These names were not found in the database. You can add them as new players or map them to an existing alias."
                             >
-                                ⓘ These names were not found in the database. You can add them as new players
-                                or map them to an existing alias.
+                                {{ t('match_center.unrecognized_desc', 'ⓘ These names were not found in the database. You can add them as new players or map them to an existing alias.') }}
                             </p>
 
 
@@ -283,7 +280,7 @@
                                         class="secondary add-btn"
                                         data-name="{{ u.name | e }}"
                                     >
-                                        Add player
+                                        {{ t('match_center.add_player_btn', 'Add player') }}
                                     </button>
 
                                 </div>
@@ -298,7 +295,7 @@
                     {% if not parse_result.conflicts and not parse_result.unmatched %}
 
                         <div class="notice">
-                            ✓ All player names matched and verified.
+                            {{ t('match_center.all_matched', '✓ All player names matched and verified.') }}
                         </div>
 
                     {% endif %}

@@ -126,7 +126,7 @@ class AccessTiersTest(unittest.TestCase):
         # 3. Submit tryhard/toxic answers -> assigned tryhard persona, clearance denied (returns 400)
         fail_resp = self.client.post("/glicko-test", data={"q1": "c", "q2": "c", "q3": "c", "q4": "c", "q5": "c", "q6": "c", "q7": "c"})
         self.assertEqual(fail_resp.status_code, 400)
-        self.assertIn(b"Raging Stat-Striker", fail_resp.data)
+        self.assertTrue(b"Stat-St" in fail_resp.data or b"Stat-Striker" in fail_resp.data)
 
         updated_fail = get_user(user["id"])
         self.assertEqual(updated_fail["psychology_test_passed"], 0)
@@ -135,7 +135,7 @@ class AccessTiersTest(unittest.TestCase):
         # 4. Submit sportsmanship/legend answers -> succeeds and promotes to Glicko User
         pass_resp = self.client.post("/glicko-test", data={"q1": "b", "q2": "a", "q3": "a", "q4": "a", "q5": "a", "q6": "a", "q7": "a"}, follow_redirects=True)
         self.assertEqual(pass_resp.status_code, 200)
-        self.assertIn(b"Locker Room Legend", pass_resp.data)
+        self.assertTrue(b"Kabinenlegende" in pass_resp.data or b"Locker Room Legend" in pass_resp.data)
 
         updated = get_user(user["id"])
         self.assertEqual(updated["psychology_test_passed"], 1)

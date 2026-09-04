@@ -163,4 +163,27 @@ document.addEventListener("DOMContentLoaded", () => {
     if (clearInput) {
         clearInput.addEventListener("input", updateClearValidation);
     }
+
+    // Admin Edit Attendee Modal
+    document.querySelectorAll(".planner-edit-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const attendeeId = btn.dataset.attendeeId;
+            const eventId = btn.dataset.eventId;
+            const name = btn.dataset.name || "";
+            const status = btn.dataset.status || "attending";
+
+            const form = document.getElementById("edit-attendee-form");
+            const nameInput = document.getElementById("edit_attendee_name");
+            const statusSelect = document.getElementById("edit_attendee_status");
+
+            if (form && attendeeId && eventId) {
+                form.action = `/planner/${eventId}/attendee/${attendeeId}/edit`;
+            }
+            if (nameInput) nameInput.value = name;
+            if (statusSelect) statusSelect.value = status;
+
+            openModal("edit-attendee-modal");
+        });
+    });
 });

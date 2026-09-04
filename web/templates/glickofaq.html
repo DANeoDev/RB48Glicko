@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}RB48 — Frequently Asked Questions & Model Guide{% endblock %}
+{% block title %}RB48 — {{ t('faq.title', 'Frequently Asked Questions & Model Guide') }}{% endblock %}
 
 {% block head %}
 <style>
@@ -81,57 +81,57 @@
 {% block content %}
 <div class="page-container" style="max-width: 880px; margin: 30px auto 60px; padding: 0 16px;">
     <div class="page-header" style="text-align: left; margin-bottom: 24px;">
-        <h1 style="margin: 0; color: #ffffff; font-size: 28px;">Frequently Asked Questions</h1>
-        <p class="muted" style="margin-top: 4px;">Everything you need to know about RB48 matchdays, matchmaking, and performance statistics.</p>
+        <h1 style="margin: 0; color: #ffffff; font-size: 28px;">{{ t('faq.title', 'Frequently Asked Questions') }}</h1>
+        <p class="muted" style="margin-top: 4px;">{{ t('faq.subtitle', 'Everything you need to know about RB48 matchdays, matchmaking, and performance statistics.') }}</p>
     </div>
 
     <!-- Tier-Aware FAQ Category Tabs -->
     <div style="display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap;">
         <button type="button" class="faq-tab-btn {% if not has_tier('glicko_user') %}active{% endif %}" onclick="switchFaqTab('general', this)">
-            🌐 General &amp; Guest Guide
+            {{ t('faq.tab_general', '🌐 General & Guest Guide') }}
         </button>
         <button type="button" class="faq-tab-btn" onclick="switchFaqTab('members', this)">
-            👥 Members &amp; Matchdays
+            {{ t('faq.tab_members', '👥 Members & Matchdays') }}
         </button>
         <button type="button" class="faq-tab-btn {% if has_tier('glicko_user') %}active{% endif %}" onclick="switchFaqTab('glicko', this)">
-            📊 Glicko-2 &amp; Model Science {% if not has_tier('glicko_user') %}🔒{% endif %}
+            {{ t('faq.tab_glicko', '📊 Glicko-2 & Model Science') }} {% if not has_tier('glicko_user') %}🔒{% endif %}
         </button>
     </div>
 
     <!-- TAB 1: GENERAL & GUEST GUIDE (FOR ALL / VISITORS) -->
     <div class="faq-section {% if not has_tier('glicko_user') %}active{% endif %}" id="faq-general">
         <div class="faq-item">
-            <h3>What is RB48?</h3>
+            <h3>{{ t('faq.q_what_is', 'What is RB48?') }}</h3>
             <p>
-                RB48 is a private recreational football community that organizes weekly competitive small-sided matches. We focus on fair play, fun sportsmanship, balanced teams, and good banter after every session.
+                {{ t('faq.a_what_is', 'RB48 is a private recreational football community that organizes weekly competitive small-sided matches. We focus on fair play, fun sportsmanship, balanced teams, and good banter after every session.') }}
             </p>
         </div>
 
         <div class="faq-item">
-            <h3>What is the difference between BOX and HF pitch formats?</h3>
+            <h3>{{ t('faq.q_formats', 'What is the difference between BOX and HF pitch formats?') }}</h3>
             <p>
-                We play on two distinct formats with different dynamics and team sizes:
+                {{ t('faq.a_formats_intro', 'We play on two distinct formats with different dynamics and team sizes:') }}
             </p>
             <ul style="color: #c9c2d8; font-size: 14px; line-height: 1.6; margin: 8px 0;">
-                <li><strong>BOX (Soccerbox)</strong>: Fast-paced indoor/caged pitch. Standard playtime is <strong>20:00 at Soccerbox - Uni Sport</strong> with a maximum capacity of <strong>12 players</strong> (5v5)+2. Rebounds off walls and intense short-burst transitions.</li>
-                <li><strong>HF (Half-Field)</strong>: Outdoor half-pitch. Standard playtime is <strong>20:30 at Halbfeld - Zülpicher Wall 5</strong> with a maximum capacity of <strong>18 players</strong> (8v8)+2. More open space, longer passing, and tactical positioning.</li>
+                <li>{{ t('faq.a_formats_box') | safe }}</li>
+                <li>{{ t('faq.a_formats_hf') | safe }}</li>
             </ul>
         </div>
 
         <div class="faq-item">
-            <h3>How can I participate as a Guest Player?</h3>
+            <h3>{{ t('faq.q_guest', 'How can I participate as a Guest Player?') }}</h3>
             <p>
-                Visitors can join matchdays through the <a href="{{ url_for('planner.planner') }}" style="color: #80deea; font-weight: 600;">Attendance Planner</a>.
+                {{ t('faq.a_guest_p1', planner_url=url_for('planner.planner')) | safe }}
             </p>
             <p>
-                To give registered club members first priority, guest player sign-ups unlock on the <strong>Sunday at 00:00</strong> immediately preceding that matchday. Simply click <em>"＋ Attend as Guest Player"</em>, enter your name, and you'll be placed on the roster or waiting list.
+                {{ t('faq.a_guest_p2') | safe }}
             </p>
         </div>
 
         <div class="faq-item">
-            <h3>What equipment and footwear should I bring?</h3>
+            <h3>{{ t('faq.q_equipment', 'What equipment and footwear should I bring?') }}</h3>
             <p>
-                We recommend standard cleats, multicam shoes can work too, but especially the Box pitch can get very slippery if wet. The club provides a ball and vests.
+                {{ t('faq.a_equipment', 'We recommend standard cleats, multicam shoes can work too, but especially the Box pitch can get very slippery if wet. The club provides a ball and vests.') }}
             </p>
         </div>
     </div>
@@ -139,46 +139,46 @@
     <!-- TAB 2: MEMBERS & MATCHDAYS (FOR REGISTERED USERS) -->
     <div class="faq-section" id="faq-members">
         <div class="faq-item">
-            <h3>How does the Attendance Planner and Waiting List work?</h3>
+            <h3>{{ t('faq.q_planner', 'How does the Attendance Planner and Waiting List work?') }}</h3>
             <p>
-                Members can RSVP (<em>Attend</em> or <em>Decline</em>) for any future scheduled match at any time in the <a href="{{ url_for('planner.planner') }}" style="color: #80deea; font-weight: 600;">Attendance Planner</a>.
+                {{ t('faq.a_planner_p1', planner_url=url_for('planner.planner')) | safe }}
             </p>
             <p>
-                Sign-ups are strictly ordered by registration timestamp. When the maximum capacity is reached (12 for BOX, 18 for HF), subsequent sign-ups are placed on the <strong>Waiting List</strong>. If an active attendee cancels or declines, the #1 waiting list player is <strong>automatically promoted</strong> to the active lineup.
-            </p>
-        </div>
-
-        <div class="faq-item">
-            <h3>Can I bring friends or guest players as a member?</h3>
-            <p>
-                Yes! Members can register guest players directly to the matchday. Guest registration opens on the <strong>Sunday at 00:00</strong> before the match. Guests added by members are automatically tagged with a linked suffix (e.g. <code>Max (Konsti +1)</code>) so everyone knows who invited them.
+                {{ t('faq.a_planner_p2') | safe }}
             </p>
         </div>
 
         <div class="faq-item">
-            <h3>How does the Matchmaker create balanced teams?</h3>
+            <h3>{{ t('faq.q_bring_friends', 'Can I bring friends or guest players as a member?') }}</h3>
             <p>
-                Before kickoff, the staff uses the Match Center matchmaker. It evaluates the participating players and iterates through thousands of possible team permutations to minimize predicted win-probability skew, ensuring competitive, evenly matched games.
+                {{ t('faq.a_bring_friends') | safe }}
             </p>
         </div>
 
         <div class="faq-item">
-            <h3>How do I link my account to my player profile and upload a photo?</h3>
+            <h3>{{ t('faq.q_matchmaker', 'How does the Matchmaker create balanced teams?') }}</h3>
             <p>
-                Head to <a href="{{ url_for('auth.settings') }}" style="color: #80deea; font-weight: 600;">Profile Settings</a>. You can upload a profile picture, configure your custom Attendance Display Name, and select your player alias. The Webmaster reviews and approves player link requests to keep the database authentic.
+                {{ t('faq.a_matchmaker') }}
             </p>
         </div>
 
         <div class="faq-item">
-            <h3>How does the "Make Some Noise" spatial banter feature work?</h3>
+            <h3>{{ t('faq.q_profile_link', 'How do I link my account to my player profile and upload a photo?') }}</h3>
             <p>
-                The Noise feature lets registered club members drop customized speech bubbles anywhere on any page of the website:
+                {{ t('faq.a_profile_link', settings_url=url_for('auth.settings')) | safe }}
+            </p>
+        </div>
+
+        <div class="faq-item">
+            <h3>{{ t('faq.q_noise', 'How does the "Make Some Noise" spatial banter feature work?') }}</h3>
+            <p>
+                {{ t('faq.a_noise_intro') }}
             </p>
             <ul style="color: #c9c2d8; font-size: 14.5px; line-height: 1.65; margin: 8px 0 12px;">
-                <li><strong>Dropping Banter:</strong> Click the <strong>📢 Noise</strong> button in the top navigation bar to activate Noise Mode (crosshair cursor). Click anywhere on the screen to open the composer and choose from 10 signature colors, 5 fonts, and text sizes.</li>
-                <li><strong>Universal Quota (5 Bubbles):</strong> Every member can maintain up to <strong>5 active banter bubbles</strong> across general pages (a 6th evicts the oldest via FIFO). Banter dropped on the <strong>Match History</strong> page stays permanently.</li>
-                <li><strong>View Modes:</strong> Use the top navbar toggle (<code>💭 Collapsed</code>, <code>💬 Expanded</code>, <code>🔇 Muted</code>) to customize your view. Collapsed mode displays translucent indicator pills (<code>💭 [Author]</code>) that expand in-place when hovered or tapped.</li>
-                <li><strong>Personalized Interaction:</strong> Drag any bubble to reposition it for your screen. Click <strong>🔽</strong> to minimize (with 2-hover immunity), <strong>🔇</strong> to mute all noise, or <strong>✕</strong> to dismiss a bubble from your view. Authors and staff can click <strong>🗑️</strong> to delete a bubble globally for everyone.</li>
+                <li>{{ t('faq.a_noise_li1') | safe }}</li>
+                <li>{{ t('faq.a_noise_li2') | safe }}</li>
+                <li>{{ t('faq.a_noise_li3') | safe }}</li>
+                <li>{{ t('faq.a_noise_li4') | safe }}</li>
             </ul>
         </div>
     </div>
@@ -187,60 +187,60 @@
     <div class="faq-section {% if has_tier('glicko_user') %}active{% endif %}" id="faq-glicko">
         {% if has_tier('glicko_user') %}
             <div class="faq-item">
-                <h3>What is a Glicko-2 rating?</h3>
+                <h3>{{ t('faq.q_glicko_rating', 'What is a Glicko-2 rating?') }}</h3>
                 <p>
-                    A Glicko-2 rating is a mathematical model that tracks historical match outcomes and team compositions to estimate how likely a player or team is to win future matches against given opponents.
+                    {{ t('faq.a_glicko_rating_p1') }}
                 </p>
                 <p>
-                    <strong>Crucial Scope Distinction:</strong> Glicko is a <em>result-based statistical model</em>, not a measurement of personal skill, work rate, or human worth. A higher rating simply means historical match results involving that player have been favorable relative to the ratings of teammates and opponents.
-                </p>
-            </div>
-
-            <div class="faq-item">
-                <h3>What is RD (Rating Deviation) and why does it matter?</h3>
-                <p>
-                    <strong>RD</strong> represents <em>statistical uncertainty</em>. A rating with a low RD (e.g., 1600 with RD 35) is well-established from frequent recent matches. A rating with high RD (e.g., 1600 with RD 120) means the model has less recent data.
-                </p>
-                <p>
-                    When a player misses multiple matchdays, their RD naturally increases over time to reflect growing uncertainty about their current form.
+                    {{ t('faq.a_glicko_rating_p2') | safe }}
                 </p>
             </div>
 
             <div class="faq-item">
-                <h3>What is the Conservative Rating used on the leaderboard?</h3>
+                <h3>{{ t('faq.q_rd', 'What is RD (Rating Deviation) and why does it matter?') }}</h3>
                 <p>
-                    To avoid ranking players who have played only one lucky match above consistent veterans, RB48 ranks the leaderboard by <strong>Conservative Rating</strong>:
+                    {{ t('faq.a_rd_p1') | safe }}
+                </p>
+                <p>
+                    {{ t('faq.a_rd_p2') }}
+                </p>
+            </div>
+
+            <div class="faq-item">
+                <h3>{{ t('faq.q_conservative', 'What is the Conservative Rating used on the leaderboard?') }}</h3>
+                <p>
+                    {{ t('faq.a_conservative_p1') | safe }}
                 </p>
                 <div class="faq-formula-box">
-                    Conservative Rating = Rating − (3 × RD)
+                    {{ t('faq.a_conservative_formula', 'Conservative Rating = Rating − (3 × RD)') }}
                 </div>
                 <p>
-                    This represents the statistical 99.7% lower-bound confidence estimate of a player's rating. Active players with established ratings and low RD are rewarded for consistency.
+                    {{ t('faq.a_conservative_p2') }}
                 </p>
             </div>
 
             <div class="faq-item">
-                <h3>Why do a player's BOX and HF ratings diverge?</h3>
+                <h3>{{ t('faq.q_diverge', 'Why do a player\'s BOX and HF ratings diverge?') }}</h3>
                 <p>
-                    BOX (small-sided, wall rebounds, high-frequency shooting) and HF (open-field, tactical endurance, spatial awareness) require different physical and tactical skillsets. Some players excel at wall-play and rapid combinations, while others dominate in spacious 8v8 setups. Separate rating calculations allow us to model each pitch environment accurately.
+                    {{ t('faq.a_diverge') }}
                 </p>
             </div>
 
             <div class="faq-item">
-                <h3>How is the predictive accuracy of the model evaluated?</h3>
+                <h3>{{ t('faq.q_eval_accuracy', 'How is the predictive accuracy of the model evaluated?') }}</h3>
                 <p>
-                    Under <a href="{{ url_for('stats.model_analysis') }}" style="color: #80deea; font-weight: 600;">Model Analysis</a>, we continuously track the Brier score, log-loss, and calibration curve of all historical match predictions. If the model predicts a 65% win probability across 100 matches, the favored team should win approximately 65 of those matches.
+                    {{ t('faq.a_eval_accuracy', analysis_url=url_for('stats.model_analysis')) | safe }}
                 </p>
             </div>
         {% else %}
             <div class="faq-item" style="border-color: #7B52C5; background: rgba(123, 82, 197, 0.08); text-align: center; padding: 36px 24px;">
                 <div style="font-size: 40px; margin-bottom: 12px;">🔒</div>
-                <h3 style="color: #ffffff; font-size: 20px; margin-bottom: 8px;">Detailed Glicko-2 Analysis is Gated</h3>
+                <h3 style="color: #ffffff; font-size: 20px; margin-bottom: 8px;">{{ t('faq.gated_title', 'Detailed Glicko-2 Analysis is Gated') }}</h3>
                 <p style="max-width: 600px; margin: 0 auto 18px; color: #c9c2d8; font-size: 14px; line-height: 1.6;">
-                    To protect the recreational culture and intrinsic enjoyment of our matchdays, advanced mathematical rating models, rating deviations (RD), and predictive analytics are unlocked via the I.M.P. Football Personality Assessment.
+                    {{ t('faq.gated_desc', 'To protect the recreational culture and intrinsic enjoyment of our matchdays, advanced mathematical rating models, rating deviations (RD), and predictive analytics are unlocked via the I.M.P. Football Personality Assessment.') }}
                 </p>
                 <a href="{{ url_for('auth.glicko_test') }}" class="primary" style="padding: 10px 24px; text-decoration: none; font-weight: 700; font-size: 14px; border-radius: 20px; display: inline-block;">
-                    Take the Personality Assessment →
+                    {{ t('faq.gated_btn', 'Take the Personality Assessment →') }}
                 </a>
             </div>
         {% endif %}

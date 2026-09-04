@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if success %}Email Verified · RB48{% else %}Verification Failed · RB48{% endif %}{% endblock %}
+{% block title %}{% if success %}{{ t('auth.verify_res_success_title', 'Email Verified · RB48') }}{% else %}{{ t('auth.verify_res_fail_title', 'Verification Failed · RB48') }}{% endif %}{% endblock %}
 
 {% block content %}
 <div class="page-container account-page" style="max-width: 620px; margin: 40px auto; padding: 0 16px;">
@@ -11,28 +11,27 @@
                 <div style="font-size: 36px;">✅</div>
                 <div>
                     <span style="font-size: 11px; font-weight: 700; color: #88ff88; text-transform: uppercase; letter-spacing: 1px;">
-                        Verification Complete
+                        {{ t('auth.verify_res_success_badge', 'Verification Complete') }}
                     </span>
-                    <h1 style="margin: 4px 0 0; color: #ffffff; font-size: 24px;">Email Verified!</h1>
+                    <h1 style="margin: 4px 0 0; color: #ffffff; font-size: 24px;">{{ t('auth.verify_res_success_heading', 'Email Verified!') }}</h1>
                 </div>
             </div>
 
             <div style="line-height: 1.6; color: #c9c2d8; font-size: 14px;">
                 <p style="margin-bottom: 14px;">
-                    Welcome to RB48, <strong>{{ user.username }}</strong>! Your email address (<strong>{{ user.email }}</strong>) is now confirmed.
+                    {{ t('auth.verify_res_success_msg', username=user.username, email=user.email) }}
                 </p>
 
                 <div style="background: rgba(123, 82, 197, 0.12); border-left: 3px solid #7B52C5; padding: 14px 16px; border-radius: 4px; font-size: 13.5px; color: #e0dcf0; margin-bottom: 20px;">
-                    <strong style="color: #ffffff; display: block; margin-bottom: 4px;">Membership Approval:</strong>
-                    Access to full player statistics and member match registrations is reserved for members of the <strong>RB 48 Köln e.V.</strong> association. Your account is now pending confirmation by the Webmaster.
+                    {{ t('auth.verify_res_approval_note') }}
                 </div>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-top: 1px solid var(--border); padding-top: 18px;">
                     <a href="{{ url_for('stats.home') }}" class="secondary" style="padding: 9px 16px; text-decoration: none; font-size: 13px;">
-                        Dashboard
+                        {{ t('nav.dashboard', 'Dashboard') }}
                     </a>
                     <a href="{{ url_for('planner.planner') }}" class="primary" style="padding: 9px 20px; text-decoration: none; font-weight: 700; font-size: 13px; border-radius: 20px;">
-                        Explore Matchday Calendar →
+                        {{ t('auth.explore_calendar', 'Explore Matchday Calendar →') }}
                     </a>
                 </div>
             </div>
@@ -42,23 +41,23 @@
                 <div style="font-size: 36px;">❌</div>
                 <div>
                     <span style="font-size: 11px; font-weight: 700; color: #ff8888; text-transform: uppercase; letter-spacing: 1px;">
-                        Verification Error
+                        {{ t('auth.verify_res_fail_badge', 'Verification Error') }}
                     </span>
-                    <h1 style="margin: 4px 0 0; color: #ffffff; font-size: 24px;">Link Invalid or Expired</h1>
+                    <h1 style="margin: 4px 0 0; color: #ffffff; font-size: 24px;">{{ t('auth.verify_res_fail_heading', 'Link Invalid or Expired') }}</h1>
                 </div>
             </div>
 
             <div style="line-height: 1.6; color: #c9c2d8; font-size: 14px;">
                 <p style="margin-bottom: 16px;">
-                    {{ error or "The verification link you used is invalid, has already been used, or has expired (links are valid for 24 hours)." }}
+                    {{ error or t('auth.verify_res_fail_msg') }}
                 </p>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-top: 1px solid var(--border); padding-top: 18px;">
                     <a href="{{ url_for('auth.login') }}" class="secondary" style="padding: 9px 16px; text-decoration: none; font-size: 13px;">
-                        ← Back to Login
+                        {{ t('auth.back_login', '← Back to Login') }}
                     </a>
                     <a href="{{ url_for('auth.resend_verification') }}" class="primary" style="padding: 9px 20px; text-decoration: none; font-weight: 700; font-size: 13px; border-radius: 20px;">
-                        Resend Verification Email →
+                        {{ t('auth.resend_verify_link', 'Resend Verification Email →') }}
                     </a>
                 </div>
             </div>

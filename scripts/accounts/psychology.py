@@ -1,6 +1,6 @@
 """Psychological evaluation, Jagged Alliance 2 (I.M.P.) style questionnaire, and persona archetype engine."""
 
-PSYCHOLOGY_PERSONAS = {
+PSYCHOLOGY_PERSONAS_EN = {
     "legend": {
         "key": "legend",
         "title": "The Locker Room Legend",
@@ -9,7 +9,7 @@ PSYCHOLOGY_PERSONAS = {
         "passed": True,
         "tagline": "Football is life, but banter and cold drinks with teammates are eternal.",
         "description": (
-            "You embody the true spirit of recreational football. You understand that Tuesday night sessions "
+            "You embody the true spirit of recreational football. You understand that Wednesday night sessions "
             "are about camaraderie, unforgettable nutmegs, and sharing laughs over a cold drink afterwards. "
             "To you, Glicko ratings are just an interesting statistical curio — they will never overshadow "
             "the pure joy of the game."
@@ -94,7 +94,103 @@ PSYCHOLOGY_PERSONAS = {
     },
 }
 
-IMP_QUESTIONS = [
+PSYCHOLOGY_PERSONAS_DE = {
+    "legend": {
+        "key": "legend",
+        "title": "Die Kabinenlegende",
+        "badge_icon": "🏆",
+        "badge_tag": "Kameradschaft & Schmäh",
+        "passed": True,
+        "tagline": "Fußball ist unser Leben, aber die Sprüche und das Kaltgetränk danach sind für die Ewigkeit.",
+        "description": (
+            "Du verkörperst den wahren Geist des Freizeitfußballs. Du weißt, dass es beim Mittwochs-Kick um "
+            "Kameradschaft, unvergessliche Beinschüsse und das gemeinsame Lachen bei einem kühlen Getränk danach geht. "
+            "Für dich sind Glicko-Ratings eine interessante statistische Spielerei – sie werden niemals die "
+            "pure Freude am Spiel überdecken."
+        ),
+        "traits": ["Immun gegen Rating-Toxizität", "Hohe Kabinenmoral", "Meister der Selbstironie", "Reine intrinsische Motivation"],
+        "clearance_text": "FREIGABE ERTEILT. Du bist psychologisch bestens gerüstet, kompetitive Glicko-Ratings zu genießen, ohne die Teamharmonie zu gefährden.",
+    },
+    "tactician": {
+        "key": "tactician",
+        "title": "Der rationale Taktiker",
+        "badge_icon": "📐",
+        "badge_tag": "Statistische Meisterschaft",
+        "passed": True,
+        "tagline": "Varianz ist real, Stichprobengrößen zählen und Ratings sind beschreibende Modelle – keine Identität.",
+        "description": (
+            "Du schätzt die Eleganz mathematischer Modellierung. Du verstehst, dass Glicko-2 Siegwahrscheinlichkeiten "
+            "auf Basis historischer Ergebnisse und Aufstellungen berechnet, kein Urteil über deinen menschlichen Wert. "
+            "Du begreifst die Rating-Abweichung (RD) als statistische Unsicherheit und begegnest Schwankungen mit ruhiger Objektivität."
+        ),
+        "traits": ["Statistisches Verständnis", "Analytische Denkweise", "Objektives Fairplay", "Versteht Varianz"],
+        "clearance_text": "FREIGABE ERTEILT. Deine analytische Gelassenheit und dein Verständnis der Rating-Mechanik machen dich zum idealen Glicko-Mitglied.",
+    },
+    "pragmatist": {
+        "key": "pragmatist",
+        "title": "Der Box-to-Box-Pragmatiker",
+        "badge_icon": "🛡️",
+        "badge_tag": "Widerstandsfähiger Kämpfer",
+        "passed": True,
+        "tagline": "Unglückliche Abpraller passieren, Schiris übersehen Fouls – das Einzige was zählt, ist nach hinten mitzuarbeiten.",
+        "description": (
+            "Besonnen, zäh und unbeeindruckt von turbulenten Spielverläufen. Wenn dein Team 0:3 in Rückstand gerät oder ein bitteres "
+            "Eigentor kassiert, gerätst du nicht in Panik, machst keine Vorwürfe und grübelst nicht über Ratingpunkte – du krempelst "
+            "die Ärmel hoch und konzentrierst dich auf den nächsten Zweikampf."
+        ),
+        "traits": ["Hohe emotionale Belastbarkeit", "Teamorientierte Haltung", "Unerschütterlicher Fokus", "Verlässlicher Mitspieler"],
+        "clearance_text": "FREIGABE ERTEILT. Deine bodenständige Haltung garantiert, dass du mit dem Rating-System umgehen kannst, ohne den Fokus auf den Teamgeist zu verlieren.",
+    },
+    "tryhard": {
+        "key": "tryhard",
+        "title": "Der verbissene Stat-Stürmer",
+        "badge_icon": "⚡",
+        "badge_tag": "Rating-Obsessions-Risiko",
+        "passed": False,
+        "tagline": "Prüft die Rangliste auf dem Smartphone, noch bevor er dem Torwart die Hand gegeben hat.",
+        "description": (
+            "Bei dir besteht akute Gefahr, in die Falle kompetitiver Videospiele zu tappen: Du lässt zu, dass willkürliche "
+            "Zahlen deine Laune und deinen Spaß am Freizeitsport bestimmen. Du neigst dazu, Spielergebnisse als persönliche "
+            "Rating-Transaktionen zu verbuchen und überträgst Rating-Frust auf deine Mitspieler."
+        ),
+        "traits": ["Hohe Rating-Sensibilität", "Gefahr von Kabinenfrust", "Abhängigkeit von externer Bestätigung"],
+        "clearance_text": "FREIGABE VERWEIGERT (Abkühlphase). Atme tief durch, erinnere dich daran, warum wir mit Freunden kicken, und wiederhole den Test, wenn du den Kopf frei hast.",
+    },
+    "conspiracy": {
+        "key": "conspiracy",
+        "title": "Der Aluhut-Theoretiker",
+        "badge_icon": "🛸",
+        "badge_tag": "Algorithmische Paranoia",
+        "passed": False,
+        "tagline": "Felsenfest überzeugt, dass der Webmaster die Glicko-Volatilitätskonstante persönlich manipuliert hat.",
+        "description": (
+            "Du glaubst, unerwartete Rating-Veränderungen seien kein Ergebnis statistischer Varianz oder Bayes'scher Updates, "
+            "sondern eine geheime Verschwörung des Webmasters und der Datenbank-Admins, um deine Freizeitfußball-Karriere zu sabotieren."
+        ),
+        "traits": ["Misstrauen gegenüber Algorithmen", "Gibt der Platzpflege die Schuld", "Fordert manuelle Rating-Audits"],
+        "clearance_text": "FREIGABE VERWEIGERT. Der Algorithmus hegt keine persönlichen Abneigungen. Wir empfehlen, das Tabellenblatt zu schließen, echten Rasen zu spüren und den Test später erneut zu machen.",
+    },
+    "fragile_ego": {
+        "key": "fragile_ego",
+        "title": "Der existenzielle Zweifler",
+        "badge_icon": "🌧️",
+        "badge_tag": "Rating-Angst",
+        "passed": False,
+        "tagline": "Ein Minus von 12 Ratingpunkten löst eine existenzielle Krise und Gedanken an das Karriereende aus.",
+        "description": (
+            "Du machst dein emotionales Wohlbefinden viel zu sehr von numerischen Kennzahlen abhängig. Ein Rating-Verlust nach einem "
+            "hart umkämpften 4:5 fühlt sich wie ein persönlicher Schuldspruch an. Glicko-Ratings sind mathematische Schätzwerte "
+            "vergangener Teamergebnisse, kein Urteil über deine menschliche Würde."
+        ),
+        "traits": ["Leistungsdruck", "Überidentifikation mit Zahlen", "Post-Match-Grübeln"],
+        "clearance_text": "FREIGABE VERWEIGERT. Ratings existieren für den Spaß und ausgeglichene Teams, nicht zur Bestätigung deines Selbstwerts. Finde deine Leichtigkeit wieder und probiere es erneut!",
+    },
+}
+
+# Default backwards-compatible aliases
+PSYCHOLOGY_PERSONAS = PSYCHOLOGY_PERSONAS_EN
+
+IMP_QUESTIONS_EN = [
     {
         "id": "q1",
         "scenario": "Scenario 1: Pre-Match Arrival",
@@ -174,8 +270,101 @@ IMP_QUESTIONS = [
     },
 ]
 
+IMP_QUESTIONS_DE = [
+    {
+        "id": "q1",
+        "scenario": "Szenario 1: Vor dem Anpfiff",
+        "question": "Du triffst 15 Minuten vor Spielbeginn am Platz ein. Wie sieht deine typische Vorbereitung aus?",
+        "options": [
+            ("a", "Methodisch dehnen, Platzreibung berechnen und historische Teambalance analysieren.", "tactician"),
+            ("b", "Einen Witz mit dem Keeper reißen, ein Kaltgetränk öffnen und prüfen, wer Schienbeinschoner vergessen hat.", "legend"),
+            ("c", "Aggressive Fallrückzieher gegen die Kabinentür üben, um den Gegner schon beim Aufwärmen einzuschüchtern.", "tryhard"),
+            ("d", "Auf dem Handy checken, ob der Webmaster heimlich dein Start-Rating heruntergestuft hat.", "conspiracy"),
+        ],
+    },
+    {
+        "id": "q2",
+        "scenario": "Szenario 2: Der eigensinnige Mitspieler",
+        "question": "Dein Mitspieler versucht einen wilden 35-Meter-Volleyschuss mit dem schwachen Fuß, während du völlig blank vor dem leeren Tor stehst. Der Ball landet auf dem Dach eines Autos. Deine Reaktion?",
+        "options": [
+            ("a", "In schallendes Gelächter ausbrechen, den Mut loben und ihn daran erinnern, dass er nach dem Spiel die erste Runde zahlt.", "legend"),
+            ("b", "Ruhig darauf hinweisen, dass Querpässe im Kleinfeldfußball eine um 88 % höhere Torwahrscheinlichkeit besitzen.", "tactician"),
+            ("c", "Verzweifelt auf den Rasen sinken und theatralisch gestikulieren, dass dieser Eigensinn dein Rating ruiniert.", "tryhard"),
+            ("d", "Innerlich in Panik geraten, weil diese vergebene Chance das Team gerade 5 erwartete Punkte gekostet hat.", "fragile_ego"),
+        ],
+    },
+    {
+        "id": "q3",
+        "scenario": "Szenario 3: Der abgefälschte Ball in der Schlussminute",
+        "question": "Beim Stand von 4:4 in der letzten Spielminute prallt eine harmlose Flanke an einem Kieselstein ab, klatscht gegen dein Schienbein und kullert ins eigene Netz (Endstand 4:5). Wie verarbeitest du das?",
+        "options": [
+            ("a", "Mit den Schultern zucken, dem Gegner abklatschen und scherzen, dass du heute immerhin ein Tor erzielt hast.", "legend"),
+            ("b", "Akzeptieren, dass stochastische Varianz eine mathematische Grundeigenschaft des Freizeitsports ist.", "tactician"),
+            ("c", "Eine offizielle Untersuchung der Platzbeschaffenheit und der Sehstärke des Schiedsrichters fordern.", "conspiracy"),
+            ("d", "Dich 20 Minuten lang in der Duschkabine einschließen und über das sofortige Karriereende nachdenken.", "fragile_ego"),
+        ],
+    },
+    {
+        "id": "q4",
+        "scenario": "Szenario 4: Die Außenseiter-Prognose",
+        "question": "Der Matchmaker zeigt an, dass dein Team eine vorhergesagte Siegchance von lediglich 34 % hat. Welcher Gedanke schießt dir durch den Kopf?",
+        "options": [
+            ("a", "Perfekt! Das macht den anschließenden Jubel über den Überraschungssieg doppelt süß. Rauf auf den Platz!", "legend"),
+            ("b", "Ein interessanter Bayes'scher Prior. Lasst uns die Staffelung kompakter halten und auf Umschaltsituationen lauern.", "tactician"),
+            ("c", "Die Rückwärtsbewegung verweigern, weil der Algorithmus das Spiel ja ohnehin schon als verloren gewertet hat.", "tryhard"),
+            ("d", "Der Algorithmus ist vom Webmaster ganz klar manipuliert, um meine Platzierung künstlich zu drücken.", "conspiracy"),
+        ],
+    },
+    {
+        "id": "q5",
+        "scenario": "Szenario 5: Pizza & Fachsimpeln nach dem Spiel",
+        "question": "Nach dem Spiel holt ein Mitspieler beim Pizzabäcker die Statistikseite auf dem Smartphone heraus. Wie blickst du auf die Zahlen?",
+        "options": [
+            ("a", "'Zahlen machen Spaß, aber hast du Max' Hacken-Tunnel gesehen? Das ist es, worauf es ankommt!'", "legend"),
+            ("b", "'Eine schöne mathematische Zusammenfassung vergangener Resultate, aber kein persönliches Urteil über jemanden.'", "tactician"),
+            ("c", "'Mein konservatives Rating liegt bei 1620 und deines bei 1410 – ab sofort trete ich alle Ecken.'", "tryhard"),
+            ("d", "'Beim Anblick dieser Zahlen dreht sich mir der Magen um. Was, wenn ich nächste Woche zwei Plätze abrutsche?'", "fragile_ego"),
+        ],
+    },
+    {
+        "id": "q6",
+        "scenario": "Szenario 6: Der absolute Schlachttag",
+        "question": "Du hast einen rabenschwarzen Tag: Deine erste Ballannahme verspringt fünf Meter weit, du rutschst bei jedem Richtungswechsel weg und verschießt einen Elfmeter. Was tust du?",
+        "options": [
+            ("a", "Über dich selbst lachen, dafür in der Defensive doppelt so viele Meter fressen und die Kollegen wirbeln lassen.", "pragmatist"),
+            ("b", "Erkennen, dass Einzelleistungen einer Normalverteilung unterliegen, und diszipliniert deine Position halten.", "tactician"),
+            ("c", "Nach 15 Minuten einen Leistenkrampf vortäuschen, um dich auswechseln zu lassen und dein Rating zu retten.", "tryhard"),
+            ("d", "Wütend eine Trinkflasche wegpfeffern und behaupten, dass der Spielball mit Absicht viel zu prall aufgepumpt war.", "conspiracy"),
+        ],
+    },
+    {
+        "id": "q7",
+        "scenario": "Szenario 7: Die Glicko-Philosophie",
+        "question": "Warum ist der Zugriff auf das detaillierte Glicko-Rating an diesen psychologischen Fragebogen gekoppelt?",
+        "options": [
+            ("a", "Weil verbissene Ratings den Spaß am Freizeitsport und die intrinsische Spielfreude vergiften können, wenn man sie zu ernst nimmt.", "legend"),
+            ("b", "Um sicherzustellen, dass die Spieler verstehen: Ratings modellieren Ergebnisse und Varianz, nicht den menschlichen Wert.", "tactician"),
+            ("c", "Damit ich nicht auf Anhieb sehe, wie mühelos ich das gesamte Teilnehmerfeld an die Wand spielen könnte.", "tryhard"),
+            ("d", "Weil der Webmaster Freude daran hat, unsere Vereinstreue durch verdeckte Überwachungsfragen zu testen.", "conspiracy"),
+        ],
+    },
+]
 
-def evaluate_psychology_submission(form_data):
+# Default backwards-compatible alias
+IMP_QUESTIONS = IMP_QUESTIONS_EN
+
+
+def get_psychology_personas(lang="de"):
+    """Return localized persona archetypes dictionary."""
+    return PSYCHOLOGY_PERSONAS_DE if lang == "de" else PSYCHOLOGY_PERSONAS_EN
+
+
+def get_imp_questions(lang="de"):
+    """Return localized list of I.M.P. questions."""
+    return IMP_QUESTIONS_DE if lang == "de" else IMP_QUESTIONS_EN
+
+
+def evaluate_psychology_submission(form_data, lang="de"):
     """Score the submitted questionnaire answers and assign a persona archetype."""
     scores = {
         "legend": 0,
@@ -186,7 +375,8 @@ def evaluate_psychology_submission(form_data):
         "fragile_ego": 0,
     }
 
-    for q in IMP_QUESTIONS:
+    questions = get_imp_questions(lang)
+    for q in questions:
         selected_val = form_data.get(q["id"])
         matching_opt = next((opt for opt in q["options"] if opt[0] == selected_val), None)
         if matching_opt:
@@ -200,6 +390,8 @@ def evaluate_psychology_submission(form_data):
     priority = ["legend", "tactician", "pragmatist", "tryhard", "conspiracy", "fragile_ego"]
     sorted_personas = sorted(priority, key=lambda k: scores[k], reverse=True)
     assigned_key = sorted_personas[0]
-    persona_info = PSYCHOLOGY_PERSONAS.get(assigned_key, PSYCHOLOGY_PERSONAS["legend"])
+    
+    personas = get_psychology_personas(lang)
+    persona_info = personas.get(assigned_key, personas["legend"])
 
     return persona_info, scores

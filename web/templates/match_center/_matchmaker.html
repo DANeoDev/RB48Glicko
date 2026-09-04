@@ -7,11 +7,11 @@
         <details id="matchmaker-details">
 
             <summary>
-                <strong>Matchmaker</strong>
+                <strong>{{ t('match_center.matchmaker_title', 'Matchmaker') }}</strong>
             </summary>
 
             <p class="muted">
-                Use the detected players or select additional players to generate fair teams.
+                {{ t('match_center.matchmaker_intro', 'Use the detected players or select additional players to generate fair teams.') }}
             </p>
 
 
@@ -20,14 +20,12 @@
                 <div class="notice">
 
                     <strong>
-                        Do you want to check for fairer possible teams?
+                        {{ t('match_center.fairer_notice_q', 'Do you want to check for fairer possible teams?') }}
                     </strong>
 
                     <br>
 
-                    The imported source already describes a completed match.
-                    This is useful if you want to compare the recorded teams
-                    with alternative team compositions.
+                    {{ t('match_center.fairer_notice_desc', 'The imported source already describes a completed match. This is useful if you want to compare the recorded teams with alternative team compositions.') }}
 
                 </div>
 
@@ -58,10 +56,10 @@
                                     {% for pos in p.positions %}
                                         {% set is_pri = ('*' in pos) %}
                                         {% set clean_pos = pos | replace('*', '') | upper %}
-                                        <span class="pos-tag {% if is_pri %}pos-main{% endif %}" {% if is_pri %}title="Main Position"{% endif %}>{{ clean_pos }}</span>
+                                        <span class="pos-tag {% if is_pri %}pos-main{% endif %}" {% if is_pri %}title="{{ t('match_center.main_pos_title', 'Main Position') }}"{% endif %}>{{ clean_pos }}</span>
                                     {% endfor %}
                                 {% else %}
-                                    <span class="pos-tag pos-any">Any</span>
+                                    <span class="pos-tag pos-any">{{ t('match_center.any_pos', 'Any') }}</span>
                                 {% endif %}
                             </span>
 
@@ -80,7 +78,7 @@
                         name="action"
                         value="generate"
                     >
-                        Generate teams
+                        {{ t('match_center.generate_teams_btn', 'Generate teams') }}
                     </button>
 
                 </div>

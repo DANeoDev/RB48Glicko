@@ -9,7 +9,7 @@
         id="suggested-teams"
     >
 
-        <h2>Suggested teams</h2>
+        <h2>{{ t('match_center.suggested_title', 'Suggested teams') }}</h2>
 
 
         <div class="teams">
@@ -18,7 +18,7 @@
 
             <div class="team">
 
-                <h3>Team A</h3>
+                <h3>{{ t('matches.team_a', 'Team A') }}</h3>
 
                 <ul>
 
@@ -47,12 +47,12 @@
 
                 <div class="muted">
 
-                    <strong>Rating:</strong>
+                    <strong>{{ t('player.current_rating', 'Rating') }}:</strong>
                     {{ '%.1f' | format(result.rating_a.rating) }}
 
                     ·
 
-                    <strong>RD:</strong>
+                    <strong>{{ t('stats.rd', 'RD') }}:</strong>
                     {{ '%.1f' | format(result.rating_a.rd) }}
 
                 </div>
@@ -64,7 +64,7 @@
 
             <div class="team">
 
-                <h3>Team B</h3>
+                <h3>{{ t('matches.team_b', 'Team B') }}</h3>
 
                 <ul>
 
@@ -93,12 +93,12 @@
 
                 <div class="muted">
 
-                    <strong>Rating:</strong>
+                    <strong>{{ t('player.current_rating', 'Rating') }}:</strong>
                     {{ '%.1f' | format(result.rating_b.rating) }}
 
                     ·
 
-                    <strong>RD:</strong>
+                    <strong>{{ t('stats.rd', 'RD') }}:</strong>
                     {{ '%.1f' | format(result.rating_b.rd) }}
 
                 </div>
@@ -110,12 +110,12 @@
 
         <div class="result-summary">
 
-            <strong>Rating difference:</strong>
+            <strong>{{ t('match_center.rating_diff', 'Rating difference:') }}</strong>
             {{ '%.1f' | format(result.rating_difference) }}
 
             <br>
 
-            <strong>Positional balance evaluation:</strong>
+            <strong>{{ t('match_center.pos_balance', 'Positional balance evaluation:') }}</strong>
 
             <span
                 class="position-evaluation"
@@ -134,7 +134,7 @@
                 class="primary"
                 id="transfer-teams-btn"
             >
-                ↓ Use these teams in Match Entry
+                {{ t('match_center.use_teams_btn', '↓ Use these teams in Match Entry') }}
             </button>
         </div>
 

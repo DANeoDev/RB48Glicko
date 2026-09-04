@@ -75,7 +75,7 @@ class AuthTokensTest(unittest.TestCase):
         token = generate_verification_token(user_id, email)
         resp = client.get(f"/verify-email/{token}")
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b"Email Verified!", resp.data)
+        self.assertTrue(b"E-Mail verifiziert!" in resp.data or b"Email Verified!" in resp.data)
         self.assertIn(unique_login.encode(), resp.data)
 
         # Confirm user is now verified

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ current_lang }}">
 
 <head>
     <meta charset="UTF-8">
@@ -181,35 +181,35 @@
 {% if current_user and current_user.role == 'webmaster' %}
     <div class="webmaster-sim-bar" id="webmaster-sim-bar">
         <div class="webmaster-sim-header">
-            <button type="button" class="webmaster-eye-toggle" id="webmaster-eye-toggle" aria-label="Hide View Simulation Bar" title="Click to hide View Simulation Bar">
+            <button type="button" class="webmaster-eye-toggle" id="webmaster-eye-toggle" aria-label="{{ t('nav.sim_hide_title', 'Click to hide View Simulation Bar') }}" title="{{ t('nav.sim_hide_title', 'Click to hide View Simulation Bar') }}">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                     <circle cx="12" cy="12" r="3"></circle>
                 </svg>
             </button>
-            <span class="webmaster-sim-label">Webmaster View Simulation:</span>
+            <span class="webmaster-sim-label">{{ t('nav.sim_bar_title', 'Webmaster View Simulation:') }}</span>
             <span class="webmaster-sim-badge">
                 {% if simulated_tier %}
-                    Simulating: {{ simulated_tier | replace('_', ' ') | title }}
+                    {{ t('nav.sim_simulating', 'Simulating: {tier}', tier=(simulated_tier | replace('_', ' ') | title)) }}
                 {% else %}
-                    Actual: Webmaster
+                    {{ t('nav.sim_actual', 'Actual: Webmaster') }}
                 {% endif %}
             </span>
         </div>
         <div class="webmaster-sim-controls">
             <form method="post" action="{{ url_for('auth.switch_view') }}" class="webmaster-sim-form">
                 <input type="hidden" name="redirect_to" value="{{ request.full_path }}">
-                <button type="submit" name="view_mode" value="visitor" class="webmaster-sim-btn {% if simulated_tier == 'visitor' %}active{% endif %}">Visitor</button>
-                <button type="submit" name="view_mode" value="user" class="webmaster-sim-btn {% if simulated_tier == 'user' %}active{% endif %}">User</button>
-                <button type="submit" name="view_mode" value="glicko_user" class="webmaster-sim-btn {% if simulated_tier == 'glicko_user' %}active{% endif %}">Glicko User</button>
-                <button type="submit" name="view_mode" value="admin" class="webmaster-sim-btn {% if simulated_tier == 'admin' %}active{% endif %}">Admin</button>
+                <button type="submit" name="view_mode" value="visitor" class="webmaster-sim-btn {% if simulated_tier == 'visitor' %}active{% endif %}">{{ t('nav.sim_visitor', 'Visitor') }}</button>
+                <button type="submit" name="view_mode" value="user" class="webmaster-sim-btn {% if simulated_tier == 'user' %}active{% endif %}">{{ t('nav.sim_user', 'User') }}</button>
+                <button type="submit" name="view_mode" value="glicko_user" class="webmaster-sim-btn {% if simulated_tier == 'glicko_user' %}active{% endif %}">{{ t('nav.sim_glicko_user', 'Glicko User') }}</button>
+                <button type="submit" name="view_mode" value="admin" class="webmaster-sim-btn {% if simulated_tier == 'admin' %}active{% endif %}">{{ t('nav.sim_admin', 'Admin') }}</button>
                 {% if simulated_tier %}
-                    <button type="submit" name="view_mode" value="reset" class="webmaster-sim-btn" style="background: #dc3545; border-color: #ff8888;">Reset</button>
+                    <button type="submit" name="view_mode" value="reset" class="webmaster-sim-btn" style="background: #dc3545; border-color: #ff8888;">{{ t('nav.sim_reset', 'Reset') }}</button>
                 {% endif %}
             </form>
         </div>
     </div>
-    <button type="button" class="webmaster-sim-reopen" id="webmaster-sim-reopen" aria-label="Show Webmaster View Simulation" title="Click to show Webmaster View Simulation Bar">
+    <button type="button" class="webmaster-sim-reopen" id="webmaster-sim-reopen" aria-label="{{ t('nav.sim_show_title', 'Click to show Webmaster View Simulation Bar') }}" title="{{ t('nav.sim_show_title', 'Click to show Webmaster View Simulation Bar') }}">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
             <line x1="1" y1="1" x2="23" y2="23"></line>
@@ -226,43 +226,52 @@
             <img src="{{ url_for('static', filename='images/RB48_logo.png') }}" alt="RB48">
         </a>
         <div class="nav-links">
-            <a href="{{ url_for('stats.dashboard') }}" class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}active{% endif %}">Dashboard</a>
+            <a href="{{ url_for('stats.dashboard') }}" class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}active{% endif %}">{{ t('nav.dashboard', 'Dashboard') }}</a>
             
             {% if has_tier('user') %}
-                <a href="{{ url_for('stats.stats') }}" class="{% if request.endpoint == 'stats.stats' %}active{% endif %}">Stats</a>
+                <a href="{{ url_for('stats.stats') }}" class="{% if request.endpoint == 'stats.stats' %}active{% endif %}">{{ t('nav.stats', 'Stats') }}</a>
             {% else %}
-                <a href="{{ url_for('auth.login', next=url_for('stats.stats')) }}" class="nav-locked" title="Stats — Register and get approved by the webmaster to access player statistics.">
-                    Stats <span class="nav-lock-icon">🔒</span>
+                <a href="{{ url_for('auth.login', next=url_for('stats.stats')) }}" class="nav-locked" title="{{ t('nav.locked_stats_title', 'Stats — Register and get approved by the webmaster to access player statistics.') }}">
+                    {{ t('nav.stats', 'Stats') }} <span class="nav-lock-icon">🔒</span>
                 </a>
             {% endif %}
 
-            <a href="{{ url_for('planner.planner') }}" class="{% if request.endpoint == 'planner.planner' %}active{% endif %}">Planner</a>
-            <a href="{{ url_for('stats.match_history') }}" class="{% if request.endpoint == 'stats.match_history' %}active{% endif %}">Match History</a>
+            <a href="{{ url_for('planner.planner') }}" class="{% if request.endpoint == 'planner.planner' %}active{% endif %}">{{ t('nav.planner', 'Planner') }}</a>
+            <a href="{{ url_for('stats.match_history') }}" class="{% if request.endpoint == 'stats.match_history' %}active{% endif %}">{{ t('nav.match_history', 'Match History') }}</a>
 
             {% if has_tier('admin') %}
-                <a href="{{ url_for('match_center.match_center') }}" class="{% if request.endpoint == 'match_center.match_center' %}active{% endif %}">Match Center</a>
+                <a href="{{ url_for('match_center.match_center') }}" class="{% if request.endpoint == 'match_center.match_center' %}active{% endif %}">{{ t('nav.match_center', 'Match Center') }}</a>
             {% else %}
-                <a href="{{ url_for('auth.login', next=url_for('match_center.match_center')) if not current_user else '#' }}" class="nav-locked" title="Match Center — Administrator access required for match recording and matchmaking.">
-                    Match Center <span class="nav-lock-icon">🔒</span>
+                <a href="{{ url_for('auth.login', next=url_for('match_center.match_center')) if not current_user else '#' }}" class="nav-locked" title="{{ t('nav.locked_match_center_title', 'Match Center — Administrator access required for match recording and matchmaking.') }}">
+                    {{ t('nav.match_center', 'Match Center') }} <span class="nav-lock-icon">🔒</span>
                 </a>
             {% endif %}
 
             {% if has_tier('glicko_user') %}
-                <a href="{{ url_for('stats.model_analysis') }}" class="{% if request.endpoint == 'stats.model_analysis' %}active{% endif %}">Model Analysis</a>
+                <a href="{{ url_for('stats.model_analysis') }}" class="{% if request.endpoint == 'stats.model_analysis' %}active{% endif %}">{{ t('nav.model_analysis', 'Model Analysis') }}</a>
             {% endif %}
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="lang-toggle-group" role="group" aria-label="Language selection">
+                <a href="{{ url_for('auth.set_language', lang='de', next=request.full_path) }}" 
+                   class="lang-toggle-btn {% if current_lang == 'de' %}active{% endif %}" 
+                   title="Deutsch">DE</a>
+                <a href="{{ url_for('auth.set_language', lang='en', next=request.full_path) }}" 
+                   class="lang-toggle-btn {% if current_lang == 'en' %}active{% endif %}" 
+                   title="English">EN</a>
+            </div>
+
             {% if current_user and has_tier('user') %}
-                <button type="button" id="nav-noise-toggle-btn" class="nav-noise-btn" onclick="window.RB48Noise.toggle()" title="Make some noise anywhere on the page">
-                    📢 Noise
+                <button type="button" id="nav-noise-toggle-btn" class="nav-noise-btn" onclick="window.RB48Noise.toggle()" title="{{ t('nav.noise_title', 'Make some noise anywhere on the page') }}">
+                    {{ t('nav.noise', '📢 Noise') }}
                 </button>
-                <button type="button" id="nav-noise-mode-btn" class="nav-noise-btn" onclick="window.RB48Noise.cycleMode()" title="Noise View Mode: Click to switch between Collapsed, Expanded, and Muted" style="padding: 6px 10px; font-size: 12.5px;">
+                <button type="button" id="nav-noise-mode-btn" class="nav-noise-btn" onclick="window.RB48Noise.cycleMode()" title="{{ t('nav.noise_mode_title', 'Noise View Mode: Click to switch between Collapsed, Expanded, and Muted') }}" style="padding: 6px 10px; font-size: 12.5px;">
                     <span id="nav-noise-mode-icon">💭</span>
-                    <span id="nav-noise-mode-label">Collapsed</span>
+                    <span id="nav-noise-mode-label">{{ t('nav.noise_collapsed', 'Collapsed') }}</span>
                 </button>
             {% endif %}
             <div class="profile-menu">
-                <button type="button" class="profile-button" aria-label="Account" title="Account">
+                <button type="button" class="profile-button" aria-label="{{ t('nav.account', 'Account') }}" title="{{ t('nav.account', 'Account') }}">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <circle cx="12" cy="8" r="3.5"></circle>
                         <path d="M5 20c.7-3.3 3.2-5.2 7-5.2s6.3 1.9 7 5.2"></path>
@@ -275,30 +284,31 @@
                             <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">
                                 {{ current_user.get('role', 'user') | title }}
                                 {% if not current_user.get('is_approved') and current_user.get('role') == 'user' %}
-                                    · <span style="color: #ffc107;">Pending Approval</span>
+                                    · <span style="color: #ffc107;">{{ t('nav.pending_approval', 'Pending Approval') }}</span>
                                 {% elif current_user.get('psychology_test_passed') %}
-                                    · Glicko Active
+                                    · {{ t('nav.glicko_active', 'Glicko Active') }}
                                 {% endif %}
                             </div>
                         </div>
                         {% if current_user.role == 'webmaster' %}
-                            <a href="{{ url_for('auth.admin_users') }}" style="color: #80deea; font-weight: 600;">👥 User Management</a>
+                            <a href="{{ url_for('auth.admin_users') }}" style="color: #80deea; font-weight: 600;">{{ t('nav.user_management', '👥 User Management') }}</a>
                         {% endif %}
-                        <a href="{{ url_for('auth.settings') }}">⚙️ Profile & Settings</a>
-                        <a href="{{ url_for('planner.planner') }}">Attendance Planner</a>
+                        <a href="{{ url_for('auth.settings') }}">{{ t('nav.profile_settings', '⚙️ Profile & Settings') }}</a>
+                        <a href="{{ url_for('planner.planner') }}">{{ t('nav.attendance_planner', 'Attendance Planner') }}</a>
                         {% if has_tier('user') and not current_user.get('psychology_test_passed') %}
-                            <a href="{{ url_for('auth.glicko_test') }}" style="font-size: 12px; color: var(--text-muted);">Glicko Assessment</a>
+                            <a href="{{ url_for('auth.glicko_test') }}" style="font-size: 12px; color: var(--text-muted);">{{ t('nav.glicko_assessment', 'Glicko Assessment') }}</a>
                         {% endif %}
-                        <a href="{{ url_for('auth.logout') }}">Log out</a>
+                        <a href="{{ url_for('auth.logout') }}">{{ t('nav.logout', 'Log out') }}</a>
                     {% else %}
-                        <a href="{{ url_for('auth.login') }}">Log in</a>
-                        <a href="{{ url_for('auth.register') }}">Register</a>
+                        <a href="{{ url_for('auth.login') }}">{{ t('nav.login', 'Log in') }}</a>
+                        <a href="{{ url_for('auth.register') }}">{{ t('nav.register', 'Register') }}</a>
                     {% endif %}
                 </div>
             </div>
         </div>
     </nav>
 </header>
+
 
 {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -314,16 +324,17 @@
 
 <footer class="site-footer" id="site-footer">
     <div class="site-footer-inner">
-        <a class="site-footer-home" href="{{ url_for('stats.home') }}">RB 48 Homepage</a>
+        <a class="site-footer-home" href="{{ url_for('stats.home') }}">{{ t('nav.footer_home', 'RB 48 Homepage') }}</a>
         <nav class="site-footer-links" aria-label="Footer navigation">
-            <a href="{{ url_for('stats.about') }}">About</a>
-            <a href="{{ url_for('stats.glicko_explainer') }}">FAQ</a>
-            <a href="https://github.com/DANeoDev/RB48Glicko" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="{{ url_for('stats.about') }}">{{ t('nav.footer_about', 'About') }}</a>
+            <a href="{{ url_for('stats.glicko_explainer') }}">{{ t('nav.footer_faq', 'FAQ') }}</a>
+            <a href="https://github.com/DANeoDev/RB48Glicko" target="_blank" rel="noopener noreferrer">{{ t('nav.footer_github', 'GitHub') }}</a>
         </nav>
     </div>
-    <button type="button" class="site-footer-toggle" id="site-footer-toggle" aria-label="Hide footer" title="Hide footer">−</button>
+    <button type="button" class="site-footer-toggle" id="site-footer-toggle" aria-label="{{ t('nav.footer_hide', 'Hide footer') }}" title="{{ t('nav.footer_hide', 'Hide footer') }}">−</button>
 </footer>
-<button type="button" class="site-footer-reopen" id="site-footer-reopen" aria-label="Show footer" title="Show footer">+</button>
+<button type="button" class="site-footer-reopen" id="site-footer-reopen" aria-label="{{ t('nav.footer_show', 'Show footer') }}" title="{{ t('nav.footer_show', 'Show footer') }}">+</button>
+
 
 {% block scripts %}{% endblock %}
 

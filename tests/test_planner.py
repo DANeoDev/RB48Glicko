@@ -23,6 +23,7 @@ from scripts.planner.database import (
     backup_and_clear_events,
     cancel_user_rsvp,
     create_event,
+    get_attendee_by_id,
     get_event_attendees,
     get_event_by_id,
     get_planner_backup_dir,
@@ -30,6 +31,7 @@ from scripts.planner.database import (
     get_upcoming_events,
     remove_attendee,
     set_user_rsvp,
+    update_attendee,
 )
 from web.app import app
 from web.routes.planner import calculate_guest_unlock_time, format_event_view_data, is_guest_registration_unlocked
@@ -293,7 +295,7 @@ class PlannerTests(unittest.TestCase):
         # 5. View /planner page
         get_resp = self.client.get("/planner")
         self.assertEqual(get_resp.status_code, 200)
-        self.assertIn(b"Attendance Planner", get_resp.data)
+        self.assertTrue(b"Anwesenheitsplaner" in get_resp.data or b"Attendance Planner" in get_resp.data)
 
         # 6. Test Match Center preselection with comma-separated IDs
         mc_resp = self.client.get("/match-center?players=1,2,3")
@@ -354,6 +356,121 @@ class PlannerTests(unittest.TestCase):
         no_title_evt = get_event_by_id(self.conn, no_title_id)
         view_no_title = format_event_view_data(dict(no_title_evt), None, [])
         self.assertEqual(view_no_title["badge_label"], "BOX")
+
+    def test_declined_chronological_ordering(self):
+        event_id = create_event(self.conn, "2026-11-05 20:00", "box")
+
+        set_user_rsvp(self.conn, event_id, user_id=201, display_name="Decliner 1", status="declined")
+        time.sleep(0.01)
+        set_user_rsvp(self.conn, event_id, user_id=202, display_name="Decliner 2", status="declined")
+        time.sleep(0.01)
+        set_user_rsvp(self.conn, event_id, user_id=203, display_name="Decliner 3", status="declined")
+
+        attendees = [dict(a) for a in get_event_attendees(self.conn, event_id)]
+        event = dict(get_event_by_id(self.conn, event_id))
+        view_data = format_event_view_data(event, None, attendees)
+
+        self.assertEqual(len(view_data["declined_list"]), 3)
+        self.assertEqual([p["name"] for p in view_data["declined_list"]], ["Decliner 1", "Decliner 2", "Decliner 3"])
+
+    def test_user_cannot_cancel_must_decline(self):
+        # Normal user cannot reset/cancel RSVP directly; must switch to declined
+        unique_name = f"regular_user_{int(time.time() * 1000000)}"
+        user_id, _ = register_user(unique_name, f"{unique_name}@example.com", "SecretPass123!")
+        acc_conn = get_accounts_connection()
+        try:
+            mark_email_verified(acc_conn, user_id)
+            approve_user(acc_conn, user_id, approved=True)
+            update_user_role(acc_conn, user_id, "user")
+        finally:
+            acc_conn.close()
+
+        event_id = create_event(self.conn, "2026-11-08 20:00", "box")
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        # 1. Sign up as attending
+        resp1 = self.client.post(f"/planner/{event_id}/rsvp", data={"status": "attending"}, follow_redirects=True)
+        self.assertEqual(resp1.status_code, 200)
+        rsvp1 = get_event_attendees(self.conn, event_id)
+        self.assertEqual(len(rsvp1), 1)
+        self.assertEqual(rsvp1[0]["status"], "attending")
+
+        # 2. Try to send status=cancel -> should be rejected/warned, entry remains
+        resp2 = self.client.post(f"/planner/{event_id}/rsvp", data={"status": "cancel"}, follow_redirects=True)
+        self.assertEqual(resp2.status_code, 200)
+        rsvp2 = get_event_attendees(self.conn, event_id)
+        self.assertEqual(len(rsvp2), 1)
+        self.assertEqual(rsvp2[0]["status"], "attending")
+
+        # 3. Switch to status=declined -> allowed, status becomes declined
+        resp3 = self.client.post(f"/planner/{event_id}/rsvp", data={"status": "declined"}, follow_redirects=True)
+        self.assertEqual(resp3.status_code, 200)
+        rsvp3 = get_event_attendees(self.conn, event_id)
+        self.assertEqual(len(rsvp3), 1)
+        self.assertEqual(rsvp3[0]["status"], "declined")
+
+    def test_admin_and_webmaster_edit_and_remove_attendee(self):
+        # Create normal user and admin user
+        u_name = f"player_{int(time.time() * 1000000)}"
+        user_id, _ = register_user(u_name, f"{u_name}@example.com", "SecretPass123!")
+        a_name = f"admin_{int(time.time() * 1000000)}"
+        admin_id, _ = register_user(a_name, f"{a_name}@example.com", "AdminPass123!")
+
+        acc_conn = get_accounts_connection()
+        try:
+            mark_email_verified(acc_conn, user_id)
+            approve_user(acc_conn, user_id, approved=True)
+            update_user_role(acc_conn, user_id, "user")
+
+            mark_email_verified(acc_conn, admin_id)
+            approve_user(acc_conn, admin_id, approved=True)
+            update_user_role(acc_conn, admin_id, "admin")
+        finally:
+            acc_conn.close()
+
+        event_id = create_event(self.conn, "2026-11-12 20:00", "box")
+        set_user_rsvp(self.conn, event_id, user_id, u_name, "attending")
+        attendee = get_event_attendees(self.conn, event_id)[0]
+        attendee_id = attendee["id"]
+
+        # Normal user cannot edit attendee
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        edit_fail = self.client.post(
+            f"/planner/{event_id}/attendee/{attendee_id}/edit",
+            data={"name": "Renamed Player", "status": "declined"},
+            follow_redirects=True,
+        )
+        self.assertEqual(edit_fail.status_code, 200)
+        # Verify not modified
+        att_unmod = get_attendee_by_id(self.conn, attendee_id)
+        self.assertEqual(att_unmod["name"], u_name)
+        self.assertEqual(att_unmod["status"], "attending")
+
+        # Admin edits attendee
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = admin_id
+
+        edit_success = self.client.post(
+            f"/planner/{event_id}/attendee/{attendee_id}/edit",
+            data={"name": "Renamed Player", "status": "declined"},
+            follow_redirects=True,
+        )
+        self.assertEqual(edit_success.status_code, 200)
+        att_mod = get_attendee_by_id(self.conn, attendee_id)
+        self.assertEqual(att_mod["name"], "Renamed Player")
+        self.assertEqual(att_mod["status"], "declined")
+
+        # Admin completely removes attendee
+        remove_resp = self.client.post(
+            f"/planner/{event_id}/attendee/{attendee_id}/remove",
+            follow_redirects=True,
+        )
+        self.assertEqual(remove_resp.status_code, 200)
+        self.assertIsNone(get_attendee_by_id(self.conn, attendee_id))
 
 
 if __name__ == "__main__":
