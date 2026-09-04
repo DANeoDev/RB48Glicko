@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_ratings, get_player_rating_history
 from scripts.database.db_players import get_players
@@ -9,7 +9,7 @@ from scripts.analysis.synergies import get_community_synergies
 from scripts.analysis.streaks import get_dashboard_streaks
 from scripts.analysis.achievements import get_player_achievements
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
-from web.services.security import Tier, require_tier, has_tier
+from web.services.security import Tier, require_tier, has_tier, get_current_user
 from .news import get_dashboard_news
 
 stats_bp = Blueprint("stats", __name__)
@@ -81,8 +81,7 @@ def player_profile(player_id):
     selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
     matches = build_match_history(connection, players, player_id, {"total": TOTAL, "box": BOX, "hf": HF}[selected_rating_type])
     
-    user_has_glicko = has_tier(Tier.GLICKO_USER)
-    achievements = get_player_achievements(connection, player_id, user_has_glicko_tier=user_has_glicko)
+    # achievements moved to dedicated route
     connection.close()
     matches.reverse()
 
@@ -108,7 +107,7 @@ def player_profile(player_id):
         player_id=player_id,
         linked_user=linked_user,
         players_map=players_map,
-        achievements=achievements,
+        
     )
 
 
@@ -173,3 +172,40 @@ def api_community_synergies():
     synergies = get_community_synergies(connection, min_games=min_games)
     connection.close()
     return jsonify(synergies)
+
+@stats_bp.route("/achievements")
+def achievements_overview():
+    user = get_current_user()
+    if user and user.get("player_id"):
+        return redirect(url_for("stats.player_achievements", player_id=user["player_id"]))
+    connection = get_connection()
+    players = get_players(connection)
+    connection.close()
+    first_pid = next(iter(players.keys()), 1)
+    return redirect(url_for("stats.player_achievements", player_id=first_pid))
+
+
+@stats_bp.route("/achievements/<int:player_id>")
+def player_achievements(player_id: int):
+    connection = get_connection()
+    players = get_players(connection)
+    if player_id not in players:
+        connection.close()
+        return redirect(url_for("stats.achievements_overview"))
+    user_has_glicko = has_tier(Tier.GLICKO_USER)
+    achievements = get_player_achievements(connection, player_id, user_has_glicko_tier=user_has_glicko)
+    connection.close()
+
+    players_map = {pid: p["aliases"][0] for pid, p in players.items()}
+    unlocked_count = sum(1 for a in achievements if a.get("unlocked"))
+    total_count = len(achievements)
+
+    return render_template(
+        "achievements.html",
+        player=players[player_id],
+        player_id=player_id,
+        players_map=players_map,
+        achievements=achievements,
+        unlocked_count=unlocked_count,
+        total_count=total_count,
+    )

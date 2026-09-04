@@ -43,6 +43,17 @@ class TestQOLRoutes(unittest.TestCase):
         data = resp.get_json()
         self.assertIn("best_duos", data)
 
+    def test_achievements_overview_redirect(self):
+        resp = self.client.get("/achievements")
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.headers["Location"].startswith("/achievements/"))
+
+    def test_achievements_player_view(self):
+        resp = self.client.get("/achievements/1")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Auszeichnungen", resp.data)
+        self.assertIn(b"Freigeschaltet", resp.data)
+
 
 if __name__ == "__main__":
     unittest.main()

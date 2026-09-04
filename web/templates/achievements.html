@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}RB48 — {{ player.aliases[0] }} {{ t('achievements.page_title', 'Auszeichnungen & Meilensteine') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='player.css') }}">
+<style>
+.achievements-page-wrap {
+    max-width: 1000px;
+    margin: 24px auto;
+    padding: 0 16px 40px;
+}
+.achievements-hero-card {
+    background: linear-gradient(135deg, #1c1038 0%, #291754 100%);
+    border: 1px solid #582DA1;
+    border-radius: 16px;
+    padding: 24px 28px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+.achievements-hero-left {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+.achievements-hero-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #582DA1, #7B52C5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    box-shadow: 0 4px 15px rgba(123, 82, 197, 0.4);
+}
+.achievements-hero-title h1 {
+    margin: 0 0 4px;
+    font-size: 26px;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.achievements-hero-title p {
+    margin: 0;
+    font-size: 13.5px;
+    color: #C9C2D8;
+}
+.achievements-hero-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+}
+.achievements-player-select {
+    background: #140b28;
+    border: 1px solid #7B52C5;
+    color: #ffffff;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.achievements-progress-pill {
+    background: rgba(0, 230, 118, 0.15);
+    border: 1px solid rgba(0, 230, 118, 0.4);
+    color: #00e676;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.achievements-grid-full {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+.achievement-card-full {
+    background: #190f30;
+    border: 1px solid #3c246b;
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    position: relative;
+}
+.achievement-card-full:hover {
+    transform: translateY(-2px);
+    border-color: #7B52C5;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+}
+.achievement-card-full.unlocked {
+    background: linear-gradient(135deg, #1e123a 0%, #291754 100%);
+    border-color: #7B52C5;
+}
+.achievement-card-full.locked {
+    opacity: 0.5;
+    filter: grayscale(0.7);
+}
+.achievement-card-full.tier-gold { border-color: rgba(255, 215, 0, 0.6); }
+.achievement-card-full.tier-gold .achievement-icon-wrapper { background: rgba(255, 215, 0, 0.15); border-color: #ffd700; }
+.achievement-card-full.tier-silver { border-color: rgba(192, 192, 192, 0.6); }
+.achievement-card-full.tier-silver .achievement-icon-wrapper { background: rgba(192, 192, 192, 0.15); border-color: #c0c0c0; }
+.achievement-card-full.tier-bronze { border-color: rgba(205, 127, 50, 0.6); }
+.achievement-card-full.tier-bronze .achievement-icon-wrapper { background: rgba(205, 127, 50, 0.15); border-color: #cd7f32; }
+.achievement-card-full.tier-special { border-color: rgba(128, 222, 234, 0.6); }
+.achievement-card-full.tier-special .achievement-icon-wrapper { background: rgba(128, 222, 234, 0.15); border-color: #80deea; }
+
+.achievement-icon-wrapper {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: #140b28;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.achievement-info {
+    flex: 1;
+    min-width: 0;
+}
+.achievement-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+.achievement-title-text {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #ffffff;
+}
+.achievement-badge-pill {
+    font-size: 10px;
+    text-transform: uppercase;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+}
+.badge-gold { background: rgba(255, 215, 0, 0.2); color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.4); }
+.badge-silver { background: rgba(192, 192, 192, 0.2); color: #e0e0e0; border: 1px solid rgba(192, 192, 192, 0.4); }
+.badge-bronze { background: rgba(205, 127, 50, 0.2); color: #ffb74d; border: 1px solid rgba(205, 127, 50, 0.4); }
+.badge-special { background: rgba(128, 222, 234, 0.2); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.4); }
+.badge-locked { background: rgba(255, 255, 255, 0.08); color: var(--text-muted); }
+.achievement-desc-text {
+    font-size: 12px;
+    color: #C9C2D8;
+    line-height: 1.4;
+    margin-bottom: 8px;
+}
+.achievement-progress-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #80deea;
+    margin-bottom: 3px;
+}
+.achievement-detail-label {
+    font-size: 11px;
+    color: #a5d6a7;
+    margin-top: 4px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="achievements-page-wrap">
+    <div class="achievements-hero-card">
+        <div class="achievements-hero-left">
+            <div class="achievements-hero-avatar">🏆</div>
+            <div class="achievements-hero-title">
+                <h1>{{ player.aliases[0] }}</h1>
+                <p>{{ t('achievements.page_title', 'Auszeichnungen & Meilensteine') }}</p>
+            </div>
+        </div>
+        <div class="achievements-hero-right">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="player-switcher" style="font-size: 12px; color: var(--text-muted);">{{ t('achievements.select_player', 'Spielerprofil:') }}</label>
+                <select id="player-switcher" class="achievements-player-select" onchange="location.href='{{ url_for('stats.achievements_overview') }}/' + this.value">
+                    {% for pid, pname in players_map.items() %}
+                        <option value="{{ pid }}" {% if pid == player_id %}selected{% endif %}>{{ pname }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="achievements-progress-pill">
+                ✓ {{ unlocked_count }} / {{ total_count }} {{ t('achievements.unlocked', 'Freigeschaltet') }}
+            </div>
+        </div>
+    </div>
+
+    <div class="achievements-grid-full">
+        {% for ach in achievements %}
+            <div class="achievement-card-full {% if ach.unlocked %}unlocked tier-{{ ach.tier }}{% else %}locked{% endif %}" title="{{ t(ach.description_key) }}">
+                <div class="achievement-icon-wrapper">{{ ach.icon }}</div>
+                <div class="achievement-info">
+                    <div class="achievement-title-row">
+                        <span class="achievement-title-text">{{ t(ach.title_key) }}</span>
+                        {% if ach.tier and ach.tier != 'locked' and ach.tier != 'unlocked' %}
+                            <span class="achievement-badge-pill badge-{{ ach.tier }}">{{ ach.tier | upper }}</span>
+                        {% elif ach.unlocked %}
+                            <span class="achievement-badge-pill badge-special">✓</span>
+                        {% else %}
+                            <span class="achievement-badge-pill badge-locked">🔒</span>
+                        {% endif %}
+                    </div>
+                    <div class="achievement-desc-text">{{ t(ach.description_key) }}</div>
+                    {% if ach.progress_text %}
+                        <div class="achievement-progress-label">{{ ach.progress_text }}</div>
+                    {% endif %}
+                    {% if ach.detail_text %}
+                        <div class="achievement-detail-label">{{ ach.detail_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

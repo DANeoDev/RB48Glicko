@@ -14,6 +14,10 @@
             <p>{{ t('planner.subtitle', 'Upcoming RB48 matchdays and player sign-ups') }}</p>
         </div>
         <div class="planner-admin-actions">
+            <a href="{{ url_for('planner.export_ics') }}" class="planner-btn-pill planner-btn-ics" title="{{ t('planner.export_ics_title', 'Termine in deinen persönlichen Kalender importieren (Apple, Google, Outlook)') }}" style="background: rgba(123, 82, 197, 0.25); border: 1px solid #7B52C5; color: #ffffff; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                📅 {{ t('planner.export_ics', 'Kalender (.ics)') }}
+            </a>
+
             {% if current_user %}
                 <a href="{{ url_for('auth.settings') }}" class="planner-btn-pill planner-btn-profile" title="{{ t('planner.name_title', 'Configure your attendance name and player profile in settings') }}">
                     {{ t('planner.name_label', 'Name:') }} <strong>{{ user_attendance_name }}</strong> ⚙️

@@ -76,33 +76,6 @@
 </div>
 {% endif %}
 
-<!-- Achievements & Milestones -->
-<div class="achievements-section">
-    <h2>🏆 {{ t('achievements.section_title', 'Auszeichnungen & Meilensteine') }}</h2>
-    <div class="achievements-grid">
-        {% for ach in achievements %}
-            <div class="achievement-card {% if ach.unlocked %}unlocked tier-{{ ach.tier }}{% else %}locked{% endif %}" title="{{ t(ach.description_key) }}">
-                <div class="achievement-icon">{{ ach.icon }}</div>
-                <div class="achievement-content">
-                    <div class="achievement-header">
-                        <strong class="achievement-title">{{ t(ach.title_key) }}</strong>
-                        {% if ach.tier and ach.tier != 'locked' and ach.tier != 'unlocked' %}
-                            <span class="achievement-badge tier-badge-{{ ach.tier }}">{{ ach.tier | upper }}</span>
-                        {% elif ach.unlocked %}
-                            <span class="achievement-badge tier-badge-unlocked">✓</span>
-                        {% endif %}
-                    </div>
-                    <div class="achievement-desc">{{ t(ach.description_key) }}</div>
-                    <div class="achievement-progress">{{ ach.progress_text }}</div>
-                    {% if ach.detail_text %}
-                        <div class="achievement-detail">{{ ach.detail_text }}</div>
-                    {% endif %}
-                </div>
-            </div>
-        {% endfor %}
-    </div>
-</div>
-
 <h2>{{ t('player.personal_history', 'Persönliche Spielhistorie') }}</h2>
 
 <div class="player-history-controls">
