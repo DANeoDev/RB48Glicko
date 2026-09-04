@@ -1801,5 +1801,10 @@ createRatingChart("hfChart", "hf");
         }
     });
 })();
+
+// Toggle match expansion in match history
+document.querySelectorAll(".match").forEach(match => {
+    match.addEventListener("click", () => match.classList.toggle("expanded"));
+});
 </script>
 {% endblock %}
