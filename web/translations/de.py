@@ -137,8 +137,8 @@ TRANSLATIONS_DE = {
     "model_analysis.log_loss_title": "Bestraft selbstsichere, falsche Vorhersagen überproportional stark. Niedrigere Werte sind besser.",
     "model_analysis.mae": "Mittlerer absoluter Fehler",
     "model_analysis.mae_title": "Durchschnittlicher absoluter Abstand zwischen prognostizierter Wahrscheinlichkeit und echtem Resultat des Favoriten. Niedrigere Werte sind besser.",
-    "model_analysis.accuracy": "Favoritengenauigkeit",
-    "model_analysis.accuracy_title": "Prozentsatz der entschiedenen Spiele, die das vom Modell favorisierte Team tatsächlich für sich entscheiden konnte.",
+    "model_analysis.accuracy": "Favoritensiege (Ist / Soll)",
+    "model_analysis.accuracy_title": "Vergleicht die tatsächliche Siegquote des Favoriten (Ist) mit der im Schnitt vorhergesagten Siegchance (Soll). Bei idealer Makro-Kalibrierung stimmen beide Werte überein.",
     "model_analysis.games_analysed": "Analysierte Spiele",
     "model_analysis.note_50": "Spiele mit einer exakten 50:50-Vorhersage werden ausgenommen, da kein eindeutiger Favorit existiert. Ein Unentschieden fließt für Wahrscheinlichkeitsmaße als 50%-Ergebnis ein.",
     "model_analysis.calibration_section_title": "Kalibrierung und Spielausgeglichenheit",
@@ -172,11 +172,14 @@ TRANSLATIONS_DE = {
     "model_analysis.brier_expl_desc": "Mittlere quadratische Abweichung. Misst die Kalibrierungspräzision der vorhergesagten Siegwahrscheinlichkeiten.",
     "model_analysis.log_loss_expl_desc": "Logarithmische Kreuzentropie. Bestraft falsche, aber übertrieben selbstsichere Vorhersagen überproportional stark.",
     "model_analysis.mae_expl_desc": "Mittlerer absoluter Fehler. Durchschnittlicher absoluter Abstand zwischen prognostizierter Wahrscheinlichkeit und Spielausgang.",
-    "model_analysis.accuracy_expl_desc": "Siegquote des prognostizierten Favoriten (> 50 %). Bei gut gebalanceten Teams liegt der gesunde Zielbereich im Amateurbereich bei 55–65 %.",
+    "model_analysis.accuracy_expl_title": "Favoritensiege (Ist / Soll)",
+    "model_analysis.accuracy_expl_desc": "Naiver Makro-Vergleich („Brier light“): Vergleicht die tatsächliche Siegquote des Favoriten (Ist) mit dem Durchschnitt aller prognostizierten Favoriten-Wahrscheinlichkeiten (Soll).",
     "model_analysis.bm_perfect": "Theoretisches Optimum",
     "model_analysis.bm_solid": "Starkes Sportmodell",
     "model_analysis.bm_baseline": "Zufalls-Baseline (50:50)",
-    "model_analysis.bm_balanced_target": "Realistischer Zielbereich",
+    "model_analysis.bm_macro_calib": "Perfekte Makro-Kalibrierung",
+    "model_analysis.bm_fav_underestimated": "Favoriten unterschätzt",
+    "model_analysis.bm_fav_overestimated": "Favoriten überschätzt",
 
     # =========================================================================
     # About Page
