@@ -142,7 +142,7 @@ TRANSLATIONS_DE = {
     "model_analysis.games_analysed": "Analysierte Spiele",
     "model_analysis.note_50": "Spiele mit einer exakten 50:50-Vorhersage werden ausgenommen, da kein eindeutiger Favorit existiert. Ein Unentschieden fließt für Wahrscheinlichkeitsmaße als 50%-Ergebnis ein.",
     "model_analysis.calibration_section_title": "Kalibrierung und Spielausgeglichenheit",
-    "model_analysis.calibration_section_desc": "Prognosen werden in gleich große Perzentil-Körbe unterteilt, wobei nur Wahrscheinlichkeiten über 50 % betrachtet werden. Die erste Grafik misst die Siegeskalibrierung; die zweite misst die Höhe des Torabstands im Verhältnis zur historischen Verteilung des jeweiligen Platzes.",
+    "model_analysis.calibration_section_desc": "Prognosen über 50 % werden in 5%-Wahrscheinlichkeitsintervalle eingeteilt. Die erste Grafik misst die Siegeskalibrierung; die zweite misst die Höhe des Torabstands im Verhältnis zur historischen Verteilung des jeweiligen Platzes.",
     "model_analysis.fav_win_title": "Kalibrierung des Favoritensiegs",
     "model_analysis.fav_win_desc": "Ein perfekt kalibriertes Modell folgt der gestrichelten Diagonale: Ein zu 60 % favorisiertes Team sollte im Schnitt auch in rund 60 % der Partien gewinnen.",
     "model_analysis.axis_pred_win": "Durchschnittliche prognostizierte Siegchance des Favoriten",

@@ -134,7 +134,7 @@ TRANSLATIONS_EN = {
     "model_analysis.games_analysed": "Games analysed",
     "model_analysis.note_50": "Matches with an exact 50:50 prediction are excluded because there is no meaningful predicted favourite. A draw counts as a 50% outcome for probabilistic scoring metrics.",
     "model_analysis.calibration_section_title": "Calibration and game closeness",
-    "model_analysis.calibration_section_desc": "Predictions are divided into equally sized percentile baskets using only probabilities above 50%. The first graph measures win calibration; the second measures how large the score margin is relative to the empirical distribution for the pitch.",
+    "model_analysis.calibration_section_desc": "Predictions above 50% are grouped into 5% probability intervals. The first graph measures win calibration; the second measures how large the score margin is relative to the empirical distribution for the pitch.",
     "model_analysis.fav_win_title": "Favourite win calibration",
     "model_analysis.fav_win_desc": "A perfectly calibrated model follows the dashed diagonal: a 60% favourite should win about 60% of the time.",
     "model_analysis.axis_pred_win": "Average predicted favourite win probability",

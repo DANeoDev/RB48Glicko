@@ -92,24 +92,35 @@ def _goal_diff_percentiles(observations):
     return reference
 
 
-def _quantile_baskets(predictions):
-    """Create equal-count prediction baskets (deciles, or ventiles for larger sets)."""
-    count = len(predictions)
-    basket_count = 20 if count >= 200 else 10
-    ordered = sorted(predictions, key=lambda item: item["prediction"])
+def _calibration_baskets(predictions, step=0.05):
+    """Group favourite predictions (>= 50%) into distinct probability intervals (e.g. 50-55%, 55-60%)."""
+    if not predictions:
+        return []
     baskets = []
+    num_bins = int(round((1.0 - 0.5) / step))
 
-    for index in range(basket_count):
-        start = index * count // basket_count
-        end = (index + 1) * count // basket_count
-        values = ordered[start:end]
+    for i in range(num_bins):
+        bin_start = 0.5 + i * step
+        bin_end = bin_start + step
+        if i == num_bins - 1:
+            values = [
+                item for item in predictions
+                if bin_start - 1e-9 <= item["prediction"] <= bin_end + 1e-9
+            ]
+        else:
+            values = [
+                item for item in predictions
+                if bin_start - 1e-9 <= item["prediction"] < bin_end - 1e-9
+            ]
+
         if not values:
             continue
+
         predictions_only = [item["prediction"] for item in values]
         actuals = [item["actual"] for item in values]
         goal_diff_percentiles = [item["goal_diff_percentile"] for item in values]
         baskets.append({
-            "label": f"{min(predictions_only) * 100:.1f}–{max(predictions_only) * 100:.1f}%",
+            "label": f"{bin_start * 100:.0f}% – {bin_end * 100:.0f}%",
             "count": len(values),
             "predicted": sum(predictions_only) / len(values),
             "actual": sum(actuals) / len(values),
@@ -117,6 +128,9 @@ def _quantile_baskets(predictions):
         })
 
     return baskets
+
+
+_quantile_baskets = _calibration_baskets
 
 
 def _lowess(predictions, value_key="actual", points=50, fraction=0.35):
@@ -246,7 +260,7 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
         "log_loss": log_loss,
         "mean_absolute_error": mean_absolute_error,
         "accuracy": accuracy,
-        "calibration": _quantile_baskets(observations),
+        "calibration": _calibration_baskets(observations),
         "lowess": _lowess(observations, "actual"),
         "goal_diff_lowess": _lowess(observations, "goal_diff_percentile"),
         "goal_diff_reference": goal_diff_reference,
