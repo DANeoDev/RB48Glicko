@@ -167,6 +167,16 @@ TRANSLATIONS_DE = {
     "model_analysis.th_share": "Anteil",
     "model_analysis.th_empirical_percentile": "Anteil",
     "model_analysis.no_predictions": "Für dieses Modell liegen noch keine Vorhersagen vor.",
+    "model_analysis.explainer_toggle": "Benchmark-Werte & Interpretation der Hauptmetriken",
+    "model_analysis.explainer_intro": "Da im Freizeitfußball durch ausgeglichene Teams und Spielverläufe eine natürliche Varianz herrscht, sind theoretische Idealwerte (0,0) in der Praxis unerreichbar. Folgende Richtwerte helfen bei der Einordnung der Modellgüte:",
+    "model_analysis.brier_expl_desc": "Mittlere quadratische Abweichung. Misst die Kalibrierungspräzision der vorhergesagten Siegwahrscheinlichkeiten.",
+    "model_analysis.log_loss_expl_desc": "Logarithmische Kreuzentropie. Bestraft falsche, aber übertrieben selbstsichere Vorhersagen überproportional stark.",
+    "model_analysis.mae_expl_desc": "Mittlerer absoluter Fehler. Durchschnittlicher absoluter Abstand zwischen prognostizierter Wahrscheinlichkeit und Spielausgang.",
+    "model_analysis.accuracy_expl_desc": "Siegquote des prognostizierten Favoriten (> 50 %). Bei gut gebalanceten Teams liegt der gesunde Zielbereich im Amateurbereich bei 55–65 %.",
+    "model_analysis.bm_perfect": "Theoretisches Optimum",
+    "model_analysis.bm_solid": "Starkes Sportmodell",
+    "model_analysis.bm_baseline": "Zufalls-Baseline (50:50)",
+    "model_analysis.bm_balanced_target": "Realistischer Zielbereich",
 
     # =========================================================================
     # About Page

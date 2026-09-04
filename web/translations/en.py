@@ -159,6 +159,16 @@ TRANSLATIONS_EN = {
     "model_analysis.th_share": "Share",
     "model_analysis.th_empirical_percentile": "Share",
     "model_analysis.no_predictions": "No predictions are available for this model yet.",
+    "model_analysis.explainer_toggle": "Benchmark values & interpretation of main metrics",
+    "model_analysis.explainer_intro": "Because recreational football with balanced teams involves natural variance, theoretical ideal scores (0.0) are unattainable in practice. The following benchmarks help interpret the model's predictive quality:",
+    "model_analysis.brier_expl_desc": "Mean squared error. Measures calibration accuracy of predicted win probabilities.",
+    "model_analysis.log_loss_expl_desc": "Logarithmic cross-entropy. Heavily penalizes wrong predictions made with high confidence.",
+    "model_analysis.mae_expl_desc": "Mean absolute error. Average absolute distance between predicted probability and actual outcome.",
+    "model_analysis.accuracy_expl_desc": "Win rate of the predicted favourite (> 50%). With well-balanced teams, 55–65% is typical in recreational sports.",
+    "model_analysis.bm_perfect": "Theoretical optimum",
+    "model_analysis.bm_solid": "Strong sports model",
+    "model_analysis.bm_baseline": "Random baseline (50:50)",
+    "model_analysis.bm_balanced_target": "Realistic target range",
 
     # About Page
     "about.hero_subtitle": "Recreational Football Community · Cologne",

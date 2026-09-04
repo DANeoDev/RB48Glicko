@@ -157,6 +157,12 @@ class TestModelAnalysis(unittest.TestCase):
         self.assertIn("HF", html)
         self.assertIn("skaliert", html)
 
+        # Verify metric explainer collapsible details and benchmarks
+        self.assertIn("metric-explainer-details", html)
+        self.assertIn("0.2500", html)
+        self.assertIn("0.6931", html)
+        self.assertIn("0.5000", html)
+
 
 if __name__ == "__main__":
     unittest.main()
