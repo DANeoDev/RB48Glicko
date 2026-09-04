@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}Profile Settings · RB48{% endblock %}
+{% block title %}{{ t('auth.settings_title', 'Profile Settings · RB48') }}{% endblock %}
 
 {% block content %}
 <div class="page-container" style="max-width: 720px; margin: 30px auto 60px; padding: 0 20px;">
     <div class="page-header" style="text-align: left; margin-bottom: 24px;">
-        <h1 style="margin: 0; color: #ffffff; font-size: 26px;">Profile & Settings</h1>
-        <p class="muted" style="margin-top: 4px;">Manage your account, attendance display name, and player profile.</p>
+        <h1 style="margin: 0; color: #ffffff; font-size: 26px;">{{ t('auth.settings_heading', 'Profile & Settings') }}</h1>
+        <p class="muted" style="margin-top: 4px;">{{ t('auth.settings_sub', 'Manage your account, attendance display name, and player profile.') }}</p>
     </div>
 
     <!-- Profile Details Card -->
     <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
         <h2 style="margin: 0 0 16px; font-size: 18px; color: #ffffff; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-            Profile Information
+            {{ t('auth.profile_info', 'Profile Information') }}
         </h2>
 
         <form method="post" action="{{ url_for('auth.update_profile') }}" enctype="multipart/form-data">
@@ -27,37 +27,37 @@
                         {% endif %}
                     </div>
                     <label for="avatar_input" style="font-size: 12px; color: var(--accent-readable); cursor: pointer; display: block;">
-                        Change Photo
+                        {{ t('auth.change_photo', 'Change Photo') }}
                     </label>
-                    <input type="file" id="avatar_input" name="avatar" accept="image/png, image/jpeg, image/webp, image/gif" style="display: none;" onchange="this.previousElementSibling.textContent = this.files[0]?.name || 'Change Photo';">
+                    <input type="file" id="avatar_input" name="avatar" accept="image/png, image/jpeg, image/webp, image/gif" style="display: none;" onchange="this.previousElementSibling.textContent = this.files[0]?.name || {{ t('auth.change_photo', 'Change Photo') | tojson }};">
                 </div>
 
                 <!-- Input Fields -->
                 <div style="flex: 1; min-width: 260px;">
                     <div style="margin-bottom: 14px;">
-                        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">Username:</label>
+                        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">{{ t('auth.username_label', 'Username:') }}</label>
                         <input type="text" value="{{ user.username }}" disabled style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-muted);">
                     </div>
 
                     <div style="margin-bottom: 14px;">
-                        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">Email Address:</label>
+                        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">{{ t('auth.email_label', 'Email Address:') }}</label>
                         <input type="email" value="{{ user.email }}" disabled style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-muted);">
                     </div>
 
                     <div style="margin-bottom: 14px;">
                         <label for="attendance_name" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">
-                            Attendance Display Name:
+                            {{ t('auth.attendance_name_label', 'Attendance Display Name:') }}
                         </label>
                         <input type="text" id="attendance_name" name="attendance_name" value="{{ user.attendance_name or user.username }}" placeholder="e.g. Konsti" required style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); background: #24194A; border: 1px solid #5A4A83; color: #ffffff;">
-                        <span style="font-size: 11px; color: var(--text-muted);">The name that appears on the Attendance Planner and guest player tags.</span>
+                        <span style="font-size: 11px; color: var(--text-muted);">{{ t('auth.attendance_name_hint', 'The name that appears on the Attendance Planner and guest player tags.') }}</span>
                     </div>
 
                     <div style="margin-bottom: 14px;">
                         <label for="player_id" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">
-                            Connect Player Profile:
+                            {{ t('auth.connect_player_label', 'Connect Player Profile:') }}
                         </label>
                         <select id="player_id" name="player_id" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); background: #24194A; border: 1px solid #5A4A83; color: #ffffff;">
-                            <option value="">-- No connected player --</option>
+                            <option value="">{{ t('auth.no_player_option', '-- No connected player --') }}</option>
                             {% for pid, pdata in players.items() %}
                                 <option value="{{ pid }}" {% if user.pending_player_id == pid or (not user.pending_player_id and user.player_id == pid) %}selected{% endif %}>
                                     {{ pdata.aliases[0] }} {% if pdata.positions %}({{ pdata.positions | join(', ') }}){% endif %}
@@ -67,22 +67,22 @@
                         {% if user.pending_player_id %}
                             {% set pending_p = players.get(user.pending_player_id) %}
                             <div style="font-size: 12px; color: #ffc107; margin-top: 6px; padding: 4px 8px; background: rgba(255, 193, 7, 0.1); border-radius: 4px; border: 1px solid rgba(255, 193, 7, 0.2);">
-                                ⏳ Connection request pending Webmaster approval for: <strong>{{ pending_p.aliases[0] if pending_p else '#' ~ user.pending_player_id }}</strong>
+                                {{ t('auth.pending_player_msg', name=(pending_p.aliases[0] if pending_p else '#' ~ user.pending_player_id)) }}
                             </div>
                         {% elif user.player_id %}
                             {% set linked_p = players.get(user.player_id) %}
                             <div style="font-size: 12px; color: #80deea; margin-top: 6px;">
-                                ✓ Connected to: <strong><a href="{{ url_for('stats.player_profile', player_id=user.player_id) }}" style="color: #80deea;">{{ linked_p.aliases[0] if linked_p else '#' ~ user.player_id }}</a></strong>
+                                {{ t('auth.connected_to', '✓ Connected to:') }} <strong><a href="{{ url_for('stats.player_profile', player_id=user.player_id) }}" style="color: #80deea;">{{ linked_p.aliases[0] if linked_p else '#' ~ user.player_id }}</a></strong>
                             </div>
                         {% endif %}
-                        <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px;">Links your account and photo to your player statistics page (requires Webmaster approval).</span>
+                        <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px;">{{ t('auth.connect_player_hint', 'Links your account and photo to your player statistics page (requires Webmaster approval).') }}</span>
                     </div>
                 </div>
             </div>
 
             <div style="text-align: right;">
                 <button type="submit" class="primary" style="padding: 8px 20px; font-size: 14px; cursor: pointer;">
-                    Save Profile
+                    {{ t('auth.save_profile', 'Save Profile') }}
                 </button>
             </div>
         </form>
@@ -92,40 +92,40 @@
     <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
             <h2 style="margin: 0; font-size: 18px; color: #ffffff;">
-                Detailed Performance Evaluation (Glicko-2)
+                {{ t('auth.glicko_card_title', 'Detailed Performance Evaluation (Glicko-2)') }}
             </h2>
             {% if user.psychology_test_passed %}
                 <span style="background: rgba(40, 167, 69, 0.2); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.4); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
-                    ✓ Glicko Clearance Active
+                    {{ t('auth.glicko_active', '✓ Glicko Clearance Active') }}
                 </span>
             {% else %}
                 <span style="background: rgba(255, 193, 7, 0.15); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.3); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
-                    Assessment Required
+                    {{ t('auth.glicko_required', 'Assessment Required') }}
                 </span>
             {% endif %}
         </div>
 
         <p style="font-size: 13.5px; color: #c9c2d8; line-height: 1.5; margin-bottom: 16px;">
-            To preserve recreational enjoyment, prevent rating toxicity, and ensure all players understand rating variance, access to numerical Glicko-2 ratings, rating deviations (RD), and predictive model analytics is unlocked via the I.M.P. Football Personality Assessment.
+            {{ t('auth.glicko_card_desc', 'To preserve recreational enjoyment, prevent rating toxicity, and ensure all players understand rating variance, access to numerical Glicko-2 ratings, rating deviations (RD), and predictive model analytics is unlocked via the I.M.P. Football Personality Assessment.') }}
         </p>
 
         {% if user.psychology_test_passed %}
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                 <span style="font-size: 13px; color: #80deea;">
                     {% if user.psychology_persona %}
-                        Assigned Archetype: <strong>{{ user.psychology_persona | replace('_', ' ') | title }}</strong>
+                        {{ t('auth.assigned_archetype', archetype=(user.psychology_persona | replace('_', ' ') | title)) }}
                     {% else %}
-                        Status: Clearance Granted
+                        {{ t('auth.clearance_granted', 'Status: Clearance Granted') }}
                     {% endif %}
                 </span>
                 <a href="{{ url_for('auth.glicko_test') }}" class="secondary" style="padding: 8px 16px; text-decoration: none; font-size: 13px;">
-                    View Psychological Dossier / Retake →
+                    {{ t('auth.view_dossier', 'View Psychological Dossier / Retake →') }}
                 </a>
             </div>
         {% else %}
             <div style="text-align: right;">
                 <a href="{{ url_for('auth.glicko_test') }}" class="primary" style="padding: 9px 20px; text-decoration: none; font-size: 13.5px; font-weight: 700; border-radius: 20px; display: inline-block;">
-                    Request Access to Detailed Performance Evaluation →
+                    {{ t('auth.request_clearance', 'Request Access to Detailed Performance Evaluation →') }}
                 </a>
             </div>
         {% endif %}
@@ -135,15 +135,15 @@
     <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 16px;">
             <h2 style="margin: 0; font-size: 18px; color: #ffffff;">
-                📢 Page Noise &amp; Banter Bubbles
+                {{ t('auth.noise_card_title', '📢 Page Noise & Banter Bubbles') }}
             </h2>
             <span style="font-size: 12px; color: #80deea; font-weight: 600;">
-                Noise View Mode
+                {{ t('auth.noise_view_mode', 'Noise View Mode') }}
             </span>
         </div>
 
         <p class="reading-text" style="font-size: 14px; margin-bottom: 16px; color: #c9c2d8;">
-            Configure how member noise text bubbles appear across the website on your screen:
+            {{ t('auth.noise_desc', 'Configure how member noise text bubbles appear across the website on your screen:') }}
         </p>
 
         <form method="post" action="{{ url_for('noise.update_noise_display_mode') }}">
@@ -151,9 +151,9 @@
                 <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
                     <input type="radio" name="noise_display_mode" value="collapsed" {% if user.noise_display_mode == 'collapsed' or not user.noise_display_mode or user.noise_display_mode == 'transparent' or user.noise_display_mode == 'smart' or user.noise_display_mode == 'always_indicators' %}checked{% endif %} style="margin-top: 3px;">
                     <div>
-                        <strong style="color: #80deea; font-size: 14px; display: block;">💭 Collapsed Indicator Pills (Default / Recommended)</strong>
+                        <strong style="color: #80deea; font-size: 14px; display: block;">{{ t('auth.noise_opt_collapsed_title', '💭 Collapsed Indicator Pills (Default / Recommended)') }}</strong>
                         <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
-                            Banter bubbles start as compact translucent pills. Hovering or tapping expands them in-place with a minimize button without blocking buttons or tables.
+                            {{ t('auth.noise_opt_collapsed_desc', 'Banter bubbles start as compact translucent pills. Hovering or tapping expands them in-place with a minimize button without blocking buttons or tables.') }}
                         </span>
                     </div>
                 </label>
@@ -161,9 +161,9 @@
                 <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
                     <input type="radio" name="noise_display_mode" value="expanded" {% if user.noise_display_mode == 'expanded' or user.noise_display_mode == 'always_expanded' or user.noise_display_mode == 'always_show' %}checked{% endif %} style="margin-top: 3px;">
                     <div>
-                        <strong style="color: #ffffff; font-size: 14px; display: block;">💬 Always Show Expanded Bubbles</strong>
+                        <strong style="color: #ffffff; font-size: 14px; display: block;">{{ t('auth.noise_opt_expanded_title', '💬 Always Show Expanded Bubbles') }}</strong>
                         <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
-                            Always display full text speech bubbles directly on every page.
+                            {{ t('auth.noise_opt_expanded_desc', 'Always display full text speech bubbles directly on every page.') }}
                         </span>
                     </div>
                 </label>
@@ -171,9 +171,9 @@
                 <label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer;">
                     <input type="radio" name="noise_display_mode" value="muted" {% if user.noise_display_mode == 'muted' or user.noise_display_mode == 'hidden' %}checked{% endif %} style="margin-top: 3px;">
                     <div>
-                        <strong style="color: #ff8888; font-size: 14px; display: block;">🔇 Mute All Noise (Hide All)</strong>
+                        <strong style="color: #ff8888; font-size: 14px; display: block;">{{ t('auth.noise_opt_muted_title', '🔇 Mute All Noise (Hide All)') }}</strong>
                         <span style="font-size: 12.5px; color: #c9c2d8; line-height: 1.4; display: block; margin-top: 2px;">
-                            Hide all noise bubbles completely for a completely quiet page view.
+                            {{ t('auth.noise_opt_muted_desc', 'Hide all noise bubbles completely for a completely quiet page view.') }}
                         </span>
                     </div>
                 </label>
@@ -181,7 +181,7 @@
 
             <div style="text-align: right;">
                 <button type="submit" class="secondary" style="padding: 8px 18px; font-size: 13.5px; cursor: pointer;">
-                    Save Noise Preferences
+                    {{ t('auth.save_noise', 'Save Noise Preferences') }}
                 </button>
             </div>
         </form>
@@ -191,10 +191,10 @@
     <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 16px;">
             <h2 style="margin: 0; font-size: 18px; color: #ffffff;">
-                💬 My Authored Banter Bubbles ({{ authored_bubbles|length if authored_bubbles else 0 }})
+                {{ t('auth.my_bubbles_title', count=(authored_bubbles|length if authored_bubbles else 0)) }}
             </h2>
             <span style="font-size: 12px; color: var(--text-muted);">
-                Quota: Max 5 active general bubbles (Match history banter stays permanent)
+                {{ t('auth.my_bubbles_quota', 'Quota: Max 5 active general bubbles (Match history banter stays permanent)') }}
             </span>
         </div>
 
@@ -208,7 +208,7 @@
                                     📍 <a href="{{ b.page_path }}" style="color: #80deea; text-decoration: none;">{{ b.page_path }}</a>
                                 </span>
                                 {% if b.match_id or b.page_path.startswith('/matches') %}
-                                    <span style="font-size: 11px; color: #81c784; background: rgba(129,199,132,0.1); padding: 2px 6px; border-radius: 4px;">Permanent Match Banter</span>
+                                    <span style="font-size: 11px; color: #81c784; background: rgba(129,199,132,0.1); padding: 2px 6px; border-radius: 4px;">{{ t('auth.perm_match_banter', 'Permanent Match Banter') }}</span>
                                 {% endif %}
                                 <span style="font-size: 11px; color: var(--text-muted);">{{ b.created_at[:10] if b.created_at else '' }}</span>
                             </div>
@@ -218,16 +218,16 @@
                         </div>
 
                         <form method="post" action="{{ url_for('noise.delete_noise', bubble_id=b.id) }}" style="margin: 0;">
-                            <button type="submit" class="secondary" style="color: #ff9999; border-color: rgba(255,100,100,0.4); font-size: 12.5px; padding: 6px 12px; cursor: pointer; border-radius: 6px;" onclick="return confirm('Permanently delete this banter bubble for everyone?')">
-                                🗑️ Delete
+                            <button type="submit" class="secondary" style="color: #ff9999; border-color: rgba(255,100,100,0.4); font-size: 12.5px; padding: 6px 12px; cursor: pointer; border-radius: 6px;" onclick="return confirm({{ t('auth.confirm_delete_bubble', 'Permanently delete this banter bubble for everyone?') | tojson }})">
+                                {{ t('auth.delete_bubble', '🗑️ Delete') }}
                             </button>
                         </form>
                     </div>
                 {% endfor %}
             </div>
         {% else %}
-            <div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 13.5px; background: rgba(255,255,255,0.02); border-radius: 8px;">
-                You haven't posted any banter bubbles yet. Click the <strong>📢 Noise</strong> button in the top navigation bar to drop a bubble anywhere!
+            <div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 13.5px; background: rgba(255,255,200,0.02); border-radius: 8px;">
+                {{ t('auth.no_bubbles', 'You haven\'t posted any banter bubbles yet. Click the <strong>📢 Noise</strong> button in the top navigation bar to drop a bubble anywhere!') }}
             </div>
         {% endif %}
     </div>
@@ -235,29 +235,29 @@
     <!-- Password Change Card -->
     <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
         <h2 style="margin: 0 0 16px; font-size: 18px; color: #ffffff; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-            Change Password
+            {{ t('auth.change_password_title', 'Change Password') }}
         </h2>
 
         <form method="post" action="{{ url_for('auth.update_password') }}">
             <div style="margin-bottom: 14px;">
-                <label for="current_password" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">Current Password:</label>
+                <label for="current_password" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">{{ t('auth.current_password', 'Current Password:') }}</label>
                 <input type="password" id="current_password" name="current_password" required style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); background: #24194A; border: 1px solid #5A4A83; color: #ffffff;">
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
                 <div>
-                    <label for="new_password" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">New Password:</label>
+                    <label for="new_password" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">{{ t('auth.new_password', 'New Password:') }}</label>
                     <input type="password" id="new_password" name="new_password" minlength="8" required style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); background: #24194A; border: 1px solid #5A4A83; color: #ffffff;">
                 </div>
                 <div>
-                    <label for="confirm_password" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">Confirm New Password:</label>
+                    <label for="confirm_password" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">{{ t('auth.confirm_new_password', 'Confirm New Password:') }}</label>
                     <input type="password" id="confirm_password" name="confirm_password" minlength="8" required style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); background: #24194A; border: 1px solid #5A4A83; color: #ffffff;">
                 </div>
             </div>
 
             <div style="text-align: right;">
                 <button type="submit" class="secondary" style="padding: 8px 20px; font-size: 14px; cursor: pointer;">
-                    Update Password
+                    {{ t('auth.update_password_btn', 'Update Password') }}
                 </button>
             </div>
         </form>

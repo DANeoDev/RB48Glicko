@@ -378,6 +378,28 @@
     color: #c9c2d8;
 }
 
+.planner-admin-attendee-tools {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.planner-edit-btn {
+    background: none;
+    border: none;
+    color: #80deea;
+    cursor: pointer;
+    font-size: 13px;
+    opacity: 0.7;
+    padding: 2px 5px;
+    border-radius: 3px;
+    transition: all 0.15s ease;
+}
+.planner-edit-btn:hover {
+    opacity: 1;
+    background: rgba(128, 222, 234, 0.15);
+}
+
 .planner-remove-btn {
     background: none;
     border: none;
@@ -452,19 +474,35 @@
     color: #ff8888;
 }
 
-.planner-decliners-tags {
+.planner-decliners-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0;
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
 }
 
-.planner-decliner-tag {
+.planner-decliner-item {
     background: rgba(220, 53, 69, 0.1);
-    border: 1px solid rgba(220, 53, 69, 0.2);
+    border: 1px solid rgba(220, 53, 69, 0.25);
     border-radius: 4px;
-    padding: 2px 8px;
+    padding: 3px 8px;
     font-size: 12px;
-    color: #c9c2d8;
+    color: #e2d9f3;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.planner-decliner-slot {
+    color: #ff8888;
+    font-weight: 700;
+    font-size: 11px;
+}
+
+.planner-decliner-name {
+    font-weight: 600;
 }
 
 /* Modals */

@@ -35,7 +35,7 @@
 </div>
 {% endif %}
 <h1>{{ player["aliases"][0] }}</h1>
-<p><a href="{{ url_for('stats.stats') }}">← Back to Stats</a></p>
+<p><a href="{{ url_for('stats.stats') }}">{{ t('player.back_to_stats', '← Back to Stats') }}</a></p>
 </div>
 
 {% set player_name = player["aliases"][0] %}
@@ -44,7 +44,7 @@
 {% set rating_diverges = (box_only and ratings["total"]["rating"] != ratings["box"]["rating"]) or (hf_only and ratings["total"]["rating"] != ratings["hf"]["rating"]) %}
 {% set exclusive_pitch = "BOX" if box_only else "HF" if hf_only else "" %}
 
-<h2>Performance Overview</h2>
+<h2>{{ t('player.performance_overview', 'Performance Overview') }}</h2>
 
 <table class="ratings-table"{% if rating_diverges and has_tier('glicko_user') %} title="How can the ratings diverge even though {{ player_name }} only has games in {{ exclusive_pitch }}? Well, this is a good question, but it works as intended. If you can figure out the reason, send a Mail to the webmaster — he will grant you a reward." style="cursor: help;"{% endif %}>
 
@@ -52,14 +52,14 @@
 <tr>
 <th></th>
 {% if has_tier('glicko_user') %}
-<th>C Rating</th>
-<th>E Rating</th>
-<th>RD</th>
+<th>{{ t('stats.c_rating', 'C Rating') }}</th>
+<th>{{ t('stats.e_rating', 'E Rating') }}</th>
+<th>{{ t('stats.rd', 'RD') }}</th>
 {% endif %}
-<th>Games</th>
-<th>Ws</th>
-<th>Ls</th>
-<th>W%</th>
+<th>{{ t('stats.games', 'Games') }}</th>
+<th>{{ t('stats.wins', 'Ws') }}</th>
+<th>{{ t('stats.losses', 'Ls') }}</th>
+<th>{{ t('stats.win_rate', 'W%') }}</th>
 </tr>
 </thead>
 
@@ -92,18 +92,18 @@
 <h3>{{ rating_type | upper }}</h3>
 <canvas id="{{ rating_type }}Chart"></canvas>
 <div class="rating-extremes">
-<div><strong>Peak</strong>{% if rating_extremes[rating_type]["peak"] %} {{ rating_extremes[rating_type]["peak"]["rating"] | round | int }}{% if rating_extremes[rating_type]["peak"]["date"] %} · {{ rating_extremes[rating_type]["peak"]["date"][:10] }}{% endif %}{% else %} —{% endif %}</div>
-<div><strong>Low</strong>{% if rating_extremes[rating_type]["low"] %} {{ rating_extremes[rating_type]["low"]["rating"] | round | int }}{% if rating_extremes[rating_type]["low"]["date"] %} · {{ rating_extremes[rating_type]["low"]["date"][:10] }}{% endif %}{% else %} —{% endif %}</div>
+<div><strong>{{ t('player.peak', 'Peak') }}</strong>{% if rating_extremes[rating_type]["peak"] %} {{ rating_extremes[rating_type]["peak"]["rating"] | round | int }}{% if rating_extremes[rating_type]["peak"]["date"] %} · {{ rating_extremes[rating_type]["peak"]["date"][:10] }}{% endif %}{% else %} —{% endif %}</div>
+<div><strong>{{ t('player.low', 'Low') }}</strong>{% if rating_extremes[rating_type]["low"] %} {{ rating_extremes[rating_type]["low"]["rating"] | round | int }}{% if rating_extremes[rating_type]["low"]["date"] %} · {{ rating_extremes[rating_type]["low"]["date"][:10] }}{% endif %}{% else %} —{% endif %}</div>
 </div>
 </div>
 {% endfor %}
 </div>
 {% endif %}
 
-<h2>Personal Match History</h2>
+<h2>{{ t('player.personal_history', 'Personal Match History') }}</h2>
 <div class="player-history-controls">
 <div class="player-rating-selector" title="Select which match history to display: Total, BOX, or HF.">
-<a data-preserve-scroll class="{% if selected_rating_type == 'total' %}active{% endif %}" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='total') if player_id is defined else request.path + '?rating_type=total' }}" title="Show Total match history.">Total</a>
+<a data-preserve-scroll class="{% if selected_rating_type == 'total' %}active{% endif %}" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='total') if player_id is defined else request.path + '?rating_type=total' }}" title="Show Total match history.">{{ t('matches.filter_all', 'Total') }}</a>
 <a data-preserve-scroll class="{% if selected_rating_type == 'box' %}active{% endif %}" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='box') if player_id is defined else request.path + '?rating_type=box' }}" title="Show BOX match history.">BOX</a>
 <a data-preserve-scroll class="{% if selected_rating_type == 'hf' %}active{% endif %}" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='hf') if player_id is defined else request.path + '?rating_type=hf' }}" title="Show HF match history.">HF</a>
 </div>
@@ -114,14 +114,14 @@
 <div class="match">
 <div class="match-header">{{ match["match_id"] }} — {{ match["pitch"] | upper }}</div>
 <div class="match-info">
-<div class="team team-a"><strong>Team A</strong><div class="players">
+<div class="team team-a"><strong>{{ t('matches.team_a', 'Team A') }}</strong><div class="players">
 {% for team_player in match["team_a_players"] %}<span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}{% if has_tier('glicko_user') %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
-{% if match["external_a"] > 0 %}{% if match["team_a_players"] %}, {% endif %}+ {{ match["external_a"] }} external player{% if match["external_a"] != 1 %}s{% endif %}{% endif %}
+{% if match["external_a"] > 0 %}{% if match["team_a_players"] %}, {% endif %}{% if match["external_a"] == 1 %}{{ t('matches.external_player', count=match['external_a']) }}{% else %}{{ t('matches.external_players', count=match['external_a']) }}{% endif %}{% endif %}
 </div></div>
 <div class="score">{{ match["goals_a"] }} - {{ match["goals_b"] }}</div>
-<div class="team team-b"><strong>Team B</strong><div class="players">
+<div class="team team-b"><strong>{{ t('matches.team_b', 'Team B') }}</strong><div class="players">
 {% for team_player in match["team_b_players"] %}<span class="match-player">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}{{ team_player["name"] }}{% endif %}{% if has_tier('glicko_user') %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
-{% if match["external_b"] > 0 %}{% if match["team_b_players"] %}, {% endif %}+ {{ match["external_b"] }} external player{% if match["external_b"] != 1 %}s{% endif %}{% endif %}
+{% if match["external_b"] > 0 %}{% if match["team_b_players"] %}, {% endif %}{% if match["external_b"] == 1 %}{{ t('matches.external_player', count=match['external_b']) }}{% else %}{{ t('matches.external_players', count=match['external_b']) }}{% endif %}{% endif %}
 </div></div>
 </div>
 
@@ -130,11 +130,11 @@
 <div class="team-details team-a">
 <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_a_rating"] | round | int }}</span></div>
 <div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_a_rd"] | round(1) }}</span></div>
-<div class="team-stat"><span class="stat-label">Win%</span><span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span></div>
+<div class="team-stat"><span class="stat-label">{{ t('stats.win_rate', 'Win%') }}</span><span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span></div>
 </div>
 <div class="rating-delta" title="{{ match['session_tooltip'] if match['session_tooltip'] else ('Shows ' ~ (player.aliases[0] if player.aliases else 'player') ~ ' specific change for the match') }}">
 {% if match["is_session_pending"] %}
-    <span class="session-indicator" title="{{ match['session_tooltip'] }}">⏳ Game {{ match['session_match_num'] }}/{{ match['session_matches_total'] }}</span>
+    <span class="session-indicator" title="{{ match['session_tooltip'] }}">{{ t('matches.game_session', current=match['session_match_num'], total=match['session_matches_total']) }}</span>
 {% else %}
     {% if match["delta_a"] is not none %}
         {% if match["delta_a"] > 0 %}<span class="positive">↑ {{ match["delta_a"] | round(1) }}</span>{% elif match["delta_a"] < 0 %}<span class="negative">↓ {{ match["delta_a"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
@@ -156,13 +156,14 @@
 <div class="team-details team-b">
 <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_b_rating"] | round | int }}</span></div>
 <div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_b_rd"] | round | int }}</span></div>
-<div class="team-stat"><span class="stat-label">Win%</span><span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span></div>
+<div class="team-stat"><span class="stat-label">{{ t('stats.win_rate', 'Win%') }}</span><span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span></div>
 </div>
 </div>
 {% endif %}
 
 </div>
 {% endfor %}
+</div>
 </div>
 </div>
 {% endblock %}

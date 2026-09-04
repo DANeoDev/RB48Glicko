@@ -153,14 +153,22 @@ def glicko_test():
     """Glicko sportsmanship and personality assessment (Jagged Alliance 2 I.M.P. style)."""
     from datetime import datetime, timezone
     from scripts.accounts.database import get_accounts_connection, set_user_persona
-    from scripts.accounts.psychology import IMP_QUESTIONS, PSYCHOLOGY_PERSONAS, evaluate_psychology_submission
+    from scripts.accounts.psychology import (
+        evaluate_psychology_submission,
+        get_imp_questions,
+        get_psychology_personas,
+    )
+    from web.services.translations import get_current_lang
 
     user = get_current_user()
     step = request.args.get("step", "intro")
+    lang = get_current_lang()
+    questions = get_imp_questions(lang)
+    personas = get_psychology_personas(lang)
 
     # If POST -> evaluate questionnaire
     if request.method == "POST":
-        persona, scores = evaluate_psychology_submission(request.form)
+        persona, scores = evaluate_psychology_submission(request.form, lang=lang)
         now_str = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
         conn = get_accounts_connection()
@@ -181,19 +189,19 @@ def glicko_test():
             persona=persona,
             scores=scores,
             user=user,
-            questions=IMP_QUESTIONS,
+            questions=questions,
         ), status_code
 
     # If GET and user already has an assigned persona and didn't request a retake/assessment step
     if user.get("psychology_persona") and step == "intro":
-        existing_persona = PSYCHOLOGY_PERSONAS.get(user["psychology_persona"], PSYCHOLOGY_PERSONAS["legend"])
+        existing_persona = personas.get(user["psychology_persona"], personas["legend"])
         return render_template(
             "psychology_test.html",
             stage="result",
             persona=existing_persona,
             scores={},
             user=user,
-            questions=IMP_QUESTIONS,
+            questions=questions,
             existing=True,
         )
 
@@ -201,7 +209,7 @@ def glicko_test():
     return render_template(
         "psychology_test.html",
         stage="assessment" if step == "assessment" else "intro",
-        questions=IMP_QUESTIONS,
+        questions=questions,
         user=user,
     )
 
@@ -420,3 +428,15 @@ def delete_user_route(user_id):
         conn.close()
 
     return redirect(url_for("auth.admin_users"))
+
+
+@auth_bp.route("/set-language/<lang>", methods=["GET", "POST"])
+def set_language(lang):
+    """Switch active interface language (de or en)."""
+    if lang in ("de", "en"):
+        session["lang"] = lang
+    next_url = request.args.get("next") or request.referrer or url_for("stats.home")
+    if next_url.startswith("//") or (not next_url.startswith("/") and not next_url.startswith(request.host_url)):
+        next_url = url_for("stats.home")
+    return redirect(next_url)
+

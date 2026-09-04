@@ -351,6 +351,39 @@ def add_guest_rsvp(connection, event_id, guest_name, registered_by_user_id=None,
     return cursor.lastrowid
 
 
+def get_attendee_by_id(connection, attendee_id):
+    """Retrieve a single attendee record by ID."""
+    return connection.execute(
+        """
+        SELECT id, event_id, user_id, name, status, is_guest, registered_by_user_id, guest_index, created_at
+        FROM attendees
+        WHERE id = ?
+        """,
+        (attendee_id,),
+    ).fetchone()
+
+
+def update_attendee(connection, attendee_id, name=None, status=None):
+    """Update an attendee's name and/or status."""
+    existing = get_attendee_by_id(connection, attendee_id)
+    if not existing:
+        raise ValueError(f"Attendee {attendee_id} not found.")
+
+    new_name = name.strip() if name is not None and str(name).strip() else existing["name"]
+    new_status = status if status in ("attending", "declined") else existing["status"]
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    connection.execute(
+        """
+        UPDATE attendees
+        SET name = ?, status = ?, created_at = ?
+        WHERE id = ?
+        """,
+        (new_name, new_status, now, attendee_id),
+    )
+    connection.commit()
+
+
 def remove_attendee(connection, attendee_id):
     """Delete a specific attendee entry by attendee ID."""
     connection.execute("DELETE FROM attendees WHERE id = ?", (attendee_id,))

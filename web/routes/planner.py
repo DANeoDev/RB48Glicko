@@ -13,6 +13,7 @@ from scripts.planner.database import (
     cancel_user_rsvp,
     create_event,
     delete_event,
+    get_attendee_by_id,
     get_event_attendees,
     get_event_by_id,
     get_planner_connection,
@@ -21,8 +22,10 @@ from scripts.planner.database import (
     get_user_registered_guests,
     remove_attendee,
     set_user_rsvp,
+    update_attendee,
 )
 from web.services.security import Tier, get_current_user, has_tier, require_admin, require_tier, require_webmaster
+from web.services.translations import format_date_localized, get_current_lang, t
 
 planner_bp = Blueprint("planner", __name__)
 
@@ -101,8 +104,7 @@ def format_event_view_data(event, current_user, attendees, alias_lookup=None, ac
                 user_guests.append(a)
 
     try:
-        dt = datetime.fromisoformat(event["event_date"]) if "T" in event["event_date"] else datetime.strptime(event["event_date"][:10], "%Y-%m-%d")
-        formatted_date = dt.strftime("%A, %d.%m.%Y")
+        formatted_date = format_date_localized(event["event_date"])
         formatted_time = event["event_date"][11:16] if len(event["event_date"]) > 10 else "18:30"
     except Exception:
         formatted_date = event["event_date"]
@@ -110,6 +112,10 @@ def format_event_view_data(event, current_user, attendees, alias_lookup=None, ac
 
     custom_title = event["title"].strip() if event.get("title") and str(event["title"]).strip() else None
     badge_label = custom_title if custom_title else event["pitch"].upper()
+
+    lang = get_current_lang()
+    unlock_time_suffix = " um 00:00 Uhr" if lang == "de" else " at 00:00"
+    guest_unlock_time_formatted = f"{format_date_localized(unlock_time)}{unlock_time_suffix}"
 
     return {
         "id": event["id"],
@@ -128,7 +134,7 @@ def format_event_view_data(event, current_user, attendees, alias_lookup=None, ac
         "declined_list": declined,
         "declined_count": len(declined),
         "guest_unlocked": guest_unlocked,
-        "guest_unlock_time_formatted": unlock_time.strftime("%A, %d.%m.%Y at 00:00"),
+        "guest_unlock_time_formatted": guest_unlock_time_formatted,
         "matched_player_ids_str": ",".join(map(str, matched_player_ids)),
         "user_rsvp": user_rsvp,
         "user_guests": user_guests,
@@ -181,7 +187,7 @@ def planner():
 @planner_bp.route("/planner/<int:event_id>/rsvp", methods=["POST"])
 @require_tier(Tier.USER)
 def rsvp_event(event_id):
-    """Submit member self-RSVP (attending, declined, or cancel)."""
+    """Submit member self-RSVP (attending or declined). Cancel/reset is restricted."""
     user = get_current_user()
     action = request.form.get("status", "").lower()
 
@@ -195,8 +201,11 @@ def rsvp_event(event_id):
         display_name = user.get("attendance_name") or user.get("username")
 
         if action == "cancel":
-            cancel_user_rsvp(connection, event_id, user["id"])
-            flash("Your RSVP has been removed.", "info")
+            if has_tier(Tier.ADMIN):
+                cancel_user_rsvp(connection, event_id, user["id"])
+                flash("Your RSVP has been removed.", "info")
+            else:
+                flash(t("planner.cannot_cancel_direct", "Deregistration is only possible by choosing 'Nicht dabei' (Declined)."), "warning")
         elif action in ("attending", "declined"):
             set_user_rsvp(connection, event_id, user["id"], display_name, action)
             msg = "You are marked as attending!" if action == "attending" else "You are marked as declined."
@@ -248,9 +257,35 @@ def add_guest(event_id):
     return redirect(url_for("planner.planner"))
 
 
+@planner_bp.route("/planner/<int:event_id>/attendee/<int:attendee_id>/edit", methods=["POST"])
+@require_admin
+def edit_event_attendee(event_id, attendee_id):
+    """Admin & Webmaster tool: Edit an attendee entry (name, status) on a matchday."""
+    new_name = request.form.get("name", "").strip()
+    new_status = request.form.get("status", "").strip().lower()
+
+    if not new_name or new_status not in ("attending", "declined"):
+        flash("Please provide a valid name and status.", "danger")
+        return redirect(url_for("planner.planner"))
+
+    connection = get_planner_connection()
+    try:
+        attendee = get_attendee_by_id(connection, attendee_id)
+        if not attendee or attendee["event_id"] != event_id:
+            flash("Attendee entry not found.", "danger")
+            return redirect(url_for("planner.planner"))
+
+        update_attendee(connection, attendee_id, name=new_name, status=new_status)
+        flash(f"Updated entry for '{new_name}'.", "success")
+    finally:
+        connection.close()
+
+    return redirect(url_for("planner.planner"))
+
+
 @planner_bp.route("/planner/<int:event_id>/attendee/<int:attendee_id>/remove", methods=["POST"])
 def remove_event_attendee(event_id, attendee_id):
-    """Remove an attendee entry (own RSVP, own registered guest, or admin override)."""
+    """Remove an attendee entry (admin/webmaster override, or own registered guest)."""
     user = get_current_user()
     connection = get_planner_connection()
     try:
@@ -261,13 +296,13 @@ def remove_event_attendee(event_id, attendee_id):
             return redirect(url_for("planner.planner"))
 
         is_admin = has_tier(Tier.ADMIN)
-        is_owner = user and (target["user_id"] == user["id"] or target["registered_by_user_id"] == user["id"])
+        is_guest_owner = user and target["is_guest"] and target["registered_by_user_id"] == user["id"]
 
-        if is_admin or is_owner:
+        if is_admin or is_guest_owner:
             remove_attendee(connection, attendee_id)
             flash(f"Removed '{target['name']}' from the list.", "info")
         else:
-            flash("You do not have permission to remove this attendee.", "danger")
+            flash("You do not have permission to remove this attendee. Please select 'Nicht dabei' to decline.", "danger")
     finally:
         connection.close()
 

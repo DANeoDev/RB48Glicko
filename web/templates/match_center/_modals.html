@@ -9,10 +9,10 @@
 
     <div class="modal">
 
-        <h3>Change name details</h3>
+        <h3>{{ t('match_center.conflict_title', 'Change name details') }}</h3>
 
         <p class="muted">
-            The source contains
+            {{ t('match_center.conflict_contains', 'The source contains') }}
             <strong id="conflict-name"></strong>.
         </p>
 
@@ -30,7 +30,7 @@
                 id="conflict-save"
                 type="button"
             >
-                Use this identity
+                {{ t('match_center.use_identity', 'Use this identity') }}
             </button>
 
             <button
@@ -38,7 +38,7 @@
                 id="conflict-cancel"
                 type="button"
             >
-                Cancel
+                {{ t('common.cancel', 'Cancel') }}
             </button>
 
         </div>
@@ -59,12 +59,12 @@
 
     <div class="modal">
 
-        <h3 id="add-modal-title">Add player</h3>
+        <h3 id="add-modal-title">{{ t('match_center.modal_add_player', 'Add player') }}</h3>
 
         <div id="add-modal-error" style="display: none; margin-bottom: 12px; color: #ff8888; background: rgba(255, 100, 100, 0.1); border: 1px solid rgba(255, 100, 100, 0.3); padding: 8px 12px; border-radius: var(--radius); font-size: 13.5px;"></div>
 
         <p id="add-detected-row">
-            Detected name:
+            {{ t('match_center.detected_name', 'Detected name:') }}
             <strong id="add-name"></strong>
         </p>
 
@@ -72,8 +72,7 @@
         <div id="choice">
 
             <p>
-                Should this be an alias for an existing player,
-                or a new player?
+                {{ t('match_center.alias_or_new', 'Should this be an alias for an existing player, or a new player?') }}
             </p>
 
 
@@ -85,7 +84,7 @@
                     type="button"
                     title="If this is a common name, it is better to select the player manually instead of assigning a possibly overloaded alias."
                 >
-                    Add alias to existing ID
+                    {{ t('match_center.alias_choice', 'Add alias to existing ID') }}
                 </button>
 
                 <button
@@ -93,7 +92,7 @@
                     id="new-choice"
                     type="button"
                 >
-                    Add new player
+                    {{ t('match_center.new_choice', 'Add new player') }}
                 </button>
 
             </div>
@@ -130,7 +129,7 @@
                     id="alias-submit"
                     type="button"
                 >
-                    Add alias &amp; select
+                    {{ t('match_center.alias_submit', 'Add alias & select') }}
                 </button>
 
             </div>
@@ -172,7 +171,7 @@
 
             <div style="margin-top: 10px; margin-bottom: 14px;">
                 <label for="new-main-position" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: var(--text-main);">
-                    Main / Primary Position:
+                    {{ t('match_center.main_position', 'Main / Primary Position:') }}
                 </label>
                 <select id="new-main-position" name="new_main_position" style="width: 100%; padding: 8px; border-radius: var(--radius); background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-main);">
                     <option value="">None (Flexible / Any)</option>
@@ -186,7 +185,7 @@
 
             <div style="margin-top: 12px; margin-bottom: 6px;">
                 <label style="display: block; font-size: 13px; font-weight: 600; color: var(--text-main);">
-                    Estimated Initial Strength:
+                    {{ t('match_center.initial_strength', 'Estimated Initial Strength:') }}
                 </label>
             </div>
             <div class="calibration">
@@ -208,7 +207,7 @@
 
             <div style="margin-top: 14px; margin-bottom: 6px;">
                 <label style="display: block; font-size: 13px; font-weight: 600; color: var(--text-main);">
-                    How certain are you about the strength of this player?
+                    {{ t('match_center.certainty_prompt', 'How certain are you about the strength of this player?') }}
                 </label>
             </div>
             <div class="calibration">
@@ -233,7 +232,7 @@
                     id="new-submit"
                     type="button"
                 >
-                    Create &amp; select
+                    {{ t('match_center.create_select', 'Create & select') }}
                 </button>
 
             </div>
@@ -248,7 +247,7 @@
                 id="add-cancel"
                 type="button"
             >
-                Cancel
+                {{ t('common.cancel', 'Cancel') }}
             </button>
 
         </div>
@@ -268,10 +267,10 @@
 >
     <div class="modal">
 
-        <h3>The future has not been written yet.</h3>
+        <h3>{{ t('match_center.future_title', 'The future has not been written yet.') }}</h3>
 
         <p>
-            Are you certain of the results?
+            {{ t('match_center.future_desc', 'Are you certain of the results?') }}
         </p>
 
         <div class="modal-actions">
@@ -281,7 +280,7 @@
                 id="future-confirm"
                 type="button"
             >
-                I am Nostradamus
+                {{ t('match_center.future_confirm', 'I am Nostradamus') }}
             </button>
 
             <button
@@ -289,7 +288,7 @@
                 id="future-reset"
                 type="button"
             >
-                On second thought...
+                {{ t('match_center.future_reset', 'On second thought...') }}
             </button>
 
         </div>
@@ -312,7 +311,7 @@
 
         <h3 style="display: flex; align-items: center; gap: 8px; color: #80cbc4;">
             <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: rgba(0, 137, 123, 0.25); color: #80cbc4; font-size: 16px; font-weight: bold;">✓</span>
-            Match Saved Successfully!
+            {{ t('match_center.match_saved_title', 'Match Saved Successfully!') }}
         </h3>
 
         <p
@@ -320,7 +319,7 @@
             class="muted"
             style="margin-top: 10px; margin-bottom: 20px; font-size: 15px;"
         >
-            Match added successfully and Glicko ratings updated.
+            {{ t('match_center.match_saved_msg', 'Match added successfully and Glicko ratings updated.') }}
         </p>
 
         <div class="modal-actions">
@@ -330,7 +329,7 @@
                 id="saved-modal-done"
                 type="button"
             >
-                Done
+                {{ t('match_center.done', 'Done') }}
             </button>
 
             <a
@@ -338,7 +337,7 @@
                 class="secondary"
                 style="text-decoration: none;"
             >
-                View Match History
+                {{ t('match_center.view_history', 'View Match History') }}
             </a>
 
         </div>

@@ -1,45 +1,47 @@
 {% extends "base.html" %}
 
+{% block title %}{{ t('auth.register_title', 'Create account · RB48') }}{% endblock %}
+
 {% block content %}
 <div class="page-container account-page">
     <div class="account-card">
         <div class="account-header">
-            <h1>Create account</h1>
-            <p>Join RB48 and keep your account ready for future features.</p>
+            <h1>{{ t('auth.register_heading', 'Create account') }}</h1>
+            <p>{{ t('auth.register_sub', 'Join RB48 and keep your account ready for future features.') }}</p>
         </div>
 
         <form method="post" class="account-form" id="register-form">
             {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
 
             <div class="form-field">
-                <label for="username">Username</label>
+                <label for="username">{{ t('auth.username', 'Username') }}</label>
                 <input id="username" name="username" autocomplete="username" required minlength="3" maxlength="30" value="{{ request.form.get('username', '') }}">
             </div>
 
             <div class="form-field">
-                <label for="email">Email</label>
+                <label for="email">{{ t('auth.email', 'Email') }}</label>
                 <input id="email" name="email" type="email" autocomplete="email" required maxlength="254" value="{{ request.form.get('email', '') }}">
             </div>
 
             <div class="form-field">
-                <label for="password">Password</label>
+                <label for="password">{{ t('auth.password', 'Password') }}</label>
                 <div class="password-input-wrap">
                     <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8">
-                    <button type="button" class="password-toggle" data-password-target="password" aria-label="Show password" title="Show password">◉</button>
+                    <button type="button" class="password-toggle" data-password-target="password" aria-label="{{ t('auth.show_password', 'Show password') }}" title="{{ t('auth.show_password', 'Show password') }}">◉</button>
                 </div>
-                <span class="form-hint">At least 8 characters.</span>
+                <span class="form-hint">{{ t('auth.min_8_chars', 'At least 8 characters.') }}</span>
             </div>
 
             <div class="form-field">
-                <label for="confirm-password">Confirm password</label>
+                <label for="confirm-password">{{ t('auth.confirm_password', 'Confirm password') }}</label>
                 <div class="password-input-wrap">
                     <input id="confirm-password" name="confirm_password" type="password" autocomplete="new-password" required minlength="8">
-                    <button type="button" class="password-toggle" data-password-target="confirm-password" aria-label="Show password" title="Show password">◉</button>
+                    <button type="button" class="password-toggle" data-password-target="confirm-password" aria-label="{{ t('auth.show_password', 'Show password') }}" title="{{ t('auth.show_password', 'Show password') }}">◉</button>
                 </div>
                 <span class="form-hint" id="password-match-hint"></span>
             </div>
 
-            <button type="submit" class="primary account-submit">Create account</button>
+            <button type="submit" class="primary account-submit">{{ t('auth.register_btn', 'Create account') }}</button>
         </form>
     </div>
 </div>
@@ -47,13 +49,18 @@
 
 {% block scripts %}
 <script>
+const showPwdText = {{ t('auth.show_password', 'Show password') | tojson }};
+const hidePwdText = {{ t('auth.hide_password', 'Hide password') | tojson }};
+const matchText = {{ t('auth.passwords_match', 'Passwords match.') | tojson }};
+const mismatchText = {{ t('auth.passwords_mismatch', 'Passwords do not match.') | tojson }};
+
 document.querySelectorAll(".password-toggle").forEach(button => {
     button.addEventListener("click", () => {
         const input = document.getElementById(button.dataset.passwordTarget);
         const showing = input.type === "text";
         input.type = showing ? "password" : "text";
-        button.setAttribute("aria-label", showing ? "Show password" : "Hide password");
-        button.setAttribute("title", showing ? "Show password" : "Hide password");
+        button.setAttribute("aria-label", showing ? showPwdText : hidePwdText);
+        button.setAttribute("title", showing ? showPwdText : hidePwdText);
         button.textContent = showing ? "◉" : "○";
     });
 });
@@ -69,8 +76,8 @@ function updatePasswordMatch() {
         return;
     }
     const matches = password.value === confirmPassword.value;
-    matchHint.textContent = matches ? "Passwords match." : "Passwords do not match.";
-    confirmPassword.setCustomValidity(matches ? "" : "Passwords do not match.");
+    matchHint.textContent = matches ? matchText : mismatchText;
+    confirmPassword.setCustomValidity(matches ? "" : mismatchText);
 }
 
 password.addEventListener("input", updatePasswordMatch);
