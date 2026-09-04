@@ -1,12 +1,15 @@
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, jsonify
 from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_ratings, get_player_rating_history
 from scripts.database.db_players import get_players
 from scripts.database.db_matches import get_player_stats
 from scripts.frontend.view_models import build_leaderboard, build_match_history, compute_leaderboard_deltas
 from scripts.analysis.model_analysis import analyze_model
+from scripts.analysis.synergies import get_community_synergies
+from scripts.analysis.streaks import get_dashboard_streaks
+from scripts.analysis.achievements import get_player_achievements
 from scripts.glicko.glicko2 import TOTAL, BOX, HF
-from web.services.security import Tier, require_tier
+from web.services.security import Tier, require_tier, has_tier
 from .news import get_dashboard_news
 
 stats_bp = Blueprint("stats", __name__)
@@ -15,13 +18,19 @@ stats_bp = Blueprint("stats", __name__)
 @stats_bp.route("/")
 def home():
     news, has_more_news = get_dashboard_news()
-    return render_template("dashboard.html", news=news, has_more_news=has_more_news)
+    connection = get_connection()
+    streaks = get_dashboard_streaks(connection)
+    connection.close()
+    return render_template("dashboard.html", news=news, has_more_news=has_more_news, streaks=streaks)
 
 
 @stats_bp.route("/dashboard")
 def dashboard():
     news, has_more_news = get_dashboard_news()
-    return render_template("dashboard.html", news=news, has_more_news=has_more_news)
+    connection = get_connection()
+    streaks = get_dashboard_streaks(connection)
+    connection.close()
+    return render_template("dashboard.html", news=news, has_more_news=has_more_news, streaks=streaks)
 
 
 @stats_bp.route("/stats")
@@ -32,8 +41,13 @@ def stats():
     players = get_players(connection)
     player_stats = get_player_stats(connection)
     deltas = compute_leaderboard_deltas(connection, ratings, players)
+    synergies = get_community_synergies(connection, min_games=5)
     connection.close()
-    return render_template("stats.html", leaderboard=build_leaderboard(ratings, players, player_stats, deltas=deltas))
+    return render_template(
+        "stats.html",
+        leaderboard=build_leaderboard(ratings, players, player_stats, deltas=deltas),
+        synergies=synergies,
+    )
 
 
 @stats_bp.route("/my-stats")
@@ -66,6 +80,9 @@ def player_profile(player_id):
     selected_rating_type = request.args.get("rating_type", "total").lower()
     selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
     matches = build_match_history(connection, players, player_id, {"total": TOTAL, "box": BOX, "hf": HF}[selected_rating_type])
+    
+    user_has_glicko = has_tier(Tier.GLICKO_USER)
+    achievements = get_player_achievements(connection, player_id, user_has_glicko_tier=user_has_glicko)
     connection.close()
     matches.reverse()
 
@@ -91,6 +108,7 @@ def player_profile(player_id):
         player_id=player_id,
         linked_user=linked_user,
         players_map=players_map,
+        achievements=achievements,
     )
 
 
@@ -124,3 +142,34 @@ def glicko_explainer():
 def about():
     """About RB 48 Köln e.V. history, formats, and community philosophy."""
     return render_template("about.html")
+
+
+@stats_bp.route("/api/players-list")
+@require_tier(Tier.USER)
+def api_players_list():
+    """Return all active players for global search and autocomplete."""
+    connection = get_connection()
+    players = get_players(connection)
+    ratings = get_ratings(connection)
+    connection.close()
+    result = []
+    for pid, p in players.items():
+        r = ratings.get(pid, {}).get("total", {}).get("rating")
+        result.append({
+            "id": pid,
+            "name": p["aliases"][0],
+            "rating": round(r, 1) if r else None
+        })
+    result.sort(key=lambda x: x["name"].lower())
+    return jsonify(result)
+
+
+@stats_bp.route("/api/community-synergies")
+@require_tier(Tier.USER)
+def api_community_synergies():
+    """Return community synergy duos and rivalries."""
+    min_games = request.args.get("min_games", 5, type=int)
+    connection = get_connection()
+    synergies = get_community_synergies(connection, min_games=min_games)
+    connection.close()
+    return jsonify(synergies)

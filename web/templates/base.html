@@ -252,6 +252,13 @@
             {% endif %}
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
+            {% if has_tier('user') %}
+                <button type="button" id="nav-global-search-btn" class="nav-search-btn" onclick="window.GlobalPlayerSearch && window.GlobalPlayerSearch.open()" title="{{ t('search.placeholder', 'Spieler suchen (Strg+K)...') }}" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 6px; padding: 4px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <span>🔍</span>
+                    <span class="search-label" style="opacity: 0.85; font-size: 12px;">{{ t('search.label', 'Spieler...') }}</span>
+                    <kbd style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 1px 4px; font-size: 10px;">Ctrl+K</kbd>
+                </button>
+            {% endif %}
             <div class="lang-toggle-group" role="group" aria-label="Language selection">
                 <a href="{{ url_for('auth.set_language', lang='de', next=request.full_path) }}" 
                    class="lang-toggle-btn {% if current_lang == 'de' %}active{% endif %}" 
@@ -420,5 +427,19 @@ if (document.getElementById("leaderboard")) {
     });
 }
 </script>
+
+<!-- Global Search Modal & Backdrop -->
+<div class="global-search-backdrop" id="global-search-backdrop" onclick="window.GlobalPlayerSearch && window.GlobalPlayerSearch.close()"></div>
+<div class="global-search-modal" id="global-search-modal" role="dialog" aria-modal="true" aria-label="Global Player Search">
+    <div class="global-search-input-wrapper">
+        <span class="global-search-icon">🔍</span>
+        <input type="text" id="global-search-input" class="global-search-input" placeholder="{{ t('search.placeholder', 'Spieler suchen (z.B. Konsti, Kevin)...') }}" autocomplete="off">
+        <kbd class="global-search-esc">ESC</kbd>
+    </div>
+    <div class="global-search-results" id="global-search-results"></div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+<script src="{{ url_for('static', filename='global_search.js') }}"></script>
 </body>
 </html>

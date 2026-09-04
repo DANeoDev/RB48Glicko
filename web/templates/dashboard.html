@@ -9,6 +9,7 @@
 {% block content %}
 <section class="dashboard-page">
     <div class="dashboard-content">
+        <div class="dashboard-grid" style="display: grid; grid-template-columns: 1fr 340px; gap: 24px; align-items: flex-start;">
         <div class="dashboard-news card">
             <div class="dashboard-news-header">
                 <h1>{{ t('dashboard.news', 'News') }}</h1>
@@ -30,6 +31,58 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- Streaks & Most Improved Side Card -->
+        <div class="dashboard-streaks card" style="padding: 20px; background: #1a1033; border: 1px solid var(--border); border-radius: 10px;">
+            <h2 style="font-size: 16px; margin: 0 0 16px; display: flex; align-items: center; gap: 8px; color: #fff;">
+                <span>🔥</span> {{ t('dashboard.streaks_title', 'Serien & Formbarometer') }}
+            </h2>
+            
+            <h3 style="font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.5px; color: #88ff88; margin: 0 0 8px;">
+                ⚡ {{ t('dashboard.active_streaks', 'Aktive Siegesserien') }}
+            </h3>
+            {% if streaks and streaks.active_win_streaks %}
+                <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;">
+                    {% for s in streaks.active_win_streaks %}
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; background: rgba(40,167,69,0.12); border: 1px solid rgba(40,167,69,0.3); border-radius: 6px; padding: 6px 10px;">
+                            <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="color: #fff; font-weight: 600; text-decoration: none;">⚽ {{ s.name }}</a>
+                            <span style="background: #28a745; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 10px;">{{ s.count }} W</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="muted" style="font-size: 12px; margin-bottom: 16px; font-style: italic;">{{ t('dashboard.no_active_streaks', 'Aktuell keine aktive Serie (≥ 2 Siege).') }}</p>
+            {% endif %}
+
+            <h3 style="font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.5px; color: #ffd700; margin: 0 0 8px;">
+                🏆 {{ t('dashboard.record_streaks', 'All-Time Rekordserien') }}
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;">
+                {% if streaks and streaks.all_time_win_streaks %}
+                    {% for s in streaks.all_time_win_streaks %}
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; background: rgba(255,215,0,0.08); border: 1px solid rgba(255,215,0,0.22); border-radius: 6px; padding: 6px 10px;">
+                            <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="color: #fff; font-weight: 600; text-decoration: none;">{{ s.name }}</a>
+                            <span style="color: #ffd700; font-size: 11.5px; font-weight: 700;">{{ s.count }} Siege</span>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            {% if streaks and streaks.most_improved %}
+            <h3 style="font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.5px; color: #80deea; margin: 0 0 8px;">
+                📈 {{ t('dashboard.most_improved', 'Spieler im Aufwind (30 Tage)') }}
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+                {% for imp in streaks.most_improved %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; background: rgba(128,222,234,0.08); border: 1px solid rgba(128,222,234,0.22); border-radius: 6px; padding: 6px 10px;">
+                        <a href="{{ url_for('stats.player_profile', player_id=imp.player_id) }}" style="color: #fff; font-weight: 600; text-decoration: none;">{{ imp.name }}</a>
+                        <span style="color: #88ff88; font-weight: 700; font-size: 11.5px;">+{{ "%.1f" | format(imp.rating_delta) }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
     </div>
 </section>
 

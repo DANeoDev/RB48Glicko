@@ -436,3 +436,71 @@ def update_attendance_name():
         connection.close()
 
     return redirect(request.referrer or url_for("planner.planner"))
+
+
+@planner_bp.route("/planner/export.ics")
+@require_tier(Tier.USER)
+def export_ics():
+    """Export upcoming match events as an iCalendar (.ics) file."""
+    from flask import Response
+    connection = get_planner_connection()
+    try:
+        events = get_upcoming_events(connection)
+    finally:
+        connection.close()
+
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//RB48 Köln e.V.//Matchday Planner//DE",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "X-WR-CALNAME:RB48 Spieltage",
+        "X-WR-TIMEZONE:Europe/Berlin",
+    ]
+    
+    now_utc_str = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    
+    for row in events:
+        ev = dict(row)
+        date_val = ev.get("event_date", "")
+        try:
+            if "T" in date_val:
+                dt = datetime.fromisoformat(date_val)
+            elif " " in date_val:
+                dt = datetime.strptime(date_val, "%Y-%m-%d %H:%M")
+            else:
+                dt = datetime.strptime(date_val, "%Y-%m-%d")
+        except Exception:
+            continue
+            
+        dt_start_str = dt.strftime("%Y%m%dT%H%M%S")
+        dt_end = dt + timedelta(hours=2)
+        dt_end_str = dt_end.strftime("%Y%m%dT%H%M%S")
+        title = ev.get("title") or "Kickoff"
+        summary = f"RB48 Spieltag - {title}"
+        location = ev.get("location") or "SoccerWorld Köln"
+        max_p = ev.get("max_players", 10)
+        description = f"RB48 Kickoff Spieltag. Max Spieler: {max_p}"
+        uid = f"rb48-event-{ev.get('id', 0)}@rb48.de"
+        
+        lines.extend([
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTAMP:{now_utc_str}",
+            f"DTSTART;TZID=Europe/Berlin:{dt_start_str}",
+            f"DTEND;TZID=Europe/Berlin:{dt_end_str}",
+            f"SUMMARY:{summary}",
+            f"LOCATION:{location}",
+            f"DESCRIPTION:{description}",
+            "STATUS:CONFIRMED",
+            "END:VEVENT",
+        ])
+        
+    lines.append("END:VCALENDAR")
+    ics_data = "\r\n".join(lines) + "\r\n"
+    return Response(
+        ics_data,
+        mimetype="text/calendar",
+        headers={"Content-Disposition": "attachment; filename=rb48_matchdays.ics"}
+    )

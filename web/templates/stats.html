@@ -2,6 +2,122 @@
 
 {% block title %}
     RB48 — {{ t('stats.title', 'Stats') }}
+
+<!-- Community Synergies Modal -->
+<div class="corr-modal-backdrop" id="synergies-modal-backdrop" onclick="closeSynergiesModal()"></div>
+<div class="corr-modal" id="synergies-modal" role="dialog" aria-modal="true" aria-labelledby="synergies-modal-title" style="max-width: 900px;">
+    <div class="corr-modal-header">
+        <div class="corr-modal-header-titles">
+            <h3 id="synergies-modal-title">🤝 {{ t('synergies.modal_title', 'RB48 Community-Synergien & Rivalitäten') }}</h3>
+            <div class="corr-modal-sub">{{ t('synergies.modal_sub', 'Gemeinsame Erfolge, Traum-Duos und Angstgegner der gesamten Community (min. 5 Spiele)') }}</div>
+        </div>
+        <button type="button" class="corr-modal-close" onclick="closeSynergiesModal()" aria-label="Schließen">✕</button>
+    </div>
+    
+    <div class="corr-modal-tabs">
+        <button type="button" class="corr-tab-btn active" id="syn-tab-best" onclick="switchSynTab('best')">
+            🔥 {{ t('synergies.best_duos_tab', 'Traum-Duos') }}
+        </button>
+        <button type="button" class="corr-tab-btn" id="syn-tab-worst" onclick="switchSynTab('worst')">
+            💔 {{ t('synergies.worst_duos_tab', 'Chaos-Duos') }}
+        </button>
+        <button type="button" class="corr-tab-btn" id="syn-tab-rivals" onclick="switchSynTab('rivals')">
+            ⚔️ {{ t('synergies.rivals_tab', 'Angstgegner & Rivalitäten') }}
+        </button>
+        <button type="button" class="corr-tab-btn" id="syn-tab-balanced" onclick="switchSynTab('balanced')">
+            ⚖️ {{ t('synergies.balanced_tab', 'Ausgeglichene Duelle') }}
+        </button>
+    </div>
+
+    <div class="corr-modal-body" style="padding: 20px;">
+        <!-- Tab 1: Best Duos -->
+        <div class="syn-tab-pane" id="syn-pane-best">
+            {% if synergies.best_duos %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px;">
+                {% for d in synergies.best_duos %}
+                <div style="background: rgba(40,167,69,0.12); border: 1px solid rgba(40,167,69,0.35); border-radius: 8px; padding: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <strong style="color: #fff; font-size: 13.5px;">{{ d.player1_name }} &amp; {{ d.player2_name }}</strong>
+                        <span style="background: #28a745; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 10px;">{{ "%.1f" | format(d.win_rate) }}% W</span>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between;">
+                        <span>{{ d.games }} Spiele ({{ d.wins }}-{{ d.draws }}-{{ d.losses }})</span>
+                        <span style="color: #88ff88;">{{ "%+d" | format(d.goal_diff) }} Tore</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted" style="text-align: center; padding: 20px;">{{ t('synergies.no_data', 'Noch nicht genügend Spiele für Duo-Statistiken vorhanden (min. 5 Spiele).') }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Tab 2: Worst Duos -->
+        <div class="syn-tab-pane" id="syn-pane-worst" style="display: none;">
+            {% if synergies.worst_duos %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px;">
+                {% for d in synergies.worst_duos %}
+                <div style="background: rgba(220,53,69,0.12); border: 1px solid rgba(220,53,69,0.35); border-radius: 8px; padding: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <strong style="color: #fff; font-size: 13.5px;">{{ d.player1_name }} &amp; {{ d.player2_name }}</strong>
+                        <span style="background: #dc3545; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 10px;">{{ "%.1f" | format(d.win_rate) }}% W</span>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between;">
+                        <span>{{ d.games }} Spiele ({{ d.wins }}-{{ d.draws }}-{{ d.losses }})</span>
+                        <span style="color: #ff8888;">{{ "%+d" | format(d.goal_diff) }} Tore</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted" style="text-align: center; padding: 20px;">{{ t('synergies.no_data', 'Noch nicht genügend Spiele vorhanden.') }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Tab 3: Rivals -->
+        <div class="syn-tab-pane" id="syn-pane-rivals" style="display: none;">
+            {% if synergies.kryptonite_rivals %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px;">
+                {% for r in synergies.kryptonite_rivals %}
+                <div style="background: rgba(255,193,7,0.1); border: 1px solid rgba(255,193,7,0.3); border-radius: 8px; padding: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <strong style="color: #fff; font-size: 13px;">{{ r.dominant_player }} > {{ r.victim_player }}</strong>
+                        <span style="background: #582DA1; color: #80deea; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 6px;">{{ r.dominant_wins }}:{{ r.victim_wins }}</span>
+                    </div>
+                    <div style="font-size: 11.5px; color: var(--text-muted);">
+                        <span>{{ r.games }} Duelle gegeneinander ({{ r.draws }} Remis)</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted" style="text-align: center; padding: 20px;">{{ t('synergies.no_data', 'Noch keine ausgeprägten Angstgegner-Konstellationen gefunden.') }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Tab 4: Balanced -->
+        <div class="syn-tab-pane" id="syn-pane-balanced" style="display: none;">
+            {% if synergies.balanced_matchups %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px;">
+                {% for b in synergies.balanced_matchups %}
+                <div style="background: rgba(128,222,234,0.1); border: 1px solid rgba(128,222,234,0.25); border-radius: 8px; padding: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <strong style="color: #fff; font-size: 13px;">{{ b.player1_name }} vs. {{ b.player2_name }}</strong>
+                        <span style="background: #24194A; color: #80deea; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 6px;">{{ b.p1_wins }} : {{ b.p2_wins }}</span>
+                    </div>
+                    <div style="font-size: 11.5px; color: var(--text-muted);">
+                        <span>{{ b.games }} Duelle · {{ b.draws }} Unentschieden</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted" style="text-align: center; padding: 20px;">{{ t('synergies.no_data', 'Noch nicht genügend Duelle für ausgeglichene Paarungen.') }}</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block content %}
@@ -20,7 +136,11 @@
 </div>
 
 <div class="stats-table-header">
-    <div class="stats-header-spacer"></div>
+    <div class="stats-header-spacer">
+        <button type="button" class="synergies-btn" id="open-synergies-modal-btn" onclick="openSynergiesModal()" style="background: rgba(123, 82, 197, 0.2); border: 1px solid #7B52C5; color: #80deea; border-radius: var(--radius); padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s ease;" title="{{ t('synergies.btn_title', 'Community-Synergien, beste Duos und Angstgegner anzeigen') }}">
+            <span>🤝 {{ t('synergies.btn_title', 'Community-Synergien') }}</span>
+        </button>
+    </div>
     <div id="pitch-selector">
         <button class="pitch-selector selected" data-pitch="total" title="{{ t('stats.total_title', 'Statistics based on all matches, regardless of pitch type.') }}">{{ t('stats.total', 'TOTAL') }}</button>
         <button class="pitch-selector" data-pitch="box" title="{{ t('stats.box_title', 'Statistics based only on box matches.') }}">{{ t('stats.box', 'BOX') }}</button>
@@ -375,6 +495,30 @@ columnHeaders.forEach(header => {
         updateSelectedSortHeader();
     });
 });
+
+
+function openSynergiesModal() {
+    const modal = document.getElementById("synergies-modal");
+    const backdrop = document.getElementById("synergies-modal-backdrop");
+    if (modal) modal.classList.add("open");
+    if (backdrop) backdrop.classList.add("open");
+    document.body.style.overflow = "hidden";
+}
+function closeSynergiesModal() {
+    const modal = document.getElementById("synergies-modal");
+    const backdrop = document.getElementById("synergies-modal-backdrop");
+    if (modal) modal.classList.remove("open");
+    if (backdrop) backdrop.classList.remove("open");
+    document.body.style.overflow = "";
+}
+function switchSynTab(tab) {
+    ["best", "worst", "rivals", "balanced"].forEach(t => {
+        const btn = document.getElementById(`syn-tab-${t}`);
+        const pane = document.getElementById(`syn-pane-${t}`);
+        if (btn) btn.classList.toggle("active", t === tab);
+        if (pane) pane.style.display = (t === tab) ? "block" : "none";
+    });
+}
 
 // Initial Setup
 syncDeltaRowAttributesAndCells();

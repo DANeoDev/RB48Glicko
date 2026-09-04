@@ -23,6 +23,25 @@
         >
             <div class="parser">
 
+                {% if planner_events %}
+                <div class="field" style="margin-bottom: 1.25rem; background: rgba(123, 82, 197, 0.1); border: 1px solid rgba(123, 82, 197, 0.3); border-radius: 8px; padding: 12px 16px;">
+                    <label for="planner_event_id"><strong>📅 {{ t('match_center.import_planner_title', 'Aus Spieltags-Planer importieren') }}</strong></label>
+                    <p class="muted" style="margin: 3px 0 8px; font-size: 12px;">{{ t('match_center.import_planner_desc', 'Wähle einen vergangenen oder anstehenden Spieltag, um die anwesenden Spieler direkt in den Kader zu laden.') }}</p>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <select id="planner_event_id" name="planner_event_id" style="flex: 1; min-width: 200px;">
+                            <option value="">{{ t('match_center.select_event', '-- Spieltag auswählen --') }}</option>
+                            {% for ev in planner_events %}
+                                <option value="{{ ev.id }}">{{ ev.event_date }} — {{ ev.title or 'Spieltag' }} ({{ ev.attendee_count or 0 }} Zusagen)</option>
+                            {% endfor %}
+                        </select>
+                        <button class="secondary" type="submit" name="action" value="import_planner" style="white-space: nowrap;">
+                            📥 {{ t('match_center.import_btn', 'Kader importieren') }}
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+
+
                 <div class="grid">
 
                     <div class="field">

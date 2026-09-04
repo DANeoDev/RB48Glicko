@@ -115,7 +115,8 @@ class TestPlayerFilters(unittest.TestCase):
         self.assertIn("corr-modal", html)
         self.assertIn("correlation-map-toggle", html)
         self.assertIn("PlayerCorrelationMap", html)
-        self.assertIn("corr-scatter-svg", html)
+        self.assertIn("corr-chart-container", html)
+        self.assertIn("correlation_map.js", html)
 
     def test_player_profile_with_filter_query_params(self):
         user_id = self.create_user_session(player_id=1)
