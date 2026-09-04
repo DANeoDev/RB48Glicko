@@ -598,6 +598,43 @@ function switchSynTab(tab) {
     });
 }
 
+function openStreaksModal() {
+    const modal = document.getElementById("streaks-modal");
+    const backdrop = document.getElementById("streaks-modal-backdrop");
+    if (modal) modal.classList.add("open");
+    if (backdrop) backdrop.classList.add("open");
+    document.body.style.overflow = "hidden";
+}
+function closeStreaksModal() {
+    const modal = document.getElementById("streaks-modal");
+    const backdrop = document.getElementById("streaks-modal-backdrop");
+    if (modal) modal.classList.remove("open");
+    if (backdrop) backdrop.classList.remove("open");
+    document.body.style.overflow = "";
+}
+function switchStreakTab(tab) {
+    ["active", "record", "surge"].forEach(t => {
+        const btn = document.getElementById(`strk-tab-${t}`);
+        const pane = document.getElementById(`strk-pane-${t}`);
+        if (btn) btn.classList.toggle("active", t === tab);
+        if (pane) pane.style.display = (t === tab) ? "block" : "none";
+    });
+}
+
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+        closeSynergiesModal();
+        closeStreaksModal();
+    }
+});
+
+window.openSynergiesModal = openSynergiesModal;
+window.closeSynergiesModal = closeSynergiesModal;
+window.switchSynTab = switchSynTab;
+window.openStreaksModal = openStreaksModal;
+window.closeStreaksModal = closeStreaksModal;
+window.switchStreakTab = switchStreakTab;
+
 // Initial Setup
 syncDeltaRowAttributesAndCells();
 selectPitch("total");

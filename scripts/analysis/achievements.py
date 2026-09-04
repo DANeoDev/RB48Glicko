@@ -140,11 +140,11 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True):
     achievements.append({
         "id": "iron_man",
         "icon": "🛡️",
-        "title_key": "achievements.iron_title",
+        "title_key": "achievements.iron_man_title",
         "tier": iron_unlocked if iron_unlocked else "locked",
         "unlocked": iron_unlocked is not None,
         "progress_text": f"{max_consecutive_sessions} / {iron_target} Spieltage in Folge",
-        "description_key": "achievements.iron_desc",
+        "description_key": "achievements.iron_man_desc",
         "detail_text": f"Rekord: {max_consecutive_sessions} aufeinanderfolgende Spieltage"
     })
 

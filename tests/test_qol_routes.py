@@ -71,6 +71,8 @@ class TestQOLRoutes(unittest.TestCase):
         self.assertIn(b'id="streaks-modal"', resp.data)
         self.assertIn(b'id="open-streaks-modal-btn"', resp.data)
         self.assertIn(b'id="open-synergies-modal-btn"', resp.data)
+        self.assertIn(b"openStreaksModal", resp.data)
+        self.assertIn(b"openSynergiesModal", resp.data)
 
 
 if __name__ == "__main__":
