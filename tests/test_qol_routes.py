@@ -74,6 +74,19 @@ class TestQOLRoutes(unittest.TestCase):
         self.assertIn(b"openStreaksModal", resp.data)
         self.assertIn(b"openSynergiesModal", resp.data)
 
+    def test_player_correlation_map_rendered(self):
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = 1
+            sess["user_role"] = "user"
+            sess["user_tier"] = "user"
+            sess["user_is_approved"] = 1
+        resp = self.client.get("/player/1")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'id="corr-chart-container"', resp.data)
+        self.assertIn(b'id="corr-scatter-svg"', resp.data)
+        self.assertIn(b'id="corr-tooltip"', resp.data)
+        self.assertIn(b'id="corr-no-data"', resp.data)
+
 
 if __name__ == "__main__":
     unittest.main()

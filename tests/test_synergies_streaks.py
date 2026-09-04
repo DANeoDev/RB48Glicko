@@ -34,6 +34,15 @@ class TestSynergiesAndStreaks(unittest.TestCase):
         for s in streaks["active_win_streaks"]:
             self.assertGreaterEqual(s["count"], 2)
 
+        # Check that all-time records include ties
+        all_time_counts = [s["count"] for s in streaks["all_time_win_streaks"]]
+        if all_time_counts:
+            max_record = max(all_time_counts)
+            all_time_names = [s["name"] for s in streaks["all_time_win_streaks"]]
+            for active in streaks["active_win_streaks"]:
+                if active["count"] >= max_record:
+                    self.assertIn(active["name"], all_time_names)
+
 
 if __name__ == "__main__":
     unittest.main()

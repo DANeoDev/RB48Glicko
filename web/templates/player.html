@@ -290,7 +290,11 @@
     </div>
     <div class="corr-modal-body">
         <div class="corr-chart-wrapper">
-            <div class="corr-chart-container" id="corr-chart-container"></div>
+            <div class="corr-chart-container" id="corr-chart-container">
+                <svg id="corr-scatter-svg" width="100%" height="320" viewBox="0 0 700 320" preserveAspectRatio="xMidYMid meet"></svg>
+                <div id="corr-tooltip" class="corr-tooltip" style="display: none;"></div>
+                <div id="corr-no-data" class="corr-no-data" style="display: none;">{{ t('player.corr_no_data', 'Noch keine Spieldaten für diese Ansicht vorhanden.') }}</div>
+            </div>
             <div class="corr-hint">
                 💡 {{ t('player.corr_chart_hint', 'Klicke auf einen Datenpunkt oder Tabellenzeile, um diesen Spieler direkt im Filter zu aktivieren.') }}
             </div>
