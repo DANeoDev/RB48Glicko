@@ -112,6 +112,10 @@ class TestPlayerFilters(unittest.TestCase):
         self.assertIn("btn-add-opponent", html)
         self.assertIn("active-filters-banner", html)
         self.assertIn("PlayerFilter", html)
+        self.assertIn("corr-modal", html)
+        self.assertIn("correlation-map-toggle", html)
+        self.assertIn("PlayerCorrelationMap", html)
+        self.assertIn("corr-scatter-svg", html)
 
     def test_player_profile_with_filter_query_params(self):
         user_id = self.create_user_session(player_id=1)
@@ -123,7 +127,9 @@ class TestPlayerFilters(unittest.TestCase):
         html = resp.get_data(as_text=True)
         self.assertIn("Performance Übersicht", html)
         self.assertIn("Persönliche Spielhistorie", html)
+        self.assertIn("corr-modal", html)
 
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -25,8 +25,8 @@
 .player-rating-selector a.active { background: var(--accent); color: #ffffff; }
 .player-rating-selector a:hover { background: var(--accent-hover); color: #ffffff; }
 
-/* Filter Drawer Toggle Button */
-.filter-drawer-toggle {
+/* Filter Drawer Toggle & Correlation Map Buttons */
+.filter-drawer-toggle, .correlation-map-toggle {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -40,7 +40,7 @@
     cursor: pointer;
     transition: all 0.15s ease;
 }
-.filter-drawer-toggle:hover {
+.filter-drawer-toggle:hover, .correlation-map-toggle:hover {
     background: #582DA1;
     border-color: #7B52C5;
     color: #ffffff;
@@ -250,68 +250,80 @@
     overflow-y: auto;
 }
 .filter-player-item {
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text-main);
+    cursor: pointer;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 8px;
-    border-radius: 4px;
-    font-size: 12.5px;
-    cursor: pointer;
-    color: #ffffff;
-    transition: background 0.12s;
+    transition: background 0.12s ease;
 }
 .filter-player-item:hover {
     background: #582DA1;
-}
-.filter-player-item .badge-count {
-    font-size: 10.5px;
-    color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.08);
-    padding: 1px 6px;
-    border-radius: 8px;
+    color: #ffffff;
 }
 .filter-player-empty {
-    padding: 10px;
-    font-size: 12px;
+    padding: 8px 10px;
+    font-size: 11.5px;
     color: var(--text-muted);
     text-align: center;
+    font-style: italic;
+}
+.filter-drawer-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    background: #150b28;
+    display: flex;
+    justify-content: flex-end;
+}
+.btn-drawer-reset {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: var(--radius);
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.btn-drawer-reset:hover {
+    border-color: #dc3545;
+    color: #ff8888;
+    background: rgba(220, 53, 69, 0.1);
 }
 
-/* Active Filters Banner on Main Page */
+/* Active Filters Banner & Summary Dashboard */
 .active-filters-banner {
-    background: var(--card-bg);
+    background: #1e1338;
     border: 1px solid #7B52C5;
     border-radius: var(--radius);
-    padding: 14px 18px;
-    margin: 0 auto 20px;
+    padding: 16px 20px;
+    margin: 0 auto 24px;
     max-width: 900px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 .active-filters-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
+    margin-bottom: 12px;
 }
 .active-filters-title {
     font-size: 13.5px;
     font-weight: 700;
     color: #80deea;
-    display: flex;
-    align-items: center;
-    gap: 6px;
 }
 .btn-banner-reset {
     background: rgba(220, 53, 69, 0.15);
-    border: 1px solid #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.4);
     color: #ff8888;
-    border-radius: 12px;
-    padding: 3px 10px;
+    border-radius: 6px;
+    padding: 3px 8px;
     font-size: 11.5px;
     cursor: pointer;
+    transition: all 0.15s ease;
 }
 .btn-banner-reset:hover {
     background: #dc3545;
@@ -321,21 +333,18 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    align-items: center;
+    margin-bottom: 16px;
 }
-
-/* Filtered Stats Summary Cards */
 .filtered-stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 10px;
-    margin-top: 4px;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
 }
 .filtered-stat-card {
-    background: var(--bg-surface);
+    background: #140b28;
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 9px 10px;
+    padding: 10px 12px;
     text-align: center;
     display: flex;
     flex-direction: column;
@@ -384,6 +393,211 @@
     margin: 20px auto;
     max-width: 900px;
 }
+
+/* =========================================================================
+   Correlation Map Modal & Interactive Bubble Chart
+   ========================================================================= */
+.corr-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+    z-index: 1070;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.corr-modal-backdrop.open {
+    display: block;
+    opacity: 1;
+}
+.corr-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.95);
+    width: 820px;
+    max-width: 94vw;
+    max-height: 90vh;
+    background: #1b1033;
+    border: 1px solid #7B52C5;
+    border-radius: 12px;
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.85);
+    z-index: 1080;
+    display: none;
+    opacity: 0;
+    flex-direction: column;
+    overflow: hidden;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+}
+.corr-modal.open {
+    display: flex;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+.corr-modal-header {
+    padding: 16px 22px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    background: #150b28;
+}
+.corr-modal-header-titles h3 {
+    margin: 0;
+    font-size: 17px;
+    color: #ffffff;
+}
+.corr-modal-sub {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+.corr-modal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: color 0.15s ease;
+}
+.corr-modal-close:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+}
+.corr-modal-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 10px 22px 0;
+    border-bottom: 1px solid var(--border);
+    background: #150b28;
+}
+.corr-tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px 10px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.corr-tab-btn:hover {
+    color: #ffffff;
+}
+.corr-tab-btn.active {
+    color: #80deea;
+    border-bottom-color: #80deea;
+}
+.corr-modal-body {
+    padding: 18px 22px;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.corr-chart-wrapper {
+    background: #140b28;
+    border: 1px solid #2e1d52;
+    border-radius: 8px;
+    padding: 14px 16px 10px;
+    position: relative;
+}
+.corr-chart-container {
+    position: relative;
+    width: 100%;
+}
+.corr-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(15, 8, 30, 0.96);
+    border: 1px solid #7B52C5;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #ffffff;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+    z-index: 1090;
+    transform: translate(-50%, -100%);
+    margin-top: -10px;
+    white-space: nowrap;
+}
+.corr-hint {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 6px;
+}
+.corr-table-wrapper {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #140b28;
+}
+.corr-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+.corr-table thead {
+    position: sticky;
+    top: 0;
+    background: #1c1035;
+    z-index: 10;
+}
+.corr-table th {
+    padding: 8px 10px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+}
+.corr-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.corr-table-row {
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+.corr-table-row:hover {
+    background: rgba(123, 82, 197, 0.25);
+}
+.corr-no-data {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-style: italic;
+}
+.corr-node {
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+.corr-node:hover circle {
+    stroke-width: 2.5px;
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.6));
+}
+.corr-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 11px;
+}
+.corr-badge-green { background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); }
+.corr-badge-yellow { background: rgba(255, 193, 7, 0.25); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.5); }
+.corr-badge-red { background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.5); }
 </style>
 {% endblock %}
 
@@ -412,8 +626,7 @@
 <tr>
 <th></th>
 {% if has_tier('glicko_user') %}
-<th>{{ t('stats.c_rating', 'C Rating') }}</th>
-<th>{{ t('stats.e_rating', 'E Rating') }}</th>
+<th>{{ t('stats.rating', 'Rating') }}</th>
 <th>{{ t('stats.rd', 'RD') }}</th>
 {% endif %}
 <th>{{ t('stats.games', 'Games') }}</th>
@@ -428,11 +641,10 @@
 {% for rating_type in ["total", "box", "hf"] %}
 
 <tr>
-<th>{{ rating_type | upper }}</th>
+<td><strong>{{ rating_type | upper }}</strong></td>
 {% if has_tier('glicko_user') %}
-<td>{{ (ratings[rating_type]["rating"] - 3 * ratings[rating_type]["rd"]) | round(0) }}</td>
-<td>{{ ratings[rating_type]["rating"] | round(0) }}</td>
-<td>{{ ratings[rating_type]["rd"] | round(1) }}</td>
+<td>{{ ratings[rating_type]["rating"] | round | int }}</td>
+<td>{{ ratings[rating_type]["rd"] | round | int }}</td>
 {% endif %}
 <td>{{ stats[rating_type]["games"] }}</td>
 <td>{{ stats[rating_type]["wins"] }}</td>
@@ -463,17 +675,22 @@
 <h2>{{ t('player.personal_history', 'Persönliche Spielhistorie') }}</h2>
 
 <div class="player-history-controls">
-<div class="player-rating-selector" title="Select which match history to display: Total, BOX, or HF.">
-<a data-preserve-scroll class="{% if selected_rating_type == 'total' %}active{% endif %}" id="btn-tab-total" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='total') }}" title="Show Total match history.">{{ t('matches.filter_all', 'Total') }}</a>
-<a data-preserve-scroll class="{% if selected_rating_type == 'box' %}active{% endif %}" id="btn-tab-box" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='box') }}" title="Show BOX match history.">BOX</a>
-<a data-preserve-scroll class="{% if selected_rating_type == 'hf' %}active{% endif %}" id="btn-tab-hf" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='hf') }}" title="Show HF match history.">HF</a>
-</div>
+    <div class="player-rating-selector" title="Select which match history to display: Total, BOX, or HF.">
+        <a data-preserve-scroll class="{% if selected_rating_type == 'total' %}active{% endif %}" id="btn-tab-total" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='total') }}" title="Show Total match history.">{{ t('matches.filter_all', 'Total') }}</a>
+        <a data-preserve-scroll class="{% if selected_rating_type == 'box' %}active{% endif %}" id="btn-tab-box" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='box') }}" title="Show BOX match history.">BOX</a>
+        <a data-preserve-scroll class="{% if selected_rating_type == 'hf' %}active{% endif %}" id="btn-tab-hf" href="{{ url_for('stats.player_profile', player_id=player_id, rating_type='hf') }}" title="Show HF match history.">HF</a>
+    </div>
 
-<!-- Drawer Toggle Button on the Right -->
-<button type="button" class="filter-drawer-toggle" id="filter-drawer-toggle" onclick="window.PlayerFilter.toggleDrawer()">
-    <span>🔍 {{ t('player.filters_title', 'Mitspieler & Gegner filtern') }}</span>
-    <span class="filter-count-badge" id="filter-active-count" style="display: none;">0</span>
-</button>
+    <!-- Correlation Map Modal Button -->
+    <button type="button" class="correlation-map-toggle" id="correlation-map-toggle" onclick="window.PlayerCorrelationMap.openModal()">
+        <span>{{ t('player.correlation_map_btn', '🗺️ Korrelationsmap') }}</span>
+    </button>
+
+    <!-- Drawer Toggle Button on the Right -->
+    <button type="button" class="filter-drawer-toggle" id="filter-drawer-toggle" onclick="window.PlayerFilter.toggleDrawer()">
+        <span>🔍 {{ t('player.filters_title', 'Mitspieler & Gegner filtern') }}</span>
+        <span class="filter-count-badge" id="filter-active-count" style="display: none;">0</span>
+    </button>
 </div>
 
 <!-- Active Filter Banner (Displayed on main page when filters are active) -->
@@ -614,71 +831,146 @@
                 </div>
             </div>
         </div>
-
-        <button type="button" class="btn-banner-reset" id="drawer-btn-reset" style="display: none; align-self: flex-start;" onclick="window.PlayerFilter.reset()">
+    </div>
+    <div class="filter-drawer-footer">
+        <button type="button" class="btn-drawer-reset" onclick="window.PlayerFilter.reset()">
             ↺ {{ t('player.reset_filters', 'Filter zurücksetzen') }}
         </button>
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
-{% if has_tier('glicko_user') %}
+<!-- Correlation Map Modal Elements -->
+<div class="corr-modal-backdrop" id="corr-modal-backdrop" onclick="window.PlayerCorrelationMap.closeModal()"></div>
+<div class="corr-modal" id="corr-modal" role="dialog" aria-modal="true" aria-labelledby="corr-modal-title">
+    <div class="corr-modal-header">
+        <div class="corr-modal-header-titles">
+            <h3 id="corr-modal-title">🗺️ {{ t('player.correlation_map_title', 'Spieler-Korrelationsmap') }}</h3>
+            <p class="corr-modal-sub">{{ t('player.correlation_map_sub', 'Erfolgsquote & Spielhäufigkeit mit und gegen andere Spieler.') }}</p>
+        </div>
+        <button type="button" class="corr-modal-close" onclick="window.PlayerCorrelationMap.closeModal()" aria-label="Schließen">✕</button>
+    </div>
+    <div class="corr-modal-tabs">
+        <button type="button" class="corr-tab-btn active" id="corr-tab-teammates" onclick="window.PlayerCorrelationMap.switchTab('teammates')">
+            {{ t('player.corr_tab_teammates', '🤝 Mitspieler (Synergie)') }}
+        </button>
+        <button type="button" class="corr-tab-btn" id="corr-tab-opponents" onclick="window.PlayerCorrelationMap.switchTab('opponents')">
+            {{ t('player.corr_tab_opponents', '⚔️ Gegner (Head-to-Head)') }}
+        </button>
+    </div>
+    <div class="corr-modal-body">
+        <div class="corr-chart-wrapper">
+            <div class="corr-chart-container" id="corr-chart-container">
+                <svg id="corr-scatter-svg" width="100%" height="320" viewBox="0 0 700 320" preserveAspectRatio="xMidYMid meet"></svg>
+                <div id="corr-tooltip" class="corr-tooltip" style="display: none;"></div>
+            </div>
+            <div class="corr-hint">{{ t('player.corr_click_hint', '💡 Klicke auf einen Datenpunkt oder eine Tabellenzeile, um diesen Spieler direkt als Filter zu aktivieren.') }}</div>
+        </div>
+        
+        <div class="corr-table-wrapper">
+            <table class="corr-table" id="corr-table">
+                <thead>
+                    <tr>
+                        <th style="text-align: left; padding-left: 12px;">{{ t('player.corr_table_player', 'Spieler') }}</th>
+                        <th style="text-align: center;">{{ t('player.corr_table_games', 'Spiele') }}</th>
+                        <th style="text-align: center;">{{ t('player.corr_table_record', 'Bilanz (S-U-N)') }}</th>
+                        <th style="text-align: center;">{{ t('player.corr_table_winrate', 'Siegquote') }}</th>
+                        {% if has_tier('glicko_user') %}
+                        <th style="text-align: center;">{{ t('player.corr_table_delta', 'Rating-Delta') }}</th>
+                        {% endif %}
+                        <th style="text-align: center; padding-right: 12px;">{{ t('player.corr_table_goals', 'Tore') }}</th>
+                    </tr>
+                </thead>
+                <tbody id="corr-table-body"></tbody>
+            </table>
+            <div id="corr-no-data" class="corr-no-data" style="display: none;">
+                {{ t('player.corr_no_data', 'Noch keine Spieldaten für diese Ansicht vorhanden.') }}
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+// JSON Match Data for Filtering and Correlation Map
+const allMatchesData = [
+{% for match in matches %}
+    {
+        match_id: "{{ match['match_id'] }}",
+        own_team_ids: {{ match['own_team_ids'] | tojson }},
+        opp_team_ids: {{ match['opp_team_ids'] | tojson }},
+        is_win: {% if match['is_win'] %}true{% else %}false{% endif %},
+        is_loss: {% if match['is_loss'] %}true{% else %}false{% endif %},
+        is_draw: {% if match['is_draw'] %}true{% else %}false{% endif %},
+        goals_for: {{ match['goals_for'] }},
+        goals_against: {{ match['goals_against'] }},
+        player_delta: {{ match['player_delta'] if match['player_delta'] is not none else 0.0 }}
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+];
+
+// Players Map (player_id -> alias)
+const playersMap = {{ players_map | tojson }};
+const currentPlayerId = {{ player_id }};
+
+{% if has_tier('glicko_user') %}
+// Rating History Charts
 const ratingHistory = {{ rating_history | tojson }};
 function createRatingChart(elementId, ratingType) {
-const history = ratingHistory[ratingType];
-const labels = history.map((entry, index) => { const lastIndex = history.length - 1; if (index === 0 || index === Math.round(lastIndex / 3) || index === Math.round(lastIndex * 2 / 3) || index === lastIndex) return entry.date ? entry.date.substring(0, 7) : ""; return ""; });
-const ratings = history.map(entry => entry.rating);
-new Chart(document.getElementById(elementId), { type: "line", data: { labels: labels, datasets: [{ label: "Rating", data: ratings, tension: 0.2 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { autoSkip: false, maxRotation: 0 } }, y: { beginAtZero: false } } } });
+    const history = ratingHistory[ratingType];
+    const labels = history.map((entry, index) => {
+        const lastIndex = history.length - 1;
+        if (index === 0 || index === Math.round(lastIndex / 3) || index === Math.round(lastIndex * 2 / 3) || index === lastIndex) {
+            return entry.date ? entry.date.substring(0, 7) : "";
+        }
+        return "";
+    });
+    const ratings = history.map(entry => entry.rating);
+    const canvas = document.getElementById(elementId);
+    if (!canvas) return;
+    new Chart(canvas, {
+        type: "line",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Rating",
+                data: ratings,
+                borderColor: "#7B52C5",
+                borderWidth: 2,
+                pointRadius: 2,
+                tension: 0.2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: { ticks: { color: "#a0a0a0", autoSkip: false, maxRotation: 0 }, grid: { color: "#333333" } },
+                y: { ticks: { color: "#a0a0a0" }, grid: { color: "#333333" }, beginAtZero: false }
+            }
+        }
+    });
 }
 createRatingChart("totalChart", "total");
 createRatingChart("boxChart", "box");
 createRatingChart("hfChart", "hf");
-</script>
 {% endif %}
-<script>
-document.querySelectorAll(".match").forEach(match => { match.addEventListener("click", () => match.classList.toggle("expanded")); });
 
-// =========================================================================
-// Reactive Teammate & Opponent Filter System
-// =========================================================================
+// Player Filter Drawer Module
 (function() {
-    const currentPlayerId = {{ player_id }};
-    const playersMap = {{ players_map | tojson }};
-    const allMatchesData = [
-        {% for match in matches %}
-        {
-            match_id: {{ match["match_id"] | tojson }},
-            own_team_ids: {{ match["own_team_ids"] | tojson if match["own_team_ids"] is defined else '[]' }},
-            opp_team_ids: {{ match["opp_team_ids"] | tojson if match["opp_team_ids"] is defined else '[]' }},
-            is_win: {{ 'true' if match["is_win"] else 'false' }},
-            is_loss: {{ 'true' if match["is_loss"] else 'false' }},
-            is_draw: {{ 'true' if match["is_draw"] else 'false' }},
-            goals_for: {{ match["goals_for"] if match["goals_for"] is not none else 0 }},
-            goals_against: {{ match["goals_against"] if match["goals_against"] is not none else 0 }},
-            player_delta: {{ match["individual_player_delta"] if match["individual_player_delta"] is not none else (match["rating_delta"] if match["rating_delta"] is not none else 0.0) }}
-        }{% if not loop.last %},{% endif %}
-        {% endfor %}
-    ];
-
     let activeTeammates = [];
     let activeOpponents = [];
-    let isDrawerOpen = false;
 
-    // Elements
-    const drawerBackdrop = document.getElementById("filter-drawer-backdrop");
     const drawerEl = document.getElementById("filter-drawer");
+    const backdropEl = document.getElementById("filter-drawer-backdrop");
     const toggleBtn = document.getElementById("filter-drawer-toggle");
-    const activeCountBadge = document.getElementById("filter-active-count");
+    const countBadge = document.getElementById("filter-active-count");
     const bannerEl = document.getElementById("active-filters-banner");
     const chipsContainer = document.getElementById("active-filter-chips");
     const noMatchesEl = document.getElementById("no-filtered-matches");
 
     const drawerTmTags = document.getElementById("drawer-teammate-tags");
     const drawerOppTags = document.getElementById("drawer-opponent-tags");
-    const drawerResetBtn = document.getElementById("drawer-btn-reset");
-
     const popoverTm = document.getElementById("popover-teammate");
     const popoverOpp = document.getElementById("popover-opponent");
     const searchInputTm = document.getElementById("search-input-teammate");
@@ -687,109 +979,139 @@ document.querySelectorAll(".match").forEach(match => { match.addEventListener("c
     const playerListOpp = document.getElementById("player-list-opponent");
 
     function openDrawer() {
-        isDrawerOpen = true;
-        drawerBackdrop.classList.add("open");
+        if (!drawerEl) return;
+        closePopovers();
         drawerEl.classList.add("open");
+        backdropEl.classList.add("open");
+        document.body.style.overflow = "hidden";
     }
 
     function closeDrawer() {
-        isDrawerOpen = false;
+        if (!drawerEl) return;
         closePopovers();
-        drawerBackdrop.classList.remove("open");
         drawerEl.classList.remove("open");
+        backdropEl.classList.remove("open");
+        document.body.style.overflow = "";
     }
 
     function toggleDrawer() {
-        if (isDrawerOpen) closeDrawer();
-        else openDrawer();
-    }
-
-    function getMatchingMatches(t_ids, o_ids) {
-        if (t_ids.length === 0 && o_ids.length === 0) {
-            return allMatchesData;
+        if (drawerEl && drawerEl.classList.contains("open")) {
+            closeDrawer();
+        } else {
+            openDrawer();
         }
-        return allMatchesData.filter(m => {
-            for (const pid of t_ids) {
-                if (!m.own_team_ids.includes(pid)) return false;
-            }
-            for (const pid of o_ids) {
-                if (!m.opp_team_ids.includes(pid)) return false;
-            }
-            return true;
-        });
     }
 
-    function getAvailableCandidates(type) {
-        const matchingMatches = getMatchingMatches(activeTeammates, activeOpponents);
-        const counts = {};
-
-        matchingMatches.forEach(m => {
-            const list = (type === "teammate") ? m.own_team_ids : m.opp_team_ids;
-            list.forEach(pid => {
-                if (pid === currentPlayerId) return;
-                if (type === "teammate" && activeTeammates.includes(pid)) return;
-                if (type === "opponent" && activeOpponents.includes(pid)) return;
-                counts[pid] = (counts[pid] || 0) + 1;
-            });
-        });
-
-        const candidates = Object.keys(counts).map(pidStr => {
-            const pid = Number(pidStr);
-            return {
-                id: pid,
-                name: playersMap[pid] || ("Player " + pid),
-                count: counts[pid]
-            };
-        });
-
-        candidates.sort((a, b) => {
-            if (b.count !== a.count) return b.count - a.count;
-            return a.name.localeCompare(b.name);
-        });
-
-        return candidates;
+    function closePopovers() {
+        if (popoverTm) popoverTm.style.display = "none";
+        if (popoverOpp) popoverOpp.style.display = "none";
     }
 
-    function renderCandidates(type, filterText = "") {
-        const listEl = (type === "teammate") ? playerListTm : playerListOpp;
-        const query = filterText.trim().toLowerCase();
-        let candidates = getAvailableCandidates(type);
+    function getPossibleCandidates(type) {
+        let matchingMatches = allMatchesData;
 
-        if (query) {
-            candidates = candidates.filter(c => c.name.toLowerCase().includes(query));
+        if (type === "teammate") {
+            for (const oppId of activeOpponents) {
+                matchingMatches = matchingMatches.filter(m => m.opp_team_ids.includes(oppId));
+            }
+            for (const tmId of activeTeammates) {
+                matchingMatches = matchingMatches.filter(m => m.own_team_ids.includes(tmId));
+            }
+
+            const candidateIds = new Set();
+            for (const m of matchingMatches) {
+                for (const pid of m.own_team_ids) {
+                    if (pid !== currentPlayerId && !activeTeammates.includes(pid) && !activeOpponents.includes(pid)) {
+                        candidateIds.add(pid);
+                    }
+                }
+            }
+            return Array.from(candidateIds);
+        } else {
+            for (const tmId of activeTeammates) {
+                matchingMatches = matchingMatches.filter(m => m.own_team_ids.includes(tmId));
+            }
+            for (const oppId of activeOpponents) {
+                matchingMatches = matchingMatches.filter(m => m.opp_team_ids.includes(oppId));
+            }
+
+            const candidateIds = new Set();
+            for (const m of matchingMatches) {
+                for (const pid of m.opp_team_ids) {
+                    if (pid !== currentPlayerId && !activeOpponents.includes(pid) && !activeTeammates.includes(pid)) {
+                        candidateIds.add(pid);
+                    }
+                }
+            }
+            return Array.from(candidateIds);
         }
+    }
+
+    function renderCandidates(type, query = "") {
+        const candidateIds = getPossibleCandidates(type);
+        const listEl = type === "teammate" ? playerListTm : playerListOpp;
+        if (!listEl) return;
 
         listEl.innerHTML = "";
-        if (candidates.length === 0) {
+        const lowerQ = query.toLowerCase().trim();
+
+        const filtered = candidateIds
+            .map(id => ({ id, name: playersMap[id] || ("Player #" + id) }))
+            .filter(p => !lowerQ || p.name.toLowerCase().includes(lowerQ))
+            .sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
+
+        if (filtered.length === 0) {
             const emptyLi = document.createElement("li");
             emptyLi.className = "filter-player-empty";
-            emptyLi.textContent = "{{ t('player.no_players_available', 'Keine weiteren Spieler möglich') }}";
+            emptyLi.textContent = "Keine passenden Spieler gefunden";
             listEl.appendChild(emptyLi);
             return;
         }
 
-        candidates.forEach(c => {
+        filtered.forEach(p => {
             const li = document.createElement("li");
             li.className = "filter-player-item";
-            li.innerHTML = `<span>${c.name}</span><span class="badge-count">${c.count} ${c.count === 1 ? 'Spiel' : 'Spiele'}</span>`;
-            li.addEventListener("click", () => {
-                addFilter(type, c.id);
+            li.textContent = p.name;
+            li.onclick = () => {
+                addFilter(type, p.id);
                 closePopovers();
-            });
+            };
             listEl.appendChild(li);
         });
     }
 
-    function addFilter(type, playerId) {
+    function openSearch(type) {
+        closePopovers();
         if (type === "teammate") {
-            if (!activeTeammates.includes(playerId)) activeTeammates.push(playerId);
+            popoverTm.style.display = "block";
+            searchInputTm.value = "";
+            renderCandidates("teammate", "");
+            setTimeout(() => searchInputTm.focus(), 50);
         } else {
-            if (!activeOpponents.includes(playerId)) activeOpponents.push(playerId);
+            popoverOpp.style.display = "block";
+            searchInputOpp.value = "";
+            renderCandidates("opponent", "");
+            setTimeout(() => searchInputOpp.focus(), 50);
         }
-        updateUI();
+    }
+
+    function addFilter(type, playerId) {
+        playerId = Number(playerId);
+        if (type === "teammate" || type === "teammates") {
+            if (!activeTeammates.includes(playerId)) {
+                activeTeammates.push(playerId);
+                updateUI();
+            }
+        } else if (type === "opponent" || type === "opponents") {
+            if (!activeOpponents.includes(playerId)) {
+                activeOpponents.push(playerId);
+                updateUI();
+            }
+        }
     }
 
     function removeFilter(type, playerId) {
+        playerId = Number(playerId);
         if (type === "teammate") {
             activeTeammates = activeTeammates.filter(id => id !== playerId);
         } else {
@@ -805,97 +1127,85 @@ document.querySelectorAll(".match").forEach(match => { match.addEventListener("c
         updateUI();
     }
 
-    function closePopovers() {
-        if (popoverTm) popoverTm.style.display = "none";
-        if (popoverOpp) popoverOpp.style.display = "none";
-    }
-
-    function openSearch(type) {
-        closePopovers();
-        const popover = (type === "teammate") ? popoverTm : popoverOpp;
-        const input = (type === "teammate") ? searchInputTm : searchInputOpp;
-        if (!popover || !input) return;
-
-        input.value = "";
-        renderCandidates(type);
-        popover.style.display = "block";
-        input.focus();
-    }
-
     function updateTags() {
-        drawerTmTags.innerHTML = "";
-        chipsContainer.innerHTML = "";
+        if (drawerTmTags) {
+            drawerTmTags.innerHTML = activeTeammates.map(id => `
+                <span class="filter-tag filter-tag-tm">
+                    🤝 ${playersMap[id] || 'Spieler #' + id}
+                    <button type="button" class="filter-tag-remove" onclick="window.PlayerFilter.remove('teammate', ${id})" title="Entfernen">✕</button>
+                </span>
+            `).join("");
+        }
 
-        activeTeammates.forEach(pid => {
-            const name = playersMap[pid] || ("Player " + pid);
-            // Drawer tag
-            const tag = document.createElement("span");
-            tag.className = "filter-tag filter-tag-tm";
-            tag.innerHTML = `<span>${name}</span><button type="button" class="filter-tag-remove" aria-label="Remove ${name}" title="Entfernen">×</button>`;
-            tag.querySelector(".filter-tag-remove").addEventListener("click", () => removeFilter("teammate", pid));
-            drawerTmTags.appendChild(tag);
+        if (drawerOppTags) {
+            drawerOppTags.innerHTML = activeOpponents.map(id => `
+                <span class="filter-tag filter-tag-opp">
+                    ⚔️ ${playersMap[id] || 'Spieler #' + id}
+                    <button type="button" class="filter-tag-remove" onclick="window.PlayerFilter.remove('opponent', ${id})" title="Entfernen">✕</button>
+                </span>
+            `).join("");
+        }
 
-            // Banner chip
-            const chip = tag.cloneNode(true);
-            chip.querySelector(".filter-tag-remove").addEventListener("click", () => removeFilter("teammate", pid));
-            chipsContainer.appendChild(chip);
-        });
+        const totalActive = activeTeammates.length + activeOpponents.length;
+        if (countBadge) {
+            if (totalActive > 0) {
+                countBadge.textContent = totalActive;
+                countBadge.style.display = "inline-block";
+                toggleBtn.classList.add("has-active-filters");
+            } else {
+                countBadge.style.display = "none";
+                toggleBtn.classList.remove("has-active-filters");
+            }
+        }
 
-        drawerOppTags.innerHTML = "";
-        activeOpponents.forEach(pid => {
-            const name = playersMap[pid] || ("Player " + pid);
-            // Drawer tag
-            const tag = document.createElement("span");
-            tag.className = "filter-tag filter-tag-opp";
-            tag.innerHTML = `<span>${name}</span><button type="button" class="filter-tag-remove" aria-label="Remove ${name}" title="Entfernen">×</button>`;
-            tag.querySelector(".filter-tag-remove").addEventListener("click", () => removeFilter("opponent", pid));
-            drawerOppTags.appendChild(tag);
-
-            // Banner chip
-            const chip = tag.cloneNode(true);
-            chip.querySelector(".filter-tag-remove").addEventListener("click", () => removeFilter("opponent", pid));
-            chipsContainer.appendChild(chip);
-        });
+        if (bannerEl && chipsContainer) {
+            if (totalActive > 0) {
+                bannerEl.style.display = "block";
+                const tmChips = activeTeammates.map(id => `
+                    <span class="filter-tag filter-tag-tm">
+                        🤝 ${playersMap[id] || 'Spieler #' + id}
+                        <button type="button" class="filter-tag-remove" onclick="window.PlayerFilter.remove('teammate', ${id})" title="Entfernen">✕</button>
+                    </span>
+                `).join("");
+                const oppChips = activeOpponents.map(id => `
+                    <span class="filter-tag filter-tag-opp">
+                        ⚔️ ${playersMap[id] || 'Spieler #' + id}
+                        <button type="button" class="filter-tag-remove" onclick="window.PlayerFilter.remove('opponent', ${id})" title="Entfernen">✕</button>
+                    </span>
+                `).join("");
+                chipsContainer.innerHTML = tmChips + oppChips;
+            } else {
+                bannerEl.style.display = "none";
+                chipsContainer.innerHTML = "";
+            }
+        }
     }
 
     function updateStatsAndMatches() {
         const hasFilters = activeTeammates.length > 0 || activeOpponents.length > 0;
-        const totalFilterCount = activeTeammates.length + activeOpponents.length;
-
-        // Toggle button badge
-        if (hasFilters) {
-            toggleBtn.classList.add("has-active-filters");
-            activeCountBadge.textContent = totalFilterCount;
-            activeCountBadge.style.display = "inline-block";
-            drawerResetBtn.style.display = "inline-block";
-            bannerEl.style.display = "flex";
-        } else {
-            toggleBtn.classList.remove("has-active-filters");
-            activeCountBadge.style.display = "none";
-            drawerResetBtn.style.display = "none";
-            bannerEl.style.display = "none";
-        }
-
-        const matchingMatches = getMatchingMatches(activeTeammates, activeOpponents);
-        const matchingIds = new Set(matchingMatches.map(m => String(m.match_id)));
-
-        // Update match cards DOM visibility
         let visibleCount = 0;
-        document.querySelectorAll(".match").forEach(matchCard => {
-            const matchId = String(matchCard.dataset.matchId || "");
-            const isVisible = hasFilters ? matchingIds.has(matchId) : true;
+        let matchingMatches = [];
 
-            if (isVisible) {
-                matchCard.style.display = "";
+        allMatchesData.forEach(m => {
+            const hasAllTm = activeTeammates.every(tmId => m.own_team_ids.includes(tmId));
+            const hasAllOpp = activeOpponents.every(oppId => m.opp_team_ids.includes(oppId));
+            const isMatchVisible = (!hasFilters) || (hasAllTm && hasAllOpp);
+
+            const matchCard = document.getElementById("match-card-" + m.match_id);
+            if (!matchCard) return;
+
+            if (isMatchVisible) {
                 visibleCount++;
+                matchingMatches.push(m);
+                matchCard.style.display = "block";
 
-                // Highlight filtered teammates / opponents
-                matchCard.querySelectorAll(".match-player").forEach(pSpan => {
-                    const pid = Number(pSpan.dataset.playerId);
-                    const nameSpan = pSpan.querySelector(".player-name-text") || pSpan.querySelector(".highlight-player");
+                matchCard.querySelectorAll(".match-player").forEach(playerSpan => {
+                    const pid = Number(playerSpan.dataset.playerId);
+                    const nameSpan = playerSpan.querySelector(".player-name-text") || playerSpan.querySelector(".highlight-player");
                     if (!nameSpan) return;
 
                     nameSpan.classList.remove("highlight-filter-tm", "highlight-filter-opp");
+
                     if (activeTeammates.includes(pid)) {
                         nameSpan.classList.add("highlight-filter-tm");
                         nameSpan.title = "Ausgewählter Mitspieler";
@@ -1024,6 +1334,302 @@ document.querySelectorAll(".match").forEach(match => { match.addEventListener("c
     };
 
     updateUI();
+})();
+
+// =========================================================================
+// Player Correlation Map Module (Interactive SVG Scatter + Breakdown Table)
+// =========================================================================
+(function() {
+    let currentTab = "teammates"; // 'teammates' | 'opponents'
+    const modalEl = document.getElementById("corr-modal");
+    const backdropEl = document.getElementById("corr-modal-backdrop");
+    const svgEl = document.getElementById("corr-scatter-svg");
+    const tooltipEl = document.getElementById("corr-tooltip");
+    const tableBodyEl = document.getElementById("corr-table-body");
+    const noDataEl = document.getElementById("corr-no-data");
+    const tabTmBtn = document.getElementById("corr-tab-teammates");
+    const tabOppBtn = document.getElementById("corr-tab-opponents");
+
+    function openModal() {
+        if (!modalEl) return;
+        modalEl.classList.add("open");
+        backdropEl.classList.add("open");
+        document.body.style.overflow = "hidden";
+        renderMap();
+    }
+
+    function closeModal() {
+        if (!modalEl) return;
+        modalEl.classList.remove("open");
+        backdropEl.classList.remove("open");
+        document.body.style.overflow = "";
+        hideTooltip();
+    }
+
+    function switchTab(tab) {
+        currentTab = tab;
+        if (tabTmBtn && tabOppBtn) {
+            if (tab === "teammates") {
+                tabTmBtn.classList.add("active");
+                tabOppBtn.classList.remove("active");
+            } else {
+                tabOppBtn.classList.add("active");
+                tabTmBtn.classList.remove("active");
+            }
+        }
+        renderMap();
+    }
+
+    function calculateStats(mode) {
+        const statsMap = {};
+
+        allMatchesData.forEach(m => {
+            const playerIds = (mode === "teammates") ? m.own_team_ids : m.opp_team_ids;
+            playerIds.forEach(pid => {
+                if (pid === currentPlayerId) return;
+                if (!statsMap[pid]) {
+                    statsMap[pid] = {
+                        playerId: pid,
+                        name: playersMap[pid] || ("Player #" + pid),
+                        games: 0,
+                        wins: 0,
+                        draws: 0,
+                        losses: 0,
+                        delta: 0.0,
+                        goalsFor: 0,
+                        goalsAgainst: 0
+                    };
+                }
+                const st = statsMap[pid];
+                st.games++;
+                if (m.is_win) st.wins++;
+                else if (m.is_loss) st.losses++;
+                else if (m.is_draw) st.draws++;
+                st.delta += (m.player_delta || 0.0);
+                st.goalsFor += (m.goals_for || 0);
+                st.goalsAgainst += (m.goals_against || 0);
+            });
+        });
+
+        const list = Object.values(statsMap).map(st => {
+            st.winRate = (st.wins / st.games) * 100;
+            st.goalDiff = st.goalsFor - st.goalsAgainst;
+            return st;
+        });
+
+        // Sort by games descending, then winRate descending
+        list.sort((a, b) => b.games - a.games || b.winRate - a.winRate);
+        return list;
+    }
+
+    function selectPlayerAndFilter(playerId) {
+        closeModal();
+        if (window.PlayerFilter && window.PlayerFilter.add) {
+            const filterType = currentTab === "teammates" ? "teammate" : "opponent";
+            window.PlayerFilter.add(filterType, playerId);
+        }
+    }
+
+    function showTooltip(e, st) {
+        if (!tooltipEl) return;
+        const sign = st.delta > 0 ? "+" : "";
+        const roleLabel = currentTab === "teammates" ? "🤝 Als Mitspieler" : "⚔️ Als Gegner";
+        
+        let colorBadge = "#ff5252";
+        if (st.winRate >= 60) colorBadge = "#00e676";
+        else if (st.winRate >= 45) colorBadge = "#ffc107";
+
+        tooltipEl.innerHTML = `
+            <div style="font-weight: 700; font-size: 13px; color: #80deea; margin-bottom: 3px;">${st.name}</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">${roleLabel}</div>
+            <div style="display: flex; gap: 12px; font-size: 11.5px; line-height: 1.4;">
+                <div>
+                    <div><strong>${st.games}</strong> Spiele</div>
+                    <div><span style="color: ${colorBadge}; font-weight: 700;">${st.winRate.toFixed(1)}%</span> Siegquote</div>
+                </div>
+                <div>
+                    <div>${st.wins}S - ${st.draws}U - ${st.losses}N</div>
+                    {% if has_tier('glicko_user') %}<div><strong>${sign}${st.delta.toFixed(1)}</strong> Delta</div>{% endif %}
+                </div>
+            </div>
+            <div style="margin-top: 5px; font-size: 10px; color: #a89ec4; text-align: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
+                🖱️ Klicken zum Filtern
+            </div>
+        `;
+        tooltipEl.style.display = "block";
+
+        const containerRect = document.getElementById("corr-chart-container").getBoundingClientRect();
+        const left = e.clientX - containerRect.left;
+        const top = e.clientY - containerRect.top;
+        tooltipEl.style.left = `${left}px`;
+        tooltipEl.style.top = `${top}px`;
+    }
+
+    function hideTooltip() {
+        if (tooltipEl) tooltipEl.style.display = "none";
+    }
+
+    function renderMap() {
+        const data = calculateStats(currentTab);
+
+        if (data.length === 0) {
+            if (svgEl) svgEl.innerHTML = "";
+            if (tableBodyEl) tableBodyEl.innerHTML = "";
+            if (noDataEl) noDataEl.style.display = "block";
+            return;
+        }
+
+        if (noDataEl) noDataEl.style.display = "none";
+
+        // Dimensions
+        const width = 700;
+        const height = 320;
+        const margin = { top: 30, right: 40, bottom: 45, left: 55 };
+        const plotW = width - margin.left - margin.right;
+        const plotH = height - margin.top - margin.bottom;
+
+        const maxGames = Math.max(...data.map(d => d.games), 5);
+
+        // Build SVG elements
+        let svgHtml = `
+            <defs>
+                <linearGradient id="gradGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#00e676" />
+                    <stop offset="100%" stop-color="#28a745" />
+                </linearGradient>
+                <linearGradient id="gradYellow" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#ffd54f" />
+                    <stop offset="100%" stop-color="#ffb300" />
+                </linearGradient>
+                <linearGradient id="gradRed" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#ff5252" />
+                    <stop offset="100%" stop-color="#dc3545" />
+                </linearGradient>
+            </defs>
+
+            <!-- Background Quadrant Tints -->
+            <rect x="${margin.left}" y="${margin.top}" width="${plotW}" height="${plotH * 0.5}" fill="rgba(40, 167, 69, 0.05)" />
+            <rect x="${margin.left}" y="${margin.top + plotH * 0.5}" width="${plotW}" height="${plotH * 0.5}" fill="rgba(220, 53, 69, 0.05)" />
+
+            <!-- Y-Axis Grid Lines & Labels -->
+        `;
+
+        const yTicks = [100, 75, 50, 25, 0];
+        yTicks.forEach(pct => {
+            const y = margin.top + (1 - pct / 100) * plotH;
+            const is50 = pct === 50;
+            svgHtml += `
+                <line x1="${margin.left}" y1="${y}" x2="${margin.left + plotW}" y2="${y}" 
+                      stroke="${is50 ? '#7B52C5' : '#2d1e4d'}" 
+                      stroke-width="${is50 ? '1.5' : '1'}" 
+                      stroke-dasharray="${is50 ? '4,4' : 'none'}" />
+                <text x="${margin.left - 10}" y="${y + 4}" text-anchor="end" fill="${is50 ? '#80deea' : '#8c80ad'}" font-size="10.5" font-weight="${is50 ? 'bold' : 'normal'}">${pct}%</text>
+            `;
+        });
+
+        // X-Axis Grid Lines & Labels
+        const xStep = maxGames <= 10 ? 1 : (maxGames <= 25 ? 5 : 10);
+        for (let g = 0; g <= maxGames; g += xStep) {
+            const x = margin.left + (g / maxGames) * plotW;
+            svgHtml += `
+                <line x1="${x}" y1="${margin.top}" x2="${x}" y2="${margin.top + plotH}" stroke="#2d1e4d" stroke-width="1" />
+                <text x="${x}" y="${margin.top + plotH + 18}" text-anchor="middle" fill="#8c80ad" font-size="10.5">${g}</text>
+            `;
+        }
+
+        // Axis Titles
+        svgHtml += `
+            <text x="${margin.left + plotW / 2}" y="${height - 6}" text-anchor="middle" fill="#a89ec4" font-size="11.5" font-weight="600">Gespielte Partien →</text>
+            <text transform="rotate(-90)" x="${-(margin.top + plotH / 2)}" y="16" text-anchor="middle" fill="#a89ec4" font-size="11.5" font-weight="600">Siegquote (%)</text>
+        `;
+
+        // Quadrant Labels
+        svgHtml += `
+            <text x="${margin.left + plotW - 8}" y="${margin.top + 16}" text-anchor="end" fill="rgba(0, 230, 118, 0.4)" font-size="11" font-weight="bold">
+                ${currentTab === 'teammates' ? '🏆 Hohe Synergie' : '💪 Dominanz'}
+            </text>
+            <text x="${margin.left + plotW - 8}" y="${margin.top + plotH - 10}" text-anchor="end" fill="rgba(255, 82, 82, 0.4)" font-size="11" font-weight="bold">
+                ${currentTab === 'teammates' ? '⚠️ Schwächere Synergie' : '⚔️ Angstgegner'}
+            </text>
+        `;
+
+        // Plot Nodes
+        data.forEach(st => {
+            const cx = margin.left + (st.games / maxGames) * plotW;
+            const cy = margin.top + (1 - st.winRate / 100) * plotH;
+            const r = Math.min(16, Math.max(7, 6 + Math.sqrt(st.games) * 2.2));
+
+            let grad = "url(#gradRed)";
+            if (st.winRate >= 60) grad = "url(#gradGreen)";
+            else if (st.winRate >= 45) grad = "url(#gradYellow)";
+
+            // Label positioning
+            const shortName = st.name.length > 10 ? st.name.substring(0, 9) + "…" : st.name;
+
+            svgHtml += `
+                <g class="corr-node" data-pid="${st.playerId}">
+                    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${grad}" stroke="#ffffff" stroke-width="1.5" opacity="0.92" />
+                    <text x="${cx}" y="${cy - r - 4}" text-anchor="middle" fill="#ffffff" font-size="10.5" font-weight="600" style="text-shadow: 0 1px 4px rgba(0,0,0,0.9); pointer-events: none;">${shortName}</text>
+                </g>
+            `;
+        });
+
+        svgEl.innerHTML = svgHtml;
+
+        // Attach node events
+        svgEl.querySelectorAll(".corr-node").forEach(node => {
+            const pid = Number(node.dataset.pid);
+            const st = data.find(d => d.playerId === pid);
+            if (!st) return;
+
+            node.addEventListener("mouseenter", (e) => showTooltip(e, st));
+            node.addEventListener("mousemove", (e) => showTooltip(e, st));
+            node.addEventListener("mouseleave", hideTooltip);
+            node.addEventListener("click", () => selectPlayerAndFilter(pid));
+        });
+
+        // Render breakdown table
+        if (tableBodyEl) {
+            tableBodyEl.innerHTML = data.map(st => {
+                let badgeCls = "corr-badge-red";
+                if (st.winRate >= 60) badgeCls = "corr-badge-green";
+                else if (st.winRate >= 45) badgeCls = "corr-badge-yellow";
+
+                const sign = st.delta > 0 ? "+" : "";
+                const deltaCls = st.delta > 0 ? "delta-pos" : (st.delta < 0 ? "delta-neg" : "");
+                const diffSign = st.goalDiff > 0 ? "+" : "";
+                const goalsCls = st.goalDiff > 0 ? "delta-pos" : (st.goalDiff < 0 ? "delta-neg" : "");
+
+                return `
+                    <tr class="corr-table-row" onclick="window.PlayerCorrelationMap.selectPlayerAndFilter(${st.playerId})" title="Klicken, um nach ${st.name} zu filtern">
+                        <td style="font-weight: 600; padding-left: 12px; color: #ffffff;">${st.name}</td>
+                        <td style="text-align: center;">${st.games}</td>
+                        <td style="text-align: center; color: var(--text-muted);">${st.wins}S - ${st.draws}U - ${st.losses}N</td>
+                        <td style="text-align: center;"><span class="corr-badge ${badgeCls}">${st.winRate.toFixed(1)}%</span></td>
+                        {% if has_tier('glicko_user') %}
+                        <td style="text-align: center;" class="${deltaCls}">${sign}${st.delta.toFixed(1)}</td>
+                        {% endif %}
+                        <td style="text-align: center; padding-right: 12px;" class="${goalsCls}">${diffSign}${st.goalDiff} (${st.goalsFor}:${st.goalsAgainst})</td>
+                    </tr>
+                `;
+            }).join("");
+        }
+    }
+
+    // Public API
+    window.PlayerCorrelationMap = {
+        openModal: openModal,
+        closeModal: closeModal,
+        switchTab: switchTab,
+        selectPlayerAndFilter: selectPlayerAndFilter
+    };
+
+    // Close on Escape key
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && modalEl && modalEl.classList.contains("open")) {
+            closeModal();
+        }
+    });
 })();
 </script>
 {% endblock %}

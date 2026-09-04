@@ -350,6 +350,21 @@ TRANSLATIONS_DE = {
     "player.filtered_goals": "Tordifferenz",
     "player.no_filtered_matches": "Keine Spiele mit der gewählten Filter-Kombination gefunden.",
     "player.of_total_games": "von {total} Spielen",
+    "player.correlation_map_btn": "🗺️ Korrelationsmap",
+    "player.correlation_map_title": "Spieler-Korrelationsmap",
+    "player.correlation_map_sub": "Erfolgsquote & Spielhäufigkeit mit und gegen andere Spieler.",
+    "player.corr_tab_teammates": "🤝 Mitspieler (Synergie)",
+    "player.corr_tab_opponents": "⚔️ Gegner (Head-to-Head)",
+    "player.corr_games_axis": "Gespielte Partien",
+    "player.corr_winrate_axis": "Siegquote",
+    "player.corr_click_hint": "💡 Klicke auf einen Datenpunkt oder eine Tabellenzeile, um diesen Spieler direkt als Filter zu aktivieren.",
+    "player.corr_no_data": "Noch keine Spieldaten für diese Ansicht vorhanden.",
+    "player.corr_table_player": "Spieler",
+    "player.corr_table_games": "Spiele",
+    "player.corr_table_record": "Bilanz (S-U-N)",
+    "player.corr_table_winrate": "Siegquote",
+    "player.corr_table_delta": "Rating-Delta",
+    "player.corr_table_goals": "Tore",
 
     # =========================================================================
     # Match Center
