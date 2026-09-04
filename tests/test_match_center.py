@@ -19,7 +19,12 @@ class MatchCenterFrontendTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.test_accounts_db = Path(self.temp_dir.name) / "test_accounts.db"
+        self.test_rb48_db = Path(self.temp_dir.name) / "test_rb48.db"
+        prod_rb48 = Path(__file__).resolve().parents[1] / "data" / "rb48.db"
+        if prod_rb48.exists():
+            shutil.copy2(prod_rb48, self.test_rb48_db)
         os.environ["RB48_ACCOUNTS_DATABASE_FILE"] = str(self.test_accounts_db)
+        os.environ["RB48_DATABASE_FILE"] = str(self.test_rb48_db)
 
         self.app = app
         unique_name = f"mc_admin_{int(time.time() * 1000000)}"
@@ -33,6 +38,7 @@ class MatchCenterFrontendTests(unittest.TestCase):
 
     def tearDown(self):
         os.environ.pop("RB48_ACCOUNTS_DATABASE_FILE", None)
+        os.environ.pop("RB48_DATABASE_FILE", None)
         self.temp_dir.cleanup()
 
     def test_match_center_uses_one_frontend_implementation(self):
