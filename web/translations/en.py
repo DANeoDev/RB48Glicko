@@ -63,8 +63,9 @@ TRANSLATIONS_EN = {
     "dashboard.ai_error": "Error formatting with AI.",
 
     # Stats & Leaderboard
-    "stats.title": "Stats",
-    "stats.subtitle": "RB48 performance statistics",
+    "stats.title": "RB 48 Statistics",
+    "stats.main_heading": "RB 48 Statistics",
+    "stats.subtitle": "",
     "stats.help_title": "How is the performance evaluated?",
     "stats.total": "TOTAL",
     "stats.total_title": "Statistics based on all matches, regardless of pitch type.",

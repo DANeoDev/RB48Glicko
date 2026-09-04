@@ -197,14 +197,14 @@
 </div>
 
 
-<div class="page-header-row">
-    <h1>{{ t('stats.title', 'Stats') }}</h1>
-    <p>{{ t('stats.subtitle', 'RB48 performance statistics') }}</p>
+<div class="page-header" style="text-align: center; position: relative; margin-bottom: 24px;">
+    <h1>{{ t('stats.main_heading', 'RB 48 Statistiken') }}</h1>
     <a
         href="{{ url_for('stats.glicko_explainer') }}"
         class="info-button"
         title="{{ t('stats.help_title', 'How is the performance evaluated?') }}"
         aria-label="{{ t('stats.help_title', 'How is the performance evaluated?') }}"
+        style="position: absolute; right: 0; top: 50%; transform: translateY(-50%);"
     >
         ?
     </a>
