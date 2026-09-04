@@ -63,8 +63,10 @@ def get_dashboard_streaks(connection):
                 "name": alias,
                 "count": ps["max_win_streak"]
             })
-    all_time_win_streaks.sort(key=lambda s: -s["count"])
-    all_time_win_streaks = all_time_win_streaks[:6]
+    all_time_win_streaks.sort(key=lambda s: (-s["count"], s["name"].lower()))
+    if len(all_time_win_streaks) > 12:
+        cutoff_count = all_time_win_streaks[11]["count"]
+        all_time_win_streaks = [s for s in all_time_win_streaks if s["count"] >= cutoff_count]
 
     # Most improved player in past 30 days
     now = datetime.now()

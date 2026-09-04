@@ -1,35 +1,43 @@
 // Player Correlation Map Module (Interactive SVG Scatter + Breakdown Table)
 (function() {
     let currentTab = "teammates"; // 'teammates' | 'opponents'
-    const modalEl = document.getElementById("corr-modal");
-    const backdropEl = document.getElementById("corr-modal-backdrop");
-    const svgEl = document.getElementById("corr-scatter-svg");
-    const tooltipEl = document.getElementById("corr-tooltip");
-    const tableBodyEl = document.getElementById("corr-table-body");
-    const noDataEl = document.getElementById("corr-no-data");
-    const tabTmBtn = document.getElementById("corr-tab-teammates");
-    const tabOppBtn = document.getElementById("corr-tab-opponents");
-
     let hideTimeout = null;
 
+    function getEls() {
+        return {
+            modalEl: document.getElementById("corr-modal"),
+            backdropEl: document.getElementById("corr-modal-backdrop"),
+            svgEl: document.getElementById("corr-scatter-svg"),
+            tooltipEl: document.getElementById("corr-tooltip"),
+            tableBodyEl: document.getElementById("corr-table-body"),
+            noDataEl: document.getElementById("corr-no-data"),
+            tabTmBtn: document.getElementById("corr-tab-teammates"),
+            tabOppBtn: document.getElementById("corr-tab-opponents"),
+            containerEl: document.getElementById("corr-chart-container")
+        };
+    }
+
     function openModal() {
+        const { modalEl, backdropEl } = getEls();
         if (!modalEl) return;
         modalEl.classList.add("open");
-        backdropEl.classList.add("open");
+        if (backdropEl) backdropEl.classList.add("open");
         document.body.style.overflow = "hidden";
         renderMap();
     }
 
     function closeModal() {
+        const { modalEl, backdropEl } = getEls();
         if (!modalEl) return;
         modalEl.classList.remove("open");
-        backdropEl.classList.remove("open");
+        if (backdropEl) backdropEl.classList.remove("open");
         document.body.style.overflow = "";
         hideTooltip();
     }
 
     function switchTab(tab) {
         currentTab = tab;
+        const { tabTmBtn, tabOppBtn } = getEls();
         if (tabTmBtn && tabOppBtn) {
             if (tab === "teammates") {
                 tabTmBtn.classList.add("active");
@@ -49,7 +57,9 @@
         const cPlayerId = window.currentPlayerId;
 
         matchesData.forEach(m => {
-            const playerIds = (mode === "teammates") ? m.own_team_ids : m.opp_team_ids;
+            const playerIds = (mode === "teammates") ? (m.own_team_ids || []) : (m.opp_team_ids || []);
+            const matchDelta = (m.delta !== null && m.delta !== undefined) ? Number(m.delta) : (Number(m.player_delta) || 0.0);
+
             playerIds.forEach(pid => {
                 if (pid === cPlayerId) return;
                 if (!statsMap[pid]) {
@@ -70,15 +80,16 @@
                 if (m.is_win) st.wins++;
                 else if (m.is_loss) st.losses++;
                 else if (m.is_draw) st.draws++;
-                st.delta += (m.player_delta || 0.0);
-                st.goalsFor += (m.goals_for || 0);
-                st.goalsAgainst += (m.goals_against || 0);
+                st.delta += matchDelta;
+                st.goalsFor += (Number(m.goals_for) || 0);
+                st.goalsAgainst += (Number(m.goals_against) || 0);
             });
         });
 
         const list = Object.values(statsMap).map(st => {
-            st.winRate = (st.wins / st.games) * 100;
+            st.winRate = st.games > 0 ? (st.wins / st.games) * 100 : 0;
             st.goalDiff = st.goalsFor - st.goalsAgainst;
+            st.avgDelta = st.games > 0 ? (st.delta / st.games) : 0.0;
             return st;
         });
 
@@ -109,11 +120,13 @@
 
     function hideTooltip() {
         cancelHideTooltip();
+        const { tooltipEl } = getEls();
         if (tooltipEl) tooltipEl.style.display = "none";
     }
 
     function showTooltip(e, playerList, activePid) {
         cancelHideTooltip();
+        const { tooltipEl, containerEl } = getEls();
         if (!tooltipEl || !playerList || playerList.length === 0) return;
         const roleLabel = currentTab === "teammates" ? "🤝 Als Mitspieler" : "⚔️ Als Gegner";
         const hasGlicko = window.userHasGlickoTier;
@@ -178,7 +191,7 @@
 
         tooltipEl.style.display = "block";
 
-        const containerEl = document.getElementById("corr-chart-container");
+        if (!containerEl) return;
         const containerRect = containerEl.getBoundingClientRect();
         const ttWidth = tooltipEl.offsetWidth || 230;
         const ttHeight = tooltipEl.offsetHeight || 90;
@@ -205,16 +218,14 @@
         tooltipEl.style.margin = "0";
     }
 
-    if (tooltipEl) {
-        tooltipEl.addEventListener("mouseenter", cancelHideTooltip);
-        tooltipEl.addEventListener("mouseleave", hideTooltip);
-    }
-
     function renderMap() {
+        const { svgEl, tableBodyEl, noDataEl } = getEls();
+        if (!svgEl) return;
+
         const data = calculateStats(currentTab);
 
         if (data.length === 0) {
-            if (svgEl) svgEl.innerHTML = "";
+            svgEl.innerHTML = "";
             if (tableBodyEl) tableBodyEl.innerHTML = "";
             if (noDataEl) noDataEl.style.display = "block";
             return;
@@ -451,8 +462,17 @@
 
     // Close on Escape key
     document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && modalEl && modalEl.classList.contains("open")) {
+        if (e.key === "Escape") {
             closeModal();
+        }
+    });
+
+    // Tooltip hover safety
+    document.addEventListener("DOMContentLoaded", () => {
+        const { tooltipEl } = getEls();
+        if (tooltipEl) {
+            tooltipEl.addEventListener("mouseenter", cancelHideTooltip);
+            tooltipEl.addEventListener("mouseleave", hideTooltip);
         }
     });
 })();
