@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}
-    RB48 — {{ t('stats.title', 'Stats') }}
+{% block title %}RB48 — {{ t('stats.title', 'Stats') }}{% endblock %}
+
+{% block content %}
 
 <!-- Community Synergies Modal -->
 <div class="corr-modal-backdrop" id="synergies-modal-backdrop" onclick="closeSynergiesModal()"></div>
@@ -118,9 +119,83 @@
     </div>
 </div>
 
-{% endblock %}
+<!-- Streaks & Records Modal -->
+<div class="corr-modal-backdrop" id="streaks-modal-backdrop" onclick="closeStreaksModal()"></div>
+<div class="corr-modal" id="streaks-modal" role="dialog" aria-modal="true" aria-labelledby="streaks-modal-title" style="max-width: 850px;">
+    <div class="corr-modal-header">
+        <div class="corr-modal-header-titles">
+            <h3 id="streaks-modal-title">⚡ {{ t('streaks.modal_title', 'Serien & Rekorde') }}</h3>
+            <div class="corr-modal-sub">{{ t('streaks.modal_sub', 'Aktuelle Siegesserien, Allzeit-Rekorde und Formaufschwünge der letzten 30 Tage') }}</div>
+        </div>
+        <button type="button" class="corr-modal-close" onclick="closeStreaksModal()" aria-label="Schließen">✕</button>
+    </div>
 
-{% block content %}
+    <div class="corr-modal-tabs">
+        <button type="button" class="corr-tab-btn active" id="strk-tab-active" onclick="switchStreakTab('active')">
+            ⚡ {{ t('dashboard.active_streaks', 'Aktive Serien') }}
+        </button>
+        <button type="button" class="corr-tab-btn" id="strk-tab-record" onclick="switchStreakTab('record')">
+            🏆 {{ t('dashboard.all_time_streaks', 'Rekordserien') }}
+        </button>
+        <button type="button" class="corr-tab-btn" id="strk-tab-surge" onclick="switchStreakTab('surge')">
+            📈 {{ t('dashboard.month_surge', '30T Aufwind') }}
+        </button>
+    </div>
+
+    <div class="corr-modal-body" style="padding: 20px;">
+        <!-- Tab 1: Active Streaks -->
+        <div class="strk-tab-pane" id="strk-pane-active">
+            {% if streaks and streaks.active_win_streaks %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
+                {% for s in streaks.active_win_streaks %}
+                <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(0, 230, 118, 0.08); border: 1px solid rgba(0, 230, 118, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
+                    <span style="font-weight: 700; color: #fff; font-size: 14px;">{{ s.name }}</span>
+                    <span style="background: rgba(0, 230, 118, 0.2); color: #00e676; border: 1px solid rgba(0, 230, 118, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">{{ s.count }} Siege 🔥</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted" style="text-align: center; padding: 20px;">{{ t('dashboard.no_active_streaks', 'Aktuell keine aktive Siegesserie (min. 2 Siege).') }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Tab 2: Record Streaks -->
+        <div class="strk-tab-pane" id="strk-pane-record" style="display: none;">
+            {% if streaks and streaks.all_time_win_streaks %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
+                {% for s in streaks.all_time_win_streaks %}
+                <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(255, 215, 0, 0.08); border: 1px solid rgba(255, 215, 0, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
+                    <span style="font-weight: 700; color: #fff; font-size: 14px;">{{ s.name }}</span>
+                    <span style="background: rgba(255, 215, 0, 0.2); color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">{{ s.count }} Rekordsiege 🏆</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted" style="text-align: center; padding: 20px;">{{ t('dashboard.no_data', 'Noch keine Rekordserien erfasst.') }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Tab 3: 30D Surge -->
+        <div class="strk-tab-pane" id="strk-pane-surge" style="display: none;">
+            {% if streaks and streaks.most_improved %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
+                {% for m in streaks.most_improved %}
+                <a href="{{ url_for('stats.player_profile', player_id=m.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(128, 222, 234, 0.08); border: 1px solid rgba(128, 222, 234, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
+                    <div>
+                        <div style="font-weight: 700; color: #fff; font-size: 14px;">{{ m.name }}</div>
+                        <div style="font-size: 11px; color: var(--text-muted);">{{ m.past_rating | round | int }} → {{ m.current_rating | round | int }}</div>
+                    </div>
+                    <span style="background: rgba(128, 222, 234, 0.2); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">+{{ m.rating_delta | round | int }} 📈</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted" style="text-align: center; padding: 20px;">{{ t('dashboard.no_data', 'In den letzten 30 Tagen keine Ratinganstiege verzeichnet.') }}</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
 
 <div class="page-header-row">
     <h1>{{ t('stats.title', 'Stats') }}</h1>
@@ -136,9 +211,12 @@
 </div>
 
 <div class="stats-table-header">
-    <div class="stats-header-spacer">
+    <div class="stats-header-spacer" style="display: flex; gap: 8px; align-items: center;">
         <button type="button" class="synergies-btn" id="open-synergies-modal-btn" onclick="openSynergiesModal()" style="background: rgba(123, 82, 197, 0.2); border: 1px solid #7B52C5; color: #80deea; border-radius: var(--radius); padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s ease;" title="{{ t('synergies.btn_title', 'Community-Synergien, beste Duos und Angstgegner anzeigen') }}">
             <span>🤝 {{ t('synergies.btn_title', 'Community-Synergien') }}</span>
+        </button>
+        <button type="button" class="streaks-btn" id="open-streaks-modal-btn" onclick="openStreaksModal()" style="background: rgba(123, 82, 197, 0.2); border: 1px solid #7B52C5; color: #ffd700; border-radius: var(--radius); padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s ease;" title="{{ t('streaks.btn_title', 'Aktive Siegesserien, Rekordserien & Aufwind anzeigen') }}">
+            <span>⚡ {{ t('streaks.btn_title', 'Serien & Rekorde') }}</span>
         </button>
     </div>
     <div id="pitch-selector">

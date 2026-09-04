@@ -190,6 +190,7 @@
             </div>
         </div>
         <div class="achievements-hero-right">
+            {% if is_webmaster %}
             <div style="display: flex; align-items: center; gap: 10px;">
                 <label for="player-switcher" style="font-size: 12px; color: var(--text-muted);">{{ t('achievements.select_player', 'Spielerprofil:') }}</label>
                 <select id="player-switcher" class="achievements-player-select" onchange="location.href='{{ url_for('stats.achievements_overview') }}/' + this.value">
@@ -198,6 +199,7 @@
                     {% endfor %}
                 </select>
             </div>
+            {% endif %}
             <div class="achievements-progress-pill">
                 ✓ {{ unlocked_count }} / {{ total_count }} {{ t('achievements.unlocked', 'Freigeschaltet') }}
             </div>

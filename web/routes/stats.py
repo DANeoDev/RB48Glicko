@@ -18,19 +18,13 @@ stats_bp = Blueprint("stats", __name__)
 @stats_bp.route("/")
 def home():
     news, has_more_news = get_dashboard_news()
-    connection = get_connection()
-    streaks = get_dashboard_streaks(connection)
-    connection.close()
-    return render_template("dashboard.html", news=news, has_more_news=has_more_news, streaks=streaks)
+    return render_template("dashboard.html", news=news, has_more_news=has_more_news)
 
 
 @stats_bp.route("/dashboard")
 def dashboard():
     news, has_more_news = get_dashboard_news()
-    connection = get_connection()
-    streaks = get_dashboard_streaks(connection)
-    connection.close()
-    return render_template("dashboard.html", news=news, has_more_news=has_more_news, streaks=streaks)
+    return render_template("dashboard.html", news=news, has_more_news=has_more_news)
 
 
 @stats_bp.route("/stats")
@@ -42,11 +36,13 @@ def stats():
     player_stats = get_player_stats(connection)
     deltas = compute_leaderboard_deltas(connection, ratings, players)
     synergies = get_community_synergies(connection, min_games=5)
+    streaks = get_dashboard_streaks(connection)
     connection.close()
     return render_template(
         "stats.html",
         leaderboard=build_leaderboard(ratings, players, player_stats, deltas=deltas),
         synergies=synergies,
+        streaks=streaks,
     )
 
 
@@ -174,19 +170,41 @@ def api_community_synergies():
     return jsonify(synergies)
 
 @stats_bp.route("/achievements")
+@require_tier(Tier.USER)
 def achievements_overview():
     user = get_current_user()
-    if user and user.get("player_id"):
+    if not user:
+        return redirect(url_for("auth.login", next=request.path))
+    if user.get("player_id"):
         return redirect(url_for("stats.player_achievements", player_id=user["player_id"]))
-    connection = get_connection()
-    players = get_players(connection)
-    connection.close()
-    first_pid = next(iter(players.keys()), 1)
-    return redirect(url_for("stats.player_achievements", player_id=first_pid))
+    if user.get("role") == "webmaster":
+        connection = get_connection()
+        players = get_players(connection)
+        connection.close()
+        first_pid = next(iter(players.keys()), 1)
+        return redirect(url_for("stats.player_achievements", player_id=first_pid))
+    from flask import flash
+    flash("Bitte verknüpfe dein Profil in den Einstellungen mit einem Spieler, um deine Auszeichnungen zu sehen.", "info")
+    return redirect(url_for("auth.settings"))
 
 
 @stats_bp.route("/achievements/<int:player_id>")
+@require_tier(Tier.USER)
 def player_achievements(player_id: int):
+    user = get_current_user()
+    if not user:
+        return redirect(url_for("auth.login", next=request.path))
+    
+    is_webmaster = (user.get("role") == "webmaster")
+    if not is_webmaster and user.get("player_id") != player_id:
+        from flask import flash
+        if user.get("player_id"):
+            flash("Du kannst nur deine eigenen Auszeichnungen einsehen.", "info")
+            return redirect(url_for("stats.player_achievements", player_id=user["player_id"]))
+        else:
+            flash("Bitte verknüpfe dein Profil in den Einstellungen mit einem Spieler, um deine Auszeichnungen zu sehen.", "info")
+            return redirect(url_for("auth.settings"))
+
     connection = get_connection()
     players = get_players(connection)
     if player_id not in players:
@@ -208,4 +226,5 @@ def player_achievements(player_id: int):
         achievements=achievements,
         unlocked_count=unlocked_count,
         total_count=total_count,
+        is_webmaster=is_webmaster,
     )

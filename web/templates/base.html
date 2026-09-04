@@ -297,7 +297,6 @@
                         {% endif %}
                         <a href="{{ url_for('auth.logout') }}">{{ t('nav.logout', 'Log out') }}</a>
                     {% else %}
-                        <a href="{{ url_for('stats.achievements_overview') }}">🏆 {{ t('nav.achievements', 'Auszeichnungen') }}</a>
                         <a href="{{ url_for('auth.login') }}">{{ t('nav.login', 'Log in') }}</a>
                         <a href="{{ url_for('auth.register') }}">{{ t('nav.register', 'Register') }}</a>
                     {% endif %}
@@ -429,10 +428,10 @@ if (document.getElementById("leaderboard")) {
 
 <!-- Global Search Modal & Backdrop -->
 <div class="global-search-backdrop" id="global-search-backdrop" onclick="window.GlobalPlayerSearch && window.GlobalPlayerSearch.close()"></div>
-<div class="global-search-modal" id="global-search-modal" role="dialog" aria-modal="true" aria-label="Global Player Search">
+<div class="global-search-modal" id="global-search-modal" role="dialog" aria-modal="true" aria-label="Global Site Search">
     <div class="global-search-input-wrapper">
         <span class="global-search-icon">🔍</span>
-        <input type="text" id="global-search-input" class="global-search-input" placeholder="{{ t('search.placeholder', 'Spieler suchen (z.B. Konsti, Kevin)...') }}" autocomplete="off">
+        <input type="text" id="global-search-input" class="global-search-input" placeholder="{{ t('search.placeholder', 'Suche nach Seiten oder Spielern (Strg+K)...') }}" autocomplete="off">
         <kbd class="global-search-esc">ESC</kbd>
     </div>
     <div class="global-search-results" id="global-search-results"></div>
