@@ -293,6 +293,11 @@
                         {% if current_user.role == 'webmaster' %}
                             <a href="{{ url_for('auth.admin_users') }}" style="color: #80deea; font-weight: 600;">{{ t('nav.user_management', '👥 User Management') }}</a>
                         {% endif %}
+                        {% if current_user.get('player_id') %}
+                            <a href="{{ url_for('stats.player_profile', player_id=current_user['player_id']) }}">📊 {{ t('nav.my_stats', 'Meine Statistiken') }}</a>
+                        {% else %}
+                            <a href="{{ url_for('auth.settings') }}" title="{{ t('nav.link_player_tooltip', 'Verknüpfe dein Spielerprofil in den Einstellungen') }}">📊 {{ t('nav.my_stats', 'Meine Statistiken') }}</a>
+                        {% endif %}
                         <a href="{{ url_for('auth.settings') }}">{{ t('nav.profile_settings', '⚙️ Profile & Settings') }}</a>
                         <a href="{{ url_for('planner.planner') }}">{{ t('nav.attendance_planner', 'Attendance Planner') }}</a>
                         {% if has_tier('user') and not current_user.get('psychology_test_passed') %}
