@@ -133,11 +133,11 @@ const gameFilter = document.getElementById("game-filter");
 const deltaModeSelect = document.getElementById("delta-mode-select");
 const deltaToggleBtn = document.getElementById("delta-toggle-btn");
 
+const isGlickoUser = {{ 'true' if has_tier('glicko_user') else 'false' }};
 let currentPitch = "total";
-let currentSortColumn = "games";
+let currentSortColumn = isGlickoUser ? "conservative" : "games";
 let currentDeltaMode = "game";
 let deltasVisible = true;
-const isGlickoUser = {{ 'true' if has_tier('glicko_user') else 'false' }};
 
 function formatDelta(val, type) {
     if (val === undefined || val === null || isNaN(val)) return { text: "—", cls: "zero" };
@@ -318,10 +318,10 @@ function setDeltaMode(mode) {
     currentDeltaMode = mode;
     deltasVisible = mode !== "none";
 
-    // If currently sorted by a standard delta column that is now hidden, fallback to games
+    // If currently sorted by a standard delta column that is now hidden, fallback to default sort
     if ((mode === "none" && currentSortColumn.startsWith("delta-")) ||
         (mode === "game" && currentSortColumn.startsWith("delta-") && !["delta-conservative", "delta-rating", "delta-rd"].includes(currentSortColumn))) {
-        currentSortColumn = "games";
+        currentSortColumn = isGlickoUser ? "conservative" : "games";
     }
 
     syncDeltaRowAttributesAndCells();
@@ -340,7 +340,7 @@ function toggleDeltas() {
         }
     } else {
         if (currentSortColumn.startsWith("delta-")) {
-            currentSortColumn = "games";
+            currentSortColumn = isGlickoUser ? "conservative" : "games";
         }
     }
 
