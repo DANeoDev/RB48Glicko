@@ -419,8 +419,8 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%) scale(0.95);
-    width: 820px;
-    max-width: 94vw;
+    width: 840px;
+    max-width: 95vw;
     max-height: 90vh;
     background: #1b1033;
     border: 1px solid #7B52C5;
@@ -517,18 +517,17 @@
 }
 .corr-tooltip {
     position: absolute;
-    pointer-events: none;
-    background: rgba(15, 8, 30, 0.96);
+    pointer-events: auto;
+    background: rgba(18, 10, 36, 0.98);
     border: 1px solid #7B52C5;
-    border-radius: 6px;
-    padding: 8px 12px;
+    border-radius: 8px;
+    padding: 10px 14px;
     font-size: 12px;
     color: #ffffff;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
     z-index: 1090;
-    transform: translate(-50%, -100%);
-    margin-top: -10px;
     white-space: nowrap;
+    transition: opacity 0.12s ease;
 }
 .corr-hint {
     font-size: 11.5px;
@@ -580,13 +579,19 @@
     font-size: 12.5px;
     font-style: italic;
 }
-.corr-node {
+.corr-node, .corr-petal-node {
     cursor: pointer;
     transition: transform 0.15s ease;
 }
-.corr-node:hover circle {
+.corr-node:hover circle, .corr-petal-node:hover circle {
     stroke-width: 2.5px;
-    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.6));
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.7));
+}
+.corr-cluster {
+    cursor: pointer;
+}
+.corr-cluster:hover circle {
+    filter: drop-shadow(0 0 5px rgba(128, 222, 234, 0.6));
 }
 .corr-badge {
     display: inline-block;
@@ -1350,6 +1355,8 @@ createRatingChart("hfChart", "hf");
     const tabTmBtn = document.getElementById("corr-tab-teammates");
     const tabOppBtn = document.getElementById("corr-tab-opponents");
 
+    let hideTimeout = null;
+
     function openModal() {
         if (!modalEl) return;
         modalEl.classList.add("open");
@@ -1430,43 +1437,121 @@ createRatingChart("hfChart", "hf");
         }
     }
 
-    function showTooltip(e, st) {
-        if (!tooltipEl) return;
-        const sign = st.delta > 0 ? "+" : "";
-        const roleLabel = currentTab === "teammates" ? "🤝 Als Mitspieler" : "⚔️ Als Gegner";
-        
-        let colorBadge = "#ff5252";
-        if (st.winRate >= 60) colorBadge = "#00e676";
-        else if (st.winRate >= 45) colorBadge = "#ffc107";
+    function cancelHideTooltip() {
+        if (hideTimeout) {
+            clearTimeout(hideTimeout);
+            hideTimeout = null;
+        }
+    }
 
-        tooltipEl.innerHTML = `
-            <div style="font-weight: 700; font-size: 13px; color: #80deea; margin-bottom: 3px;">${st.name}</div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">${roleLabel}</div>
-            <div style="display: flex; gap: 12px; font-size: 11.5px; line-height: 1.4;">
-                <div>
-                    <div><strong>${st.games}</strong> Spiele</div>
-                    <div><span style="color: ${colorBadge}; font-weight: 700;">${st.winRate.toFixed(1)}%</span> Siegquote</div>
-                </div>
-                <div>
-                    <div>${st.wins}S - ${st.draws}U - ${st.losses}N</div>
-                    {% if has_tier('glicko_user') %}<div><strong>${sign}${st.delta.toFixed(1)}</strong> Delta</div>{% endif %}
-                </div>
-            </div>
-            <div style="margin-top: 5px; font-size: 10px; color: #a89ec4; text-align: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
-                🖱️ Klicken zum Filtern
-            </div>
-        `;
-        tooltipEl.style.display = "block";
-
-        const containerRect = document.getElementById("corr-chart-container").getBoundingClientRect();
-        const left = e.clientX - containerRect.left;
-        const top = e.clientY - containerRect.top;
-        tooltipEl.style.left = `${left}px`;
-        tooltipEl.style.top = `${top}px`;
+    function scheduleHideTooltip() {
+        cancelHideTooltip();
+        hideTimeout = setTimeout(hideTooltip, 120);
     }
 
     function hideTooltip() {
+        cancelHideTooltip();
         if (tooltipEl) tooltipEl.style.display = "none";
+    }
+
+    function showTooltip(e, playerList, activePid) {
+        cancelHideTooltip();
+        if (!tooltipEl || !playerList || playerList.length === 0) return;
+        const roleLabel = currentTab === "teammates" ? "🤝 Als Mitspieler" : "⚔️ Als Gegner";
+
+        if (playerList.length === 1) {
+            const st = playerList[0];
+            const sign = st.delta > 0 ? "+" : "";
+            const diffSign = st.goalDiff > 0 ? "+" : "";
+            let colorBadge = "#ff5252";
+            if (st.winRate >= 60) colorBadge = "#00e676";
+            else if (st.winRate >= 45) colorBadge = "#ffc107";
+
+            tooltipEl.innerHTML = `
+                <div style="font-weight: 700; font-size: 13px; color: #80deea; margin-bottom: 2px;">${st.name}</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">${roleLabel}</div>
+                <div style="display: flex; gap: 14px; font-size: 11.5px; line-height: 1.4;">
+                    <div>
+                        <div><strong>${st.games}</strong> ${st.games === 1 ? 'Spiel' : 'Spiele'}</div>
+                        <div><span style="color: ${colorBadge}; font-weight: 700;">${st.winRate.toFixed(1)}%</span> Siegquote</div>
+                    </div>
+                    <div>
+                        <div>${st.wins}S - ${st.draws}U - ${st.losses}N</div>
+                        {% if has_tier('glicko_user') %}<div><strong>${sign}${st.delta.toFixed(1)}</strong> Delta</div>{% endif %}
+                    </div>
+                </div>
+                <div style="margin-top: 6px; font-size: 10px; color: #a89ec4; text-align: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
+                    🖱️ Klicken zum Filtern
+                </div>
+            `;
+        } else {
+            const first = playerList[0];
+            let headerColor = "#ff5252";
+            if (first.winRate >= 60) headerColor = "#00e676";
+            else if (first.winRate >= 45) headerColor = "#ffc107";
+
+            let playersRows = playerList.map(st => {
+                const isActive = activePid && st.playerId === activePid;
+                const sign = st.delta > 0 ? "+" : "";
+                const bg = isActive ? "background: rgba(128, 222, 234, 0.22); border-left: 2px solid #80deea;" : "background: rgba(255,255,255,0.04);";
+                return `
+                    <div style="${bg} padding: 4px 8px; border-radius: 4px; margin-top: 4px; display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; transition: background 0.12s;"
+                         onclick="window.PlayerCorrelationMap.selectPlayerAndFilter(${st.playerId})"
+                         title="Klicken, um nach ${st.name} zu filtern">
+                        <span style="font-weight: 600; color: ${isActive ? '#80deea' : '#ffffff'};">${st.name}</span>
+                        <span style="font-size: 11px; color: var(--text-muted);">${st.wins}S-${st.draws}U-${st.losses}N {% if has_tier('glicko_user') %}· <strong style="color:${st.delta>=0?'#88ff88':'#ff8888'}">${sign}${st.delta.toFixed(1)}</strong>{% endif %}</span>
+                    </div>
+                `;
+            }).join("");
+
+            tooltipEl.innerHTML = `
+                <div style="font-weight: 700; font-size: 12.5px; color: #ffffff; margin-bottom: 2px;">
+                    👥 ${playerList.length} Spieler (${first.games} ${first.games === 1 ? 'Spiel' : 'Spiele'} · <span style="color: ${headerColor};">${first.winRate.toFixed(1)}%</span>)
+                </div>
+                <div style="font-size: 10.5px; color: var(--text-muted); margin-bottom: 4px;">${roleLabel}</div>
+                <div style="max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px;">
+                    ${playersRows}
+                </div>
+                <div style="margin-top: 6px; font-size: 10px; color: #a89ec4; text-align: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
+                    🖱️ Klicke auf einen Spieler zum Filtern
+                </div>
+            `;
+        }
+
+        tooltipEl.style.display = "block";
+
+        const containerEl = document.getElementById("corr-chart-container");
+        const containerRect = containerEl.getBoundingClientRect();
+        const ttWidth = tooltipEl.offsetWidth || 230;
+        const ttHeight = tooltipEl.offsetHeight || 90;
+
+        let posX = e.clientX - containerRect.left;
+        let posY = e.clientY - containerRect.top;
+
+        let transY = "-100%";
+        if (posY - ttHeight - 16 < 0) {
+            // Place below if not enough room above
+            posY = posY + 20;
+            transY = "0%";
+        } else {
+            // Place above
+            posY = posY - 12;
+            transY = "-100%";
+        }
+
+        const halfW = ttWidth / 2;
+        const marginX = 10;
+        let clampedX = Math.max(halfW + marginX, Math.min(containerRect.width - halfW - marginX, posX));
+
+        tooltipEl.style.left = `${clampedX}px`;
+        tooltipEl.style.top = `${posY}px`;
+        tooltipEl.style.transform = `translate(-50%, ${transY})`;
+        tooltipEl.style.margin = "0";
+    }
+
+    if (tooltipEl) {
+        tooltipEl.addEventListener("mouseenter", cancelHideTooltip);
+        tooltipEl.addEventListener("mouseleave", hideTooltip);
     }
 
     function renderMap() {
@@ -1484,7 +1569,7 @@ createRatingChart("hfChart", "hf");
         // Dimensions
         const width = 700;
         const height = 320;
-        const margin = { top: 30, right: 40, bottom: 45, left: 55 };
+        const margin = { top: 32, right: 40, bottom: 45, left: 55 };
         const plotW = width - margin.left - margin.right;
         const plotH = height - margin.top - margin.bottom;
 
@@ -1553,39 +1638,124 @@ createRatingChart("hfChart", "hf");
             </text>
         `;
 
-        // Plot Nodes
+        // Group stats by identical coordinates (games and winRate)
+        const coordGroups = {};
         data.forEach(st => {
-            const cx = margin.left + (st.games / maxGames) * plotW;
-            const cy = margin.top + (1 - st.winRate / 100) * plotH;
-            const r = Math.min(16, Math.max(7, 6 + Math.sqrt(st.games) * 2.2));
+            const key = `${st.games}_${st.winRate.toFixed(2)}`;
+            if (!coordGroups[key]) coordGroups[key] = [];
+            coordGroups[key].push(st);
+        });
 
-            let grad = "url(#gradRed)";
-            if (st.winRate >= 60) grad = "url(#gradGreen)";
-            else if (st.winRate >= 45) grad = "url(#gradYellow)";
+        // Plot Nodes & Clusters
+        Object.values(coordGroups).forEach(group => {
+            const games = group[0].games;
+            const winRate = group[0].winRate;
+            const cx = margin.left + (games / maxGames) * plotW;
+            const cy = margin.top + (1 - winRate / 100) * plotH;
 
-            // Label positioning
-            const shortName = st.name.length > 10 ? st.name.substring(0, 9) + "…" : st.name;
+            if (group.length === 1) {
+                const st = group[0];
+                const r = Math.min(16, Math.max(7, 6 + Math.sqrt(st.games) * 2.2));
 
-            svgHtml += `
-                <g class="corr-node" data-pid="${st.playerId}">
-                    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${grad}" stroke="#ffffff" stroke-width="1.5" opacity="0.92" />
-                    <text x="${cx}" y="${cy - r - 4}" text-anchor="middle" fill="#ffffff" font-size="10.5" font-weight="600" style="text-shadow: 0 1px 4px rgba(0,0,0,0.9); pointer-events: none;">${shortName}</text>
-                </g>
-            `;
+                let grad = "url(#gradRed)";
+                if (st.winRate >= 60) grad = "url(#gradGreen)";
+                else if (st.winRate >= 45) grad = "url(#gradYellow)";
+
+                const shortName = st.name.length > 10 ? st.name.substring(0, 9) + "…" : st.name;
+                const labelY = (cy < margin.top + 20) ? (cy + r + 13) : (cy - r - 5);
+
+                svgHtml += `
+                    <g class="corr-node" data-pid="${st.playerId}" data-coord="${st.games}_${st.winRate.toFixed(2)}">
+                        <circle cx="${cx}" cy="${cy}" r="${r}" fill="${grad}" stroke="#ffffff" stroke-width="1.5" opacity="0.92" />
+                        <text x="${cx}" y="${labelY}" text-anchor="middle" fill="#ffffff" font-size="10.5" font-weight="600" style="text-shadow: 0 1px 4px rgba(0,0,0,0.9); pointer-events: none;">${shortName}</text>
+                    </g>
+                `;
+            } else {
+                // Multi-player cluster (Radial Flower / Spider layout)
+                const K = group.length;
+                const offsetDist = Math.min(26, 14 + K * 2.5);
+
+                svgHtml += `<g class="corr-cluster" data-coord="${games}_${winRate.toFixed(2)}">`;
+
+                // Center hub circle
+                svgHtml += `
+                    <circle cx="${cx}" cy="${cy}" r="9.5" fill="#1b1033" stroke="#80deea" stroke-width="1.5" />
+                    <text x="${cx}" y="${cy + 3.5}" text-anchor="middle" fill="#80deea" font-size="9.5" font-weight="bold" pointer-events="none">${K}</text>
+                `;
+
+                // Petals
+                group.forEach((st, i) => {
+                    const angle = (2 * Math.PI * i / K) - Math.PI / 2;
+                    const px = cx + Math.cos(angle) * offsetDist;
+                    const py = cy + Math.sin(angle) * offsetDist;
+                    const rp = Math.min(13, Math.max(6.5, 5.5 + Math.sqrt(st.games) * 1.8));
+
+                    svgHtml += `
+                        <line x1="${cx}" y1="${cy}" x2="${px}" y2="${py}" stroke="#7B52C5" stroke-width="1" stroke-dasharray="2,2" opacity="0.75" />
+                    `;
+
+                    let pGrad = "url(#gradRed)";
+                    if (st.winRate >= 60) pGrad = "url(#gradGreen)";
+                    else if (st.winRate >= 45) pGrad = "url(#gradYellow)";
+
+                    const shortName = st.name.length > 8 ? st.name.substring(0, 7) + "…" : st.name;
+
+                    const lx = px + Math.cos(angle) * (rp + 6);
+                    const ly = py + Math.sin(angle) * (rp + 6) + 3.5;
+                    let anchor = "middle";
+                    if (Math.cos(angle) > 0.35) anchor = "start";
+                    else if (Math.cos(angle) < -0.35) anchor = "end";
+
+                    svgHtml += `
+                        <g class="corr-petal-node" data-pid="${st.playerId}" data-coord="${games}_${winRate.toFixed(2)}">
+                            <circle cx="${px}" cy="${py}" r="${rp}" fill="${pGrad}" stroke="#ffffff" stroke-width="1.3" opacity="0.95" />
+                            <text x="${lx}" y="${ly}" text-anchor="${anchor}" fill="#ffffff" font-size="9.5" font-weight="600" style="text-shadow: 0 1px 4px rgba(0,0,0,0.9); pointer-events: none;">${shortName}</text>
+                        </g>
+                    `;
+                });
+
+                svgHtml += `</g>`;
+            }
         });
 
         svgEl.innerHTML = svgHtml;
 
-        // Attach node events
+        // Attach node events for single nodes
         svgEl.querySelectorAll(".corr-node").forEach(node => {
             const pid = Number(node.dataset.pid);
             const st = data.find(d => d.playerId === pid);
             if (!st) return;
 
-            node.addEventListener("mouseenter", (e) => showTooltip(e, st));
-            node.addEventListener("mousemove", (e) => showTooltip(e, st));
-            node.addEventListener("mouseleave", hideTooltip);
+            node.addEventListener("mouseenter", (e) => showTooltip(e, [st], pid));
+            node.addEventListener("mousemove", (e) => showTooltip(e, [st], pid));
+            node.addEventListener("mouseleave", scheduleHideTooltip);
             node.addEventListener("click", () => selectPlayerAndFilter(pid));
+        });
+
+        // Attach events for clusters & petals
+        svgEl.querySelectorAll(".corr-cluster").forEach(clusterEl => {
+            const coord = clusterEl.dataset.coord;
+            const group = coordGroups[coord] || [];
+            const hubCircle = clusterEl.querySelector("circle");
+            if (hubCircle) {
+                hubCircle.addEventListener("mouseenter", (e) => showTooltip(e, group, null));
+                hubCircle.addEventListener("mousemove", (e) => showTooltip(e, group, null));
+                hubCircle.addEventListener("mouseleave", scheduleHideTooltip);
+            }
+        });
+
+        svgEl.querySelectorAll(".corr-petal-node").forEach(petalEl => {
+            const pid = Number(petalEl.dataset.pid);
+            const coord = petalEl.dataset.coord;
+            const group = coordGroups[coord] || [];
+
+            petalEl.addEventListener("mouseenter", (e) => showTooltip(e, group, pid));
+            petalEl.addEventListener("mousemove", (e) => showTooltip(e, group, pid));
+            petalEl.addEventListener("mouseleave", scheduleHideTooltip);
+            petalEl.addEventListener("click", (e) => {
+                e.stopPropagation();
+                selectPlayerAndFilter(pid);
+            });
         });
 
         // Render breakdown table
