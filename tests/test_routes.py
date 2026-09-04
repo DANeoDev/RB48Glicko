@@ -143,6 +143,19 @@ class RouteTests(unittest.TestCase):
         self.assertIn("data-total-delta-game-rating", html)
         self.assertIn("data-total-delta-game-rd", html)
         self.assertIn("data-total-delta-month-games", html)
+        self.assertIn('const isGlickoUser = true;', html)
+        self.assertIn('let currentSortColumn = isGlickoUser ? "conservative" : "games";', html)
+
+    def test_stats_sorting_for_regular_user_defaults_to_games(self):
+        user_id = self.create_user_session(role="user", verified=True, approved=True, psychology_passed=False)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        response = self.client.get("/stats")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn('const isGlickoUser = false;', html)
+        self.assertIn('let currentSortColumn = isGlickoUser ? "conservative" : "games";', html)
 
     def test_match_center_create_player_ajax(self):
         admin_id = self.create_user_session(role="admin", verified=True, approved=True, psychology_passed=True)
