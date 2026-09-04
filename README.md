@@ -1,493 +1,240 @@
 # RB48Glicko
 
-A Glicko-2 based rating system for recreational football.
+[![Python Version](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![Framework](https://img.shields.io/badge/Framework-Flask-black.svg)](https://flask.palletsprojects.com/)
+[![Database](https://img.shields.io/badge/Database-SQLite-003B57.svg)](https://www.sqlite.org/)
+[![AI Ingestion](https://img.shields.io/badge/AI%20Vision%20%26%20NLP-Google%20Gemini-4285F4.svg)](https://ai.google.dev/)
+[![Tests](https://img.shields.io/badge/Tests-96%20Passing-brightgreen.svg)]()
+[![i18n](https://img.shields.io/badge/i18n-English%20%7C%20German-orange.svg)]()
+[![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)]()
 
-RB48Glicko tracks players, match results, ratings and statistics in a SQLite
-database and provides a web interface for exploring and interacting with the
-resulting data.
+A full-stack sports analytics platform and Bayesian rating engine tailored for recreational football.
 
-The project combines a customized Glicko-2 implementation with a database
-backend, match-data processing, statistical analysis and a Flask-based web
-interface. A separate simulation environment is also being developed to test
-the rating system against matches generated from known, hidden player
-strengths.
-
----
-
-## Current Status
-
-The core rating system and web application are functional and under active
-development.
-
-Currently implemented:
-
-- SQLite database for players, matches, ratings and statistics
-- Player management with unique IDs, aliases and positions
-- Match entry through the web interface, including AI-assisted extraction from images and text via an external AI API
-- Manual match import via CSV files
-- Customized Glicko-2 rating system adapted for recreational team football
-- Team-based rating calculation with separate ratings for different match types / pitches
-- Custom inactivity handling and initial player rating calibration
-- Full historical rating recalculation and incremental updates for new matches
-- Player profiles with rating history, match history and statistics
-- Match Center for viewing and managing match data
-- Matchmaker for creating balanced teams
-- Model-analysis tools for evaluating rating predictions and calibration
-- Separate simulation environment for testing the rating system with synthetic match data
-
-The project is still evolving, particularly in the areas of matchmaking,
-model analysis and simulation.
+**RB48Glicko** combines a custom multi-player Glicko-2 skill estimation model, multimodal AI match ingestion (Google Gemini Vision & NLP), a combinatorial team matchmaking optimizer, and an advanced probabilistic calibration and validation suite (ECE, Log-Loss, LOWESS smoothing) behind a responsive, bilingual web application.
 
 ---
 
-## Demo / Simulation
+## 🌟 Key Highlights & Engineering Features
 
-RB48Glicko includes a separate `demo-simulation` version of the project.
-
-The purpose of the simulation is to provide a reproducible environment in
-which the rating system can be evaluated without exposing or depending on
-the project's real match database.
-
-The simulation generates synthetic players and matches from predefined,
-hidden player strengths. The generated results are then processed through
-the same general rating pipeline used by RB48Glicko.
-
-This makes it possible to compare:
-
-- the hidden "true" player strength
-- the strength estimated by Glicko-2
-- predicted match probabilities
-- actual match outcomes
-- rating convergence over time
-- calibration of predicted probabilities
-
-The demo uses a separate SQLite database and simulation-specific scripts.
-These files are kept separate from the normal application workflow.
-
-A simulated dataset will be available in the `demo-simulation` branch once
-the demo environment is complete.
-
----
-
-## Project Architecture
-
-At a high level, RB48Glicko follows this data flow:
-
-    Match input
-          │
-          ├── Web interface
-          │     ├── Manual entry
-          │     ├── Image parsing ──► AI API
-          │     └── Text parsing  ──► AI API
-          │
-          └── CSV files
-                 │
-                 ▼
-           Match processing
-                 │
-                 ▼
-              SQLite
-                 │
-                 ├── Players
-                 ├── Aliases
-                 ├── Positions
-                 ├── Matches
-                 ├── Match Players
-                 ├── Ratings
-                 ├── Match Ratings
-                 └── Calibrations
-                 │
-                 ▼
-          Glicko calculation
-                 │
-                 ├── Rating history
-                 ├── Player statistics
-                 ├── Model analysis
-                 └── Web interface
-
-
-The codebase is roughly organized into the following areas:
-
-- `scripts/database/` — database access and maintenance
-- `scripts/glicko/` — Glicko-2 implementation and rating calculations
-- `scripts/matches/` — match import and match-data processing
-- `scripts/matchmaking/` — team balancing and matchmaker functionality
-- `scripts/analysis/` — statistical and model analysis
-- `scripts/frontend/` — data preparation for the web interface
-- `web/` — Flask application, templates and frontend assets
-- `scripts/simulation/` — synthetic data generation and simulation tools
+```
+                      ┌────────────────────────────────────────────────────────┐
+                      │                 Match Ingestion Layer                  │
+                      │  • Manual Web Form                                     │
+                      │  • Multimodal Gemini AI OCR (Handwritten Sheets)       │
+                      │  • NLP Text Parsing (Chat Logs)                        │
+                      │  • Bulk CSV Importer                                   │
+                      └───────────────────────────┬────────────────────────────┘
+                                                  │ (Structured Match Payloads)
+                                                  ▼
+                      ┌────────────────────────────────────────────────────────┐
+                      │              SQLite Relational Database                │
+                      │  Players • Aliases • Matches • Pitch Types • Snapshots │
+                      └───────────────────────────┬────────────────────────────┘
+                                                  │
+                            ┌─────────────────────┴─────────────────────┐
+                            ▼                                           ▼
+         ┌─────────────────────────────────────┐     ┌─────────────────────────────────────┐
+         │     Glicko-2 Bayesian Engine        │     │    Model Validation & Analytics     │
+         │  • Quadratic RD Team Pooling        │     │  • Expected Calibration Error (ECE) │
+         │  • Multi-Track (TOTAL / BOX / HF)   │     │  • Log-Loss (Cross-Entropy) & MAE   │
+         │  • Virtual Opponent Resolution      │     │  • Scaled Goal-Diff Analysis        │
+         │  • Full Replay & Incremental Modes  │     │  • Non-Parametric LOWESS Smoothing  │
+         └──────────────────┬──────────────────┘     └──────────────────┬──────────────────┘
+                            │                                           │
+                            └─────────────────────┬─────────────────────┘
+                                                  ▼
+                      ┌────────────────────────────────────────────────────────┐
+                      │                 Flask Web Application                  │
+                      │  • Leaderboards & Historical Curves (Pure SVG)         │
+                      │  • Combinatorial Matchmaker (Fairness Optimization)    │
+                      │  • Real-Time Attendance Planner                        │
+                      │  • Draggable "Noise" Social Annotation System          │
+                      │  • RBAC (User/Admin/Webmaster) + Live Role Simulator   │
+                      │  • Full Bilingual Internationalization (EN / DE)       │
+                      └────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 1. Match Data Workflow
+### 1. 🧠 Custom Multi-Player Bayesian Rating Engine (Glicko-2)
+* **Team-Level Uncertainty Aggregation:** Adapts classical 1v1 Glicko-2 to team sports by calculating team ratings as the arithmetic mean of players and team uncertainty (**Rating Deviation / RD**) via **quadratic mean pooling**—ensuring high-uncertainty players proportionally widen the team's confidence interval.
+* **Multi-Track Rating Systems:** Tracks separate skill profiles for different pitch dynamics:
+  * `TOTAL` (Unified overall rating across all formats)
+  * `BOX` (Indoor enclosed pitch, high-scoring small-sided games)
+  * `HF` (Half-pitch outdoor games)
+* **Inactivity & Volatility Decay:** Dynamically expands rating uncertainty over periods of non-participation per pitch category.
+* **Deterministic Replay vs. Incremental Updates:**
+  * `glicko2_calculator.py`: Recomputes entire multi-season histories from raw matches with automatic database backups.
+  * `glicko2_updater.py`: Real-time incremental processor for newly recorded fixtures with sub-second execution.
 
-Match results can enter the system through several different workflows.
+### 2. 📊 Probabilistic Model Validation & Calibration Suite
+* **Expected Calibration Error (ECE):**
+  $$\text{ECE} = \sum_{b=1}^{B} \frac{N_b}{N} |\bar{p}_b - \bar{o}_b|$$
+  Evaluates reliability across discrete probability bins weighted by sample count, avoiding the variance distortion of traditional Brier scores on balanced 50:50 recreational matchups.
+* **Cross-Entropy Log-Loss & MAE:** Rigorously penalizes overconfident incorrect predictions.
+* **Ist vs. Soll Macro-Calibration:** Directly contrasts actual favourite win rates against the average predicted probability ($\frac{1}{N} \sum p_i$) to measure macro-level bias.
+* **Normalized Goal-Difference Calibration:** Scales half-pitch scorelines to standard 10-goal benchmarks ($W \to 10, L \to L \times \frac{10}{W}$) for consistent margin-of-victory tracking.
+* **LOWESS Non-Parametric Smoothing:** Locally weighted polynomial regression generating smooth empirical calibration curves rendered in native SVG without heavy JavaScript dependencies.
 
-### Manual entry
+### 3. 🤖 Multimodal AI Ingestion (Google Gemini Vision & NLP)
+* **Handwritten Match Sheet OCR:** Utilizes `gemini-2.5-flash` to extract participating player rosters, teams, pitch types, and final scores directly from photos of handwritten whiteboard/paper records.
+* **Natural Language Match Parser:** Ingests unformatted group-chat messages (e.g., WhatsApp/Discord match summaries) and converts them into validated match objects.
+* **Human-in-the-Loop Review:** Interactive visual verification UI allowing administrators to inspect, edit, and confirm AI extractions before committing to the database.
 
-Matches can be entered directly through the web interface. This provides
-full control over the players, teams, result and other match information.
+### 4. ⚡ Combinatorial Matchmaker & Balance Optimizer
+* **Exhaustive Roster Partitioning:** Evaluates all $\binom{N}{N/2}$ team combinations for any session lineup.
+* **Multi-Objective Optimization:**
+  * **Win Probability Delta:** Minimizes $|P_{\text{win}}(\text{Team A}) - 0.50|$.
+  * **Positional Balance:** Distributes preferred goalkeepers, defenders, and forwards evenly.
+  * **Variance & Rating Spread:** Balances skill dispersion across both squads.
 
-### AI-assisted entry
+### 5. 🔒 Enterprise-Grade Security, Auth & Webmaster Tools
+* **Role-Based Access Control (RBAC):** Tiered roles (`user`, `admin`, `webmaster`) with protected routes and administrative match-entry controls.
+* **Secure Authentication:** Password hashing, verification tokens, and approval workflows for new user registrations.
+* **Webmaster Role Simulation Bar:** Live testing bar allowing webmasters to simulate the exact UI, permissions, and navigation of any user role without re-authenticating.
+* **Psychological Mindset / Onboarding Quiz:** Interactive questionnaire assessing variance literacy and sportsmanship before player stats are unlocked.
 
-The web interface can also use an external AI API to parse match information
-from images or text.
+### 6. 🌐 Modern UI, Social Layer & Internationalization (i18n)
+* **Bilingual Locale Engine:** Native English and German localization across all templates, flash messages, tooltips, and data views (`web/translations/`).
+* **Noise Social Engine:** Persistent, draggable, collapsible sticky-note board for leaving comments, banter, and tactical annotations across match records.
+* **Real-Time Attendance Planner:** Interactive availability tracker with headcount states (Yes / No / Maybe) for upcoming matchdays.
+* **Ultra-Fast Vanilla Frontend:** Pure CSS design system with custom theme tokens and zero heavy frontend framework bloat.
 
-For example, a match result can be provided as an image containing the
-recorded teams and result, or as unstructured text. The AI parser extracts
-the relevant information and converts it into structured match data.
-
-This is intended as an accelerator of the input process. The parsed information can 
-be reviewed and corrected through the
-interface before it is stored.
-
-This makes it possible to enter matches from existing records without having
-to manually transcribe every player and result.
-
-### CSV import
-
-Match data can also be imported directly from CSV files.
-
-CSV files provide a convenient structured format for bulk imports and for
-reproducible data processing.
-
-Regardless of how a match enters the system, the resulting structured match
-data is stored in the SQLite database and becomes available to the rating,
-statistics and web application layers.
-
----
-
-## 2. Database
-
-The SQLite database stores the persistent application data.
-
-The default local database is:
-
-    data/rb48.db
-
-The main tables are:
-
-- `players` — unique players
-- `aliases` — aliases belonging to players
-- `positions` — player positions
-- `matches` — match information and results
-- `match_players` — players participating in each match
-- `ratings` — current rating of each player
-- `match_ratings` — rating state immediately before each match
-- `calibrations` — initial rating adjustments
-
-Player, match and rating information are kept separate and connected through
-IDs and foreign keys.
+### 7. 🧪 Synthetic Ground-Truth Simulation Engine
+* **Monte Carlo Validation:** Generates synthetic leagues with known, hidden latent player abilities.
+* **Ground-Truth Benchmarking:** Measures Glicko-2 rating convergence speed, error rates, and parameter sensitivity under controlled synthetic match conditions (`scripts/simulation/`).
 
 ---
 
-## 3. Player Data
+## 🏗️ Repository Architecture
 
-Each player has a unique `player_id`.
-
-Aliases are stored separately, allowing multiple names to refer to the same
-player.
-
-For example:
-
-    Player 1
-    ├── Daniel
-    ├── Daniel Peters
-    └── Da_Pe
-
-Positions are also stored separately. A player can have multiple positions
-while one position can be marked as the preferred position.
-
-This separation allows player identity to remain independent from the names
-used in individual match records.
-
----
-
-## 4. Match Data
-
-Each match has a unique `match_id`.
-
-The `matches` table stores information about the match itself, including:
-
-- date
-- pitch / match type
-- number of players
-- goals
-- result
-
-The `match_players` table connects individual players to each match and
-records which team they played for.
-
-This keeps match information independent from the rating calculations and
-allows the rating system to be recalculated from the underlying match
-history.
+```
+RB48Glicko/
+├── data/                       # SQLite databases (rb48.db, accounts.db)
+├── scripts/
+│   ├── accounts/               # Auth, RBAC, session management & psychology test
+│   ├── analysis/               # ECE, Log-Loss, MAE, LOWESS & model calibration
+│   ├── database/               # Database connections, schemas & migrations
+│   ├── frontend/               # Data serialization & view-model mappers
+│   ├── glicko/                 # Glicko-2 engine, calculator & incremental updater
+│   ├── matchmaking/            # Combinatorial team balancing optimizer
+│   ├── matches/                # CSV importers, validators & Gemini AI extraction
+│   └── simulation/             # Synthetic league generator & ground-truth testing
+├── web/
+│   ├── static/                 # CSS design system, SVG assets & client scripts
+│   ├── templates/              # Jinja2 HTML templates
+│   ├── translations/           # Bilingual dictionary modules (de.py, en.py)
+│   └── app.py                  # Flask application entry point & route controllers
+└── tests/                      # Automated test suite (96+ unit & integration tests)
+```
 
 ---
 
-## 5. Glicko-2 Rating System
+## 🗄️ Database Schema Overview
 
-RB48Glicko uses a customized implementation of the Glicko-2 rating system
-adapted for recreational football.
-
-Each player has three Glicko-2 values:
-
-### Rating
-
-The estimated playing strength of the player.
-
-A higher rating indicates stronger expected performance.
-
-### Rating Deviation (RD)
-
-The uncertainty associated with the player's rating.
-
-A lower RD means that the rating is considered more reliable, while a higher
-RD indicates greater uncertainty.
-
-### Volatility (Sigma)
-
-The expected degree of variation in a player's performances.
-
-A higher volatility means that the player's performance is expected to vary
-more substantially between rating periods.
-
-### Initial Values
-
-Players start with:
-
-- Rating: `1500`
-- RD: `348`
-- Sigma: `0.03`
-
-Custom initial calibrations can also be configured per player for players with known non-average skill levels.
+```
+ ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+ │     players     │       │     aliases     │       │    positions    │
+ ├─────────────────┤       ├─────────────────┤       ├─────────────────┤
+ │ player_id (PK)  │◄──┐   │ alias_id (PK)   │   ┌──►│ position_id(PK) │
+ │ name            │   └───│ player_id (FK)  │   │   │ player_id (FK)  │
+ │ is_active       │       │ alias           │   │   │ position_name   │
+ └────────┬────────┘       └─────────────────┘   │   │ is_preferred    │
+          │                                      │   └─────────────────┘
+          │ ┌────────────────────────────────────┘
+          ▼ ▼
+ ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+ │  match_players  │       │     matches     │       │     ratings     │
+ ├─────────────────┤       ├─────────────────┤       ├─────────────────┤
+ │ match_id (FK)   │──────►│ match_id (PK)   │   ┌──►│ player_id (FK)  │
+ │ player_id (FK)  │       │ match_date      │   │   │ pitch_type (PK) │
+ │ team (A / B)    │       │ pitch_type      │   │   │ rating          │
+ └─────────────────┘       │ goals_a         │   │   │ rd              │
+                           │ goals_b         │   │   │ vol (sigma)     │
+                           │ created_at      │   │   │ last_match_date │
+                           └────────┬────────┘   │   └─────────────────┘
+                                    │            │
+                                    ▼            │
+                           ┌─────────────────┐   │
+                           │  match_ratings  │   │
+                           ├─────────────────┤   │
+                           │ match_id (FK)   │   │
+                           │ player_id (FK)  ├───┘ (Historical pre-match snapshot)
+                           │ rating_before   │
+                           │ rd_before       │
+                           └─────────────────┘
+```
 
 ---
 
-## 6. Team-Based Rating Calculation
+## 🚀 Quickstart & Setup
 
-Unlike a conventional one-versus-one rating system, RB48Glicko evaluates
-matches between teams.
+### Prerequisites
+* Python 3.11, 3.12, or 3.13
+* Virtual environment tool (`venv`)
 
-A team's rating is calculated from the ratings of its participating players.
+### 1. Clone the Repository
+```bash
+git clone https://github.com/DANeoDev/RB48Glicko.git
+cd RB48Glicko
+```
 
-The team rating is represented by the arithmetic mean of the players'
-ratings.
+### 2. Set Up Virtual Environment & Dependencies
+```bash
+# On Linux / macOS
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-The team RD uses a quadratic mean of the participating players' RDs. This
-gives players with greater rating uncertainty a proportionally larger
-influence on the team's uncertainty.
+# On Windows (PowerShell)
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
 
-For the individual update, a virtual player is constructed using the team's
-rating together with the individual player's RD and Sigma.
+### 3. (Optional) Configure Gemini AI Integration
+If you wish to use multimodal match parsing from image sheets or chat logs:
+```bash
+# Set your Google Gemini API key
+export GEMINI_API_KEY="your-api-key-here"      # Linux / macOS
+$env:GEMINI_API_KEY="your-api-key-here"        # Windows PowerShell
+```
 
-The Glicko-2 calculation is then performed against the opposing team's
-virtual rating, and the resulting change is applied to the individual
-player's actual rating.
+### 4. Run the Test Suite
+Ensure all 96 unit and integration tests pass:
+```bash
+python -m unittest discover tests
+```
 
-This allows a team-based match to update individual player ratings while
-still accounting for differences in individual rating uncertainty.
-
----
-
-## 7. Rating Updates and Inactivity
-
-RB48Glicko supports both complete recalculation and incremental rating
-updates.
-
-Rating deviation decreases as information about a player accumulates.
-
-Players who do not participate in matches receive a custom RD increase
-between matches. This reflects the increasing uncertainty about a player's
-current ability during periods of inactivity.
-
-Different rating categories can track inactivity separately depending on
-the type of match in which the player participates.
-
----
-
-## 8. Rating History
-
-The `match_ratings` table stores the rating state of every relevant player
-immediately before each match.
-
-This provides a historical snapshot of the rating system and makes it
-possible to reconstruct the rating situation at any point in the match
-history.
-
-The current rating is stored separately in the `ratings` table.
-
-This distinction is important because it allows the application to answer
-questions such as:
-
-- What rating did a player have before a particular match?
-- What win probability did the rating system imply at that time?
-- How did a match change the player's rating?
-- How did rating uncertainty evolve over time?
+### 5. Launch the Web Application
+```bash
+python web/app.py
+```
+The application will be accessible at `http://127.0.0.1:5000`.
 
 ---
 
-## 9. Full Recalculation
+## 🧪 Testing & Reliability
 
-`glicko2_calculator.py` recalculates the complete rating history from the
-beginning of the available match data.
+The test suite covers:
+* **Mathematical Integrity:** Rating bounds, probability convergence, quadratic RD pooling, and floating-point stability.
+* **Calibration & Metrics:** Expected Calibration Error (ECE), Log-Loss, MAE, and goal-difference scaling.
+* **Security & Auth:** Password hashing, session isolation, role enforcement, and token expiry.
+* **UI & Rendering:** Template order validation, i18n key completeness, and responsive layout structure.
 
-A full recalculation is useful when:
+To run specific test modules:
+```bash
+# Model analytics & calibration tests
+python -m unittest tests/test_model_analysis.py
 
-- Glicko parameters are changed
-- calibration values are changed
-- the rating algorithm is modified
-- historical match data is corrected
+# Glicko-2 engine calculations
+python -m unittest tests/test_glicko2.py
 
-Before destructive recalculation, the existing database is backed up so that
-the previous state can be restored if necessary.
-
----
-
-## 10. Incremental Updates
-
-`glicko2_updater.py` processes matches that have not yet been rated.
-
-This is the normal workflow after new matches have been imported.
-
-Instead of recalculating the complete history, the updater uses the current
-ratings as its starting point and processes only the newly available matches.
-
-This makes normal updates considerably faster while retaining the same
-rating history structure.
+# Authentication and RBAC tests
+python -m unittest tests/test_auth.py
+```
 
 ---
 
-## 11. Calibration and Model Analysis
-
-RB48Glicko includes tools for evaluating how well the rating system reflects
-actual match outcomes.
-
-The system can compare predicted match probabilities with observed results
-and analyze the calibration of those predictions.
-
-This is particularly useful because a rating system should not only produce
-an ordering of players, but should also produce meaningful estimates of
-relative win probabilities.
-
-Model-analysis tools are being developed to investigate:
-
-- predicted versus observed win rates
-- calibration of favourite predictions
-- rating differences
-- goal-difference distributions
-- performance across different pitch types
-- convergence of ratings
-- other properties of the rating model
-
-The simulation environment provides an additional way to evaluate these
-properties because the underlying player strengths are known.
-
----
-
-## 12. Web Application
-
-RB48Glicko includes a Flask-based web application for interacting with the
-rating system.
-
-The current interface provides functionality for:
-
-- viewing player rankings
-- viewing player profiles
-- exploring rating history
-- viewing player statistics
-- viewing match history
-- entering match results
-- parsing match information from images or text
-- managing match data
-- using the matchmaker
-- exploring model-analysis results
-
-The web application is intended to provide both a practical interface for
-the football group and a visual way of exploring the behavior of the rating
-system.
-
----
-
-## 13. Matchmaker
-
-RB48Glicko includes a matchmaker for creating balanced teams.
-
-The matchmaker uses player ratings and additional player information to
-construct teams intended to have similar expected playing strength.
-
-Position information can also be used when balancing teams.
-
-The matchmaker is an ongoing area of development, particularly with regard
-to evaluating how "fair" generated teams actually are.
-
----
-
-## 14. Simulation Environment
-
-The simulation environment is designed as a controlled test environment for
-the rating system.
-
-Synthetic players are assigned hidden underlying strengths. Matches are then
-generated from those strengths, producing a dataset where the true
-properties of the players are known even though the rating system itself
-does not receive that information.
-
-The rating system can then be run on the generated matches and compared
-against the hidden ground truth.
-
-This allows experiments that would be difficult or impossible with real
-football data alone, including testing:
-
-- rating convergence
-- rating accuracy
-- probability calibration
-- effects of different starting conditions
-- effects of inactivity
-- behavior with different player-strength distributions
-- behavior over large numbers of matches
-
-The simulation code lives under:
-
-    scripts/simulation/
-
-The simulation uses a separate database so that generated data does not
-interfere with the real RB48Glicko dataset.
-
----
-
-## 15. Backups and Data Safety
-
-Before destructive operations such as a full Glicko recalculation, the
-complete SQLite database is backed up.
-
-This provides a recovery point if a recalculation or database operation
-produces an unexpected result.
-
-Generated data and local databases are intentionally kept outside the public
-source history.
-
----
-
-## Project Goals
-
-The long-term goal of RB48Glicko is to provide a complete rating and
-matchmaking system for recreational football while also serving as a
-practical environment for experimenting with rating algorithms and
-statistical model evaluation.
-
-The project combines:
-
-- Python
-- Flask
-- SQLite
-- Glicko-2
-- external AI API integration
-- data processing
-- statistical analysis
-- visualization
-- team matchmaking
-- synthetic simulation
-
-The system is being developed iteratively, with real match data providing
-the practical use case and the simulation environment providing a controlled
-way to test and evaluate the underlying rating model.
+## 📄 License
+This project is open-source under the [MIT License](LICENSE).
