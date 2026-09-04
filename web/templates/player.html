@@ -152,72 +152,62 @@
      data-opp-ids="{{ match['opp_team_ids'] | join(',') }}">
 <div class="match-header">{{ match["match_id"] }} — {{ match["pitch"] | upper }}</div>
 <div class="match-info">
-<div class="match-date">{{ match["date"] }}</div>
-<div class="match-score">{{ match["goals_for"] }} : {{ match["goals_against"] }}</div>
-<div class="match-result {{ 'win' if match['is_win'] else ('loss' if match['is_loss'] else 'draw') }}">
-{{ t('matches.win', 'Win') if match["is_win"] else (t('matches.loss', 'Loss') if match["is_loss"] else t('matches.draw', 'Draw')) }}
+<div class="team team-a"><strong>{{ t('matches.team_a', 'Team A') }}</strong><div class="players">
+{% for team_player in match["team_a_players"] %}<span class="match-player" data-player-id="{{ team_player['player_id'] }}">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}<span class="player-name-text">{{ team_player["name"] }}</span>{% endif %}{% if has_tier('glicko_user') and team_player["rating"] is not none %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
+{% if match["external_a"] > 0 %}{% if match["team_a_players"] %}, {% endif %}{% if match["external_a"] == 1 %}{{ t('matches.external_player', count=match['external_a']) }}{% else %}{{ t('matches.external_players', count=match['external_a']) }}{% endif %}{% endif %}
+</div></div>
+<div class="score">{{ match["goals_a"] }} - {{ match["goals_b"] }}</div>
+<div class="team team-b"><strong>{{ t('matches.team_b', 'Team B') }}</strong><div class="players">
+{% for team_player in match["team_b_players"] %}<span class="match-player" data-player-id="{{ team_player['player_id'] }}">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}<span class="player-name-text">{{ team_player["name"] }}</span>{% endif %}{% if has_tier('glicko_user') and team_player["rating"] is not none %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
+{% if match["external_b"] > 0 %}{% if match["team_b_players"] %}, {% endif %}{% if match["external_b"] == 1 %}{{ t('matches.external_player', count=match['external_b']) }}{% else %}{{ t('matches.external_players', count=match['external_b']) }}{% endif %}{% endif %}
+</div></div>
 </div>
-</div>
-{% if has_tier('glicko_user') and match["rating_delta"] is not none %}
-<div class="match-rating-delta {{ 'positive' if match['rating_delta'] > 0 else ('negative' if match['rating_delta'] < 0 else 'neutral') }}">
-<strong>{{ t('player.delta', 'Delta') }}:</strong> {{ "%+.1f" | format(match["rating_delta"]) }}
-</div>
-{% endif %}
-<details class="match-details" data-preserve-open id="match-details-{{ match['match_id'] }}">
-<summary>{{ t('matches.details', 'Details') }}</summary>
+
 {% if has_tier('glicko_user') %}
-<div class="match-teams-grid">
-<div class="match-team match-team-a">
-<strong>{{ t('matches.team_a', 'Team A') }}</strong>
-<ul>
-{% for p in match["team_a_players"] %}
-<li class="{% if p['player_id'] == player_id %}highlight-player{% endif %}">
-<a href="{{ url_for('stats.player_profile', player_id=p['player_id']) }}">{{ p["name"] }}</a>
-</li>
-{% endfor %}
-</ul>
+<div class="match-details">
+<div class="team-details team-a">
+<div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_a_rating"] | round | int }}</span></div>
+<div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_a_rd"] | round(1) }}</span></div>
+<div class="team-stat"><span class="stat-label">{{ t('stats.win_rate', 'Win%') }}</span><span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span></div>
 </div>
-<div class="match-team match-team-b">
-<strong>{{ t('matches.team_b', 'Team B') }}</strong>
-<ul>
-{% for p in match["team_b_players"] %}
-<li class="{% if p['player_id'] == player_id %}highlight-player{% endif %}">
-<a href="{{ url_for('stats.player_profile', player_id=p['player_id']) }}">{{ p["name"] }}</a>
-</li>
-{% endfor %}
-</ul>
-</div>
-</div>
+<div class="rating-delta" title="{{ match['session_tooltip'] if match['session_tooltip'] else ('Shows ' ~ (player.aliases[0] if player.aliases else 'player') ~ ' specific change for the match') }}">
+{% if match["is_session_pending"] %}
+    <span class="session-indicator" title="{{ match['session_tooltip'] }}">{{ t('matches.game_session', current=match['session_match_num'], total=match['session_matches_total']) }}</span>
 {% else %}
-<div class="match-lineup">
-{% if match["team_a_ids"] %}
-<p>
-<strong>{{ t('matches.team_a', 'Team A') }}:</strong>
-{% for pid in match["team_a_ids"] %}
-<a href="{{ url_for('stats.player_profile', player_id=pid) }}">{{ players_map[pid] if pid in players_map else ('Player ' ~ pid) }}</a>{% if not loop.last %}, {% endif %}
-{% endfor %}
-</p>
-{% endif %}
-{% if match["team_b_ids"] %}
-<p>
-<strong>{{ t('matches.team_b', 'Team B') }}:</strong>
-{% for pid in match["team_b_ids"] %}
-<a href="{{ url_for('stats.player_profile', player_id=pid) }}">{{ players_map[pid] if pid in players_map else ('Player ' ~ pid) }}</a>{% if not loop.last %}, {% endif %}
-{% endfor %}
-</p>
+    {% if match["delta_a"] is not none %}
+        {% if match["delta_a"] > 0 %}<span class="positive">↑ {{ match["delta_a"] | round(1) }}</span>{% elif match["delta_a"] < 0 %}<span class="negative">↓ {{ match["delta_a"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+    {% elif match["rating_delta"] is not none %}
+        {% if match["rating_delta"] > 0 %}<span class="positive">↑ {{ match["rating_delta"] | round(1) }}</span>{% elif match["rating_delta"] < 0 %}<span class="negative">↓ {{ match["rating_delta"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+    {% else %}
+        <span>— 0.0</span>
+    {% endif %}
+    <span class="delta-separator">|</span>
+    {% if match["delta_b"] is not none %}
+        {% if match["delta_b"] > 0 %}<span class="positive">↑ {{ match["delta_b"] | round(1) }}</span>{% elif match["delta_b"] < 0 %}<span class="negative">↓ {{ match["delta_b"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+    {% elif match["rating_delta"] is not none %}
+        {% if match["rating_delta"] < 0 %}<span class="positive">↑ {{ match["rating_delta"] | abs | round(1) }}</span>{% elif match["rating_delta"] > 0 %}<span class="negative">↓ {{ match["rating_delta"] | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+    {% else %}
+        <span>— 0.0</span>
+    {% endif %}
 {% endif %}
 </div>
+<div class="team-details team-b">
+<div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_b_rating"] | round | int }}</span></div>
+<div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_b_rd"] | round | int }}</span></div>
+<div class="team-stat"><span class="stat-label">{{ t('stats.win_rate', 'Win%') }}</span><span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span></div>
+</div>
+</div>
 {% endif %}
-</details>
+
 </div>
 {% endfor %}
 </div>
 
 <!-- Slide-in Drawer Filter Menu -->
 <div class="filter-drawer-backdrop" id="filter-drawer-backdrop" onclick="window.PlayerFilter && window.PlayerFilter.closeDrawer()"></div>
-<aside class="filter-drawer" id="filter-drawer" aria-label="Mitspieler und Gegner Filter">
+<aside class="filter-drawer" id="filter-drawer" aria-label="{{ t('player.filters_title', 'Mitspieler- & Gegner-Filter') }}">
     <div class="filter-drawer-header">
-        <h3>🎯 {{ t('player.filter_drawer_title', 'Filter & Konstellationen') }}</h3>
+        <h3>🔍 {{ t('player.filters_title', 'Mitspieler- & Gegner-Filter') }}</h3>
         <button type="button" class="filter-drawer-close" onclick="window.PlayerFilter && window.PlayerFilter.closeDrawer()" aria-label="Schließen">✕</button>
     </div>
     <div class="filter-drawer-body">
@@ -228,16 +218,16 @@
         <!-- Teammates Selector -->
         <div class="filter-group">
             <div class="filter-group-label" style="color: #88ff88;">
-                🤝 {{ t('player.teammates_label', 'Mitspieler (Gleiches Team)') }}
+                🤝 {{ t('player.filter_teammates', 'Mitspieler') }}
             </div>
-            <div class="filter-tags" id="teammate-tags"></div>
+            <div class="filter-tags" id="drawer-teammate-tags"></div>
             <div class="filter-add-wrapper">
                 <button type="button" class="btn-add-filter btn-add-teammate" id="btn-add-teammate" onclick="window.PlayerFilter && window.PlayerFilter.toggleSearch('teammate')">
-                    ＋ {{ t('player.add_teammate', 'Mitspieler hinzufügen') }}
+                    {{ t('player.add_teammate', '+ Mitspieler') }}
                 </button>
-                <div class="filter-search-popover" id="teammate-search-popover" style="display: none;">
-                    <input type="text" class="filter-search-input" id="teammate-search-input" placeholder="{{ t('player.search_player_ph', 'Spieler suchen...') }}" autocomplete="off">
-                    <div class="filter-dropdown-list" id="teammate-dropdown-list"></div>
+                <div class="filter-search-popover" id="popover-teammate" style="display: none;">
+                    <input type="text" class="filter-search-input" id="search-input-teammate" placeholder="{{ t('player.search_player', 'Spieler suchen...') }}" autocomplete="off">
+                    <ul class="filter-player-list" id="player-list-teammate"></ul>
                 </div>
             </div>
         </div>
@@ -245,28 +235,24 @@
         <!-- Opponents Selector -->
         <div class="filter-group">
             <div class="filter-group-label" style="color: #ff8888;">
-                ⚔️ {{ t('player.opponents_label', 'Gegner (Gegnerisches Team)') }}
+                ⚔️ {{ t('player.filter_opponents', 'Gegner') }}
             </div>
-            <div class="filter-tags" id="opponent-tags"></div>
+            <div class="filter-tags" id="drawer-opponent-tags"></div>
             <div class="filter-add-wrapper">
                 <button type="button" class="btn-add-filter btn-add-opponent" id="btn-add-opponent" onclick="window.PlayerFilter && window.PlayerFilter.toggleSearch('opponent')">
-                    ＋ {{ t('player.add_opponent', 'Gegner hinzufügen') }}
+                    {{ t('player.add_opponent', '+ Gegner') }}
                 </button>
-                <div class="filter-search-popover" id="opponent-search-popover" style="display: none;">
-                    <input type="text" class="filter-search-input" id="opponent-search-input" placeholder="{{ t('player.search_player_ph', 'Spieler suchen...') }}" autocomplete="off">
-                    <div class="filter-dropdown-list" id="opponent-dropdown-list"></div>
+                <div class="filter-search-popover" id="popover-opponent" style="display: none;">
+                    <input type="text" class="filter-search-input" id="search-input-opponent" placeholder="{{ t('player.search_player', 'Spieler suchen...') }}" autocomplete="off">
+                    <ul class="filter-player-list" id="player-list-opponent"></ul>
                 </div>
             </div>
         </div>
-
-        <div class="drawer-actions">
-            <button type="button" class="btn-drawer-reset" onclick="window.PlayerFilter && window.PlayerFilter.reset()">
-                ↺ {{ t('player.reset_all', 'Alle zurücksetzen') }}
-            </button>
-            <button type="button" class="btn-drawer-apply" onclick="window.PlayerFilter && window.PlayerFilter.closeDrawer()">
-                ✓ {{ t('player.apply_done', 'Fertig') }}
-            </button>
-        </div>
+    </div>
+    <div class="filter-drawer-footer">
+        <button type="button" class="btn-drawer-reset" onclick="window.PlayerFilter && window.PlayerFilter.reset()">
+            ↺ {{ t('player.reset_filters', 'Filter zurücksetzen') }}
+        </button>
     </div>
 </aside>
 
@@ -366,6 +352,7 @@ window.allMatchesData = [
     {% for match in matches %}
     {
         id: {{ match["match_id"] }},
+        match_id: {{ match["match_id"] }},
         pitch: "{{ match['pitch'] | lower }}",
         date: "{{ match['date'] }}",
         goals_for: {{ match['goals_for'] }},
@@ -374,6 +361,7 @@ window.allMatchesData = [
         is_loss: {{ 'true' if match['is_loss'] else 'false' }},
         is_draw: {{ 'true' if match['is_draw'] else 'false' }},
         delta: {{ match['rating_delta'] if match['rating_delta'] is not none else 'null' }},
+        player_delta: {{ match['rating_delta'] if match['rating_delta'] is not none else 'null' }},
         own_team_ids: {{ match['own_team_ids'] | tojson }},
         opp_team_ids: {{ match['opp_team_ids'] | tojson }}
     }{% if not loop.last %},{% endif %}

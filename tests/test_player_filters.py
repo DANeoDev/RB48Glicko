@@ -108,6 +108,14 @@ class TestPlayerFilters(unittest.TestCase):
         html = resp.get_data(as_text=True)
 
         self.assertIn("filter-drawer", html)
+        self.assertIn("drawer-teammate-tags", html)
+        self.assertIn("drawer-opponent-tags", html)
+        self.assertIn("popover-teammate", html)
+        self.assertIn("popover-opponent", html)
+        self.assertIn("search-input-teammate", html)
+        self.assertIn("search-input-opponent", html)
+        self.assertIn("player-list-teammate", html)
+        self.assertIn("player-list-opponent", html)
         self.assertIn("btn-add-teammate", html)
         self.assertIn("btn-add-opponent", html)
         self.assertIn("active-filters-banner", html)
@@ -117,6 +125,16 @@ class TestPlayerFilters(unittest.TestCase):
         self.assertIn("PlayerCorrelationMap", html)
         self.assertIn("corr-chart-container", html)
         self.assertIn("correlation_map.js", html)
+        self.assertIn("player_filters.js", html)
+
+        # Match history DOM structure
+        self.assertIn("match-history", html)
+        self.assertIn("match-info", html)
+        self.assertIn("team team-a", html)
+        self.assertIn("team team-b", html)
+        self.assertIn("score", html)
+        self.assertIn("match-player", html)
+        self.assertIn("match-details", html)
 
     def test_player_profile_with_filter_query_params(self):
         user_id = self.create_user_session(player_id=1)
