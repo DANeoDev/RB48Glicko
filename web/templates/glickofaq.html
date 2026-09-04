@@ -103,19 +103,8 @@
         <div class="faq-item">
             <h3>{{ t('faq.q_what_is', 'What is RB48?') }}</h3>
             <p>
-                {{ t('faq.a_what_is', 'RB48 is a private recreational football community that organizes weekly competitive small-sided matches. We focus on fair play, fun sportsmanship, balanced teams, and good banter after every session.') }}
+                {{ t('faq.a_what_is', about_url=url_for('stats.about')) | safe }}
             </p>
-        </div>
-
-        <div class="faq-item">
-            <h3>{{ t('faq.q_formats', 'What is the difference between BOX and HF pitch formats?') }}</h3>
-            <p>
-                {{ t('faq.a_formats_intro', 'We play on two distinct formats with different dynamics and team sizes:') }}
-            </p>
-            <ul style="color: #c9c2d8; font-size: 14px; line-height: 1.6; margin: 8px 0;">
-                <li>{{ t('faq.a_formats_box') | safe }}</li>
-                <li>{{ t('faq.a_formats_hf') | safe }}</li>
-            </ul>
         </div>
 
         <div class="faq-item">
@@ -216,13 +205,6 @@
                 </div>
                 <p>
                     {{ t('faq.a_conservative_p2') }}
-                </p>
-            </div>
-
-            <div class="faq-item">
-                <h3>{{ t('faq.q_diverge', 'Why do a player\'s BOX and HF ratings diverge?') }}</h3>
-                <p>
-                    {{ t('faq.a_diverge') }}
                 </p>
             </div>
 
