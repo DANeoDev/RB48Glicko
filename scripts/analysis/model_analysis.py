@@ -264,6 +264,7 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
             "pitch": pitch,
             "games": 0,
             "excluded": excluded,
+            "ece": None,
             "brier": None,
             "log_loss": None,
             "mean_absolute_error": None,
@@ -278,6 +279,12 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
             "goal_diff_ticks": goal_diff_ticks,
         }
 
+    calibration_baskets = _calibration_baskets(observations)
+    ece = (
+        sum(b["count"] * abs(b["predicted"] - b["actual"]) for b in calibration_baskets) / count
+        if calibration_baskets
+        else None
+    )
     brier = sum((item["prediction"] - item["actual"]) ** 2 for item in observations) / count
     log_loss = sum(_log_loss(item["prediction"], item["actual"]) for item in observations) / count
     mean_absolute_error = sum(abs(item["prediction"] - item["actual"]) for item in observations) / count
@@ -294,12 +301,13 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
         "pitch": pitch,
         "games": count,
         "excluded": excluded,
+        "ece": ece,
         "brier": brier,
         "log_loss": log_loss,
         "mean_absolute_error": mean_absolute_error,
         "accuracy": accuracy,
         "expected_accuracy": expected_accuracy,
-        "calibration": _calibration_baskets(observations),
+        "calibration": calibration_baskets,
         "lowess": _lowess(observations, "actual", min_val=0.0, max_val=1.0),
         "goal_diff_lowess": _lowess(observations, "goal_diff", min_val=0.0, max_val=float(goal_diff_max)),
         "goal_diff_reference": goal_diff_reference,

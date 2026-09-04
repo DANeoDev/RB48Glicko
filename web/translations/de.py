@@ -131,6 +131,8 @@ TRANSLATIONS_DE = {
     "model_analysis.desc_pitch": "Es werden ausschließlich {pitch_label}-Spiele analysiert, basierend auf den jeweiligen platzspezifischen Ratings unmittelbar vor Anpfiff. Jedes Spiel wird auf den prognostizierten Favoriten ausgerichtet, sodass jede Vorhersage über 50 % einheitlich interpretiert werden kann.",
     "model_analysis.box_label": "Soccerbox",
     "model_analysis.hf_label": "Halbfeld",
+    "model_analysis.ece": "Kalibrierungsfehler (ECE)",
+    "model_analysis.ece_title": "Expected Calibration Error: Durchschnittliche Abweichung zwischen Modell-Siegwahrscheinlichkeit und tatsächlicher Siegquote über alle Wahrscheinlichkeitsbereiche. Niedriger ist besser.",
     "model_analysis.brier": "Brier-Score",
     "model_analysis.brier_title": "Mittlere quadratische Abweichung zwischen vorhergesagter Wahrscheinlichkeit und tatsächlichem Spielausgang des Favoriten. Niedrigere Werte stehen für höhere Modellpräzision.",
     "model_analysis.log_loss": "Log-Loss",
@@ -169,6 +171,8 @@ TRANSLATIONS_DE = {
     "model_analysis.no_predictions": "Für dieses Modell liegen noch keine Vorhersagen vor.",
     "model_analysis.explainer_toggle": "Benchmark-Werte & Interpretation der Hauptmetriken",
     "model_analysis.explainer_intro": "Da im Freizeitfußball durch ausgeglichene Teams und Spielverläufe eine natürliche Varianz herrscht, sind theoretische Idealwerte (0,0) in der Praxis unerreichbar. Folgende Richtwerte helfen bei der Einordnung der Modellgüte:",
+    "model_analysis.ece_expl_title": "Kalibrierungsfehler (ECE)",
+    "model_analysis.ece_expl_desc": "Expected Calibration Error: Misst die durchschnittliche Abweichung zwischen prognostizierter Wahrscheinlichkeit und tatsächlicher Siegquote über alle Intervalle (z. B. 55 % Prognose vs. 61 % tatsächliche Siege = 6 % Abweichung).",
     "model_analysis.brier_expl_desc": "Mittlere quadratische Abweichung. Misst die Kalibrierungspräzision der vorhergesagten Siegwahrscheinlichkeiten.",
     "model_analysis.log_loss_expl_desc": "Logarithmische Kreuzentropie. Bestraft falsche, aber übertrieben selbstsichere Vorhersagen überproportional stark.",
     "model_analysis.mae_expl_desc": "Mittlerer absoluter Fehler. Durchschnittlicher absoluter Abstand zwischen prognostizierter Wahrscheinlichkeit und Spielausgang.",
@@ -180,6 +184,10 @@ TRANSLATIONS_DE = {
     "model_analysis.bm_macro_calib": "Perfekte Makro-Kalibrierung",
     "model_analysis.bm_fav_underestimated": "Favoriten unterschätzt",
     "model_analysis.bm_fav_overestimated": "Favoriten überschätzt",
+    "model_analysis.bm_ece_perfect": "0.0 % (Perfekt kalibriert)",
+    "model_analysis.bm_ece_solid": "< 5.0 % (Exzellent kalibriert)",
+    "model_analysis.bm_ece_moderate": "5.0 % – 10.0 % (Solide Näherung)",
+    "model_analysis.bm_ece_poor": "> 10.0 % (Spürbare Verzerrung)",
 
     # =========================================================================
     # About Page

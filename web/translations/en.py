@@ -123,6 +123,8 @@ TRANSLATIONS_EN = {
     "model_analysis.desc_pitch": "Only {pitch_label} matches are analysed, using the corresponding pitch-specific ratings immediately before each match. Every match is oriented toward the model's predicted favourite, so every prediction above 50% has the same interpretation.",
     "model_analysis.box_label": "Box",
     "model_analysis.hf_label": "half-field",
+    "model_analysis.ece": "Calibration error (ECE)",
+    "model_analysis.ece_title": "Expected Calibration Error: Weighted average difference between predicted win probabilities and actual win rates across all bins. Lower is better.",
     "model_analysis.brier": "Brier score",
     "model_analysis.brier_title": "Average squared difference between predicted probability and favourite result. Lower is better.",
     "model_analysis.log_loss": "Log loss",
@@ -161,6 +163,8 @@ TRANSLATIONS_EN = {
     "model_analysis.no_predictions": "No predictions are available for this model yet.",
     "model_analysis.explainer_toggle": "Benchmark values & interpretation of main metrics",
     "model_analysis.explainer_intro": "Because recreational football with balanced teams involves natural variance, theoretical ideal scores (0.0) are unattainable in practice. The following benchmarks help interpret the model's predictive quality:",
+    "model_analysis.ece_expl_title": "Calibration error (ECE)",
+    "model_analysis.ece_expl_desc": "Expected Calibration Error: Measures the weighted average gap between predicted win probabilities and actual win rates across all probability bins (e.g. 55% prediction vs. 61% actual wins = 6% error).",
     "model_analysis.brier_expl_desc": "Mean squared error. Measures calibration accuracy of predicted win probabilities.",
     "model_analysis.log_loss_expl_desc": "Logarithmic cross-entropy. Heavily penalizes wrong predictions made with high confidence.",
     "model_analysis.mae_expl_desc": "Mean absolute error. Average absolute distance between predicted probability and actual outcome.",
@@ -172,6 +176,10 @@ TRANSLATIONS_EN = {
     "model_analysis.bm_macro_calib": "Perfect macro calibration",
     "model_analysis.bm_fav_underestimated": "Favourites underestimated",
     "model_analysis.bm_fav_overestimated": "Favourites overestimated",
+    "model_analysis.bm_ece_perfect": "0.0% (Perfect calibration)",
+    "model_analysis.bm_ece_solid": "< 5.0% (Excellently calibrated)",
+    "model_analysis.bm_ece_moderate": "5.0% – 10.0% (Solid approximation)",
+    "model_analysis.bm_ece_poor": "> 10.0% (Noticeable skew)",
 
     # About Page
     "about.hero_subtitle": "Recreational Football Community · Cologne",
