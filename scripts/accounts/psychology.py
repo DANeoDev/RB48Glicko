@@ -10,7 +10,7 @@ PSYCHOLOGY_PERSONAS_EN = {
         "tagline": "Football is life, but banter and cold drinks with teammates are eternal.",
         "description": (
             "You embody the true spirit of recreational football. You understand that Wednesday night sessions "
-            "are about camaraderie, unforgettable nutmegs, and sharing laughs over a cold drink afterwards. "
+            "are about camaraderie, unforgettable crosses and tackles, and sharing banter over a cold drink afterwards. "
             "To you, Glicko ratings are just an interesting statistical curio — they will never overshadow "
             "the pure joy of the game."
         ),
@@ -21,9 +21,9 @@ PSYCHOLOGY_PERSONAS_EN = {
         "key": "tactician",
         "title": "The Rational Tactician",
         "badge_icon": "📐",
-        "badge_tag": "Statistical Mastery",
+        "badge_tag": "Statistical Calculus",
         "passed": True,
-        "tagline": "Variance is real, sample sizes matter, and ratings are descriptive models — not personal identity.",
+        "tagline": "Variance is a familiar effect, sample sizes are adjustable, and ratings are descriptive models — not personal scores.",
         "description": (
             "You appreciate the elegance of mathematical modeling. You understand that Glicko-2 computes win probabilities "
             "based on historical results and lineup combinations, not an absolute measurement of intrinsic human worth. "
@@ -38,7 +38,7 @@ PSYCHOLOGY_PERSONAS_EN = {
         "badge_icon": "🛡️",
         "badge_tag": "Resilient Competitor",
         "passed": True,
-        "tagline": "Bad bounces happen, referees miss calls, and the only thing that matters is tracking back.",
+        "tagline": "Unlucky deflections happen, offside calls are sometimes missed, and the ball just won't find the back of the net — the only thing that matters is tracking back.",
         "description": (
             "Level-headed, resilient, and unbothered by dramatic score swings. When your team goes down 0-3 or suffers a cruel "
             "own-goal deflection, you don't panic, blame others, or sulk about rating points — you roll up your sleeves and focus "
@@ -99,12 +99,12 @@ PSYCHOLOGY_PERSONAS_DE = {
         "key": "legend",
         "title": "Die Kabinenlegende",
         "badge_icon": "🏆",
-        "badge_tag": "Kameradschaft & Schmäh",
+        "badge_tag": "Kameradschaft & Sprücheklopfer",
         "passed": True,
         "tagline": "Fußball ist unser Leben, aber die Sprüche und das Kaltgetränk danach sind für die Ewigkeit.",
         "description": (
             "Du verkörperst den wahren Geist des Freizeitfußballs. Du weißt, dass es beim Mittwochs-Kick um "
-            "Kameradschaft, unvergessliche Beinschüsse und das gemeinsame Lachen bei einem kühlen Getränk danach geht. "
+            "Kameradschaft, unvergessliche Flanken und Grätschen und das gemeinsame Labern bei einem kühlen Getränk danach geht. "
             "Für dich sind Glicko-Ratings eine interessante statistische Spielerei – sie werden niemals die "
             "pure Freude am Spiel überdecken."
         ),
@@ -115,9 +115,9 @@ PSYCHOLOGY_PERSONAS_DE = {
         "key": "tactician",
         "title": "Der rationale Taktiker",
         "badge_icon": "📐",
-        "badge_tag": "Statistische Meisterschaft",
+        "badge_tag": "Statistisches Kalkül",
         "passed": True,
-        "tagline": "Varianz ist real, Stichprobengrößen zählen und Ratings sind beschreibende Modelle – keine Identität.",
+        "tagline": "Varianz ist ein bekannter Effekt, Stichprobengrößen anpassbar und Ratings sind beschreibende Modelle – keine Wertungen.",
         "description": (
             "Du schätzt die Eleganz mathematischer Modellierung. Du verstehst, dass Glicko-2 Siegwahrscheinlichkeiten "
             "auf Basis historischer Ergebnisse und Aufstellungen berechnet, kein Urteil über deinen menschlichen Wert. "
@@ -132,7 +132,7 @@ PSYCHOLOGY_PERSONAS_DE = {
         "badge_icon": "🛡️",
         "badge_tag": "Widerstandsfähiger Kämpfer",
         "passed": True,
-        "tagline": "Unglückliche Abpraller passieren, Schiris übersehen Fouls – das Einzige was zählt, ist nach hinten mitzuarbeiten.",
+        "tagline": "Unglückliche Abpraller passieren, Abseits wird schon mal falsch angesagt und der Ball will vorne manchmal einfach nicht ins Eckige – das Einzige was zählt, ist nach hinten mitzuarbeiten.",
         "description": (
             "Besonnen, zäh und unbeeindruckt von turbulenten Spielverläufen. Wenn dein Team 0:3 in Rückstand gerät oder ein bitteres "
             "Eigentor kassiert, gerätst du nicht in Panik, machst keine Vorwürfe und grübelst nicht über Ratingpunkte – du krempelst "
@@ -196,10 +196,10 @@ IMP_QUESTIONS_EN = [
         "scenario": "Scenario 1: Pre-Match Arrival",
         "question": "You arrive at the venue 15 minutes before kickoff. What is your primary pre-match routine?",
         "options": [
-            ("a", "Stretch methodically, calculate pitch friction, and analyze historical team balance.", "tactician"),
-            ("b", "Crack a joke with the keeper, open a cold drink, and check if anyone forgot shinpads.", "legend"),
-            ("c", "Aggressively practice bicycle kicks against the locker room lockers to intimidate the other side.", "tryhard"),
-            ("d", "Check your phone to see if the Webmaster has secretly adjusted your starting rating.", "conspiracy"),
+            ("a", "Practicing aggressive volleys towards players getting changed to intimidate the opponent right during warm-ups.", "tryhard"),
+            ("b", "Methodical warm-up and stretching, analyzing attending players and possible team constellations.", "tactician"),
+            ("c", "Checking your phone to see if the Webmaster has secretly adjusted your starting rating.", "conspiracy"),
+            ("d", "First a quick smoke, trading weekend stories, and realizing you forgot to pack fresh underwear.", "legend"),
         ],
     },
     {
@@ -207,10 +207,10 @@ IMP_QUESTIONS_EN = [
         "scenario": "Scenario 2: The Selfish Teammate",
         "question": "Your teammate attempts a wild 35-meter volley with his weak foot when you were unmarked in front of an empty net. The ball lands on the roof of a parked car. Your reaction?",
         "options": [
-            ("a", "Burst out laughing, applaud the audacity, and remind him he is buying the first round after the game.", "legend"),
-            ("b", "Calmly mention that square passes have an 88% higher conversion probability in small-sided football.", "tactician"),
+            ("a", "Silently panic because that missed opportunity just cost your team 5 expected points.", "fragile_ego"),
+            ("b", "Burst out laughing, applaud the audacity, and remind him he is buying the first round after the game.", "legend"),
             ("c", "Collapse onto the turf in agony, gesturing wildly about how this selfish play will destroy your rating.", "tryhard"),
-            ("d", "Silently panic because that missed opportunity just cost your team 5 expected points.", "fragile_ego"),
+            ("d", "Calmly point out that square passes generate an 88% higher conversion probability in small-sided football.", "tactician"),
         ],
     },
     {
@@ -218,9 +218,9 @@ IMP_QUESTIONS_EN = [
         "scenario": "Scenario 3: The 89th Minute Deflection",
         "question": "In the final minute of a tied match, a harmless cross takes a wild ricochet off a pebble, bounces off your shin, and trickles into your own net. You lose 4:5. How do you process this?",
         "options": [
-            ("a", "Shrug, high-five the opponent, and joke that you technically scored today.", "legend"),
-            ("b", "Accept that stochastic variance is an inherent mathematical property of recreational sports.", "tactician"),
-            ("c", "Demand an official investigation into the pitch owner's turf maintenance and the referee's eyesight.", "conspiracy"),
+            ("a", "Accept that stochastic variance is an inherent mathematical property of recreational sports.", "tactician"),
+            ("b", "Demand an official investigation into pitch maintenance and the condition of the match ball.", "conspiracy"),
+            ("c", "Shrug, high-five the opponent, and joke that you technically scored today.", "legend"),
             ("d", "Lock yourself in the shower stall for 20 minutes contemplating immediate retirement.", "fragile_ego"),
         ],
     },
@@ -229,10 +229,10 @@ IMP_QUESTIONS_EN = [
         "scenario": "Scenario 4: The Underdog Prediction",
         "question": "The Matchmaker shows your team has an estimated win probability of only 34%. What thought immediately enters your head?",
         "options": [
-            ("a", "Fantastic! That makes the underdog victory banter twice as sweet. Let's get out there!", "legend"),
-            ("b", "An interesting Bayesian prior. Let's adjust our defensive shape and look for counter-pressing opportunities.", "tactician"),
-            ("c", "Refuse to track back on defense because the algorithm has already decided the match is lost.", "tryhard"),
-            ("d", "The algorithm is clearly rigged by the administrators to artificially suppress my leaderboard ranking.", "conspiracy"),
+            ("a", "The algorithm is clearly rigged by the administrators to artificially suppress my leaderboard ranking.", "conspiracy"),
+            ("b", "Fantastic! That makes the underdog victory banter twice as sweet. Let's get out there!", "legend"),
+            ("c", "An interesting Bayesian prior. Let's keep our shape compact and look for counter-pressing opportunities.", "tactician"),
+            ("d", "Refuse to track back on defense because the algorithm has already decided the match is lost.", "tryhard"),
         ],
     },
     {
@@ -240,21 +240,21 @@ IMP_QUESTIONS_EN = [
         "scenario": "Scenario 5: Post-Match Pizza & Banter",
         "question": "After the session, a teammate pulls up the stats page on their phone over pizza. What is your perspective on the numbers?",
         "options": [
-            ("a", "'Stats are fun, but did you see Max's backheel nutmeg? That's what really matters.'", "legend"),
-            ("b", "'It's a neat mathematical summary of historical results, not a personal verdict on anyone.'", "tactician"),
-            ("c", "'My conservative rating is 1620 and yours is 1410, so I should take all corner kicks from now on.'", "tryhard"),
-            ("d", "'Looking at these numbers makes my stomach hurt. What if I drop two places next week?'", "fragile_ego"),
+            ("a", "'Stats are fun, but did you see Bernhard's monster tackle? That's what really matters!'", "legend"),
+            ("b", "'Looking at these numbers makes my stomach hurt. What if I drop two places next week?'", "fragile_ego"),
+            ("c", "'It's a neat mathematical summary of historical results, not a personal verdict on anyone.'", "tactician"),
+            ("d", "'My conservative rating is 1620 and yours is 1410, so I should take all corner kicks from now on.'", "tryhard"),
         ],
     },
     {
         "id": "q6",
-        "scenario": "Scenario 6: The Total Nightmare Performance",
-        "question": "You are having an off-day: your first touch bounces five meters away, you slip on every turn, and you miss a penalty. What happens next?",
+        "scenario": "Scenario 6: The Day to Forget",
+        "question": "You are having an off-day: your first touch bounces five meters away, you slip on every turn, and you give away an unnecessary penalty. What happens next?",
         "options": [
-            ("a", "Laugh at yourself, work double-hard on defensive tracking, and let your teammates carry the attack.", "pragmatist"),
-            ("b", "Recognize that individual performance follows a normal distribution and maintain tactical discipline.", "tactician"),
-            ("c", "Fake a groin cramp at the 15-minute mark to sub off and protect your rating from dropping.", "tryhard"),
-            ("d", "Kick a water bottle into the stands and complain that the ball was over-inflated on purpose.", "conspiracy"),
+            ("a", "Recognize that individual performance follows a normal distribution and maintain tactical discipline.", "tactician"),
+            ("b", "Fake a groin cramp at the 15-minute mark to sub off and protect your rating from dropping.", "tryhard"),
+            ("c", "Kick a water bottle away in fury and claim the match ball was over-inflated on purpose.", "conspiracy"),
+            ("d", "Laugh at yourself, work double-hard on defensive tracking, and let your teammates carry the attack.", "pragmatist"),
         ],
     },
     {
@@ -262,10 +262,10 @@ IMP_QUESTIONS_EN = [
         "scenario": "Scenario 7: The Glicko Clearance Philosophy",
         "question": "Why is access to the detailed Glicko rating tier gated behind this psychological evaluation?",
         "options": [
-            ("a", "Because competitive ratings can poison recreational enjoyment and intrinsic motivation if taken too seriously.", "legend"),
-            ("b", "To verify that players understand ratings model match results and variance, not human worth.", "tactician"),
-            ("c", "To keep me from seeing how easily I could dominate the entire leaderboard.", "tryhard"),
-            ("d", "Because the Webmaster enjoys testing our loyalty with secret surveillance questions.", "conspiracy"),
+            ("a", "To keep people from immediately seeing how easily I could dominate the entire field.", "tryhard"),
+            ("b", "Because competitive ratings can poison recreational enjoyment and intrinsic motivation if taken too seriously.", "legend"),
+            ("c", "Because the Webmaster enjoys testing our loyalty with secret surveillance questions.", "conspiracy"),
+            ("d", "To verify that players understand ratings model match results and variance, not human worth.", "tactician"),
         ],
     },
 ]
@@ -276,10 +276,10 @@ IMP_QUESTIONS_DE = [
         "scenario": "Szenario 1: Vor dem Anpfiff",
         "question": "Du triffst 15 Minuten vor Spielbeginn am Platz ein. Wie sieht deine typische Vorbereitung aus?",
         "options": [
-            ("a", "Methodisch dehnen, Platzreibung berechnen und historische Teambalance analysieren.", "tactician"),
-            ("b", "Einen Witz mit dem Keeper reißen, ein Kaltgetränk öffnen und prüfen, wer Schienbeinschoner vergessen hat.", "legend"),
-            ("c", "Aggressive Fallrückzieher gegen die Kabinentür üben, um den Gegner schon beim Aufwärmen einzuschüchtern.", "tryhard"),
-            ("d", "Auf dem Handy checken, ob der Webmaster heimlich dein Start-Rating heruntergestuft hat.", "conspiracy"),
+            ("a", "Aggressive Volleyschüsse in Richtung der umziehenden Spieler üben, um den Gegner schon beim Aufwärmen einzuschüchtern.", "tryhard"),
+            ("b", "Methodisches Aufwärmen und Dehnen, Analyse der anwesenden Spieler und möglicher Teamkonstellationen.", "tactician"),
+            ("c", "Auf dem Handy checken, ob der Webmaster heimlich dein Start-Rating heruntergestuft hat.", "conspiracy"),
+            ("d", "Erstmal ein Kippchen, Wochenendanekdoten austauschen und feststellen, dass man keine Wechselboxershorts eingepackt hat.", "legend"),
         ],
     },
     {
@@ -287,10 +287,10 @@ IMP_QUESTIONS_DE = [
         "scenario": "Szenario 2: Der eigensinnige Mitspieler",
         "question": "Dein Mitspieler versucht einen wilden 35-Meter-Volleyschuss mit dem schwachen Fuß, während du völlig blank vor dem leeren Tor stehst. Der Ball landet auf dem Dach eines Autos. Deine Reaktion?",
         "options": [
-            ("a", "In schallendes Gelächter ausbrechen, den Mut loben und ihn daran erinnern, dass er nach dem Spiel die erste Runde zahlt.", "legend"),
-            ("b", "Ruhig darauf hinweisen, dass Querpässe im Kleinfeldfußball eine um 88 % höhere Torwahrscheinlichkeit besitzen.", "tactician"),
+            ("a", "Innerlich in Panik geraten, weil diese vergebene Chance das Team gerade 5 erwartete Punkte gekostet hat.", "fragile_ego"),
+            ("b", "In schallendes Gelächter ausbrechen, den Mut loben und ihn daran erinnern, dass er nach dem Spiel die erste Runde zahlt.", "legend"),
             ("c", "Verzweifelt auf den Rasen sinken und theatralisch gestikulieren, dass dieser Eigensinn dein Rating ruiniert.", "tryhard"),
-            ("d", "Innerlich in Panik geraten, weil diese vergebene Chance das Team gerade 5 erwartete Punkte gekostet hat.", "fragile_ego"),
+            ("d", "Ruhig darauf hinweisen, dass Querpässe im Kleinfeldfußball eine um 88 % höhere Torwahrscheinlichkeit erzeugen.", "tactician"),
         ],
     },
     {
@@ -298,9 +298,9 @@ IMP_QUESTIONS_DE = [
         "scenario": "Szenario 3: Der abgefälschte Ball in der Schlussminute",
         "question": "Beim Stand von 4:4 in der letzten Spielminute prallt eine harmlose Flanke an einem Kieselstein ab, klatscht gegen dein Schienbein und kullert ins eigene Netz (Endstand 4:5). Wie verarbeitest du das?",
         "options": [
-            ("a", "Mit den Schultern zucken, dem Gegner abklatschen und scherzen, dass du heute immerhin ein Tor erzielt hast.", "legend"),
-            ("b", "Akzeptieren, dass stochastische Varianz eine mathematische Grundeigenschaft des Freizeitsports ist.", "tactician"),
-            ("c", "Eine offizielle Untersuchung der Platzbeschaffenheit und der Sehstärke des Schiedsrichters fordern.", "conspiracy"),
+            ("a", "Akzeptieren, dass stochastische Varianz eine mathematische Grundeigenschaft des Freizeitsports ist.", "tactician"),
+            ("b", "Eine offizielle Untersuchung der Platzbeschaffenheit und der Beschaffenheit des Spielballs einfordern.", "conspiracy"),
+            ("c", "Mit den Schultern zucken, dem Gegner abklatschen und scherzen, dass du heute immerhin ein Tor erzielt hast.", "legend"),
             ("d", "Dich 20 Minuten lang in der Duschkabine einschließen und über das sofortige Karriereende nachdenken.", "fragile_ego"),
         ],
     },
@@ -309,32 +309,32 @@ IMP_QUESTIONS_DE = [
         "scenario": "Szenario 4: Die Außenseiter-Prognose",
         "question": "Der Matchmaker zeigt an, dass dein Team eine vorhergesagte Siegchance von lediglich 34 % hat. Welcher Gedanke schießt dir durch den Kopf?",
         "options": [
-            ("a", "Perfekt! Das macht den anschließenden Jubel über den Überraschungssieg doppelt süß. Rauf auf den Platz!", "legend"),
-            ("b", "Ein interessanter Bayes'scher Prior. Lasst uns die Staffelung kompakter halten und auf Umschaltsituationen lauern.", "tactician"),
-            ("c", "Die Rückwärtsbewegung verweigern, weil der Algorithmus das Spiel ja ohnehin schon als verloren gewertet hat.", "tryhard"),
-            ("d", "Der Algorithmus ist vom Webmaster ganz klar manipuliert, um meine Platzierung künstlich zu drücken.", "conspiracy"),
+            ("a", "Der Algorithmus ist vom Webmaster ganz klar manipuliert, um meine Platzierung künstlich zu drücken.", "conspiracy"),
+            ("b", "Perfekt! Das macht den anschließenden Jubel über den Überraschungssieg doppelt süß. Rauf auf den Platz!", "legend"),
+            ("c", "Ein interessanter Bayes'scher Prior. Lasst uns die Staffelung kompakter halten und auf Umschaltsituationen lauern.", "tactician"),
+            ("d", "Die Rückwärtsbewegung verweigern, weil der Algorithmus das Spiel ja ohnehin schon als verloren gewertet hat.", "tryhard"),
         ],
     },
     {
         "id": "q5",
         "scenario": "Szenario 5: Pizza & Fachsimpeln nach dem Spiel",
-        "question": "Nach dem Spiel holt ein Mitspieler beim Pizzabäcker die Statistikseite auf dem Smartphone heraus. Wie blickst du auf die Zahlen?",
+        "question": "Nach dem Spiel holt ein Mitspieler beim Toni Häuschen die Statistikseite auf dem Smartphone heraus. Wie blickst du auf die Zahlen?",
         "options": [
-            ("a", "'Zahlen machen Spaß, aber hast du Max' Hacken-Tunnel gesehen? Das ist es, worauf es ankommt!'", "legend"),
-            ("b", "'Eine schöne mathematische Zusammenfassung vergangener Resultate, aber kein persönliches Urteil über jemanden.'", "tactician"),
-            ("c", "'Mein konservatives Rating liegt bei 1620 und deines bei 1410 – ab sofort trete ich alle Ecken.'", "tryhard"),
-            ("d", "'Beim Anblick dieser Zahlen dreht sich mir der Magen um. Was, wenn ich nächste Woche zwei Plätze abrutsche?'", "fragile_ego"),
+            ("a", "'Zahlen machen Spaß, aber hast du Bernhards Monstergrätsche gesehen? Das ist es, worauf es ankommt!'", "legend"),
+            ("b", "'Beim Anblick dieser Zahlen dreht sich mir der Magen um. Was, wenn ich nächste Woche zwei Plätze abrutsche?'", "fragile_ego"),
+            ("c", "'Eine schöne mathematische Zusammenfassung vergangener Resultate, aber kein persönliches Urteil über jemanden.'", "tactician"),
+            ("d", "'Mein konservatives Rating liegt bei 1620 und deines bei 1410 – ab sofort trete ich alle Ecken.'", "tryhard"),
         ],
     },
     {
         "id": "q6",
-        "scenario": "Szenario 6: Der absolute Schlachttag",
-        "question": "Du hast einen rabenschwarzen Tag: Deine erste Ballannahme verspringt fünf Meter weit, du rutschst bei jedem Richtungswechsel weg und verschießt einen Elfmeter. Was tust du?",
+        "scenario": "Szenario 6: Der Tag zum Vergessen",
+        "question": "Du hast einen rabenschwarzen Tag: Deine erste Ballannahme verspringt fünf Meter weit, du rutschst bei jedem Richtungswechsel weg und verursachst einen unnötigen Elfmeter. Was tust du?",
         "options": [
-            ("a", "Über dich selbst lachen, dafür in der Defensive doppelt so viele Meter fressen und die Kollegen wirbeln lassen.", "pragmatist"),
-            ("b", "Erkennen, dass Einzelleistungen einer Normalverteilung unterliegen, und diszipliniert deine Position halten.", "tactician"),
-            ("c", "Nach 15 Minuten einen Leistenkrampf vortäuschen, um dich auswechseln zu lassen und dein Rating zu retten.", "tryhard"),
-            ("d", "Wütend eine Trinkflasche wegpfeffern und behaupten, dass der Spielball mit Absicht viel zu prall aufgepumpt war.", "conspiracy"),
+            ("a", "Erkennen, dass Einzelleistungen einer Normalverteilung unterliegen, und diszipliniert deine Position halten.", "tactician"),
+            ("b", "Nach 15 Minuten einen Leistenkrampf vortäuschen, um dich auswechseln zu lassen und dein Rating zu retten.", "tryhard"),
+            ("c", "Wütend eine Trinkflasche wegpfeffern und behaupten, dass der Spielball mit Absicht viel zu prall aufgepumpt war.", "conspiracy"),
+            ("d", "Über dich selbst lachen, dafür in der Defensive doppelt so viele Meter fressen und die Kollegen wirbeln lassen.", "pragmatist"),
         ],
     },
     {
@@ -342,10 +342,10 @@ IMP_QUESTIONS_DE = [
         "scenario": "Szenario 7: Die Glicko-Philosophie",
         "question": "Warum ist der Zugriff auf das detaillierte Glicko-Rating an diesen psychologischen Fragebogen gekoppelt?",
         "options": [
-            ("a", "Weil verbissene Ratings den Spaß am Freizeitsport und die intrinsische Spielfreude vergiften können, wenn man sie zu ernst nimmt.", "legend"),
-            ("b", "Um sicherzustellen, dass die Spieler verstehen: Ratings modellieren Ergebnisse und Varianz, nicht den menschlichen Wert.", "tactician"),
-            ("c", "Damit ich nicht auf Anhieb sehe, wie mühelos ich das gesamte Teilnehmerfeld an die Wand spielen könnte.", "tryhard"),
-            ("d", "Weil der Webmaster Freude daran hat, unsere Vereinstreue durch verdeckte Überwachungsfragen zu testen.", "conspiracy"),
+            ("a", "Damit man nicht auf Anhieb sieht, wie mühelos ich das gesamte Teilnehmerfeld an die Wand spielen könnte.", "tryhard"),
+            ("b", "Weil verbissene Ratings den Spaß am Freizeitsport und die intrinsische Spielfreude vergiften können, wenn man sie zu ernst nimmt.", "legend"),
+            ("c", "Weil der Webmaster Freude daran hat, unsere Vereinstreue durch verdeckte Überwachungsfragen zu testen.", "conspiracy"),
+            ("d", "Um sicherzustellen, dass die Spieler verstehen: Ratings modellieren Ergebnisse und Varianz, nicht den menschlichen Wert.", "tactician"),
         ],
     },
 ]

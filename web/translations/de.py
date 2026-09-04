@@ -171,7 +171,7 @@ TRANSLATIONS_DE = {
     "about.hero_title": "Über RB 48 Köln e.V.",
     "about.hero_desc": "Verein für Freizeitfußball",
     "about.club_title": "⚽ Verein & Community",
-    "about.club_p1": "<strong>RB 48 Köln e.V.</strong> ist eine Freizeitfußball-Gemeinschaft mit Sitz in Köln. Wir organisieren wöchentliche Kleinfeld oder Soccerbox Spiele und nehmen an Freizeitturnieren Teil.",
+    "about.club_p1": "<strong>RB 48 Köln e.V.</strong> ist eine Freizeitfußball-Gemeinschaft mit Sitz in Köln. Wir organisieren wöchentliche Kleinfeld oder Soccerbox Spiele und nehmen an Freizeitturnieren teil.",
     "about.club_p2": "Der RB 48 steht ein für Offenheit, Toleranz, Gemeinschaft und einen gesunden sowie fairen Wettkampfgeist. Fair-Play und gegenseitiger Respekt sind auf und neben dem Platz oberstes Gebot.",
     "about.formats_title": "🏟️ Unsere Spieltags-Formate",
     "about.formats_intro": "Wir spielen regelmäßig in zwei unterschiedlichen Formaten:",
@@ -435,7 +435,7 @@ TRANSLATIONS_DE = {
     "psych.scope_important": "<strong>Wichtig:</strong> Glicko ist ein <em>ergebnisbasiertes Performancemodell</em>. Es misst <strong>keine</strong> individuelle Kondition, technische Eleganz, Defensivarbeit, Führungsqualität oder den persönlichen Wert. Die Vorhersagekraft wird unter <a href=\"{analysis_url}\" style=\"color: #80deea; font-weight: 600;\">Modellanalyse</a> kontinuierlich überprüft.",
     "psych.gate_title": "2. Warum ist der Zugang beschränkt? (Psychologie gerateter Spiele)",
     "psych.gate_text1": "Im kompetitiven Gaming und Vereinssport führt die Einführung numerischer Ratings häufig zu einem wohlbekannten Effekt: <strong>der Erosion intrinsischer Motivation</strong>.",
-    "psych.gate_text2": "Wenn Spieler ihren Fokus auf externe Ratingpunkte statt auf die pure Spielfreude mit Freunden legen, können harmlose Freizeitkicks in Schuldzuweisungen, Ratingangst und Kabinenunruhe umschlagen.",
+    "psych.gate_text2": "Wenn Spieler ihren Fokus auf externe Ratingpunkte statt auf pure Spielfreude legen, können Freizeitkicks in Ratingangst, Schuldzuweisungen und schlechte Stimmung umschlagen.",
     "psych.community_standard": "<strong>Unser Gemeinschaftsstandard:</strong> Wir stellen diese Selbsteinschätzung voran, um sicherzustellen, dass alle Glicko-Mitglieder statistische Varianz verstehen, Fairplay leben und den Spaß sowie die Kameradschaft des Mittwochs-Kicks über bloße Zahlen stellen.",
     "psych.back_settings": "← Zurück zu den Einstellungen",
     "psych.back_briefing": "← Zurück zum Briefing",
@@ -603,4 +603,4 @@ TRANSLATIONS_DE = {
     "common.warning": "Achtung",
     "common.yes": "Ja",
     "common.no": "Nein",
-}
+}
