@@ -661,4 +661,71 @@ TRANSLATIONS_DE = {
     "common.warning": "Achtung",
     "common.yes": "Ja",
     "common.no": "Nein",
-}
+
+    # Global Search
+    "nav.search_placeholder": "Spieler suchen... (Strg+K)",
+    "nav.search_no_results": "Keine Spieler gefunden",
+    "nav.search_hint": "Tippe zum Suchen von Spielerprofilen",
+
+    # Share Filter
+    "player.share_filters": "🔗 Link kopieren",
+    "player.link_copied": "Filter-Link in Zwischenablage kopiert!",
+
+    # Calendar Export
+    "planner.export_ics": "📅 In Kalender eintragen (.ics)",
+    "planner.export_ics_title": "Alle anstehenden Spieltage als iCalendar (.ics) herunterladen",
+
+    # Match Center Planner Roster Import
+    "match_center.import_planner_roster": "📅 Kader aus Planer importieren",
+    "match_center.import_planner_title": "Zugesagte Spieler eines Spieltags aus dem Planer übernehmen",
+    "match_center.import_event_prompt": "Spieltag auswählen:",
+    "match_center.import_btn": "Kader übernehmen",
+    "match_center.imported_success": "{count} Spieler aus Spieltag übernommen!",
+
+    # Community Synergies & Duo Leaderboards
+    "stats.synergies_btn": "🤝 Community-Synergien",
+    "stats.synergies_title": "Community Synergien & Duo-Ranglisten",
+    "stats.synergies_sub": "Historische Synergien, Duos und Rivalitäten über alle Spiele hinweg.",
+    "stats.tab_best_duos": "🏆 Beste Duos (Synergie)",
+    "stats.tab_worst_duos": "⚠️ Schwächste Duos",
+    "stats.tab_rivals": "⚔️ Kryptonite & Rivalen",
+    "stats.tab_balanced": "⚖️ Ausgeglichenste Duelle",
+    "stats.th_duo": "Duo / Paarung",
+    "stats.th_rivalry": "Spieler 1 vs. Spieler 2",
+    "stats.min_games_notice": "Mindestens 5 gemeinsame Spiele erforderlich.",
+
+    # Dashboard Streaks & Highlights
+    "dashboard.streaks_heading": "🔥 Form-Highlights & Streaks",
+    "dashboard.streaks_sub": "Aktuelle Serien und die stärksten Form-Trends der Community.",
+    "dashboard.active_win_streaks": "🔥 Aktuelle Siegserien",
+    "dashboard.all_time_win_streaks": "⭐ Rekord-Siegserien (All-Time)",
+    "dashboard.most_improved": "🚀 Aufsteiger des Monats (+Delta in 30 Tagen)",
+    "dashboard.streak_wins_label": "{count} Siege in Folge",
+    "dashboard.no_active_streaks": "Aktuell keine aktiven Siegserien (mind. 2 Siege).",
+    "dashboard.no_improved_data": "Keine ausreichenden Spieldaten im letzten Monat.",
+
+    # Gamification & Achievements
+    "achievements.section_title": "🏆 Erfolge & Meilensteine",
+    "achievements.unlocked": "Freigeschaltet",
+    "achievements.locked": "Noch gesperrt",
+    "achievements.progress": "Fortschritt: {current} / {target}",
+    "achievements.century_title": "Century Club",
+    "achievements.century_desc": "Meilenstein für {target} absolvierte Spiele.",
+    "achievements.iron_man_title": "Iron Man",
+    "achievements.iron_man_desc": "An {target} aufeinanderfolgenden Spieltagen teilgenommen.",
+    "achievements.underdog_title": "Underdog Hero",
+    "achievements.underdog_desc": "Sieg errungen trotz einer erwarteten Siegwahrscheinlichkeit von unter 35% ({prob}%).",
+    "achievements.clean_sheet_title": "Weiße Wand",
+    "achievements.clean_sheet_desc": "Einen Zu-Null-Sieg ohne jedes Gegentor gefeiert ({score}).",
+    "achievements.highest_rank_title": "Thronhüter",
+    "achievements.highest_rank_desc": "Platz 1 der internen Glicko-Rangliste erreicht und verteidigt ({count} Spieltage).",
+    "achievements.top3_rank_title": "Podeststürmer",
+    "achievements.top3_rank_desc": "Einen Platz unter den Top 3 der Rangliste belegt ({count} Spieltage).",
+    "achievements.breaking_destiny_title": "Breaking Destiny",
+    "achievements.breaking_destiny_desc": "Fluch gebrochen: Nach mindestens 10 gemeinsamen Spielen mit schwächster Synergie / Angstgegnerstatus mit {partner} triumphiert!",
+    "achievements.comeback_king_title": "Comeback King",
+    "achievements.comeback_king_desc": "Nach einem Rating-Tief von mindestens 100 Punkten wieder ein neues Rating-Hoch erklommen!",
+    "achievements.perfect_session_title": "Perfect Session",
+    "achievements.perfect_session_desc": "Makelloser Spieltag: Alle {count} Spiele an einem einzigen Abend gewonnen.",
+
+}

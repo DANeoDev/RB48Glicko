@@ -199,6 +199,28 @@ def match_center():
             parse_error = str(exc)
             parse_result = _rebuild_parser_result(request.form, players)
 
+    elif request.method == "POST" and action == "import_planner":
+        planner_event_id = request.form.get("planner_event_id", type=int)
+        if planner_event_id:
+            from scripts.planner.database import get_planner_connection, get_event_attendees, get_event_by_id
+            from scripts.accounts.database import get_accounts_connection
+            from web.routes.planner import resolve_active_roster_player_ids
+            p_conn = get_planner_connection()
+            a_conn = get_accounts_connection()
+            try:
+                ev = get_event_by_id(p_conn, planner_event_id)
+                attendees = get_event_attendees(p_conn, planner_event_id)
+                alias_lookup = get_alias_lookup(connection)
+                active_roster = [a for a in attendees if a["status"] == "attending"][:ev["max_players"]] if ev else []
+                imported_ids = resolve_active_roster_player_ids(active_roster, alias_lookup, a_conn)
+                selected_ids = list(dict.fromkeys(selected_ids + imported_ids))
+                if ev and ev.get("event_date"):
+                    match_date = ev["event_date"].split("T")[0].split(" ")[0]
+                parser_success = f"Kader erfolgreich importiert ({len(imported_ids)} Spieler aus Event '{ev.get('title') or 'Spieltag'}')."
+            finally:
+                p_conn.close()
+                a_conn.close()
+
     elif request.method == "POST" and action == "create_player":
         try:
             alias = normalize_player_name(request.form.get("new_alias", ""))
@@ -310,6 +332,12 @@ def match_center():
         goals_b = parse_result.get("goals_b") if parse_result.get("goals_b") is not None else 0
     player_names = {pid: (data["aliases"][0] if data["aliases"] else f"Player {pid}") for pid, data in players.items()}
     player_search_data = [{"id": pid, "name": player_names[pid], "positions": data.get("positions", [])} for pid, data in players.items()]
+    from scripts.planner.database import get_planner_connection, get_upcoming_events
+    p_conn = get_planner_connection()
+    try:
+        planner_events = get_upcoming_events(p_conn)
+    finally:
+        p_conn.close()
     next_id = next_match_id(connection, match_date)
     connection.close()
     return render_template(
@@ -337,7 +365,8 @@ def match_center():
         next_match_id=next_id,
         success=success,
         error=error,
-        calibration_message=calibration_message
+        calibration_message=calibration_message,
+        planner_events=planner_events
     )
 
 

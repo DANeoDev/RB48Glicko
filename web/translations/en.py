@@ -639,4 +639,71 @@ TRANSLATIONS_EN = {
     "common.warning": "Warning",
     "common.yes": "Yes",
     "common.no": "No",
+
+    # Global Search
+    "nav.search_placeholder": "Search players... (Ctrl+K)",
+    "nav.search_no_results": "No players found",
+    "nav.search_hint": "Type to search player profiles",
+
+    # Share Filter
+    "player.share_filters": "🔗 Copy Link",
+    "player.link_copied": "Filter link copied to clipboard!",
+
+    # Calendar Export
+    "planner.export_ics": "📅 Add to Calendar (.ics)",
+    "planner.export_ics_title": "Download upcoming matchdays as an iCalendar (.ics) file",
+
+    # Match Center Planner Roster Import
+    "match_center.import_planner_roster": "📅 Import Roster from Planner",
+    "match_center.import_planner_title": "Import confirmed attendance from a planned matchday",
+    "match_center.import_event_prompt": "Select matchday:",
+    "match_center.import_btn": "Import Roster",
+    "match_center.imported_success": "Imported {count} players from matchday!",
+
+    # Community Synergies & Duo Leaderboards
+    "stats.synergies_btn": "🤝 Community Synergies",
+    "stats.synergies_title": "Community Synergies & Duo Leaderboards",
+    "stats.synergies_sub": "Historical duo chemistry, win rates, and head-to-head rivalries across all games.",
+    "stats.tab_best_duos": "🏆 Best Duos (Synergy)",
+    "stats.tab_worst_duos": "⚠️ Lowest Chemistry Duos",
+    "stats.tab_rivals": "⚔️ Kryptonite & Rivalries",
+    "stats.tab_balanced": "⚖️ Most Balanced Matchups",
+    "stats.th_duo": "Duo / Pairing",
+    "stats.th_rivalry": "Player 1 vs. Player 2",
+    "stats.min_games_notice": "At least 5 matches together required.",
+
+    # Dashboard Streaks & Highlights
+    "dashboard.streaks_heading": "🔥 Form Highlights & Streaks",
+    "dashboard.streaks_sub": "Current active streaks and top community form trends.",
+    "dashboard.active_win_streaks": "🔥 Active Win Streaks",
+    "dashboard.all_time_win_streaks": "⭐ Record Win Streaks (All-Time)",
+    "dashboard.most_improved": "🚀 Most Improved Player (30-Day Delta)",
+    "dashboard.streak_wins_label": "{count} consecutive wins",
+    "dashboard.no_active_streaks": "No active win streaks right now (min. 2 wins).",
+    "dashboard.no_improved_data": "Insufficient match data from the past 30 days.",
+
+    # Gamification & Achievements
+    "achievements.section_title": "🏆 Achievements & Milestones",
+    "achievements.unlocked": "Unlocked",
+    "achievements.locked": "Locked",
+    "achievements.progress": "Progress: {current} / {target}",
+    "achievements.century_title": "Century Club",
+    "achievements.century_desc": "Milestone for {target} matches played.",
+    "achievements.iron_man_title": "Iron Man",
+    "achievements.iron_man_desc": "Attended {target} consecutive matchdays.",
+    "achievements.underdog_title": "Underdog Hero",
+    "achievements.underdog_desc": "Achieved victory despite a win probability of less than 35% ({prob}%).",
+    "achievements.clean_sheet_title": "Clean Sheet Wall",
+    "achievements.clean_sheet_desc": "Celebrated a clean sheet victory with zero goals conceded ({score}).",
+    "achievements.highest_rank_title": "Throne Keeper",
+    "achievements.highest_rank_desc": "Reached and defended rank #1 on the leaderboard for {count} matchdays.",
+    "achievements.top3_rank_title": "Podium Climber",
+    "achievements.top3_rank_desc": "Secured a top 3 spot on the leaderboard for {count} matchdays.",
+    "achievements.breaking_destiny_title": "Breaking Destiny",
+    "achievements.breaking_destiny_desc": "Broke the curse: After 10+ games with lowest synergy or rivalry status, triumphed alongside {partner}!",
+    "achievements.comeback_king_title": "Comeback King",
+    "achievements.comeback_king_desc": "Rose to a new peak rating after bouncing back from a drop of 100+ points!",
+    "achievements.perfect_session_title": "Perfect Session",
+    "achievements.perfect_session_desc": "Flawless matchday: Won all {count} matches in a single evening.",
+
 }
