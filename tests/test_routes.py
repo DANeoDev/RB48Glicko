@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import shutil
 import tempfile
 import time
 import unittest
@@ -13,11 +14,17 @@ class RouteTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.test_accounts_db = Path(self.temp_dir.name) / "test_accounts.db"
+        self.test_rb48_db = Path(self.temp_dir.name) / "test_rb48.db"
+        prod_rb48 = Path(__file__).resolve().parents[1] / "data" / "rb48.db"
+        if prod_rb48.exists():
+            shutil.copy2(prod_rb48, self.test_rb48_db)
         os.environ["RB48_ACCOUNTS_DATABASE_FILE"] = str(self.test_accounts_db)
+        os.environ["RB48_DATABASE_FILE"] = str(self.test_rb48_db)
         self.client = app.test_client()
 
     def tearDown(self):
         os.environ.pop("RB48_ACCOUNTS_DATABASE_FILE", None)
+        os.environ.pop("RB48_DATABASE_FILE", None)
         self.temp_dir.cleanup()
 
     def create_user_session(self, role="user", verified=True, approved=True, psychology_passed=True):
