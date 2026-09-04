@@ -9,7 +9,61 @@
 {% block content %}
 <section class="dashboard-page">
     <div class="dashboard-content">
-        <div class="dashboard-grid" style="display: grid; grid-template-columns: 1fr 340px; gap: 24px; align-items: flex-start;">
+        
+        <!-- Left Ticker: Streaks & Form (Only for registered members / has_tier('user')) -->
+        {% if current_user and has_tier('user') and streaks %}
+        <aside class="dashboard-ticker" aria-label="Serien & Form Ticker">
+            <div class="dashboard-ticker-header">
+                <span class="dashboard-ticker-title">🔥 {{ t('dashboard.streaks_title', 'Serien & Form') }}</span>
+                <span style="font-size: 11px; color: var(--text-muted);">TOP 4</span>
+            </div>
+
+            <!-- 1. Active Streaks -->
+            <div class="dashboard-ticker-section">
+                <span class="dashboard-ticker-section-title" style="color: #88ff88;">⚡ {{ t('dashboard.active_streaks', 'Aktive Serien') }}</span>
+                {% if streaks.active_win_streaks %}
+                    {% for s in streaks.active_win_streaks[:4] %}
+                    <div class="ticker-item">
+                        <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}">{{ s.name }}</a>
+                        <span class="ticker-badge-streak">{{ s.count }} W</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <span style="font-size: 11.5px; color: var(--text-muted); font-style: italic;">Keine aktive Serie (≥ 2 Siege)</span>
+                {% endif %}
+            </div>
+
+            <!-- 2. All-Time Record Streaks -->
+            <div class="dashboard-ticker-section">
+                <span class="dashboard-ticker-section-title" style="color: #ffd700;">🏆 {{ t('dashboard.record_streaks', 'Rekordserien') }}</span>
+                {% for s in streaks.all_time_win_streaks[:4] %}
+                <div class="ticker-item">
+                    <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}">{{ s.name }}</a>
+                    <span class="ticker-badge-record">{{ s.count }} Siege</span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- 3. Most Improved (30 Days) -->
+            {% if streaks.most_improved %}
+            <div class="dashboard-ticker-section">
+                <span class="dashboard-ticker-section-title" style="color: #80deea;">📈 {{ t('dashboard.most_improved', 'Im Aufwind (30T)') }}</span>
+                {% for imp in streaks.most_improved[:4] %}
+                <div class="ticker-item">
+                    <a href="{{ url_for('stats.player_profile', player_id=imp.player_id) }}">{{ imp.name }}</a>
+                    <span class="ticker-badge-delta">+{{ "%.1f" | format(imp.rating_delta) }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <button type="button" class="btn-ticker-expand" onclick="openStreaksModal()">
+                ↗ {{ t('dashboard.expand_streaks', 'Alle anzeigen (Top 10)') }}
+            </button>
+        </aside>
+        {% endif %}
+
+        <!-- Right Card: News -->
         <div class="dashboard-news card">
             <div class="dashboard-news-header">
                 <h1>{{ t('dashboard.news', 'News') }}</h1>
@@ -32,60 +86,85 @@
             </div>
         </div>
 
-        <!-- Streaks & Most Improved Side Card -->
-        <div class="dashboard-streaks card" style="padding: 20px; background: #1a1033; border: 1px solid var(--border); border-radius: 10px;">
-            <h2 style="font-size: 16px; margin: 0 0 16px; display: flex; align-items: center; gap: 8px; color: #fff;">
-                <span>🔥</span> {{ t('dashboard.streaks_title', 'Serien & Formbarometer') }}
-            </h2>
-            
-            <h3 style="font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.5px; color: #88ff88; margin: 0 0 8px;">
-                ⚡ {{ t('dashboard.active_streaks', 'Aktive Siegesserien') }}
-            </h3>
-            {% if streaks and streaks.active_win_streaks %}
-                <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;">
-                    {% for s in streaks.active_win_streaks %}
-                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; background: rgba(40,167,69,0.12); border: 1px solid rgba(40,167,69,0.3); border-radius: 6px; padding: 6px 10px;">
-                            <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="color: #fff; font-weight: 600; text-decoration: none;">⚽ {{ s.name }}</a>
-                            <span style="background: #28a745; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 10px;">{{ s.count }} W</span>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p class="muted" style="font-size: 12px; margin-bottom: 16px; font-style: italic;">{{ t('dashboard.no_active_streaks', 'Aktuell keine aktive Serie (≥ 2 Siege).') }}</p>
-            {% endif %}
-
-            <h3 style="font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.5px; color: #ffd700; margin: 0 0 8px;">
-                🏆 {{ t('dashboard.record_streaks', 'All-Time Rekordserien') }}
-            </h3>
-            <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;">
-                {% if streaks and streaks.all_time_win_streaks %}
-                    {% for s in streaks.all_time_win_streaks %}
-                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; background: rgba(255,215,0,0.08); border: 1px solid rgba(255,215,0,0.22); border-radius: 6px; padding: 6px 10px;">
-                            <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="color: #fff; font-weight: 600; text-decoration: none;">{{ s.name }}</a>
-                            <span style="color: #ffd700; font-size: 11.5px; font-weight: 700;">{{ s.count }} Siege</span>
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            </div>
-
-            {% if streaks and streaks.most_improved %}
-            <h3 style="font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.5px; color: #80deea; margin: 0 0 8px;">
-                📈 {{ t('dashboard.most_improved', 'Spieler im Aufwind (30 Tage)') }}
-            </h3>
-            <div style="display: flex; flex-direction: column; gap: 6px;">
-                {% for imp in streaks.most_improved %}
-                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; background: rgba(128,222,234,0.08); border: 1px solid rgba(128,222,234,0.22); border-radius: 6px; padding: 6px 10px;">
-                        <a href="{{ url_for('stats.player_profile', player_id=imp.player_id) }}" style="color: #fff; font-weight: 600; text-decoration: none;">{{ imp.name }}</a>
-                        <span style="color: #88ff88; font-weight: 700; font-size: 11.5px;">+{{ "%.1f" | format(imp.rating_delta) }}</span>
-                    </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-    </div>
     </div>
 </section>
 
+<!-- Full Streaks Modal (Top 10, Scrollable) -->
+{% if current_user and has_tier('user') and streaks %}
+<div class="corr-modal-backdrop" id="streaks-modal-backdrop" onclick="closeStreaksModal()"></div>
+<div class="corr-modal" id="streaks-modal" role="dialog" aria-modal="true" aria-labelledby="streaks-modal-title" style="max-width: 780px;">
+    <div class="corr-modal-header">
+        <div class="corr-modal-header-titles">
+            <h3 id="streaks-modal-title">🔥 {{ t('dashboard.streaks_modal_title', 'RB48 Serien & Formbarometer') }}</h3>
+            <div class="corr-modal-sub">{{ t('dashboard.streaks_modal_sub', 'Detaillierte Übersicht der aktivsten Siegesserien, Rekorde und Formsteigerungen') }}</div>
+        </div>
+        <button type="button" class="corr-modal-close" onclick="closeStreaksModal()" aria-label="Schließen">✕</button>
+    </div>
+
+    <div class="corr-modal-tabs">
+        <button type="button" class="corr-tab-btn active" id="strk-tab-active" onclick="switchStreakTab('active')">
+            ⚡ {{ t('dashboard.active_streaks', 'Aktive Serien') }}
+        </button>
+        <button type="button" class="corr-tab-btn" id="strk-tab-records" onclick="switchStreakTab('records')">
+            🏆 {{ t('dashboard.record_streaks', 'All-Time Rekorde') }}
+        </button>
+        <button type="button" class="corr-tab-btn" id="strk-tab-improved" onclick="switchStreakTab('improved')">
+            📈 {{ t('dashboard.most_improved', 'Aufwind (30 Tage)') }}
+        </button>
+    </div>
+
+    <div class="corr-modal-body" style="padding: 20px;">
+        <!-- Tab 1: Active Streaks -->
+        <div class="strk-pane" id="strk-pane-active">
+            {% if streaks.active_win_streaks %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;">
+                {% for s in streaks.active_win_streaks[:10] %}
+                <div style="background: rgba(40,167,69,0.12); border: 1px solid rgba(40,167,69,0.3); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
+                    <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="color: #fff; font-weight: 600; text-decoration: none;">⚽ {{ s.name }}</a>
+                    <span style="background: #28a745; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 10px;">{{ s.count }} Siege</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted" style="text-align: center; padding: 20px;">Keine aktiven Siegesserien (≥ 2 Siege).</p>
+            {% endif %}
+        </div>
+
+        <!-- Tab 2: All-Time Records -->
+        <div class="strk-pane" id="strk-pane-records" style="display: none;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;">
+                {% for s in streaks.all_time_win_streaks[:10] %}
+                <div style="background: rgba(255,215,0,0.08); border: 1px solid rgba(255,215,0,0.22); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
+                    <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="color: #fff; font-weight: 600; text-decoration: none;">👑 {{ s.name }}</a>
+                    <span style="color: #ffd700; font-weight: 700; font-size: 12px;">{{ s.count }} Siege in Folge</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Tab 3: Most Improved -->
+        <div class="strk-pane" id="strk-pane-improved" style="display: none;">
+            {% if streaks.most_improved %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;">
+                {% for imp in streaks.most_improved[:10] %}
+                <div style="background: rgba(128,222,234,0.08); border: 1px solid rgba(128,222,234,0.22); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <a href="{{ url_for('stats.player_profile', player_id=imp.player_id) }}" style="color: #fff; font-weight: 600; text-decoration: none; display: block;">{{ imp.name }}</a>
+                        <span style="font-size: 11px; color: var(--text-muted);">{{ imp.past_rating | round | int }} → {{ imp.current_rating | round | int }}</span>
+                    </div>
+                    <span style="color: #88ff88; font-weight: 800; font-size: 13px;">+{{ "%.1f" | format(imp.rating_delta) }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted" style="text-align: center; padding: 20px;">Keine Ratingsteigerungen in den letzten 30 Tagen.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- News Editor Modal -->
 <div class="news-modal-backdrop" id="news-modal" hidden>
     <div class="modal news-editor-modal" role="dialog" aria-modal="true" aria-labelledby="news-editor-title">
         <div class="news-editor-header">
@@ -139,80 +218,69 @@ function hideNewsModal() {
     newsModal.hidden = true;
 }
 
-openNewsModal.addEventListener("click", showNewsModal);
-closeNewsModal.addEventListener("click", hideNewsModal);
-cancelNewsModal.addEventListener("click", hideNewsModal);
-newsModal.addEventListener("click", (event) => {
-    if (event.target === newsModal) hideNewsModal();
-});
+if (openNewsModal) openNewsModal.addEventListener("click", showNewsModal);
+if (closeNewsModal) closeNewsModal.addEventListener("click", hideNewsModal);
+if (cancelNewsModal) cancelNewsModal.addEventListener("click", hideNewsModal);
+if (newsModal) {
+    newsModal.addEventListener("click", (event) => {
+        if (event.target === newsModal) hideNewsModal();
+    });
+}
 document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !newsModal.hidden) hideNewsModal();
+    if (event.key === "Escape" && newsModal && !newsModal.hidden) hideNewsModal();
 });
 
-formatNewsAI.addEventListener("click", async () => {
-    const text = newsMarkdown.value.trim();
-    if (!text) {
-        newsEditorStatus.textContent = "Please enter some text first.";
-        newsMarkdown.focus();
-        return;
-    }
-
-    formatNewsAI.disabled = true;
-    newsEditorStatus.textContent = "Formatting with AI…";
-
-    try {
-        const response = await fetch("{{ url_for('news.format_news') }}", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text })
-        });
-        const data = await response.json();
-        if (!response.ok) {
-            throw new Error(data.error || "The AI formatter failed.");
+if (formatNewsAI) {
+    formatNewsAI.addEventListener("click", async () => {
+        const text = newsMarkdown.value.trim();
+        if (!text) {
+            newsEditorStatus.textContent = "Please enter some text to format.";
+            return;
         }
-        newsMarkdown.value = data.markdown;
-        newsEditorStatus.textContent = "Formatted. Please review the Markdown before publishing.";
-        newsMarkdown.focus();
-    } catch (error) {
-        newsEditorStatus.textContent = error.message || "The AI formatter failed.";
-    } finally {
-        formatNewsAI.disabled = false;
-    }
-});
-
-async function loadMoreNews() {
-    if (!hasMoreNews || loadingNews) return;
-    loadingNews = true;
-    if (newsLoading) newsLoading.hidden = false;
-
-    try {
-        const response = await fetch(`{{ url_for('news.get_more_news') }}?offset=${newsOffset}&limit=2`);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Could not load more news.");
-
-        data.news.forEach(item => {
-            const article = document.createElement("article");
-            article.className = "dashboard-news-item";
-            article.innerHTML = `<div class="dashboard-news-date">${item.date}</div>${item.html}`;
-            newsContent.insertBefore(article, newsLoading);
-        });
-
-        newsOffset += data.news.length;
-        hasMoreNews = data.has_more;
-        if (newsLoading && !hasMoreNews) newsLoading.remove();
-    } catch (error) {
-        console.error(error);
-    } finally {
-        loadingNews = false;
-        if (newsLoading && hasMoreNews) newsLoading.hidden = true;
-    }
+        formatNewsAI.disabled = true;
+        newsEditorStatus.textContent = "Formatting with AI…";
+        try {
+            const resp = await fetch("{{ url_for('news.format_news') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text })
+            });
+            const data = await resp.json();
+            if (resp.ok && data.markdown) {
+                newsMarkdown.value = data.markdown;
+                newsEditorStatus.textContent = "Formatted successfully!";
+            } else {
+                newsEditorStatus.textContent = data.error || "Failed to format news.";
+            }
+        } catch (err) {
+            newsEditorStatus.textContent = "Network error while formatting.";
+        } finally {
+            formatNewsAI.disabled = false;
+        }
+    });
 }
 
-newsContent.addEventListener("scroll", () => {
-    const threshold = 120;
-    if (newsContent.scrollTop + newsContent.clientHeight >= newsContent.scrollHeight - threshold) {
-        loadMoreNews();
-    }
-});
+function openStreaksModal() {
+    const modal = document.getElementById("streaks-modal");
+    const backdrop = document.getElementById("streaks-modal-backdrop");
+    if (modal) modal.classList.add("open");
+    if (backdrop) backdrop.classList.add("open");
+    document.body.style.overflow = "hidden";
+}
+function closeStreaksModal() {
+    const modal = document.getElementById("streaks-modal");
+    const backdrop = document.getElementById("streaks-modal-backdrop");
+    if (modal) modal.classList.remove("open");
+    if (backdrop) backdrop.classList.remove("open");
+    document.body.style.overflow = "";
+}
+function switchStreakTab(tab) {
+    ["active", "records", "improved"].forEach(t => {
+        const btn = document.getElementById(`strk-tab-${t}`);
+        const pane = document.getElementById(`strk-pane-${t}`);
+        if (btn) btn.classList.toggle("active", t === tab);
+        if (pane) pane.style.display = (t === tab) ? "block" : "none";
+    });
+}
 </script>
 {% endblock %}

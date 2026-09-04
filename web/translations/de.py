@@ -705,6 +705,16 @@ TRANSLATIONS_DE = {
     "dashboard.no_improved_data": "Keine ausreichenden Spieldaten im letzten Monat.",
 
     # Gamification & Achievements
+    "nav.achievements": "Auszeichnungen",
+    "achievements.page_title": "Auszeichnungen & Meilensteine",
+    "achievements.select_player": "Spielerprofil wählen",
+    "achievements.unlocked_stat": "{unlocked} von {total} Freigeschaltet",
+    "achievements.all_categories": "Alle",
+    "search.pages": "Seiten & Funktionen",
+    "search.players": "Spieler",
+    "search.no_results": "Keine Ergebnisse gefunden.",
+    "planner.export_ics": "Kalender (.ics)",
+    "planner.export_ics_title": "Spieltermine in persönlichen Kalender exportieren (Apple, Google, Outlook)",
     "achievements.section_title": "🏆 Erfolge & Meilensteine",
     "achievements.unlocked": "Freigeschaltet",
     "achievements.locked": "Noch gesperrt",

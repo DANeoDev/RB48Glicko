@@ -683,6 +683,16 @@ TRANSLATIONS_EN = {
     "dashboard.no_improved_data": "Insufficient match data from the past 30 days.",
 
     # Gamification & Achievements
+    "nav.achievements": "Achievements",
+    "achievements.page_title": "Achievements & Milestones",
+    "achievements.select_player": "Select Player Profile",
+    "achievements.unlocked_stat": "{unlocked} of {total} Unlocked",
+    "achievements.all_categories": "All",
+    "search.pages": "Pages & Features",
+    "search.players": "Players",
+    "search.no_results": "No results found.",
+    "planner.export_ics": "Calendar (.ics)",
+    "planner.export_ics_title": "Export match schedule to personal calendar (Apple, Google, Outlook)",
     "achievements.section_title": "🏆 Achievements & Milestones",
     "achievements.unlocked": "Unlocked",
     "achievements.locked": "Locked",

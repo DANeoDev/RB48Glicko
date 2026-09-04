@@ -252,22 +252,6 @@
             {% endif %}
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-            {% if has_tier('user') %}
-                <button type="button" id="nav-global-search-btn" class="nav-search-btn" onclick="window.GlobalPlayerSearch && window.GlobalPlayerSearch.open()" title="{{ t('search.placeholder', 'Spieler suchen (Strg+K)...') }}" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 6px; padding: 4px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <span>🔍</span>
-                    <span class="search-label" style="opacity: 0.85; font-size: 12px;">{{ t('search.label', 'Spieler...') }}</span>
-                    <kbd style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 1px 4px; font-size: 10px;">Ctrl+K</kbd>
-                </button>
-            {% endif %}
-            <div class="lang-toggle-group" role="group" aria-label="Language selection">
-                <a href="{{ url_for('auth.set_language', lang='de', next=request.full_path) }}" 
-                   class="lang-toggle-btn {% if current_lang == 'de' %}active{% endif %}" 
-                   title="Deutsch">DE</a>
-                <a href="{{ url_for('auth.set_language', lang='en', next=request.full_path) }}" 
-                   class="lang-toggle-btn {% if current_lang == 'en' %}active{% endif %}" 
-                   title="English">EN</a>
-            </div>
-
             {% if current_user and has_tier('user') %}
                 <button type="button" id="nav-noise-toggle-btn" class="nav-noise-btn" onclick="window.RB48Noise.toggle()" title="{{ t('nav.noise_title', 'Make some noise anywhere on the page') }}">
                     {{ t('nav.noise', '📢 Noise') }}
@@ -305,6 +289,7 @@
                         {% else %}
                             <a href="{{ url_for('auth.settings') }}" title="{{ t('nav.link_player_tooltip', 'Verknüpfe dein Spielerprofil in den Einstellungen') }}">📊 {{ t('nav.my_stats', 'Meine Statistiken') }}</a>
                         {% endif %}
+                        <a href="{{ url_for('stats.achievements_overview') }}">🏆 {{ t('nav.achievements', 'Auszeichnungen') }}</a>
                         <a href="{{ url_for('auth.settings') }}">{{ t('nav.profile_settings', '⚙️ Profile & Settings') }}</a>
                         <a href="{{ url_for('planner.planner') }}">{{ t('nav.attendance_planner', 'Attendance Planner') }}</a>
                         {% if has_tier('user') and not current_user.get('psychology_test_passed') %}
@@ -312,10 +297,19 @@
                         {% endif %}
                         <a href="{{ url_for('auth.logout') }}">{{ t('nav.logout', 'Log out') }}</a>
                     {% else %}
+                        <a href="{{ url_for('stats.achievements_overview') }}">🏆 {{ t('nav.achievements', 'Auszeichnungen') }}</a>
                         <a href="{{ url_for('auth.login') }}">{{ t('nav.login', 'Log in') }}</a>
                         <a href="{{ url_for('auth.register') }}">{{ t('nav.register', 'Register') }}</a>
                     {% endif %}
                 </div>
+            </div>
+            <div class="lang-toggle-group" role="group" aria-label="Language selection">
+                <a href="{{ url_for('auth.set_language', lang='de', next=request.full_path) }}" 
+                   class="lang-toggle-btn {% if current_lang == 'de' %}active{% endif %}" 
+                   title="Deutsch">DE</a>
+                <a href="{{ url_for('auth.set_language', lang='en', next=request.full_path) }}" 
+                   class="lang-toggle-btn {% if current_lang == 'en' %}active{% endif %}" 
+                   title="English">EN</a>
             </div>
         </div>
     </nav>
@@ -336,6 +330,11 @@
 
 <footer class="site-footer" id="site-footer">
     <div class="site-footer-inner">
+        <button type="button" id="footer-search-btn" class="footer-search-btn" onclick="window.GlobalPlayerSearch && window.GlobalPlayerSearch.open()" title="{{ t('search.placeholder', 'Seiten & Spieler suchen (Strg+K)...') }}">
+            <span>🔍</span>
+            <span class="footer-search-label">{{ t('search.label', 'Suche...') }}</span>
+            <kbd class="footer-search-kbd">Ctrl+K</kbd>
+        </button>
         <a class="site-footer-home" href="{{ url_for('stats.home') }}">{{ t('nav.footer_home', 'RB 48 Homepage') }}</a>
         <nav class="site-footer-links" aria-label="Footer navigation">
             <a href="{{ url_for('stats.about') }}">{{ t('nav.footer_about', 'About') }}</a>
