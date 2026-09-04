@@ -124,7 +124,7 @@ class AccessTiersTest(unittest.TestCase):
         self.assertIn("/glicko-test", resp.headers["Location"])
 
         # 3. Submit tryhard/toxic answers -> assigned tryhard persona, clearance denied (returns 400)
-        fail_resp = self.client.post("/glicko-test", data={"q1": "c", "q2": "c", "q3": "c", "q4": "c", "q5": "c", "q6": "c", "q7": "c"})
+        fail_resp = self.client.post("/glicko-test", data={"q1": "a", "q2": "c", "q3": "b", "q4": "d", "q5": "d", "q6": "b", "q7": "a"})
         self.assertEqual(fail_resp.status_code, 400)
         self.assertTrue(b"Stat-St" in fail_resp.data or b"Stat-Striker" in fail_resp.data)
 
@@ -133,7 +133,7 @@ class AccessTiersTest(unittest.TestCase):
         self.assertEqual(updated_fail["psychology_persona"], "tryhard")
 
         # 4. Submit sportsmanship/legend answers -> succeeds and promotes to Glicko User
-        pass_resp = self.client.post("/glicko-test", data={"q1": "b", "q2": "a", "q3": "a", "q4": "a", "q5": "a", "q6": "a", "q7": "a"}, follow_redirects=True)
+        pass_resp = self.client.post("/glicko-test", data={"q1": "d", "q2": "b", "q3": "c", "q4": "b", "q5": "a", "q6": "d", "q7": "b"}, follow_redirects=True)
         self.assertEqual(pass_resp.status_code, 200)
         self.assertTrue(b"Kabinenlegende" in pass_resp.data or b"Locker Room Legend" in pass_resp.data)
 

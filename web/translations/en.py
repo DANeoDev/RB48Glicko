@@ -414,7 +414,7 @@ TRANSLATIONS_EN = {
     "psych.scope_important": "<strong>Important:</strong> Glicko is a <em>result-based performance model</em>. It does <strong>not</strong> measure individual physical stamina, technical flair, defensive work rate, leadership, or personal worth. The predictive power of the model is mathematically validated and continuously monitored under <a href=\"{analysis_url}\" style=\"color: #80deea; font-weight: 600;\">Model Analysis</a>.",
     "psych.gate_title": "2. Why is Access Gated? (The Psychology of Rated Games)",
     "psych.gate_text1": "In competitive gaming and recreational sports, introducing numerical ratings frequently triggers a well-documented psychological effect: <strong>the deterioration of intrinsic motivation</strong>.",
-    "psych.gate_text2": "When players fixate on external rating points rather than the pure joy of playing football with friends, harmless recreational sessions can morph into post-match blame games, rating anxiety, and locker-room toxicity.",
+    "psych.gate_text2": "When players fixate on external rating points rather than pure enjoyment of the game, recreational sessions can turn into rating anxiety, blame games, and bad vibes.",
     "psych.community_standard": "<strong>Our Community Standard:</strong> We gate access behind this psychological evaluation to ensure all Glicko-tier members understand variance, respect sportsmanship, and prioritize the fun and camaraderie of Wednesday night football over a number.",
     "psych.back_settings": "← Back to Settings",
     "psych.back_briefing": "← Back to Briefing",
