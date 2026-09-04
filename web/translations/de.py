@@ -319,7 +319,7 @@ TRANSLATIONS_DE = {
     # =========================================================================
     "player.title": "Spielerprofil: {alias}",
     "player.back_to_stats": "← Zurück zur Rangliste",
-    "player.performance_overview": "Leistungsübersicht",
+    "player.performance_overview": "Performance Übersicht",
     "player.personal_history": "Persönliche Spielhistorie",
     "player.current_rating": "Aktuelles Rating",
     "player.peak_rating": "Höchstes Rating",

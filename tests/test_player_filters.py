@@ -107,10 +107,10 @@ class TestPlayerFilters(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
 
-        self.assertIn("player-filter-card", html)
+        self.assertIn("filter-drawer", html)
         self.assertIn("btn-add-teammate", html)
         self.assertIn("btn-add-opponent", html)
-        self.assertIn("filtered-stats-summary", html)
+        self.assertIn("active-filters-banner", html)
         self.assertIn("PlayerFilter", html)
 
 
