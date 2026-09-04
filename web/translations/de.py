@@ -69,8 +69,9 @@ TRANSLATIONS_DE = {
     # =========================================================================
     # Stats & Leaderboard
     # =========================================================================
-    "stats.title": "Statistiken",
-    "stats.subtitle": "RB48 Leistungsstatistiken",
+    "stats.title": "RB 48 Statistiken",
+    "stats.main_heading": "RB 48 Statistiken",
+    "stats.subtitle": "",
     "stats.help_title": "Wie wird die Leistung bewertet?",
     "stats.total": "TOTAL",
     "stats.total_title": "Statistiken basierend auf allen Spielen, unabhängig vom Platztyp.",
