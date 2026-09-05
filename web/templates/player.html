@@ -23,18 +23,27 @@
 </div>
 
 {% set player_name = player["aliases"][0] %}
+{% set is_player_opted_out = (player_id in opted_out_player_ids) and not has_tier('webmaster') %}
+{% set show_player_glicko = has_tier('glicko_user') and not is_player_opted_out %}
 {% set box_only = stats["box"]["games"] > 0 and stats["hf"]["games"] == 0 %}
 {% set hf_only = stats["hf"]["games"] > 0 and stats["box"]["games"] == 0 %}
 {% set rating_diverges = (box_only and ratings["total"]["rating"] != ratings["box"]["rating"]) or (hf_only and ratings["total"]["rating"] != ratings["hf"]["rating"]) %}
 {% set exclusive_pitch = "BOX" if box_only else "HF" if hf_only else "" %}
 
+{% if is_player_opted_out %}
+<div style="background: rgba(123, 82, 197, 0.15); border: 1px solid rgba(123, 82, 197, 0.35); border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-size: 13px; color: #ffd700; display: flex; align-items: center; gap: 8px;">
+    <span>🔒</span>
+    <span>{{ t('player.glicko_opt_out_notice', 'Dieser Spieler hat die Anzeige seiner Glicko-2 Leistungswerte und Charts deaktiviert.') }}</span>
+</div>
+{% endif %}
+
 <h2>{{ t('player.performance_overview', 'Performance Übersicht') }}</h2>
 
-<table class="ratings-table"{% if rating_diverges and has_tier('glicko_user') %} title="How can the ratings diverge even though {{ player_name }} only has games in {{ exclusive_pitch }}? Well, this is a good question, but it works as intended. If you can figure out the reason, send a Mail to the webmaster — he will grant you a reward." style="cursor: help;"{% endif %}>
+<table class="ratings-table"{% if rating_diverges and show_player_glicko %} title="How can the ratings diverge even though {{ player_name }} only has games in {{ exclusive_pitch }}? Well, this is a good question, but it works as intended. If you can figure out the reason, send a Mail to the webmaster — he will grant you a reward." style="cursor: help;"{% endif %}>
 <thead>
 <tr>
 <th></th>
-{% if has_tier('glicko_user') %}
+{% if show_player_glicko %}
 <th>{{ t('stats.rating', 'Rating') }}</th>
 <th>{{ t('stats.rd', 'RD') }}</th>
 {% endif %}
@@ -48,7 +57,7 @@
 {% for rating_type in ["total", "box", "hf"] %}
 <tr>
 <td><strong>{{ rating_type | upper }}</strong></td>
-{% if has_tier('glicko_user') %}
+{% if show_player_glicko %}
 <td>{{ ratings[rating_type]["rating"] | round | int }}</td>
 <td>{{ ratings[rating_type]["rd"] | round | int }}</td>
 {% endif %}
@@ -61,7 +70,7 @@
 </tbody>
 </table>
 
-{% if has_tier('glicko_user') %}
+{% if show_player_glicko %}
 <div class="graphs">
 {% for rating_type in ["total", "box", "hf"] %}
 <div class="graph">
@@ -153,17 +162,17 @@
 <div class="match-header">{{ match["match_id"] }} — {{ match["pitch"] | upper }}</div>
 <div class="match-info">
 <div class="team team-a"><strong>{{ t('matches.team_a', 'Team A') }}</strong><div class="players">
-{% for team_player in match["team_a_players"] %}<span class="match-player" data-player-id="{{ team_player['player_id'] }}">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}<span class="player-name-text">{{ team_player["name"] }}</span>{% endif %}{% if has_tier('glicko_user') and team_player["rating"] is not none %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
+{% for team_player in match["team_a_players"] %}<span class="match-player" data-player-id="{{ team_player['player_id'] }}">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}<span class="player-name-text">{{ team_player["name"] }}</span>{% endif %}{% if has_tier('glicko_user') and team_player["rating"] is not none and (has_tier('webmaster') or team_player['player_id'] not in opted_out_player_ids) %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
 {% if match["external_a"] > 0 %}{% if match["team_a_players"] %}, {% endif %}{% if match["external_a"] == 1 %}{{ t('matches.external_player', count=match['external_a']) }}{% else %}{{ t('matches.external_players', count=match['external_a']) }}{% endif %}{% endif %}
 </div></div>
 <div class="score">{{ match["goals_a"] }} - {{ match["goals_b"] }}</div>
 <div class="team team-b"><strong>{{ t('matches.team_b', 'Team B') }}</strong><div class="players">
-{% for team_player in match["team_b_players"] %}<span class="match-player" data-player-id="{{ team_player['player_id'] }}">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}<span class="player-name-text">{{ team_player["name"] }}</span>{% endif %}{% if has_tier('glicko_user') and team_player["rating"] is not none %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
+{% for team_player in match["team_b_players"] %}<span class="match-player" data-player-id="{{ team_player['player_id'] }}">{% if team_player["name"] == player["aliases"][0] %}<span class="highlight-player">{{ team_player["name"] }}</span>{% else %}<span class="player-name-text">{{ team_player["name"] }}</span>{% endif %}{% if has_tier('glicko_user') and team_player["rating"] is not none and (has_tier('webmaster') or team_player['player_id'] not in opted_out_player_ids) %}<span class="player-rating" title="Pre-match rating">({{ team_player["rating"] | round | int }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>{% endfor %}
 {% if match["external_b"] > 0 %}{% if match["team_b_players"] %}, {% endif %}{% if match["external_b"] == 1 %}{{ t('matches.external_player', count=match['external_b']) }}{% else %}{{ t('matches.external_players', count=match['external_b']) }}{% endif %}{% endif %}
 </div></div>
 </div>
 
-{% if has_tier('glicko_user') %}
+{% if show_player_glicko %}
 <div class="match-details">
 <div class="team-details team-a">
 <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_a_rating"] | round | int }}</span></div>
@@ -308,7 +317,7 @@
 {% endblock %}
 
 {% block scripts %}
-{% if has_tier('glicko_user') %}
+{% if show_player_glicko %}
 <script>
 {% for rating_type in ["total", "box", "hf"] %}
 (function() {
@@ -360,8 +369,8 @@ window.allMatchesData = [
         is_win: {{ 'true' if match['is_win'] else 'false' }},
         is_loss: {{ 'true' if match['is_loss'] else 'false' }},
         is_draw: {{ 'true' if match['is_draw'] else 'false' }},
-        delta: {{ match['rating_delta'] if match['rating_delta'] is not none else 'null' }},
-        player_delta: {{ match['rating_delta'] if match['rating_delta'] is not none else 'null' }},
+        delta: {{ match['rating_delta'] if (show_player_glicko and match['rating_delta'] is not none) else 'null' }},
+        player_delta: {{ match['rating_delta'] if (show_player_glicko and match['rating_delta'] is not none) else 'null' }},
         own_team_ids: {{ match['own_team_ids'] | tojson }},
         opp_team_ids: {{ match['opp_team_ids'] | tojson }}
     }{% if not loop.last %},{% endif %}
@@ -369,7 +378,7 @@ window.allMatchesData = [
 ];
 window.playersMap = {{ players_map | tojson }};
 window.currentPlayerId = {{ player_id }};
-window.userHasGlickoTier = {{ 'true' if has_tier('glicko_user') else 'false' }};
+window.userHasGlickoTier = {{ 'true' if show_player_glicko else 'false' }};
 </script>
 <script src="{{ url_for('static', filename='player_filters.js') }}"></script>
 <script src="{{ url_for('static', filename='correlation_map.js') }}"></script>

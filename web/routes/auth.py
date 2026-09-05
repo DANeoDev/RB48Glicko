@@ -335,6 +335,8 @@ def update_profile():
         else:
             flash("Invalid image format. Supported formats: PNG, JPG, WEBP, GIF.", "warning")
 
+    glicko_opt_out = 1 if request.form.get("glicko_opt_out") else 0
+
     conn = get_accounts_connection()
     try:
         update_user_profile(
@@ -342,6 +344,7 @@ def update_profile():
             user["id"],
             attendance_name=attendance_name if attendance_name else user["username"],
             avatar_file=avatar_file,
+            glicko_opt_out=glicko_opt_out,
         )
 
         # Handle player profile connection logic

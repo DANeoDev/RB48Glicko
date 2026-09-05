@@ -743,5 +743,12 @@ TRANSLATIONS_DE = {
     "achievements.comeback_king_desc": "Nach einem Formtief stark zurückgekämpft und wieder aufgestiegen.",
     "achievements.perfect_session_title": "Makelloser Abend (Perfect Session)",
     "achievements.perfect_session_desc": "Alle Spiele an einem einzigen Spieltag gewonnen (mindestens 2 Spiele).",
+    "auth.glicko_opt_out_label": "Glicko-2 Bewertung verbergen (Opt-Out)",
+    "auth.glicko_opt_out_desc": "Macht deine Glicko-2 Bewertung für andere Benutzer und Admins unsichtbar (nur der Webmaster kann sie einsehen). Deine Werte werden im Hintergrund weiter berechnet, aber auf der Rangliste und in Matchkarten ausgeblendet. Du wirst in der Rangliste nach ganz hinten sortiert und dein eigener Kontozugang wird auf die Standard-Ansicht (ohne Glicko) umgestellt.",
+    "auth.glicko_opt_out_badge": "⚠️ Glicko-2 Opt-Out aktiv",
+    "auth.glicko_opt_out_banner": "Deine Glicko-2 Bewertung ist aktuell für andere Benutzer und Admins verborgen. Dein Website-Zugang ist auf Standard-Benutzer (keine Glicko-Einsicht) eingestellt. Du kannst diese Option jederzeit oben in den Profileinstellungen deaktivieren.",
+    "stats.rating_hidden_opt_out": "Rating vom Spieler verborgen (Opt-out)",
+    "player.glicko_opt_out_notice": "Dieser Spieler hat die Anzeige seiner Glicko-2 Leistungswerte und Charts deaktiviert.",
+    "streaks.surge_opted_out_hover": "Rating vom Spieler verborgen (Opt-out)",
 
 }

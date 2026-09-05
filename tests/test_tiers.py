@@ -79,6 +79,55 @@ class AccessTiersTest(unittest.TestCase):
         webmaster = self.create_test_user(role="webmaster", verified=True)
         self.assertEqual(get_actual_tier(webmaster), Tier.WEBMASTER)
 
+    def test_glicko_opt_out_tier_downgrade(self):
+        # User who passed psychology test but opted out of Glicko
+        glicko_user = self.create_test_user(verified=True, approved=True, psychology_passed=True)
+        self.assertEqual(get_actual_tier(glicko_user), Tier.GLICKO_USER)
+
+        conn = get_accounts_connection()
+        try:
+            from scripts.accounts.database import update_user_profile
+            update_user_profile(conn, glicko_user["id"], glicko_opt_out=1)
+        finally:
+            conn.close()
+
+        opted_out_user = get_user(glicko_user["id"])
+        self.assertEqual(opted_out_user["glicko_opt_out"], 1)
+        self.assertEqual(get_actual_tier(opted_out_user), Tier.USER)
+
+        # Admin who opted out of Glicko -> downgraded to USER
+        admin = self.create_test_user(role="admin", verified=True)
+        self.assertEqual(get_actual_tier(admin), Tier.ADMIN)
+
+        conn = get_accounts_connection()
+        try:
+            update_user_profile(conn, admin["id"], glicko_opt_out=1)
+        finally:
+            conn.close()
+
+        opted_out_admin = get_user(admin["id"])
+        self.assertEqual(get_actual_tier(opted_out_admin), Tier.USER)
+
+        # Re-enabling Glicko visibility (opt_out=0) restores tier
+        conn = get_accounts_connection()
+        try:
+            update_user_profile(conn, glicko_user["id"], glicko_opt_out=0)
+        finally:
+            conn.close()
+
+        restored_user = get_user(glicko_user["id"])
+        self.assertEqual(get_actual_tier(restored_user), Tier.GLICKO_USER)
+
+        # Webmaster remains WEBMASTER even with opt_out
+        webmaster = self.create_test_user(role="webmaster", verified=True)
+        conn = get_accounts_connection()
+        try:
+            update_user_profile(conn, webmaster["id"], glicko_opt_out=1)
+        finally:
+            conn.close()
+        opted_out_wm = get_user(webmaster["id"])
+        self.assertEqual(get_actual_tier(opted_out_wm), Tier.WEBMASTER)
+
     def test_webmaster_view_simulation(self):
         webmaster = self.create_test_user(role="webmaster", verified=True)
 

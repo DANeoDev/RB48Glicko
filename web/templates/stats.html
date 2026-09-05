@@ -180,11 +180,16 @@
             {% if streaks and streaks.most_improved %}
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
                 {% for m in streaks.most_improved %}
+                {% set m_opted_out = (m.player_id in opted_out_player_ids) and not has_tier('webmaster') %}
                 <a href="{{ url_for('stats.player_profile', player_id=m.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(128, 222, 234, 0.08); border: 1px solid rgba(128, 222, 234, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
                     <div>
                         <div style="font-weight: 700; color: #fff; font-size: 14px;">{{ m.name }}</div>
-                        {% if has_tier('glicko_user') %}
+                        {% if has_tier('glicko_user') and not m_opted_out %}
                         <div style="font-size: 11px; color: var(--text-muted);">{{ m.past_rating | round | int }} → {{ m.current_rating | round | int }}</div>
+                        {% elif has_tier('glicko_user') and m_opted_out %}
+                        <div style="font-size: 11px; color: var(--text-muted);" title="{{ t('streaks.surge_opted_out_hover', 'Rating vom Spieler verborgen (Opt-out)') }}">
+                            <span class="glicko-blur">{{ m.past_rating | round | int }} → {{ m.current_rating | round | int }}</span>
+                        </div>
                         {% else %}
                         <div style="font-size: 11px; color: var(--text-muted);" title="{{ t('streaks.surge_glicko_hover', 'Basiert auf der internen Ratingentwicklung (nur mit Glicko-Berechtigung sichtbar)') }}">
                             <span class="glicko-blur">{{ m.past_rating | round | int }} → {{ m.current_rating | round | int }}</span>
@@ -280,19 +285,21 @@
 
         <tbody>
             {% for player in leaderboard %}
+            {% set is_opted_out = (player['player_id'] in opted_out_player_ids) and not has_tier('webmaster') %}
             <tr
+                data-opted-out="{{ 'true' if is_opted_out else 'false' }}"
                 {% for pitch in ["total", "box", "hf"] %}
-                    data-{{ pitch }}-conservative="{{ player[pitch]['conservative'] }}"
-                    data-{{ pitch }}-rating="{{ player[pitch]['rating'] }}"
-                    data-{{ pitch }}-rd="{{ player[pitch]['rd'] }}"
+                    data-{{ pitch }}-conservative="{{ 0 if is_opted_out else player[pitch]['conservative'] }}"
+                    data-{{ pitch }}-rating="{{ 0 if is_opted_out else player[pitch]['rating'] }}"
+                    data-{{ pitch }}-rd="{{ 999 if is_opted_out else player[pitch]['rd'] }}"
                     data-{{ pitch }}-games="{{ player[pitch]['games'] }}"
                     data-{{ pitch }}-wins="{{ player[pitch]['wins'] }}"
                     data-{{ pitch }}-losses="{{ player[pitch]['losses'] }}"
                     data-{{ pitch }}-win-percent="{{ player[pitch]['win_percent'] }}"
                     {% for interval in ["game", "month", "quarter", "year"] %}
-                        data-{{ pitch }}-delta-{{ interval }}-conservative="{{ player[pitch]['deltas'][interval]['conservative'] }}"
-                        data-{{ pitch }}-delta-{{ interval }}-rating="{{ player[pitch]['deltas'][interval]['rating'] }}"
-                        data-{{ pitch }}-delta-{{ interval }}-rd="{{ player[pitch]['deltas'][interval]['rd'] }}"
+                        data-{{ pitch }}-delta-{{ interval }}-conservative="{{ 0 if is_opted_out else player[pitch]['deltas'][interval]['conservative'] }}"
+                        data-{{ pitch }}-delta-{{ interval }}-rating="{{ 0 if is_opted_out else player[pitch]['deltas'][interval]['rating'] }}"
+                        data-{{ pitch }}-delta-{{ interval }}-rd="{{ 0 if is_opted_out else player[pitch]['deltas'][interval]['rd'] }}"
                         data-{{ pitch }}-delta-{{ interval }}-games="{{ player[pitch]['deltas'][interval]['games'] }}"
                         data-{{ pitch }}-delta-{{ interval }}-wins="{{ player[pitch]['deltas'][interval]['wins'] }}"
                         data-{{ pitch }}-delta-{{ interval }}-losses="{{ player[pitch]['deltas'][interval]['losses'] }}"
@@ -300,18 +307,30 @@
                     {% endfor %}
                 {% endfor %}
             >
-                <td>{{ loop.index }}</td>
+                <td>{{ '—' if is_opted_out else loop.index }}</td>
                 <td>
                     <a href="{{ url_for('stats.player_profile', player_id=player['player_id']) }}">{{ player["alias"] }}</a>
+                    {% if has_tier('webmaster') and player['player_id'] in opted_out_player_ids %}
+                        <span style="font-size: 10px; opacity: 0.7; color: #ffc107;" title="Glicko-2 Opt-out aktiv">🔒 Opt-out</span>
+                    {% endif %}
                 </td>
                 {% for pitch in ["total", "box", "hf"] %}
                     {% if has_tier('glicko_user') %}
-                        <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["conservative"] | round | int }}</td>
-                        <td data-pitch-cell="{{ pitch }}" class="delta-col delta-conservative-col" data-delta-type="conservative"></td>
-                        <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rating"] | round | int }}</td>
-                        <td data-pitch-cell="{{ pitch }}" class="delta-col delta-rating-col" data-delta-type="rating"></td>
-                        <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rd"] | round(1) }}</td>
-                        <td data-pitch-cell="{{ pitch }}" class="delta-col delta-rd-col" data-delta-type="rd"></td>
+                        {% if is_opted_out %}
+                            <td data-pitch-cell="{{ pitch }}" title="{{ t('stats.rating_hidden_opt_out', 'Rating vom Spieler verborgen (Opt-out)') }}" style="color: var(--text-muted);">—</td>
+                            <td data-pitch-cell="{{ pitch }}" class="delta-col delta-conservative-col" data-delta-type="conservative" style="color: var(--text-muted);">—</td>
+                            <td data-pitch-cell="{{ pitch }}" title="{{ t('stats.rating_hidden_opt_out', 'Rating vom Spieler verborgen (Opt-out)') }}" style="color: var(--text-muted);">—</td>
+                            <td data-pitch-cell="{{ pitch }}" class="delta-col delta-rating-col" data-delta-type="rating" style="color: var(--text-muted);">—</td>
+                            <td data-pitch-cell="{{ pitch }}" title="{{ t('stats.rating_hidden_opt_out', 'Rating vom Spieler verborgen (Opt-out)') }}" style="color: var(--text-muted);">—</td>
+                            <td data-pitch-cell="{{ pitch }}" class="delta-col delta-rd-col" data-delta-type="rd" style="color: var(--text-muted);">—</td>
+                        {% else %}
+                            <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["conservative"] | round | int }}</td>
+                            <td data-pitch-cell="{{ pitch }}" class="delta-col delta-conservative-col" data-delta-type="conservative"></td>
+                            <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rating"] | round | int }}</td>
+                            <td data-pitch-cell="{{ pitch }}" class="delta-col delta-rating-col" data-delta-type="rating"></td>
+                            <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["rd"] | round(1) }}</td>
+                            <td data-pitch-cell="{{ pitch }}" class="delta-col delta-rd-col" data-delta-type="rd"></td>
+                        {% endif %}
                     {% endif %}
                     <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["games"] }}</td>
                     <td data-pitch-cell="{{ pitch }}" class="delta-col delta-games-col" data-delta-type="games" style="display: none;"></td>
@@ -394,8 +413,14 @@ function syncDeltaRowAttributesAndCells() {
 
             // Update cells for this pitch
             const cells = row.querySelectorAll(`td[data-pitch-cell="${pitch}"].delta-col`);
+            const isOptedOut = row.getAttribute("data-opted-out") === "true";
             cells.forEach(cell => {
                 const type = cell.dataset.deltaType;
+                if (isOptedOut && (type === "conservative" || type === "rating" || type === "rd")) {
+                    cell.textContent = "—";
+                    cell.className = `delta-col delta-${type}-col delta-val zero`;
+                    return;
+                }
                 let fmt;
                 if (type === "conservative") fmt = formatDelta(dConservative, type);
                 else if (type === "rating") fmt = formatDelta(dRating, type);
@@ -463,6 +488,11 @@ function updateColumnVisibility() {
 function sortRows(columnAttr) {
     const rows = Array.from(tbody.querySelectorAll("tr"));
     rows.sort((a, b) => {
+        const isOptedOutA = a.getAttribute("data-opted-out") === "true";
+        const isOptedOutB = b.getAttribute("data-opted-out") === "true";
+        if (isOptedOutA !== isOptedOutB) {
+            return isOptedOutA ? 1 : -1;
+        }
         const valA = parseFloat(a.getAttribute("data-" + columnAttr)) || 0;
         const valB = parseFloat(b.getAttribute("data-" + columnAttr)) || 0;
         return valB - valA;
@@ -482,7 +512,12 @@ function updateVisibleRanks() {
     let rank = 1;
     tbody.querySelectorAll("tr").forEach(row => {
         if (row.style.display !== "none") {
-            row.cells[0].textContent = rank++;
+            const isOptedOut = row.getAttribute("data-opted-out") === "true";
+            if (isOptedOut) {
+                row.cells[0].textContent = "—";
+            } else {
+                row.cells[0].textContent = rank++;
+            }
         }
     });
 }
