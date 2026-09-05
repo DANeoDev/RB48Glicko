@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('gallery.title', 'Galerie · RB48') }}{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width: 1360px; width: 100%; margin: 30px auto; padding: 0 20px; box-sizing: border-box;">
+    
+    <!-- Gallery Header & Navigation Bar -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+        <div>
+            <h1 style="margin: 0; color: #ffffff; display: flex; align-items: center; gap: 10px; font-size: 26px;">
+                <span>📸</span>
+                <span>{{ t('gallery.heading', 'RB 48 Galerie') }}</span>
+            </h1>
+            <p class="muted" style="margin-top: 4px; font-size: 14px;">
+                {{ t('gallery.subheading', 'Eindrücke, Spieltage und Momente unserer Kick-Runde.') }}
+            </p>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <!-- Sort Form -->
+            <form method="get" action="{{ url_for('gallery.gallery') }}" style="display: inline-flex; align-items: center; gap: 8px; margin: 0;">
+                <label for="gallery-sort-select" style="font-size: 12.5px; color: var(--text-muted); margin: 0;">{{ t('gallery.sort_by', 'Sortierung:') }}</label>
+                <select id="gallery-sort-select" name="sort" onchange="this.form.submit()" style="background: #24194A; border: 1px solid #5A4A83; color: #ffffff; border-radius: var(--radius); padding: 7px 12px; font-size: 13px; cursor: pointer;">
+                    <option value="random" {% if current_sort == 'random' %}selected{% endif %}>{{ t('gallery.sort_random', '🎲 Zufällig (Standard)') }}</option>
+                    <option value="capture_newest" {% if current_sort == 'capture_newest' %}selected{% endif %}>{{ t('gallery.sort_capture_newest', '📅 Aufnahmedatum: Neueste zuerst') }}</option>
+                    <option value="capture_oldest" {% if current_sort == 'capture_oldest' %}selected{% endif %}>{{ t('gallery.sort_capture_oldest', '📅 Aufnahmedatum: Älteste zuerst') }}</option>
+                    <option value="added_newest" {% if current_sort == 'added_newest' %}selected{% endif %}>{{ t('gallery.sort_added_newest', '🕒 Hinzugefügt: Neueste zuerst') }}</option>
+                    <option value="added_oldest" {% if current_sort == 'added_oldest' %}selected{% endif %}>{{ t('gallery.sort_added_oldest', '🕒 Hinzugefügt: Älteste zuerst') }}</option>
+                </select>
+            </form>
+
+            {% if current_sort == 'random' %}
+                <a href="{{ url_for('gallery.gallery', sort='random') }}" class="secondary" style="padding: 7px 12px; text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;" title="{{ t('gallery.shuffle_title', 'Zufällige Reihenfolge neu mischen') }}">
+                    <span>🔀</span>
+                    <span>{{ t('gallery.shuffle_btn', 'Neu mischen') }}</span>
+                </a>
+            {% endif %}
+
+            <!-- Upload Button -->
+            <button type="button" class="primary" onclick="openUploadModal()" style="padding: 7px 16px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                <span>➕</span>
+                <span>{{ t('gallery.upload_btn', 'Fotos hinzufügen') }}</span>
+            </button>
+
+            <!-- Count Badge -->
+            <span style="background: rgba(128, 222, 234, 0.15); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.3); padding: 5px 12px; border-radius: 20px; font-size: 12.5px; font-weight: 600;">
+                {{ images|length }} {{ t('gallery.photos_badge', 'Fotos') }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Gallery Grid -->
+    {% if images %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+            {% for img in images %}
+                <div class="gallery-card" onclick="openLightbox({{ loop.index0 }})" style="position: relative; border-radius: var(--radius); overflow: hidden; background: #1b1235; border: 1px solid #3c2a68; cursor: pointer; aspect-ratio: 4 / 3; transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;">
+                    <img src="{{ img.url }}" alt="{{ img.filename }}" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.25s ease;">
+                    
+                    <!-- Top-Right Capture Date Badge -->
+                    <div style="position: absolute; top: 10px; right: 10px; background: rgba(27, 18, 53, 0.85); backdrop-filter: blur(6px); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.4); border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+                        <span>📅</span>
+                        <span>{{ img.capture_date_str }}</span>
+                    </div>
+
+                    <!-- Bottom Info Overlay (Revealed on Hover) -->
+                    <div class="gallery-card-overlay" style="position: absolute; bottom: 0; left: 0; right: 0; padding: 24px 12px 10px; background: linear-gradient(to top, rgba(16, 9, 34, 0.95) 0%, rgba(16, 9, 34, 0.6) 70%, transparent 100%); display: flex; justify-content: space-between; align-items: flex-end; opacity: 0; transition: opacity 0.2s ease;">
+                        <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 75%;">
+                            <div style="color: #ffffff; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ img.filename }}</div>
+                            <div style="color: var(--text-muted); font-size: 10.5px; margin-top: 2px;">{{ t('gallery.uploaded_on', 'Hinzugefügt:') }} {{ img.added_date_str }}</div>
+                        </div>
+                        <div style="color: #80deea; font-size: 11px; font-weight: 700; flex-shrink: 0;">
+                            {{ img.size_kb }} KB
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 60px 20px; background: var(--bg-surface); border: 1px dashed var(--border); border-radius: var(--radius); margin-top: 20px;">
+            <div style="font-size: 48px; margin-bottom: 12px;">🖼️</div>
+            <h3 style="color: #ffffff; margin-bottom: 8px;">{{ t('gallery.empty_title', 'Noch keine Fotos in der Galerie') }}</h3>
+            <p class="muted" style="max-width: 460px; margin: 0 auto 20px; font-size: 14px;">
+                {{ t('gallery.empty_desc', 'Lade die ersten Schnappschüsse von unseren Kick-Abenden hoch und teile sie mit der Runde.') }}
+            </p>
+            <button type="button" class="primary" onclick="openUploadModal()" style="padding: 10px 22px; font-size: 14px; cursor: pointer;">
+                ➕ {{ t('gallery.upload_btn', 'Fotos hinzufügen') }}
+            </button>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Lightbox Modal -->
+<div id="gallery-lightbox" style="display: none; position: fixed; inset: 0; background: rgba(10, 5, 22, 0.95); z-index: 10000; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;" onclick="handleLightboxBackdrop(event)">
+    <!-- Close Button -->
+    <button type="button" onclick="closeLightbox()" style="position: absolute; top: 18px; right: 24px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25); color: #ffffff; font-size: 20px; width: 42px; height: 42px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s ease;" title="{{ t('gallery.close', 'Schließen (Esc)') }}">✕</button>
+
+    <!-- Prev Button -->
+    <button type="button" onclick="prevLightbox(event)" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); background: rgba(36, 25, 74, 0.8); border: 1px solid #5A4A83; color: #ffffff; font-size: 28px; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease;" title="{{ t('gallery.prev', 'Vorheriges Bild (Pfeil links)') }}">‹</button>
+
+    <!-- Next Button -->
+    <button type="button" onclick="nextLightbox(event)" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); background: rgba(36, 25, 74, 0.8); border: 1px solid #5A4A83; color: #ffffff; font-size: 28px; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease;" title="{{ t('gallery.next', 'Nächstes Bild (Pfeil rechts)') }}">›</button>
+
+    <!-- Central Image Container -->
+    <div style="max-width: 90vw; max-height: 84vh; display: flex; flex-direction: column; align-items: center;">
+        <img id="lightbox-img" src="" alt="Gallery Preview" style="max-width: 90vw; max-height: 75vh; width: auto; height: auto; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); border: 1px solid #5A4A83;">
+        
+        <!-- Info Footer -->
+        <div style="margin-top: 14px; background: rgba(36, 25, 74, 0.9); border: 1px solid #5A4A83; border-radius: 20px; padding: 6px 18px; display: flex; align-items: center; gap: 16px; font-size: 13px; color: #ffffff;">
+            <span id="lightbox-counter" style="font-weight: 700; color: #80deea;"></span>
+            <span>·</span>
+            <span id="lightbox-date" style="display: inline-flex; align-items: center; gap: 4px;"></span>
+            <span>·</span>
+            <span id="lightbox-filename" style="color: var(--text-muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div id="gallery-upload-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10000; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;" onclick="handleUploadBackdrop(event)">
+    <div style="background: var(--bg-surface); border: 1px solid var(--accent); border-radius: var(--radius); max-width: 520px; width: 100%; padding: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); box-sizing: border-box;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="margin: 0; color: #ffffff; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <span>📸</span>
+                <span>{{ t('gallery.upload_modal_title', 'Fotos zur Galerie hinzufügen') }}</span>
+            </h3>
+            <button type="button" onclick="closeUploadModal()" style="background: transparent; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer;">✕</button>
+        </div>
+
+        <form id="gallery-upload-form" method="post" action="{{ url_for('gallery.upload') }}" enctype="multipart/form-data">
+            <!-- Dropzone -->
+            <div id="gallery-dropzone" style="border: 2px dashed #5A4A83; border-radius: var(--radius); padding: 32px 20px; text-align: center; background: rgba(36, 25, 74, 0.4); cursor: pointer; transition: all 0.2s ease;" onclick="document.getElementById('gallery-file-input').click()">
+                <div style="font-size: 40px; margin-bottom: 8px;">📁</div>
+                <div style="color: #ffffff; font-weight: 600; font-size: 14px; margin-bottom: 4px;">
+                    {{ t('gallery.dropzone_text', 'Bilder hierher ziehen oder klicken zum Auswählen') }}
+                </div>
+                <div style="color: var(--text-muted); font-size: 12px;">
+                    {{ t('gallery.dropzone_hint', 'JPG, JPEG, PNG, WEBP, GIF (mehrere Dateien möglich, bis zu 32 MB gesamt)') }}
+                </div>
+                <input type="file" id="gallery-file-input" name="images" multiple accept=".jpg,.jpeg,.png,.webp,.gif" style="display: none;" onchange="handleFilesSelected(this.files)">
+            </div>
+
+            <!-- Selected Files List Preview -->
+            <div id="gallery-selected-files" style="display: none; margin-top: 14px; max-height: 140px; overflow-y: auto; background: rgba(0,0,0,0.25); border-radius: 6px; padding: 8px 12px; font-size: 12px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: 600; color: #80deea;">
+                    <span id="selected-files-count"></span>
+                    <button type="button" onclick="clearSelectedFiles()" style="background: none; border: none; color: #ff8888; cursor: pointer; padding: 0; font-size: 11px;">{{ t('gallery.clear_selection', 'Auswahl leeren') }}</button>
+                </div>
+                <ul id="selected-files-list" style="margin: 0; padding-left: 16px; color: #ffffff;"></ul>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button type="button" class="secondary" onclick="closeUploadModal()" style="padding: 8px 16px;">
+                    {{ t('gallery.cancel', 'Abbrechen') }}
+                </button>
+                <button type="submit" id="gallery-upload-submit" class="primary" style="padding: 8px 20px; font-weight: 600;" disabled>
+                    {{ t('gallery.start_upload', 'Hochladen') }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.gallery-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(88, 45, 161, 0.4);
+    border-color: var(--accent) !important;
+}
+.gallery-card:hover img {
+    transform: scale(1.03);
+}
+.gallery-card:hover .gallery-card-overlay {
+    opacity: 1 !important;
+}
+#gallery-dropzone.dragover {
+    border-color: var(--accent) !important;
+    background: rgba(88, 45, 161, 0.25) !important;
+}
+</style>
+
+<script>
+const galleryImages = {{ images | tojson }};
+let currentLightboxIndex = 0;
+
+function openLightbox(index) {
+    if (!galleryImages || galleryImages.length === 0) return;
+    currentLightboxIndex = (index >= 0 && index < galleryImages.length) ? index : 0;
+    updateLightbox();
+    document.getElementById("gallery-lightbox").style.display = "flex";
+    document.body.style.overflow = "hidden";
+}
+
+function closeLightbox() {
+    document.getElementById("gallery-lightbox").style.display = "none";
+    document.body.style.overflow = "";
+}
+
+function handleLightboxBackdrop(e) {
+    if (e.target.id === "gallery-lightbox") {
+        closeLightbox();
+    }
+}
+
+function updateLightbox() {
+    const imgData = galleryImages[currentLightboxIndex];
+    if (!imgData) return;
+    document.getElementById("lightbox-img").src = imgData.url;
+    document.getElementById("lightbox-counter").textContent = (currentLightboxIndex + 1) + " / " + galleryImages.length;
+    document.getElementById("lightbox-date").innerHTML = "📅 " + imgData.capture_date_str;
+    document.getElementById("lightbox-filename").textContent = imgData.filename;
+}
+
+function prevLightbox(e) {
+    if (e) e.stopPropagation();
+    if (!galleryImages.length) return;
+    currentLightboxIndex = (currentLightboxIndex - 1 + galleryImages.length) % galleryImages.length;
+    updateLightbox();
+}
+
+function nextLightbox(e) {
+    if (e) e.stopPropagation();
+    if (!galleryImages.length) return;
+    currentLightboxIndex = (currentLightboxIndex + 1) % galleryImages.length;
+    updateLightbox();
+}
+
+window.addEventListener("keydown", function(e) {
+    const lightbox = document.getElementById("gallery-lightbox");
+    if (lightbox && lightbox.style.display === "flex") {
+        if (e.key === "Escape") closeLightbox();
+        else if (e.key === "ArrowLeft") prevLightbox();
+        else if (e.key === "ArrowRight") nextLightbox();
+    }
+});
+
+// Upload Modal Logic
+function openUploadModal() {
+    document.getElementById("gallery-upload-modal").style.display = "flex";
+}
+
+function closeUploadModal() {
+    document.getElementById("gallery-upload-modal").style.display = "none";
+    clearSelectedFiles();
+}
+
+function handleUploadBackdrop(e) {
+    if (e.target.id === "gallery-upload-modal") {
+        closeUploadModal();
+    }
+}
+
+function handleFilesSelected(files) {
+    const previewContainer = document.getElementById("gallery-selected-files");
+    const listEl = document.getElementById("selected-files-list");
+    const countEl = document.getElementById("selected-files-count");
+    const submitBtn = document.getElementById("gallery-upload-submit");
+
+    if (!files || files.length === 0) {
+        previewContainer.style.display = "none";
+        submitBtn.disabled = true;
+        return;
+    }
+
+    listEl.innerHTML = "";
+    countEl.textContent = files.length + (files.length === 1 ? " Datei ausgewählt" : " Dateien ausgewählt");
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const li = document.createElement("li");
+        const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+        li.textContent = file.name + " (" + sizeMb + " MB)";
+        listEl.appendChild(li);
+    }
+
+    previewContainer.style.display = "block";
+    submitBtn.disabled = false;
+}
+
+function clearSelectedFiles() {
+    const input = document.getElementById("gallery-file-input");
+    if (input) input.value = "";
+    const previewContainer = document.getElementById("gallery-selected-files");
+    if (previewContainer) previewContainer.style.display = "none";
+    const submitBtn = document.getElementById("gallery-upload-submit");
+    if (submitBtn) submitBtn.disabled = true;
+}
+
+// Drag and drop handlers
+const dropzone = document.getElementById("gallery-dropzone");
+if (dropzone) {
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.add('dragover');
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.remove('dragover');
+        }, false);
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        const fileInput = document.getElementById("gallery-file-input");
+        if (files && files.length > 0) {
+            fileInput.files = files;
+            handleFilesSelected(files);
+        }
+    }, false);
+}
+</script>
+{% endblock %}

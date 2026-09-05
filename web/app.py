@@ -34,7 +34,7 @@ def load_env_file():
 def create_app():
     load_env_file()
     app = Flask(__name__)
-    app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+    app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
     app.secret_key = os.environ.get("RB48_SECRET_KEY") or os.urandom(32)
 
     @app.context_processor

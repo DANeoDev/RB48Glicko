@@ -239,6 +239,14 @@
             <a href="{{ url_for('planner.planner') }}" class="{% if request.endpoint == 'planner.planner' %}active{% endif %}">{{ t('nav.planner', 'Planner') }}</a>
             <a href="{{ url_for('stats.match_history') }}" class="{% if request.endpoint == 'stats.match_history' %}active{% endif %}">{{ t('nav.match_history', 'Match History') }}</a>
 
+            {% if has_tier('user') %}
+                <a href="{{ url_for('gallery.gallery') }}" class="{% if request.endpoint == 'gallery.gallery' %}active{% endif %}">{{ t('nav.gallery', 'Gallery') }}</a>
+            {% else %}
+                <a href="{{ url_for('auth.login', next=url_for('gallery.gallery')) }}" class="nav-locked" title="{{ t('nav.locked_gallery_title', 'Gallery — Register and get approved by the webmaster to access the gallery.') }}">
+                    {{ t('nav.gallery', 'Gallery') }} <span class="nav-lock-icon">🔒</span>
+                </a>
+            {% endif %}
+
             {% if has_tier('admin') %}
                 <a href="{{ url_for('match_center.match_center') }}" class="{% if request.endpoint == 'match_center.match_center' %}active{% endif %}">{{ t('nav.match_center', 'Match Center') }}</a>
             {% else %}
