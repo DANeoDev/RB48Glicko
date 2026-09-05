@@ -109,6 +109,8 @@
     opacity: 0.5;
     filter: grayscale(0.7);
 }
+.achievement-card-full.tier-platin { border-color: rgba(229, 228, 226, 0.85); box-shadow: 0 0 15px rgba(229, 228, 226, 0.25); }
+.achievement-card-full.tier-platin .achievement-icon-wrapper { background: rgba(229, 228, 226, 0.2); border-color: #e5e4e2; }
 .achievement-card-full.tier-gold { border-color: rgba(255, 215, 0, 0.6); }
 .achievement-card-full.tier-gold .achievement-icon-wrapper { background: rgba(255, 215, 0, 0.15); border-color: #ffd700; }
 .achievement-card-full.tier-silver { border-color: rgba(192, 192, 192, 0.6); }
@@ -154,6 +156,7 @@
     border-radius: 6px;
     letter-spacing: 0.5px;
 }
+.badge-platin { background: linear-gradient(135deg, rgba(229, 228, 226, 0.35) 0%, rgba(255, 255, 255, 0.2) 100%); color: #ffffff; border: 1px solid rgba(229, 228, 226, 0.8); text-shadow: 0 0 5px rgba(255,255,255,0.6); box-shadow: 0 0 10px rgba(229, 228, 226, 0.35); }
 .badge-gold { background: rgba(255, 215, 0, 0.2); color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.4); }
 .badge-silver { background: rgba(192, 192, 192, 0.2); color: #e0e0e0; border: 1px solid rgba(192, 192, 192, 0.4); }
 .badge-bronze { background: rgba(205, 127, 50, 0.2); color: #ffb74d; border: 1px solid rgba(205, 127, 50, 0.4); }
@@ -212,7 +215,7 @@
                 <div class="achievement-icon-wrapper">{{ ach.icon }}</div>
                 <div class="achievement-info">
                     <div class="achievement-title-row">
-                        <span class="achievement-title-text">{{ t(ach.title_key) }}</span>
+                        <span class="achievement-title-text">{% if ach.title_params %}{{ t(ach.title_key, **ach.title_params) }}{% elif ach.title %}{{ ach.title }}{% else %}{{ t(ach.title_key) }}{% endif %}</span>
                         {% if ach.tier and ach.tier != 'locked' and ach.tier != 'unlocked' %}
                             <span class="achievement-badge-pill badge-{{ ach.tier }}">{{ ach.tier | upper }}</span>
                         {% elif ach.unlocked %}
@@ -221,7 +224,7 @@
                             <span class="achievement-badge-pill badge-locked">🔒</span>
                         {% endif %}
                     </div>
-                    <div class="achievement-desc-text">{{ t(ach.description_key) }}</div>
+                    <div class="achievement-desc-text">{% if ach.description_params %}{{ t(ach.description_key, **ach.description_params) }}{% elif ach.description %}{{ ach.description }}{% else %}{{ t(ach.description_key) }}{% endif %}</div>
                     {% if ach.progress_text %}
                         <div class="achievement-progress-label">{{ ach.progress_text }}</div>
                     {% endif %}
