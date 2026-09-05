@@ -38,11 +38,25 @@ def stats():
     synergies = get_community_synergies(connection, min_games=5)
     streaks = get_dashboard_streaks(connection)
     connection.close()
+
+    from scripts.accounts.database import get_accounts_connection, get_opted_out_player_ids
+    acc_conn = get_accounts_connection()
+    try:
+        opted_out_player_ids = get_opted_out_player_ids(acc_conn)
+    finally:
+        acc_conn.close()
+
+    leaderboard = build_leaderboard(ratings, players, player_stats, deltas=deltas)
+
+    if not has_tier(Tier.WEBMASTER) and opted_out_player_ids:
+        leaderboard.sort(key=lambda p: (p["player_id"] in opted_out_player_ids, -p["total"]["conservative"]))
+
     return render_template(
         "stats.html",
-        leaderboard=build_leaderboard(ratings, players, player_stats, deltas=deltas),
+        leaderboard=leaderboard,
         synergies=synergies,
         streaks=streaks,
+        opted_out_player_ids=opted_out_player_ids,
     )
 
 
@@ -81,11 +95,12 @@ def player_profile(player_id):
     connection.close()
     matches.reverse()
 
-    from scripts.accounts.database import get_accounts_connection, get_user_by_player_id
+    from scripts.accounts.database import get_accounts_connection, get_user_by_player_id, get_opted_out_player_ids
     acc_conn = get_accounts_connection()
     try:
         linked_user = get_user_by_player_id(acc_conn, player_id)
         linked_user = dict(linked_user) if linked_user else None
+        opted_out_player_ids = get_opted_out_player_ids(acc_conn)
     finally:
         acc_conn.close()
 
@@ -103,7 +118,7 @@ def player_profile(player_id):
         player_id=player_id,
         linked_user=linked_user,
         players_map=players_map,
-        
+        opted_out_player_ids=opted_out_player_ids,
     )
 
 
@@ -114,7 +129,15 @@ def match_history():
     matches = build_match_history(connection, players)
     matches.reverse()
     connection.close()
-    return render_template("matches.html", matches=matches)
+
+    from scripts.accounts.database import get_accounts_connection, get_opted_out_player_ids
+    acc_conn = get_accounts_connection()
+    try:
+        opted_out_player_ids = get_opted_out_player_ids(acc_conn)
+    finally:
+        acc_conn.close()
+
+    return render_template("matches.html", matches=matches, opted_out_player_ids=opted_out_player_ids)
 
 
 @stats_bp.route("/model-analysis")
@@ -147,9 +170,21 @@ def api_players_list():
     players = get_players(connection)
     ratings = get_ratings(connection)
     connection.close()
+
+    from scripts.accounts.database import get_accounts_connection, get_opted_out_player_ids
+    acc_conn = get_accounts_connection()
+    try:
+        opted_out_player_ids = get_opted_out_player_ids(acc_conn)
+    finally:
+        acc_conn.close()
+
+    can_view_glicko = has_tier(Tier.GLICKO_USER)
+    is_webmaster = has_tier(Tier.WEBMASTER)
+
     result = []
     for pid, p in players.items():
-        r = ratings.get(pid, {}).get("total", {}).get("rating")
+        show_rating = can_view_glicko and (is_webmaster or pid not in opted_out_player_ids)
+        r = ratings.get(pid, {}).get("total", {}).get("rating") if show_rating else None
         result.append({
             "id": pid,
             "name": p["aliases"][0],

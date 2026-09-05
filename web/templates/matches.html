@@ -59,7 +59,7 @@
                         {% else %}
                             {{ t('matches.player_anon', 'Player') }} {{ loop.index }}
                         {% endif %}
-                        {% if has_tier('glicko_user') and player["rating"] is not none %}
+                        {% if has_tier('glicko_user') and player["rating"] is not none and (has_tier('webmaster') or player["player_id"] not in opted_out_player_ids) %}
                             <span class="player-rating" title="Pre-match rating">({{ player["rating"] | round | int }})</span>
                         {% endif %}
                         {% if not loop.last %}, {% endif %}
@@ -79,7 +79,7 @@
                         {% else %}
                             {{ t('matches.player_anon', 'Player') }} {{ loop.index }}
                         {% endif %}
-                        {% if has_tier('glicko_user') and player["rating"] is not none %}
+                        {% if has_tier('glicko_user') and player["rating"] is not none and (has_tier('webmaster') or player["player_id"] not in opted_out_player_ids) %}
                             <span class="player-rating" title="Pre-match rating">({{ player["rating"] | round | int }})</span>
                         {% endif %}
                         {% if not loop.last %}, {% endif %}

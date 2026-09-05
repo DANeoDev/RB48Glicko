@@ -51,11 +51,15 @@ def get_actual_tier(user=_UNSET) -> Tier:
     role = user.get("role", "user")
     if role == "webmaster":
         return Tier.WEBMASTER
-    if role == "admin":
-        return Tier.ADMIN
 
     if not user.get("email_verified") or not user.get("is_approved"):
         return Tier.VISITOR
+
+    if user.get("glicko_opt_out"):
+        return Tier.USER
+
+    if role == "admin":
+        return Tier.ADMIN
 
     if user.get("psychology_test_passed"):
         return Tier.GLICKO_USER

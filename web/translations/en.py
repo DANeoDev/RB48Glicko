@@ -721,5 +721,12 @@ TRANSLATIONS_EN = {
     "achievements.comeback_king_desc": "Fought back after a rating low to reclaim lost rating points.",
     "achievements.perfect_session_title": "Perfect Matchday (Perfect Session)",
     "achievements.perfect_session_desc": "Won every single match in an evening (minimum 2 matches).",
+    "auth.glicko_opt_out_label": "Opt-out of Glicko-2 Rating Visibility",
+    "auth.glicko_opt_out_desc": "Hides your Glicko-2 rating from other users and admins (only visible to the webmaster). Your rating is still calculated in the background, but hidden on the leaderboard and match cards. You will be sorted to the very bottom of the leaderboard and your own site access level will be set to standard (no Glicko).",
+    "auth.glicko_opt_out_badge": "⚠️ Glicko-2 Opt-Out Active",
+    "auth.glicko_opt_out_banner": "Your Glicko-2 rating is currently hidden from other users and admins. Your site access tier is set to standard User (no Glicko view). You can turn this off at any time in your profile settings above.",
+    "stats.rating_hidden_opt_out": "Rating hidden by player (Opt-out)",
+    "player.glicko_opt_out_notice": "This player has opted out of public Glicko-2 performance ratings and charts.",
+    "streaks.surge_opted_out_hover": "Rating hidden by player (Opt-out)",
 
 }

@@ -40,6 +40,7 @@ def create_account_tables(connection):
             psychology_persona TEXT,
             player_id INTEGER,
             pending_player_id INTEGER,
+            glicko_opt_out INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL
         )
     """)
@@ -106,6 +107,8 @@ def create_account_tables(connection):
         connection.execute("ALTER TABLE users ADD COLUMN pending_player_id INTEGER")
     if "noise_display_mode" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN noise_display_mode TEXT NOT NULL DEFAULT 'collapsed'")
+    if "glicko_opt_out" not in existing_columns:
+        connection.execute("ALTER TABLE users ADD COLUMN glicko_opt_out INTEGER NOT NULL DEFAULT 0")
 
     bubble_cursor = connection.execute("PRAGMA table_info(noise_bubbles)")
     existing_bubble_cols = {row["name"] for row in bubble_cursor.fetchall()}
@@ -138,6 +141,7 @@ def get_user_by_id(connection, user_id):
             player_id,
             pending_player_id,
             noise_display_mode,
+            glicko_opt_out,
             created_at
         FROM users
         WHERE id = ?
@@ -166,6 +170,7 @@ def get_user_by_login(connection, login):
             player_id,
             pending_player_id,
             noise_display_mode,
+            glicko_opt_out,
             created_at
         FROM users
         WHERE lower(username) = lower(?) OR lower(email) = lower(?)
@@ -194,6 +199,7 @@ def get_user_by_email(connection, email):
             player_id,
             pending_player_id,
             noise_display_mode,
+            glicko_opt_out,
             created_at
         FROM users
         WHERE lower(email) = lower(?)
@@ -217,7 +223,8 @@ def get_user_by_player_id(connection, player_id):
             avatar_file,
             psychology_persona,
             player_id,
-            pending_player_id
+            pending_player_id,
+            glicko_opt_out
         FROM users
         WHERE player_id = ?
         LIMIT 1
@@ -243,6 +250,7 @@ def get_all_users(connection):
             psychology_persona,
             player_id,
             pending_player_id,
+            glicko_opt_out,
             created_at
         FROM users
         ORDER BY id DESC
@@ -336,7 +344,7 @@ def set_user_attendance_name(connection, user_id, attendance_name):
     connection.commit()
 
 
-def update_user_profile(connection, user_id, attendance_name=None, avatar_file=None):
+def update_user_profile(connection, user_id, attendance_name=None, avatar_file=None, glicko_opt_out=None):
     """Update general profile settings."""
     updates = []
     params = []
@@ -346,6 +354,9 @@ def update_user_profile(connection, user_id, attendance_name=None, avatar_file=N
     if avatar_file is not None:
         updates.append("avatar_file = ?")
         params.append(avatar_file if avatar_file else None)
+    if glicko_opt_out is not None:
+        updates.append("glicko_opt_out = ?")
+        params.append(1 if glicko_opt_out else 0)
 
     if updates:
         params.append(user_id)
@@ -354,6 +365,14 @@ def update_user_profile(connection, user_id, attendance_name=None, avatar_file=N
             tuple(params),
         )
         connection.commit()
+
+
+def get_opted_out_player_ids(connection) -> set:
+    """Return set of player_ids that have opted out of Glicko-2 rating visibility."""
+    rows = connection.execute(
+        "SELECT player_id FROM users WHERE glicko_opt_out = 1 AND player_id IS NOT NULL"
+    ).fetchall()
+    return {row["player_id"] for row in rows}
 
 
 def request_player_link(connection, user_id, player_id):
