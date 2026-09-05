@@ -412,6 +412,66 @@ def reject_player_link(connection, user_id):
     connection.commit()
 
 
+def unlink_player(connection, user_id):
+    """Remove player profile connection and pending connection for user."""
+    connection.execute(
+        "UPDATE users SET player_id = NULL, pending_player_id = NULL WHERE id = ?",
+        (user_id,),
+    )
+    connection.commit()
+
+
+def set_user_access_level(connection, user_id, access_level):
+    """Update user access level (visitor, user, glicko_user, admin, webmaster)."""
+    from datetime import datetime
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if access_level == "visitor":
+        connection.execute(
+            "UPDATE users SET role = 'user', is_approved = 0 WHERE id = ?",
+            (user_id,),
+        )
+    elif access_level == "user":
+        connection.execute(
+            """
+            UPDATE users
+            SET role = 'user', email_verified = 1, is_approved = 1, psychology_test_passed = 0, glicko_opt_out = 0
+            WHERE id = ?
+            """,
+            (user_id,),
+        )
+    elif access_level == "glicko_user":
+        connection.execute(
+            """
+            UPDATE users
+            SET role = 'user', email_verified = 1, is_approved = 1, psychology_test_passed = 1, psychology_test_date = COALESCE(psychology_test_date, ?), glicko_opt_out = 0
+            WHERE id = ?
+            """,
+            (now_str, user_id),
+        )
+    elif access_level == "admin":
+        connection.execute(
+            """
+            UPDATE users
+            SET role = 'admin', email_verified = 1, is_approved = 1, psychology_test_passed = 1, psychology_test_date = COALESCE(psychology_test_date, ?), glicko_opt_out = 0
+            WHERE id = ?
+            """,
+            (now_str, user_id),
+        )
+    elif access_level == "webmaster":
+        connection.execute(
+            """
+            UPDATE users
+            SET role = 'webmaster', email_verified = 1, is_approved = 1, psychology_test_passed = 1, psychology_test_date = COALESCE(psychology_test_date, ?), glicko_opt_out = 0
+            WHERE id = ?
+            """,
+            (now_str, user_id),
+        )
+    else:
+        raise ValueError(f"Invalid access level: {access_level}")
+    connection.commit()
+
+
 def update_user_password(connection, user_id, password_hash):
     """Update user account password."""
     connection.execute(
