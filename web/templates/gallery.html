@@ -57,6 +57,17 @@
                 <div class="gallery-card" onclick="openLightbox({{ loop.index0 }})" style="position: relative; border-radius: var(--radius); overflow: hidden; background: #1b1235; border: 1px solid #3c2a68; cursor: pointer; aspect-ratio: 4 / 3; transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;">
                     <img src="{{ img.url }}" alt="{{ img.filename }}" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.25s ease;">
                     
+                    {% if has_tier('webmaster') %}
+                        <!-- Webmaster Delete Button on Card -->
+                        <form method="post" action="{{ url_for('gallery.delete_image') }}" style="position: absolute; top: 10px; left: 10px; margin: 0; z-index: 5;" onsubmit="return confirm('{{ t('gallery.confirm_delete', 'Dieses Foto wirklich unwiderruflich aus der Galerie löschen?') }}');" onclick="event.stopPropagation();">
+                            <input type="hidden" name="filename" value="{{ img.filename }}">
+                            <input type="hidden" name="sort" value="{{ current_sort }}">
+                            <button type="submit" style="background: rgba(220, 53, 69, 0.85); backdrop-filter: blur(4px); border: 1px solid rgba(220, 53, 69, 0.6); color: #ffffff; border-radius: 6px; width: 28px; height: 28px; padding: 0; font-size: 13px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s ease;" title="{{ t('gallery.delete_photo_btn', 'Foto löschen (Webmaster)') }}">
+                                🗑️
+                            </button>
+                        </form>
+                    {% endif %}
+
                     <!-- Top-Right Capture Date Badge -->
                     <div style="position: absolute; top: 10px; right: 10px; background: rgba(27, 18, 53, 0.85); backdrop-filter: blur(6px); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.4); border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px;">
                         <span>📅</span>
@@ -106,12 +117,23 @@
         <img id="lightbox-img" src="" alt="Gallery Preview" style="max-width: 90vw; max-height: 75vh; width: auto; height: auto; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); border: 1px solid #5A4A83;">
         
         <!-- Info Footer -->
-        <div style="margin-top: 14px; background: rgba(36, 25, 74, 0.9); border: 1px solid #5A4A83; border-radius: 20px; padding: 6px 18px; display: flex; align-items: center; gap: 16px; font-size: 13px; color: #ffffff;">
+        <div style="margin-top: 14px; background: rgba(36, 25, 74, 0.9); border: 1px solid #5A4A83; border-radius: 20px; padding: 6px 18px; display: flex; align-items: center; gap: 14px; font-size: 13px; color: #ffffff; flex-wrap: wrap; justify-content: center;">
             <span id="lightbox-counter" style="font-weight: 700; color: #80deea;"></span>
             <span>·</span>
             <span id="lightbox-date" style="display: inline-flex; align-items: center; gap: 4px;"></span>
             <span>·</span>
             <span id="lightbox-filename" style="color: var(--text-muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+            {% if has_tier('webmaster') %}
+                <span>·</span>
+                <form id="lightbox-delete-form" method="post" action="{{ url_for('gallery.delete_image') }}" style="margin: 0; display: inline;" onsubmit="return confirm('{{ t('gallery.confirm_delete', 'Dieses Foto wirklich unwiderruflich aus der Galerie löschen?') }}');">
+                    <input type="hidden" id="lightbox-delete-filename" name="filename" value="">
+                    <input type="hidden" name="sort" value="{{ current_sort }}">
+                    <button type="submit" style="background: rgba(220, 53, 69, 0.25); border: 1px solid #dc3545; color: #ff8888; border-radius: 12px; padding: 2px 10px; font-size: 11.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: background 0.15s ease;" title="{{ t('gallery.delete_photo_btn', 'Foto löschen (Webmaster)') }}">
+                        <span>🗑️</span>
+                        <span>{{ t('gallery.delete_btn', 'Löschen') }}</span>
+                    </button>
+                </form>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -209,6 +231,11 @@ function updateLightbox() {
     document.getElementById("lightbox-counter").textContent = (currentLightboxIndex + 1) + " / " + galleryImages.length;
     document.getElementById("lightbox-date").innerHTML = "📅 " + imgData.capture_date_str;
     document.getElementById("lightbox-filename").textContent = imgData.filename;
+
+    const delInput = document.getElementById("lightbox-delete-filename");
+    if (delInput) {
+        delInput.value = imgData.filename;
+    }
 }
 
 function prevLightbox(e) {

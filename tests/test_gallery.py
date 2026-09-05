@@ -144,6 +144,37 @@ class GalleryTest(unittest.TestCase):
         # Still only 1 image in gallery
         self.assertEqual(len(get_gallery_images()), 1)
 
+    def test_delete_image_route_webmaster_only(self):
+        # 1. Create a test image
+        img_path = self.create_dummy_image("delete_me.jpg")
+        self.assertTrue(img_path.exists())
+
+        wm = self.create_user(role="webmaster")
+        regular_user = self.create_user(role="user", verified=True, approved=True)
+
+        # 2. Regular user tries to delete -> forbidden/redirected
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = regular_user["id"]
+
+        resp_user = self.client.post("/gallery/delete", data={"filename": "delete_me.jpg"}, follow_redirects=True)
+        self.assertTrue(img_path.exists())
+
+        # 3. Webmaster deletes -> succeeds
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = wm["id"]
+
+        resp_wm = self.client.post("/gallery/delete", data={"filename": "delete_me.jpg"}, follow_redirects=True)
+        self.assertEqual(resp_wm.status_code, 200)
+        self.assertFalse(img_path.exists())
+
+        # 4. Path traversal attempt is rejected
+        outside_file = Path(self.temp_dir.name) / "secret.txt"
+        outside_file.write_text("secret", encoding="utf-8")
+
+        resp_traverse = self.client.post("/gallery/delete", data={"filename": "../secret.txt"}, follow_redirects=True)
+        self.assertEqual(resp_traverse.status_code, 200)
+        self.assertTrue(outside_file.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

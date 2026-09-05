@@ -1,8 +1,12 @@
 """Gallery routes: viewing gallery, sorting images, and uploading new photos."""
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
-from scripts.gallery.gallery_service import get_gallery_images, save_gallery_images
-from web.services.security import Tier, get_current_user, require_tier
+from scripts.gallery.gallery_service import (
+    delete_gallery_image,
+    get_gallery_images,
+    save_gallery_images,
+)
+from web.services.security import Tier, get_current_user, require_tier, require_webmaster
 from web.services.translations import t
 
 gallery_bp = Blueprint("gallery", __name__)
@@ -57,3 +61,23 @@ def upload():
         flash(err, "warning")
 
     return redirect(url_for("gallery.gallery", sort="added_newest"))
+
+
+@gallery_bp.route("/gallery/delete", methods=["POST"])
+@require_webmaster
+def delete_image():
+    """Delete a photo from the gallery (Webmaster only)."""
+    filename = request.form.get("filename", "").strip()
+    sort_mode = request.form.get("sort", "random")
+
+    if not filename:
+        flash(t("gallery.delete_missing_filename", "Kein Dateiname angegeben."), "danger")
+        return redirect(url_for("gallery.gallery", sort=sort_mode))
+
+    success = delete_gallery_image(filename)
+    if success:
+        flash(t("gallery.delete_success", "Foto '{filename}' wurde erfolgreich gelöscht.", filename=filename), "success")
+    else:
+        flash(t("gallery.delete_error", "Foto konnte nicht gelöscht werden oder wurde nicht gefunden."), "warning")
+
+    return redirect(url_for("gallery.gallery", sort=sort_mode))

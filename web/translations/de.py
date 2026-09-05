@@ -792,5 +792,11 @@ TRANSLATIONS_DE = {
     "gallery.no_files_selected": "Keine Dateien zum Hochladen ausgewählt.",
     "gallery.upload_success_single": "1 Foto erfolgreich zur Galerie hinzugefügt!",
     "gallery.upload_success_multi": "{count} Fotos erfolgreich zur Galerie hinzugefügt!",
+    "gallery.delete_btn": "Löschen",
+    "gallery.delete_photo_btn": "Foto löschen (Webmaster)",
+    "gallery.confirm_delete": "Dieses Foto wirklich unwiderruflich aus der Galerie löschen?",
+    "gallery.delete_missing_filename": "Kein Dateiname angegeben.",
+    "gallery.delete_success": "Foto '{filename}' wurde erfolgreich gelöscht.",
+    "gallery.delete_error": "Foto konnte nicht gelöscht werden oder wurde nicht gefunden.",
 
 }
