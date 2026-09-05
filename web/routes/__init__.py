@@ -4,6 +4,7 @@ from .stats import stats_bp
 from .match_center import match_center_bp
 from .planner import planner_bp
 from .noise import noise_bp
+from .gallery import gallery_bp
 
 
 def register_routes(app):
@@ -13,4 +14,5 @@ def register_routes(app):
     app.register_blueprint(match_center_bp)
     app.register_blueprint(planner_bp)
     app.register_blueprint(noise_bp)
+    app.register_blueprint(gallery_bp)
 
