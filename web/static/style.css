@@ -814,3 +814,16 @@ a:hover { color: var(--accent-hover); }
     border-color: #7B52C5;
     color: #ffffff;
 }
+
+/* =========================================================================
+   Glicko Rating Blur for Non-Glicko Users
+   ========================================================================= */
+.glicko-blur {
+    filter: blur(5px);
+    -webkit-filter: blur(5px);
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: help;
+    display: inline-block;
+}
+
