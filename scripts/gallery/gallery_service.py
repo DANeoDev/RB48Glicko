@@ -178,3 +178,26 @@ def save_gallery_images(files, username="user"):
             errors.append(f"Fehler beim Speichern von {raw_filename}: {str(e)}")
 
     return saved, errors
+
+
+def delete_gallery_image(filename: str) -> bool:
+    """Delete a gallery image file securely, ensuring no path traversal."""
+    if not filename:
+        return False
+
+    clean_name = os.path.basename(filename)
+    gallery_dir = get_gallery_dir().resolve()
+    target_path = (gallery_dir / clean_name).resolve()
+
+    try:
+        target_path.relative_to(gallery_dir)
+    except ValueError:
+        return False
+
+    if target_path.is_file() and target_path.suffix.lower() in ALLOWED_EXTENSIONS:
+        try:
+            target_path.unlink()
+            return True
+        except Exception:
+            return False
+    return False

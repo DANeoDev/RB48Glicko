@@ -770,5 +770,11 @@ TRANSLATIONS_EN = {
     "gallery.no_files_selected": "No files selected for upload.",
     "gallery.upload_success_single": "1 photo successfully uploaded to the gallery!",
     "gallery.upload_success_multi": "{count} photos successfully uploaded to the gallery!",
+    "gallery.delete_btn": "Delete",
+    "gallery.delete_photo_btn": "Delete photo (Webmaster)",
+    "gallery.confirm_delete": "Are you sure you want to permanently delete this photo from the gallery?",
+    "gallery.delete_missing_filename": "No filename specified.",
+    "gallery.delete_success": "Photo '{filename}' successfully deleted.",
+    "gallery.delete_error": "Photo could not be deleted or was not found.",
 
 }
