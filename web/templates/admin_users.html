@@ -21,7 +21,7 @@
                             <th style="padding: 10px 8px;">{{ t('auth.th_id', 'ID') }}</th>
                             <th style="padding: 10px 8px;">{{ t('auth.th_user', 'User') }}</th>
                             <th style="padding: 10px 8px;">{{ t('auth.th_email', 'Email') }}</th>
-                            <th style="padding: 10px 8px;">{{ t('auth.th_role', 'Role') }}</th>
+                            <th style="padding: 10px 8px;">{{ t('auth.th_access_level', 'Access Level') }}</th>
                             <th style="padding: 10px 8px;">{{ t('auth.th_verified', 'Verified') }}</th>
                             <th style="padding: 10px 8px;">{{ t('auth.th_glicko', 'Glicko') }}</th>
                             <th style="padding: 10px 8px;">{{ t('auth.th_membership', 'Membership') }}</th>
@@ -43,9 +43,22 @@
                                 </td>
                                 <td style="padding: 10px 8px; color: var(--text-muted);">{{ u.email }}</td>
                                 <td style="padding: 10px 8px;">
-                                    <span style="background: rgba(88, 45, 161, 0.3); padding: 2px 8px; border-radius: 4px; font-size: 11px;">
-                                        {{ u.role | title }}
-                                    </span>
+                                    {% if current_user and current_user.id == u.id %}
+                                        <span style="background: rgba(88, 45, 161, 0.4); padding: 3px 8px; border-radius: 4px; font-size: 11px; color: #80deea; font-weight: 600;">
+                                            👑 Webmaster (You)
+                                        </span>
+                                    {% else %}
+                                        <form method="post" action="{{ url_for('auth.update_access_level', user_id=u.id) }}" style="display: inline-flex; align-items: center; gap: 4px; margin: 0;">
+                                            <select name="access_level" style="font-size: 11.5px; padding: 2px 6px; background: #24194A; border: 1px solid #5A4A83; color: #fff; border-radius: 4px; cursor: pointer;" onchange="this.form.submit()">
+                                                <option value="visitor" {% if u.actual_tier == 'visitor' %}selected{% endif %}>{{ t('auth.tier_visitor', 'Visitor') }}</option>
+                                                <option value="user" {% if u.actual_tier == 'user' %}selected{% endif %}>{{ t('auth.tier_user', 'User') }}</option>
+                                                <option value="glicko_user" {% if u.actual_tier == 'glicko_user' %}selected{% endif %}>{{ t('auth.tier_glicko', 'Glicko-User') }}</option>
+                                                <option value="admin" {% if u.actual_tier == 'admin' %}selected{% endif %}>{{ t('auth.tier_admin', 'Admin') }}</option>
+                                                <option value="webmaster" {% if u.actual_tier == 'webmaster' %}selected{% endif %}>{{ t('auth.tier_webmaster', 'Webmaster') }}</option>
+                                            </select>
+                                            <button type="submit" class="secondary" style="padding: 2px 6px; font-size: 11px; cursor: pointer;" title="{{ t('auth.save_access_level', 'Save Access Level') }}">💾</button>
+                                        </form>
+                                    {% endif %}
                                 </td>
                                 <td style="padding: 10px 8px;">
                                     {% if u.email_verified %}
@@ -82,11 +95,24 @@
                                         </div>
                                     {% elif u.player_id %}
                                         {% set linked_player = players.get(u.player_id) %}
-                                        <span style="color: #80deea;">
-                                            🔗 {{ linked_player.aliases[0] if linked_player else 'ID #' ~ u.player_id }}
-                                        </span>
+                                        <div style="display: flex; align-items: center; gap: 6px;">
+                                            <span style="color: #80deea; font-weight: 500;">
+                                                🔗 {{ linked_player.aliases[0] if linked_player else 'ID #' ~ u.player_id }}
+                                            </span>
+                                            <form method="post" action="{{ url_for('auth.handle_player_link', user_id=u.id) }}" style="display: inline; margin: 0;" onsubmit="return confirm('{{ t('auth.confirm_unlink', 'Are you sure you want to unlink this player profile?') }}');">
+                                                <button type="submit" name="action" value="unlink" class="secondary" style="padding: 2px 6px; font-size: 11px; color: #ff8888; border-color: rgba(220,53,69,0.4); cursor: pointer;" title="{{ t('auth.unlink_player_title', 'Unlink Player Profile') }}">✕ {{ t('auth.unlink_btn', 'Aufheben') }}</button>
+                                            </form>
+                                        </div>
                                     {% else %}
-                                        <span style="color: var(--text-muted);">{{ t('auth.none', 'None') }}</span>
+                                        <form method="post" action="{{ url_for('auth.assign_player_link', user_id=u.id) }}" style="display: inline-flex; align-items: center; gap: 4px; margin: 0;">
+                                            <select name="player_id" style="font-size: 11px; padding: 2px 4px; background: #24194A; border: 1px solid #5A4A83; color: #fff; border-radius: 4px; max-width: 120px;">
+                                                <option value="">-- {{ t('auth.select_player', 'Select Player') }} --</option>
+                                                {% for pid, p in players.items()|sort(attribute='1.aliases.0') %}
+                                                    <option value="{{ pid }}">{{ p.aliases[0] }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <button type="submit" class="secondary" style="padding: 2px 6px; font-size: 11px; cursor: pointer;" title="{{ t('auth.link_btn', 'Link') }}">🔗</button>
+                                        </form>
                                     {% endif %}
                                 </td>
                                 <td style="padding: 10px 8px; text-align: right;">

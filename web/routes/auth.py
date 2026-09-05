@@ -28,6 +28,8 @@ from scripts.accounts.database import (
     link_user_to_player,
     reject_player_link,
     request_player_link,
+    set_user_access_level,
+    unlink_player,
     update_user_password,
     update_user_profile,
     update_user_role,
@@ -38,6 +40,7 @@ from web.services.email_service import is_smtp_configured, send_verification_ema
 from web.services.security import (
     Tier,
     TIER_BY_NAME,
+    get_actual_tier,
     get_current_user,
     require_tier,
     require_webmaster,
@@ -241,6 +244,8 @@ def admin_users():
     main_conn = get_main_connection()
     try:
         users = [dict(row) for row in get_all_users(connection)]
+        for u in users:
+            u["actual_tier"] = get_actual_tier(u).name.lower()
         players = get_players(main_conn)
         return render_template("admin_users.html", users=users, players=players)
     finally:
@@ -274,7 +279,7 @@ def toggle_approval(user_id):
 @auth_bp.route("/admin/users/<int:user_id>/player-link", methods=["POST"])
 @require_webmaster
 def handle_player_link(user_id):
-    """Approve or reject a requested player profile connection."""
+    """Approve, reject, or unlink a requested player profile connection."""
     action = request.form.get("action", "approve")
     connection = get_accounts_connection()
     try:
@@ -286,9 +291,65 @@ def handle_player_link(user_id):
         if action == "approve":
             approve_player_link(connection, user_id)
             flash(f"Approved player profile connection for '{user['username']}'.", "success")
+        elif action == "unlink":
+            unlink_player(connection, user_id)
+            flash(f"Unlinked player profile connection for '{user['username']}'.", "info")
         else:
             reject_player_link(connection, user_id)
             flash(f"Rejected player link request for '{user['username']}'.", "info")
+        return redirect(url_for("auth.admin_users"))
+    finally:
+        connection.close()
+
+
+@auth_bp.route("/admin/users/<int:user_id>/assign-player", methods=["POST"])
+@require_webmaster
+def assign_player_link(user_id):
+    """Directly assign or clear player profile connection for a user."""
+    player_id_raw = request.form.get("player_id", "").strip()
+    player_id = int(player_id_raw) if player_id_raw.isdigit() and int(player_id_raw) > 0 else None
+    connection = get_accounts_connection()
+    try:
+        user = get_user_by_id(connection, user_id)
+        if not user:
+            flash("User not found.", "danger")
+            return redirect(url_for("auth.admin_users"))
+
+        if player_id:
+            link_user_to_player(connection, user_id, player_id)
+            flash(f"Linked '{user['username']}' to player profile #{player_id}.", "success")
+        else:
+            unlink_player(connection, user_id)
+            flash(f"Unlinked player profile for '{user['username']}'.", "info")
+        return redirect(url_for("auth.admin_users"))
+    finally:
+        connection.close()
+
+
+@auth_bp.route("/admin/users/<int:user_id>/access-level", methods=["POST"])
+@require_webmaster
+def update_access_level(user_id):
+    """Change the access level/tier of a user account."""
+    new_tier = request.form.get("access_level", "").strip().lower()
+    curr_user = get_current_user()
+    if curr_user and curr_user["id"] == user_id and new_tier != "webmaster":
+        flash("You cannot demote your own active Webmaster account.", "danger")
+        return redirect(url_for("auth.admin_users"))
+
+    valid_tiers = ("visitor", "user", "glicko_user", "admin", "webmaster")
+    if new_tier not in valid_tiers:
+        flash("Invalid access level selected.", "danger")
+        return redirect(url_for("auth.admin_users"))
+
+    connection = get_accounts_connection()
+    try:
+        user = get_user_by_id(connection, user_id)
+        if not user:
+            flash("User not found.", "danger")
+            return redirect(url_for("auth.admin_users"))
+
+        set_user_access_level(connection, user_id, new_tier)
+        flash(f"Access level for '{user['username']}' changed to {new_tier.replace('_', ' ').title()}.", "success")
         return redirect(url_for("auth.admin_users"))
     finally:
         connection.close()
