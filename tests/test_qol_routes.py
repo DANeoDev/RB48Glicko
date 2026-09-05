@@ -64,6 +64,7 @@ class TestQOLRoutes(unittest.TestCase):
             sess["user_id"] = 1
             sess["user_role"] = "user"
             sess["user_tier"] = "user"
+            sess["simulated_tier"] = "user"
             sess["user_is_approved"] = 1
         resp = self.client.get("/stats")
         self.assertEqual(resp.status_code, 200)
@@ -73,6 +74,19 @@ class TestQOLRoutes(unittest.TestCase):
         self.assertIn(b'id="open-synergies-modal-btn"', resp.data)
         self.assertIn(b"openStreaksModal", resp.data)
         self.assertIn(b"openSynergiesModal", resp.data)
+        self.assertIn(b"glicko-blur", resp.data)
+        self.assertIn("Basiert auf der internen Ratingentwicklung".encode("utf-8"), resp.data)
+
+    def test_stats_streaks_modal_glicko_user_no_blur(self):
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = 1
+            sess["user_role"] = "user"
+            sess["user_tier"] = "glicko_user"
+            sess["simulated_tier"] = "glicko_user"
+            sess["user_is_approved"] = 1
+        resp = self.client.get("/stats")
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn(b"glicko-blur", resp.data)
 
     def test_player_correlation_map_rendered(self):
         with self.client.session_transaction() as sess:

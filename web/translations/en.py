@@ -697,6 +697,7 @@ TRANSLATIONS_EN = {
     "streaks.btn_title": "Streaks & Records",
     "streaks.modal_title": "RB48 Streaks & Records",
     "streaks.modal_sub": "Current win streaks, all-time records, and 30-day form surges",
+    "streaks.surge_glicko_hover": "Based on internal rating progression (visible with Glicko access tier)",
     "search.placeholder": "Search pages or players (Ctrl+K)...",
     "planner.export_ics_title": "Downloads an .ics calendar file. Open this file on your smartphone or PC (or double-click to import into Apple Calendar, Google Calendar, or Outlook) to add all upcoming match dates to your personal calendar.",
     "achievements.section_title": "🏆 Achievements & Milestones",
