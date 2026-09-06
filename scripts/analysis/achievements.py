@@ -303,10 +303,16 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         ym = m["date"][:7]
         player_month_matches.setdefault(ym, []).append(m)
 
+    all_history_months = sorted(list(set(r["date"][:7] for r in rows)))
+    first_history_month = all_history_months[0] if all_history_months else None
+
     current_ym = (reference_date or datetime.now()).strftime("%Y-%m")
     perfect_months = 0
     perfect_months_formatted = []
     for ym in sorted(global_months.keys()):
+        # The first month of the match history is not eligible!
+        if ym == first_history_month:
+            continue
         # Only completed calendar months count!
         if ym >= current_ym:
             continue

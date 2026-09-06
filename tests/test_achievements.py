@@ -240,6 +240,27 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         self.assertEqual(pm_ongoing["tier"], "silver")
         self.assertNotIn("Januar 2027", pm_ongoing["detail_text"])
 
+    def test_makelloser_monat_first_month_ineligible(self):
+        # 5 warmup matches in 2026-01
+        self.add_warmup_5_matches()
+        # Add 6th match in 2026-01 where player 1 wins
+        self.add_match("2026-01-20", [1, 2], [3, 4], 5, 1)
+
+        # In 2026-01, player 1 played all active matches and won.
+        # But 2026-01 is the FIRST month of match history -> NOT eligible!
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        pm = [a for a in ach if a["id"] == "perfect_month"][0]
+        self.assertFalse(pm["unlocked"])
+        self.assertEqual(pm["tier"], "locked")
+
+        # In 2026-02 (the SECOND month of match history), player 1 plays and wins all matches
+        self.add_match("2026-02-05", [1, 2], [3, 4], 5, 2)
+        ach2 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        pm2 = [a for a in ach2 if a["id"] == "perfect_month"][0]
+        self.assertTrue(pm2["unlocked"])
+        self.assertEqual(pm2["tier"], "bronze")
+        self.assertIn("Februar 2026", pm2["detail_text"])
+
     def test_winning_streak(self):
         self.add_warmup_5_matches()
 
@@ -441,6 +462,29 @@ class TestAchievementsRoute(unittest.TestCase):
         resp = self.client.get("/achievements/1")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("Auszeichnungen & Meilensteine", resp.get_data(as_text=True))
+
+    def test_player_profile_graphs_rendered_for_glicko_user(self):
+        from scripts.accounts.auth import pass_psychology_test
+        user_id, _ = register_user("chartuser", "chart@example.com", "password123")
+        conn = get_accounts_connection()
+        try:
+            mark_email_verified(conn, user_id)
+            approve_user(conn, user_id, approved=True)
+            link_user_to_player(conn, user_id, 1)
+        finally:
+            conn.close()
+        pass_psychology_test(user_id)
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        resp = self.client.get("/player/1")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("chart.js", html.lower())
+        self.assertIn('class="graphs"', html)
+        self.assertIn("new Chart", html)
+        self.assertIn("totalChart", html)
 
 
 if __name__ == "__main__":
