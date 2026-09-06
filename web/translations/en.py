@@ -423,6 +423,11 @@ TRANSLATIONS_EN = {
     "match_center.view_history": "View Match History",
 
     # Glicko FAQ
+    "faq.webmaster_project_title": "Webmaster Project: Passion for sports and numbers",
+    "faq.webmaster_project_p1": "For users with appropriate access permissions, the homepage includes a statistical analysis of matchday results (Glicko-2).",
+    "faq.webmaster_project_p2": "Based on historical team constellations and match results, this analysis helps generate fair teams in the matchmaker.",
+    "faq.golden_rule_title": "Please note:",
+    "faq.golden_rule_text": "The mathematical model serves solely to enable exciting, balanced matches and satisfy a certain nerdy passion for numbers. Ratings reflect past team outcomes — they never define the personal value or character of a player.",
     "faq.title": "Frequently Asked Questions & Model Guide",
     "faq.subtitle": "Everything you need to know about RB48 matchdays, matchmaking, and performance statistics.",
     "faq.tab_general": "🌐 General & Guest Guide",
@@ -490,6 +495,9 @@ TRANSLATIONS_EN = {
     "psych.denied_title": "Assessment Result: Glicko Clearance Denied",
     "psych.eval_title": "Tactical & Locker-Room Evaluation:",
     "psych.view_ratings": "View Player Ratings",
+    "psych.view_webmaster_project": "Webmaster Project",
+    "psych.webmaster_project_hint": "Take a moment to read our philosophy and the golden rule:",
+    "psych.webmaster_project_link": "Webmaster Project in Glicko FAQ →",
     "psych.open_model_analysis": "Open Model Analysis →",
     "psych.retake_btn": "Retake Assessment ↺",
 

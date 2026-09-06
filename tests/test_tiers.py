@@ -185,6 +185,7 @@ class AccessTiersTest(unittest.TestCase):
         pass_resp = self.client.post("/glicko-test", data={"q1": "d", "q2": "b", "q3": "c", "q4": "b", "q5": "a", "q6": "d", "q7": "b"}, follow_redirects=True)
         self.assertEqual(pass_resp.status_code, 200)
         self.assertTrue(b"Kabinenlegende" in pass_resp.data or b"Locker Room Legend" in pass_resp.data)
+        self.assertIn("/glickofaq#webmaster-project", pass_resp.data.decode("utf-8"))
 
         updated = get_user(user["id"])
         self.assertEqual(updated["psychology_test_passed"], 1)
@@ -193,6 +194,23 @@ class AccessTiersTest(unittest.TestCase):
         # 5. Now model analysis is accessible
         model_resp = self.client.get("/model-analysis")
         self.assertEqual(model_resp.status_code, 200)
+
+    def test_webmaster_project_moved_to_glickofaq(self):
+        # 1. /about no longer contains "Projekt des Webmasters" / "Webmaster Project"
+        resp_about = self.client.get("/about")
+        self.assertEqual(resp_about.status_code, 200)
+        about_html = resp_about.data.decode("utf-8")
+        self.assertNotIn("webmaster-project", about_html)
+        self.assertNotIn("Projekt des Webmasters", about_html)
+        self.assertNotIn("Webmaster Project", about_html)
+
+        # 2. /glickofaq contains webmaster-project section
+        resp_faq = self.client.get("/glickofaq")
+        self.assertEqual(resp_faq.status_code, 200)
+        faq_html = resp_faq.data.decode("utf-8")
+        self.assertIn("webmaster-project", faq_html)
+        self.assertTrue("Projekt des Webmasters" in faq_html or "Webmaster Project" in faq_html)
+        self.assertTrue("Dabei gilt:" in faq_html or "Please note:" in faq_html)
 
     def test_webmaster_manual_approval_endpoint(self):
         webmaster = self.create_test_user(role="webmaster", verified=True)

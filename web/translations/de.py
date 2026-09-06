@@ -441,6 +441,11 @@ TRANSLATIONS_DE = {
 
     # =========================================================================
     # Glicko FAQ & Guide
+    "faq.webmaster_project_title": "Projekt des Webmasters: Leidenschaft für den Sport und Zahlen",
+    "faq.webmaster_project_p1": "Die Homepage beinhaltet für Nutzer mit entsprechender Zugangsberechtigung eine statistische Analyse von Spieltagsergebnissen (Glicko2).",
+    "faq.webmaster_project_p2": "Auf Basis historischer Teamkonstellationen und Spielergebnisse können mithilfe dieser Analyse faire Teams im Matchmaker erstellt werden.",
+    "faq.golden_rule_title": "Dabei gilt:",
+    "faq.golden_rule_text": "Das mathematische Modell dient einzig dem Zweck, spannende und ausgeglichene Spiele zu ermöglichen und eine gewisse Nerd-Leidenschaft für Zahlen zu befriedigen. Ratings spiegeln vergangene Teamergebnisse wider – sie definieren niemals den persönlichen Wert oder Charakter eines Spielers.",
     # =========================================================================
     "faq.title": "Häufig gestellte Fragen & Modell-Leitfaden",
     "faq.subtitle": "Alles Wissenswerte über RB48-Spieltage, das Matchmaking und die Leistungsstatistiken.",
@@ -511,6 +516,9 @@ TRANSLATIONS_DE = {
     "psych.denied_title": "Testergebnis: Glicko-Freigabe abgelehnt",
     "psych.eval_title": "Taktische & Kabinen-Bewertung:",
     "psych.view_ratings": "Spielerratings ansehen",
+    "psych.view_webmaster_project": "Projekt des Webmasters",
+    "psych.webmaster_project_hint": "Lies dir gerne die Philosophie und die goldene Regel durch:",
+    "psych.webmaster_project_link": "Projekt des Webmasters im Glicko FAQ →",
     "psych.open_model_analysis": "Modellanalyse öffnen →",
     "psych.retake_btn": "Test wiederholen ↺",
 
