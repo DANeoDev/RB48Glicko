@@ -57,28 +57,40 @@
                 <div class="gallery-card" onclick="openLightbox({{ loop.index0 }})" style="position: relative; border-radius: var(--radius); overflow: hidden; background: #1b1235; border: 1px solid #3c2a68; cursor: pointer; aspect-ratio: 4 / 3; transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;">
                     <img src="{{ img.url }}" alt="{{ img.filename }}" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.25s ease;">
                     
-                    {% if has_tier('webmaster') %}
-                        <!-- Webmaster Delete Button on Card -->
+                    {% if img.can_manage %}
+                        <!-- Delete Button on Card -->
                         <form method="post" action="{{ url_for('gallery.delete_image') }}" style="position: absolute; top: 10px; left: 10px; margin: 0; z-index: 5;" onsubmit="return confirm('{{ t('gallery.confirm_delete', 'Dieses Foto wirklich unwiderruflich aus der Galerie löschen?') }}');" onclick="event.stopPropagation();">
                             <input type="hidden" name="filename" value="{{ img.filename }}">
                             <input type="hidden" name="sort" value="{{ current_sort }}">
-                            <button type="submit" style="background: rgba(220, 53, 69, 0.85); backdrop-filter: blur(4px); border: 1px solid rgba(220, 53, 69, 0.6); color: #ffffff; border-radius: 6px; width: 28px; height: 28px; padding: 0; font-size: 13px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s ease;" title="{{ t('gallery.delete_photo_btn', 'Foto löschen (Webmaster)') }}">
+                            <button type="submit" style="background: rgba(220, 53, 69, 0.85); backdrop-filter: blur(4px); border: 1px solid rgba(220, 53, 69, 0.6); color: #ffffff; border-radius: 6px; width: 28px; height: 28px; padding: 0; font-size: 13px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s ease;" title="{{ t('gallery.delete_photo_btn', 'Foto löschen') }}">
                                 🗑️
                             </button>
                         </form>
                     {% endif %}
 
-                    <!-- Top-Right Capture Date Badge -->
-                    <div style="position: absolute; top: 10px; right: 10px; background: rgba(27, 18, 53, 0.85); backdrop-filter: blur(6px); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.4); border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px;">
-                        <span>📅</span>
-                        <span>{{ img.capture_date_str }}</span>
+                    <!-- Top-Right Capture Date Badge and Edit Button -->
+                    <div style="position: absolute; top: 10px; right: 10px; display: flex; align-items: center; gap: 6px; z-index: 5;">
+                        <div style="background: rgba(27, 18, 53, 0.85); backdrop-filter: blur(6px); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.4); border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+                            <span>📅</span>
+                            <span>{{ img.capture_date_str }}</span>
+                        </div>
+                        {% if img.can_manage %}
+                            <button type="button" onclick="event.stopPropagation(); openEditDateModal('{{ img.filename }}', '{{ img.capture_date_iso }}')" style="background: rgba(88, 45, 161, 0.85); backdrop-filter: blur(4px); border: 1px solid rgba(123, 82, 197, 0.6); color: #ffffff; border-radius: 6px; width: 24px; height: 24px; padding: 0; font-size: 11px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s ease;" title="{{ t('gallery.edit_date_title', 'Aufnahmedatum anpassen') }}">
+                                ✏️
+                            </button>
+                        {% endif %}
                     </div>
 
                     <!-- Bottom Info Overlay (Revealed on Hover) -->
                     <div class="gallery-card-overlay" style="position: absolute; bottom: 0; left: 0; right: 0; padding: 24px 12px 10px; background: linear-gradient(to top, rgba(16, 9, 34, 0.95) 0%, rgba(16, 9, 34, 0.6) 70%, transparent 100%); display: flex; justify-content: space-between; align-items: flex-end; opacity: 0; transition: opacity 0.2s ease;">
                         <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 75%;">
                             <div style="color: #ffffff; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ img.filename }}</div>
-                            <div style="color: var(--text-muted); font-size: 10.5px; margin-top: 2px;">{{ t('gallery.uploaded_on', 'Hinzugefügt:') }} {{ img.added_date_str }}</div>
+                            <div style="color: var(--text-muted); font-size: 10.5px; margin-top: 2px;">
+                                {{ t('gallery.uploaded_on', 'Hinzugefügt:') }} {{ img.added_date_str }}
+                                {% if img.uploader_username %}
+                                    · {{ t('gallery.uploaded_by', 'Von:') }} {{ img.uploader_username }}
+                                {% endif %}
+                            </div>
                         </div>
                         <div style="color: #80deea; font-size: 11px; font-weight: 700; flex-shrink: 0;">
                             {{ img.size_kb }} KB
@@ -121,19 +133,21 @@
             <span id="lightbox-counter" style="font-weight: 700; color: #80deea;"></span>
             <span>·</span>
             <span id="lightbox-date" style="display: inline-flex; align-items: center; gap: 4px;"></span>
+            <button id="lightbox-edit-date-btn" type="button" onclick="openEditDateFromLightbox()" style="display: none; background: rgba(88, 45, 161, 0.6); border: 1px solid #7B52C5; color: #ffffff; border-radius: 12px; padding: 2px 10px; font-size: 11.5px; cursor: pointer; align-items: center; gap: 4px; transition: background 0.15s ease;" title="{{ t('gallery.edit_date_title', 'Aufnahmedatum anpassen') }}">
+                <span>✏️</span>
+                <span>{{ t('gallery.edit_date_btn', 'Datum anpassen') }}</span>
+            </button>
             <span>·</span>
-            <span id="lightbox-filename" style="color: var(--text-muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
-            {% if has_tier('webmaster') %}
-                <span>·</span>
-                <form id="lightbox-delete-form" method="post" action="{{ url_for('gallery.delete_image') }}" style="margin: 0; display: inline;" onsubmit="return confirm('{{ t('gallery.confirm_delete', 'Dieses Foto wirklich unwiderruflich aus der Galerie löschen?') }}');">
-                    <input type="hidden" id="lightbox-delete-filename" name="filename" value="">
-                    <input type="hidden" name="sort" value="{{ current_sort }}">
-                    <button type="submit" style="background: rgba(220, 53, 69, 0.25); border: 1px solid #dc3545; color: #ff8888; border-radius: 12px; padding: 2px 10px; font-size: 11.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: background 0.15s ease;" title="{{ t('gallery.delete_photo_btn', 'Foto löschen (Webmaster)') }}">
-                        <span>🗑️</span>
-                        <span>{{ t('gallery.delete_btn', 'Löschen') }}</span>
-                    </button>
-                </form>
-            {% endif %}
+            <span id="lightbox-filename" style="color: var(--text-muted); max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+            <span id="lightbox-uploader" style="color: #80deea; font-size: 11.5px; display: none;"></span>
+            <form id="lightbox-delete-form" method="post" action="{{ url_for('gallery.delete_image') }}" style="margin: 0; display: none;" onsubmit="return confirm('{{ t('gallery.confirm_delete', 'Dieses Foto wirklich unwiderruflich aus der Galerie löschen?') }}');">
+                <input type="hidden" id="lightbox-delete-filename" name="filename" value="">
+                <input type="hidden" name="sort" value="{{ current_sort }}">
+                <button type="submit" style="background: rgba(220, 53, 69, 0.25); border: 1px solid #dc3545; color: #ff8888; border-radius: 12px; padding: 2px 10px; font-size: 11.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: background 0.15s ease;" title="{{ t('gallery.delete_photo_btn', 'Foto löschen') }}">
+                    <span>🗑️</span>
+                    <span>{{ t('gallery.delete_btn', 'Löschen') }}</span>
+                </button>
+            </form>
         </div>
     </div>
 </div>
@@ -177,6 +191,41 @@
                 </button>
                 <button type="submit" id="gallery-upload-submit" class="primary" style="padding: 8px 20px; font-weight: 600;" disabled>
                     {{ t('gallery.start_upload', 'Hochladen') }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Date Modal -->
+<div id="gallery-edit-date-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10001; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;" onclick="handleEditDateBackdrop(event)">
+    <div style="background: var(--bg-surface); border: 1px solid var(--accent); border-radius: var(--radius); max-width: 440px; width: 100%; padding: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); box-sizing: border-box;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="margin: 0; color: #ffffff; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <span>📅</span>
+                <span>{{ t('gallery.edit_date_title', 'Aufnahmedatum anpassen') }}</span>
+            </h3>
+            <button type="button" onclick="closeEditDateModal()" style="background: transparent; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer;">✕</button>
+        </div>
+
+        <form method="post" action="{{ url_for('gallery.update_date') }}">
+            <input type="hidden" id="edit-date-filename" name="filename" value="">
+            <input type="hidden" name="sort" value="{{ current_sort }}">
+
+            <div style="margin-bottom: 16px;">
+                <div style="color: var(--text-muted); font-size: 12px; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="edit-date-filename-preview"></div>
+                <label for="edit-date-input" style="display: block; font-size: 13px; color: #ffffff; margin-bottom: 6px; font-weight: 600;">
+                    {{ t('gallery.edit_date_label', 'Neues Aufnahmedatum:') }}
+                </label>
+                <input type="date" id="edit-date-input" name="capture_date" required style="width: 100%; background: #140b28; border: 1px solid #5A4A83; border-radius: 6px; color: #ffffff; padding: 8px 12px; font-size: 14px; box-sizing: border-box;">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button type="button" class="secondary" onclick="closeEditDateModal()" style="padding: 8px 16px;">
+                    {{ t('gallery.cancel', 'Abbrechen') }}
+                </button>
+                <button type="submit" class="primary" style="padding: 8px 20px; font-weight: 600;">
+                    {{ t('gallery.edit_date_save', 'Speichern') }}
                 </button>
             </div>
         </form>
@@ -232,9 +281,26 @@ function updateLightbox() {
     document.getElementById("lightbox-date").innerHTML = "📅 " + imgData.capture_date_str;
     document.getElementById("lightbox-filename").textContent = imgData.filename;
 
+    const uploaderEl = document.getElementById("lightbox-uploader");
+    if (uploaderEl) {
+        if (imgData.uploader_username) {
+            uploaderEl.textContent = "· {{ t('gallery.uploaded_by', 'Von:') }} " + imgData.uploader_username;
+            uploaderEl.style.display = "inline";
+        } else {
+            uploaderEl.style.display = "none";
+        }
+    }
+
+    const editBtn = document.getElementById("lightbox-edit-date-btn");
+    if (editBtn) {
+        editBtn.style.display = imgData.can_manage ? "inline-flex" : "none";
+    }
+
+    const delForm = document.getElementById("lightbox-delete-form");
     const delInput = document.getElementById("lightbox-delete-filename");
-    if (delInput) {
+    if (delForm && delInput) {
         delInput.value = imgData.filename;
+        delForm.style.display = imgData.can_manage ? "inline" : "none";
     }
 }
 
@@ -253,6 +319,14 @@ function nextLightbox(e) {
 }
 
 window.addEventListener("keydown", function(e) {
+    const editModal = document.getElementById("gallery-edit-date-modal");
+    if (editModal && editModal.style.display === "flex") {
+        if (e.key === "Escape") {
+            closeEditDateModal();
+            return;
+        }
+    }
+
     const lightbox = document.getElementById("gallery-lightbox");
     if (lightbox && lightbox.style.display === "flex") {
         if (e.key === "Escape") closeLightbox();
@@ -260,6 +334,35 @@ window.addEventListener("keydown", function(e) {
         else if (e.key === "ArrowRight") nextLightbox();
     }
 });
+
+// Edit Date Modal Logic
+function openEditDateModal(filename, currentIsoDate) {
+    document.getElementById("edit-date-filename").value = filename;
+    const preview = document.getElementById("edit-date-filename-preview");
+    if (preview) preview.textContent = filename;
+    const input = document.getElementById("edit-date-input");
+    if (input) {
+        input.value = currentIsoDate || "";
+    }
+    document.getElementById("gallery-edit-date-modal").style.display = "flex";
+}
+
+function openEditDateFromLightbox() {
+    const imgData = galleryImages[currentLightboxIndex];
+    if (imgData) {
+        openEditDateModal(imgData.filename, imgData.capture_date_iso);
+    }
+}
+
+function closeEditDateModal() {
+    document.getElementById("gallery-edit-date-modal").style.display = "none";
+}
+
+function handleEditDateBackdrop(e) {
+    if (e.target.id === "gallery-edit-date-modal") {
+        closeEditDateModal();
+    }
+}
 
 // Upload Modal Logic
 function openUploadModal() {

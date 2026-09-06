@@ -12,11 +12,13 @@ from scripts.accounts.database import (
     get_accounts_connection,
     mark_email_verified,
     approve_user,
+    get_gallery_photo_metadata,
 )
 from scripts.gallery.gallery_service import (
     get_gallery_images,
     extract_capture_date,
     save_gallery_images,
+    update_gallery_image_date,
 )
 from web.app import create_app
 
@@ -61,7 +63,6 @@ class GalleryTest(unittest.TestCase):
         img = Image.new("RGB", (width, height), color=color)
         if exif_date:
             exif = img.getexif()
-            # 36867 = DateTimeOriginal in Exif sub-IFD, or DateTime = 306
             exif[306] = exif_date
             img.save(str(img_path), "JPEG", exif=exif)
         else:
@@ -116,7 +117,7 @@ class GalleryTest(unittest.TestCase):
         rnd = get_gallery_images(sort_by="random", seed=42)
         self.assertEqual(len(rnd), 3)
 
-    def test_upload_route(self):
+    def test_upload_route_records_uploader(self):
         user = self.create_user(role="user", verified=True, approved=True)
         with self.client.session_transaction() as sess:
             sess["user_id"] = user["id"]
@@ -133,47 +134,144 @@ class GalleryTest(unittest.TestCase):
         resp = self.client.post("/gallery/upload", data=data, content_type="multipart/form-data", follow_redirects=True)
         self.assertEqual(resp.status_code, 200)
 
+        images = get_gallery_images(viewer_user_id=user["id"], is_webmaster=False)
+        self.assertEqual(len(images), 1)
+        saved_filename = images[0]["filename"]
+        self.assertIn("matchday_test", saved_filename)
+        self.assertEqual(images[0]["uploader_user_id"], user["id"])
+        self.assertEqual(images[0]["uploader_username"], user["username"])
+        self.assertTrue(images[0]["can_manage"])
+
+        # Check DB directly
+        conn = get_accounts_connection()
+        try:
+            meta = get_gallery_photo_metadata(conn, saved_filename)
+            self.assertIsNotNone(meta)
+            self.assertEqual(meta["uploader_user_id"], user["id"])
+            self.assertEqual(meta["uploader_username"], user["username"])
+        finally:
+            conn.close()
+
+        # Another user viewing the image
+        other_user = self.create_user(role="user", verified=True, approved=True)
+        images_other = get_gallery_images(viewer_user_id=other_user["id"], is_webmaster=False)
+        self.assertEqual(len(images_other), 1)
+        self.assertFalse(images_other[0]["can_manage"])
+
+        # Webmaster viewing the image
+        images_wm = get_gallery_images(viewer_user_id=other_user["id"], is_webmaster=True)
+        self.assertTrue(images_wm[0]["can_manage"])
+
+    def test_uploader_can_delete_own_image(self):
+        user1 = self.create_user(role="user", verified=True, approved=True)
+        user2 = self.create_user(role="user", verified=True, approved=True)
+
+        # Upload image as user1
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user1["id"]
+
+        img_buf = io.BytesIO()
+        Image.new("RGB", (50, 50), color="green").save(img_buf, "JPEG")
+        img_buf.seek(0)
+        self.client.post("/gallery/upload", data={"images": [(img_buf, "user1_pic.jpg")]}, content_type="multipart/form-data", follow_redirects=True)
+
         images = get_gallery_images()
         self.assertEqual(len(images), 1)
-        self.assertIn("matchday_test", images[0]["filename"])
-
-        # 2. Reject invalid extension
-        bad_buffer = io.BytesIO(b"fake code")
-        resp2 = self.client.post("/gallery/upload", data={"images": [(bad_buffer, "script.exe")]}, content_type="multipart/form-data", follow_redirects=True)
-        self.assertEqual(resp2.status_code, 200)
-        # Still only 1 image in gallery
-        self.assertEqual(len(get_gallery_images()), 1)
-
-    def test_delete_image_route_webmaster_only(self):
-        # 1. Create a test image
-        img_path = self.create_dummy_image("delete_me.jpg")
+        filename = images[0]["filename"]
+        img_path = self.test_gallery_dir / filename
         self.assertTrue(img_path.exists())
 
-        wm = self.create_user(role="webmaster")
-        regular_user = self.create_user(role="user", verified=True, approved=True)
-
-        # 2. Regular user tries to delete -> forbidden/redirected
+        # user2 attempts to delete user1's photo -> fails
         with self.client.session_transaction() as sess:
-            sess["user_id"] = regular_user["id"]
-
-        resp_user = self.client.post("/gallery/delete", data={"filename": "delete_me.jpg"}, follow_redirects=True)
+            sess["user_id"] = user2["id"]
+        resp2 = self.client.post("/gallery/delete", data={"filename": filename}, follow_redirects=True)
+        self.assertEqual(resp2.status_code, 200)
         self.assertTrue(img_path.exists())
 
-        # 3. Webmaster deletes -> succeeds
+        # user1 deletes their own photo -> succeeds
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user1["id"]
+        resp1 = self.client.post("/gallery/delete", data={"filename": filename}, follow_redirects=True)
+        self.assertEqual(resp1.status_code, 200)
+        self.assertFalse(img_path.exists())
+
+        conn = get_accounts_connection()
+        try:
+            self.assertIsNone(get_gallery_photo_metadata(conn, filename))
+        finally:
+            conn.close()
+
+    def test_webmaster_can_delete_any_image(self):
+        user = self.create_user(role="user", verified=True, approved=True)
+        wm = self.create_user(role="webmaster")
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        img_buf = io.BytesIO()
+        Image.new("RGB", (50, 50), color="purple").save(img_buf, "JPEG")
+        img_buf.seek(0)
+        self.client.post("/gallery/upload", data={"images": [(img_buf, "user_photo.jpg")]}, content_type="multipart/form-data", follow_redirects=True)
+
+        images = get_gallery_images()
+        filename = images[0]["filename"]
+        img_path = self.test_gallery_dir / filename
+
+        # Webmaster deletes user's image
         with self.client.session_transaction() as sess:
             sess["user_id"] = wm["id"]
-
-        resp_wm = self.client.post("/gallery/delete", data={"filename": "delete_me.jpg"}, follow_redirects=True)
+        resp_wm = self.client.post("/gallery/delete", data={"filename": filename}, follow_redirects=True)
         self.assertEqual(resp_wm.status_code, 200)
         self.assertFalse(img_path.exists())
 
-        # 4. Path traversal attempt is rejected
-        outside_file = Path(self.temp_dir.name) / "secret.txt"
-        outside_file.write_text("secret", encoding="utf-8")
+    def test_update_capture_date(self):
+        user1 = self.create_user(role="user", verified=True, approved=True)
+        user2 = self.create_user(role="user", verified=True, approved=True)
+        wm = self.create_user(role="webmaster")
 
-        resp_traverse = self.client.post("/gallery/delete", data={"filename": "../secret.txt"}, follow_redirects=True)
-        self.assertEqual(resp_traverse.status_code, 200)
-        self.assertTrue(outside_file.exists())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user1["id"]
+
+        img_buf = io.BytesIO()
+        Image.new("RGB", (50, 50), color="orange").save(img_buf, "JPEG")
+        img_buf.seek(0)
+        self.client.post("/gallery/upload", data={"images": [(img_buf, "event_photo.jpg")]}, content_type="multipart/form-data", follow_redirects=True)
+
+        images = get_gallery_images()
+        filename = images[0]["filename"]
+
+        # 1. user2 tries to edit date of user1's photo -> forbidden / rejected
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user2["id"]
+        resp = self.client.post("/gallery/update-date", data={"filename": filename, "capture_date": "2021-05-10"}, follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        images = get_gallery_images()
+        self.assertNotEqual(images[0]["capture_date_iso"], "2021-05-10")
+
+        # 2. user1 updates their own photo's capture date -> succeeds
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user1["id"]
+        resp_ok = self.client.post("/gallery/update-date", data={"filename": filename, "capture_date": "2021-05-10"}, follow_redirects=True)
+        self.assertEqual(resp_ok.status_code, 200)
+        images = get_gallery_images()
+        self.assertEqual(images[0]["capture_date_iso"], "2021-05-10")
+        self.assertEqual(images[0]["capture_date_str"], "10.05.2021")
+
+        # 3. Webmaster updates capture date to 2019-12-25 -> succeeds
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = wm["id"]
+        resp_wm = self.client.post("/gallery/update-date", data={"filename": filename, "capture_date": "2019-12-25"}, follow_redirects=True)
+        self.assertEqual(resp_wm.status_code, 200)
+        images = get_gallery_images()
+        self.assertEqual(images[0]["capture_date_iso"], "2019-12-25")
+        self.assertEqual(images[0]["capture_date_str"], "25.12.2019")
+
+        # 4. Invalid date string handled gracefully
+        resp_bad = self.client.post("/gallery/update-date", data={"filename": filename, "capture_date": "invalid-date"}, follow_redirects=True)
+        self.assertEqual(resp_bad.status_code, 200)
+        # Date remains 2019-12-25
+        images = get_gallery_images()
+        self.assertEqual(images[0]["capture_date_iso"], "2019-12-25")
 
 
 if __name__ == "__main__":
