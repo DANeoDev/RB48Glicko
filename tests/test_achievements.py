@@ -222,12 +222,55 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         pm2 = [a for a in ach2 if a["id"] == "perfect_month"][0]
         self.assertTrue(pm2["unlocked"])
         self.assertEqual(pm2["tier"], "bronze")
+        self.assertIn("Mai 2026", pm2["detail_text"])
 
         # Month 2026-06: plays and wins all global matches -> Silver (2 perfect months)
         self.add_match("2026-06-05", [1, 2], [3, 4], 6, 2)
         ach3 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
         pm3 = [a for a in ach3 if a["id"] == "perfect_month"][0]
         self.assertEqual(pm3["tier"], "silver")
+        self.assertIn("Mai 2026", pm3["detail_text"])
+        self.assertIn("Juni 2026", pm3["detail_text"])
+
+        # Test ongoing uncompleted month: 2027-01 with reference_date 2027-01-15
+        from datetime import datetime
+        self.add_match("2027-01-05", [1, 2], [3, 4], 5, 1)
+        ach_ongoing = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn, reference_date=datetime(2027, 1, 15))
+        pm_ongoing = [a for a in ach_ongoing if a["id"] == "perfect_month"][0]
+        self.assertEqual(pm_ongoing["tier"], "silver")
+        self.assertNotIn("Januar 2027", pm_ongoing["detail_text"])
+
+    def test_winning_streak(self):
+        self.add_warmup_5_matches()
+
+        # 3 wins in a row -> not unlocked
+        for i in range(1, 4):
+            self.add_match(f"2026-02-{i:02d}", [1, 2], [3, 4], 5, 2)
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ws = [a for a in ach if a["id"] == "winning_streak"][0]
+        self.assertFalse(ws["unlocked"])
+
+        # 4th win in a row -> Bronze
+        self.add_match("2026-02-04", [1, 2], [3, 4], 5, 2)
+        ach4 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ws4 = [a for a in ach4 if a["id"] == "winning_streak"][0]
+        self.assertTrue(ws4["unlocked"])
+        self.assertEqual(ws4["tier"], "bronze")
+
+        # 4 more wins (total 8) -> Silver
+        for i in range(5, 9):
+            self.add_match(f"2026-02-{i:02d}", [1, 2], [3, 4], 5, 2)
+        ach8 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ws8 = [a for a in ach8 if a["id"] == "winning_streak"][0]
+        self.assertEqual(ws8["tier"], "silver")
+
+        # A loss resets active streak, but record streak stays at 8 (Silver)
+        self.add_match("2026-02-09", [1, 2], [3, 4], 1, 4)
+        ach_loss = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ws_loss = [a for a in ach_loss if a["id"] == "winning_streak"][0]
+        self.assertEqual(ws_loss["tier"], "silver")
+        self.assertTrue(ws_loss["unlocked"])
+        self.assertIn("aktuell: 0", ws_loss["detail_text"])
 
     def test_teammate_achievements_buddies_duos(self):
         self.add_warmup_5_matches()
@@ -259,7 +302,7 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         # Add 3 more wins with Player 2 (total 10 wins, 1 underdog) -> Golden Duo Bronze, Underdog Duo 3 -> Bronze!
         self.add_match("2026-07-15", [1, 2], [3, 4], 4, 1, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
         self.add_match("2026-07-16", [1, 2], [3, 4], 4, 1, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
-        self.add_match("2026-07-17", [1, 2], [3, 4], 4, 1, {1: 1300, 2: 1300, 3: 1600, 4: 1600}) # underdog
+        self.add_match("2026-07-17", [1, 2], [3, 4], 4, 1, {1: 1300, 2: 1300, 3: 1600, 4: 1600})  # underdog
 
         ach2 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
         gd2 = [a for a in ach2 if a["id"] == "golden_duo_2"]
@@ -269,6 +312,18 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         ud_duo = [a for a in ach2 if a["id"] == "underdog_duo_2"]
         self.assertEqual(len(ud_duo), 1)
         self.assertEqual(ud_duo[0]["tier"], "bronze")
+
+        # Durch Dick und Dünn: 3 losses, needs 10 -> not unlocked
+        ddd = [a for a in ach2 if a["id"] == "thick_and_thin_2"]
+        self.assertEqual(len(ddd), 0)
+
+        # Add 7 more losses with Player 2 -> total 10 losses -> bronze
+        for i in range(16, 23):
+            self.add_match(f"2026-07-{i:02d}", [1, 2], [3, 4], 1, 4, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
+        ach3 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ddd2 = [a for a in ach3 if a["id"] == "thick_and_thin_2"]
+        self.assertEqual(len(ddd2), 1)
+        self.assertEqual(ddd2[0]["tier"], "bronze")
 
     def test_geschlossene_gesellschaft(self):
         self.add_warmup_5_matches()
@@ -282,10 +337,10 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         self.assertTrue(cs["unlocked"])
         self.assertEqual(cs["tier"], "bronze")
 
-    def test_teamplayer_progression_and_neutral_tier(self):
+    def test_teamplayer_achievement(self):
         self.add_warmup_5_matches()
 
-        # Create approved users linked to players 2 through 16 (15 linked players)
+        # Create 15 linked users for pids 2..16
         for pid in range(2, 17):
             self.acc_conn.execute(
                 "INSERT INTO users (username, email, password_hash, role, email_verified, is_approved, player_id, created_at) VALUES (?, ?, 'pw', 'user', 1, 1, ?, '2026-01-01')",
@@ -293,20 +348,33 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
             )
         self.acc_conn.commit()
 
-        # Before playing with all of them -> Teamplayer is displayed with tier "neutral"
+        # Before playing with all of them -> Teamplayer is below bronze (neutral) and NOT unlocked for regular users
         ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
         tp = [a for a in ach if a["id"] == "teamplayer"][0]
-        self.assertTrue(tp["unlocked"])
+        self.assertFalse(tp["unlocked"])
         self.assertEqual(tp["tier"], "neutral")
 
         # Now play at least 1 match with each linked player (pids 2 to 16)
         for pid in range(2, 17):
-            self.add_match("2026-09-01", [1, pid], [18, 19], 5, 2)
+            self.add_match("2026-07-01", [1, pid], [18, 19], 5, 2)
 
         ach_bronze = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
         tp_bronze = [a for a in ach_bronze if a["id"] == "teamplayer"][0]
         self.assertTrue(tp_bronze["unlocked"])
         self.assertEqual(tp_bronze["tier"], "bronze")
+
+        # Now a 17th player links an account! Player 1 has not played with Player 17 yet.
+        self.acc_conn.execute(
+            "INSERT INTO users (username, email, password_hash, role, email_verified, is_approved, player_id, created_at) VALUES ('user_17', 'u17@example.com', 'pw', 'user', 1, 1, 17, '2026-01-01')"
+        )
+        self.acc_conn.commit()
+
+        # Because Bronze was reached previously, the "below bronze" neutral card remains UNLOCKED!
+        ach_after_new_user = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        tp_neutral = [a for a in ach_after_new_user if a["id"] == "teamplayer"][0]
+        self.assertTrue(tp_neutral["unlocked"])
+        self.assertEqual(tp_neutral["tier"], "neutral")
+        self.assertIn("Player_17", tp_neutral["detail_text"])
 
     def test_unseen_achievements_count_and_mark_seen(self):
         self.add_warmup_5_matches()
@@ -332,6 +400,47 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         mark_user_achievements_seen(self.acc_conn, 101, unlocked_keys)
         unseen_after = get_user_unseen_achievements_count(101, 1, accounts_connection=self.acc_conn, primary_connection=self.conn)
         self.assertEqual(unseen_after, 0)
+
+
+import os
+import tempfile
+from pathlib import Path
+from web.app import create_app
+from scripts.accounts.auth import register_user
+from scripts.accounts.database import mark_email_verified, approve_user, link_user_to_player, get_accounts_connection
+
+
+class TestAchievementsRoute(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_accounts_db = Path(self.temp_dir.name) / "test_accounts.db"
+        os.environ["RB48_ACCOUNTS_DATABASE_FILE"] = str(self.test_accounts_db)
+
+        self.app = create_app()
+        self.app.config["TESTING"] = True
+        self.client = self.app.test_client()
+
+    def tearDown(self):
+        os.environ.pop("RB48_ACCOUNTS_DATABASE_FILE", None)
+        self.temp_dir.cleanup()
+
+    def test_player_achievements_route_as_linked_user(self):
+        user_id, _ = register_user("achuser", "ach@example.com", "password123")
+        conn = get_accounts_connection()
+        try:
+            mark_email_verified(conn, user_id)
+            approve_user(conn, user_id, approved=True)
+            link_user_to_player(conn, user_id, 1)
+        finally:
+            conn.close()
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        # Visit own achievements
+        resp = self.client.get("/achievements/1")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Auszeichnungen & Meilensteine", resp.get_data(as_text=True))
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_ratings, get_player_rating_history
 from scripts.database.db_players import get_players

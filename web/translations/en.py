@@ -727,6 +727,8 @@ TRANSLATIONS_EN = {
     "achievements.locked": "Locked",
     "achievements.century_title": "Century Club",
     "achievements.century_desc": "Milestone for total matches played (25, 50, or 100 games).",
+    "achievements.winning_streak_title": "Winning Streak",
+    "achievements.winning_streak_desc": "Win 4, 8, 12, or 20 matches in a row.",
     "achievements.iron_man_title": "Iron Man",
     "achievements.iron_man_desc": "Attended at least 5 consecutive matchdays (Silver 10, Gold 15, Platinum 25).",
     "achievements.underdog_title": "Underdog Victory",

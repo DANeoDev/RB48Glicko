@@ -103,6 +103,14 @@ def create_account_tables(connection):
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS player_unlocked_achievements (
+            player_id INTEGER NOT NULL,
+            achievement_key TEXT NOT NULL,
+            unlocked_at TEXT NOT NULL,
+            PRIMARY KEY (player_id, achievement_key)
+        )
+    """)
 
     # Column migrations for existing tables
     cursor = connection.execute("PRAGMA table_info(users)")
@@ -923,3 +931,27 @@ def get_approved_linked_players(connection) -> set:
         WHERE player_id IS NOT NULL AND (is_approved = 1 OR role IN ('admin', 'webmaster'))
     """).fetchall()
     return {r["player_id"] for r in rows}
+
+
+def record_player_unlocked_achievement(connection, player_id: int, achievement_key: str):
+    """Record that a player has unlocked a specific achievement key."""
+    if not player_id or not achievement_key:
+        return
+    now_iso = datetime.now().isoformat()
+    connection.execute("""
+        INSERT OR IGNORE INTO player_unlocked_achievements (player_id, achievement_key, unlocked_at)
+        VALUES (?, ?, ?)
+    """, (player_id, str(achievement_key), now_iso))
+    connection.commit()
+
+
+def has_player_unlocked_achievement(connection, player_id: int, achievement_key: str) -> bool:
+    """Check if a player has ever unlocked a specific achievement key."""
+    if not player_id or not achievement_key:
+        return False
+    row = connection.execute("""
+        SELECT 1 FROM player_unlocked_achievements
+        WHERE player_id = ? AND achievement_key = ?
+    """, (player_id, str(achievement_key))).fetchone()
+    return row is not None
+
