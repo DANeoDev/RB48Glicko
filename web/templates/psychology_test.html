@@ -221,6 +221,17 @@
                 <p class="reading-text" style="margin: 0; font-size: 14.5px; color: #e0dcf0;">
                     {{ persona.clearance_text }}
                 </p>
+                {% if persona.passed %}
+                    <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(40, 167, 69, 0.3); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span style="font-size: 16px;">📐</span>
+                        <span style="font-size: 13.5px; color: #d0faea;">
+                            {{ t('psych.webmaster_project_hint', 'Lies dir gerne die Philosophie und die goldene Regel durch:') }}
+                            <a href="{{ url_for('stats.glicko_explainer') }}#webmaster-project" style="color: #80deea; font-weight: 600; text-decoration: underline; margin-left: 4px;">
+                                {{ t('psych.webmaster_project_link', 'Projekt des Webmasters im Glicko FAQ →') }}
+                            </a>
+                        </span>
+                    </div>
+                {% endif %}
             </div>
 
             <!-- Behavioral Profile -->
@@ -240,7 +251,11 @@
                 </a>
 
                 {% if persona.passed %}
-                    <div style="display: flex; gap: 12px;">
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <a href="{{ url_for('stats.glicko_explainer') }}#webmaster-project" class="secondary" style="padding: 10px 18px; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">
+                            <span>📐</span>
+                            <span>{{ t('psych.view_webmaster_project', 'Projekt des Webmasters') }}</span>
+                        </a>
                         <a href="{{ url_for('stats.stats') }}" class="secondary" style="padding: 10px 18px; text-decoration: none; font-size: 14px;">
                             {{ t('psych.view_ratings', 'View Player Ratings') }}
                         </a>
