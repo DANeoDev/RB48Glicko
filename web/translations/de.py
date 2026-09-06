@@ -749,6 +749,8 @@ TRANSLATIONS_DE = {
     "achievements.locked": "Noch gesperrt",
     "achievements.century_title": "Century Club",
     "achievements.century_desc": "Meilenstein für absolvierte Spiele (25, 50 oder 100 Spiele).",
+    "achievements.winning_streak_title": "Siegesserie",
+    "achievements.winning_streak_desc": "Gewinne 4, 8, 12 oder 20 Spiele in Folge.",
     "achievements.iron_man_title": "Dauergast (Iron Man)",
     "achievements.iron_man_desc": "Mindestens 5 aufeinanderfolgende Spieltage absolviert (Silber 10, Gold 15, Platin 25).",
     "achievements.underdog_title": "Underdog-Sieg",

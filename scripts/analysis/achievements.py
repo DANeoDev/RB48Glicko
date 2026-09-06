@@ -7,10 +7,17 @@ from scripts.accounts.database import (
     get_accounts_connection,
     get_approved_linked_players,
     get_user_seen_achievements,
+    record_player_unlocked_achievement,
+    has_player_unlocked_achievement,
 )
 
+MONTH_NAMES_DE = {
+    1: "Januar", 2: "Februar", 3: "März", 4: "April", 5: "Mai", 6: "Juni",
+    7: "Juli", 8: "August", 9: "September", 10: "Oktober", 11: "November", 12: "Dezember"
+}
 
-def get_player_achievements(connection, player_id, user_has_glicko_tier=True, accounts_connection=None):
+
+def get_player_achievements(connection, player_id, user_has_glicko_tier=True, accounts_connection=None, reference_date=None):
     """Compute and return all unlocked and locked achievements for a player."""
     players = get_players(connection)
     if player_id not in players:
@@ -123,7 +130,47 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         "detail_text": f"Aktuell: {total_games} Spiele absolviert"
     })
 
-    # 2. Iron Man (Milestone: consecutive session attendance)
+    # 2. Winning Streak (Milestone: 4, 8, 12, 20 consecutive wins)
+    current_w_streak = 0
+    max_w_streak = 0
+    for m in active_matches:
+        if m["is_win"]:
+            current_w_streak += 1
+            if current_w_streak > max_w_streak:
+                max_w_streak = current_w_streak
+        else:
+            current_w_streak = 0
+
+    ws_tiers = [(20, "platin"), (12, "gold"), (8, "silver"), (4, "bronze")]
+    ws_unlocked_tier = None
+    for target, tier in ws_tiers:
+        if max_w_streak >= target:
+            ws_unlocked_tier = tier
+            break
+
+    if max_w_streak >= 20:
+        ws_target = 20
+    elif max_w_streak >= 12:
+        ws_target = 20
+    elif max_w_streak >= 8:
+        ws_target = 12
+    elif max_w_streak >= 4:
+        ws_target = 8
+    else:
+        ws_target = 4
+
+    achievements.append({
+        "id": "winning_streak",
+        "icon": "🔥",
+        "title_key": "achievements.winning_streak_title",
+        "tier": ws_unlocked_tier if ws_unlocked_tier else "locked",
+        "unlocked": ws_unlocked_tier is not None,
+        "progress_text": f"{max_w_streak} / {ws_target} Siege in Folge" if not ws_unlocked_tier or max_w_streak < 20 else f"{max_w_streak} Siege in Folge erreicht!",
+        "description_key": "achievements.winning_streak_desc",
+        "detail_text": f"Rekord-Siegesserie: {max_w_streak} Siege in Folge (aktuell: {current_w_streak})" if ws_unlocked_tier else f"Aktuelle Serie: {current_w_streak} Siege (Rekord: {max_w_streak})"
+    })
+
+    # 3. Iron Man (Milestone: consecutive session attendance)
     # Thresholds: Bronze 5, Silber 10, Gold 15, Platin 25
     distinct_dates = sorted(list(set(m["date"] for m in active_global_matches.values())))
     player_dates = set(m["date"] for m in active_matches)
@@ -242,8 +289,9 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             "detail_text": f"Platz #{best_rank} erreicht ({days_at_rank_1} Spieltage auf Platz 1)" if rank_unlocked else f"Beste Platzierung: #{best_rank}"
         })
 
-    # 6. Makelloser Monat
+    # 7. Makelloser Monat
     # Rule: All matches played in that calendar month must have been attended and won.
+    # Must be a completed month (ym < current_ym).
     # Tiers per additional perfect month: 1 (bronze), 2 (silver), 3 (gold), 4+ (platin)
     global_months = {}
     for mid, m in active_global_matches.items():
@@ -255,8 +303,14 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         ym = m["date"][:7]
         player_month_matches.setdefault(ym, []).append(m)
 
+    current_ym = (reference_date or datetime.now()).strftime("%Y-%m")
     perfect_months = 0
-    for ym, g_mids in global_months.items():
+    perfect_months_formatted = []
+    for ym in sorted(global_months.keys()):
+        # Only completed calendar months count!
+        if ym >= current_ym:
+            continue
+        g_mids = global_months[ym]
         if not g_mids:
             continue
         p_ms = player_month_matches.get(ym, [])
@@ -264,18 +318,34 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         # Did the player participate in ALL global matches that month, and win every single one?
         if g_mids.issubset(p_mids) and all(m["is_win"] for m in p_ms):
             perfect_months += 1
+            try:
+                y, m_idx = map(int, ym.split("-"))
+                m_name = MONTH_NAMES_DE.get(m_idx, str(m_idx))
+                perfect_months_formatted.append(f"{m_name} {y}")
+            except Exception:
+                perfect_months_formatted.append(ym)
 
     pm_tier = "platin" if perfect_months >= 4 else ("gold" if perfect_months >= 3 else ("silver" if perfect_months >= 2 else ("bronze" if perfect_months >= 1 else "locked")))
     pm_target = 4 if perfect_months >= 3 else (3 if perfect_months >= 2 else (2 if perfect_months >= 1 else 1))
+
+    if perfect_months > 0:
+        months_str = ", ".join(perfect_months_formatted)
+        pm_detail = f"Makelloser Monat: {months_str}" if len(perfect_months_formatted) == 1 else f"Makellose Monate: {months_str}"
+        pm_progress = f"{perfect_months} / {pm_target} Perfekte Monate" if perfect_months < 4 else f"{perfect_months} Perfekte Monate erreicht!"
+    else:
+        pm_detail = "Alle Spiele eines abgeschlossenen Kalendermonats mitspielen und gewinnen"
+        pm_progress = "0 / 1 Perfekte Monate"
+
     achievements.append({
         "id": "perfect_month",
         "icon": "📅",
         "title_key": "achievements.perfect_month_title",
         "tier": pm_tier,
         "unlocked": perfect_months > 0,
-        "progress_text": f"{perfect_months} / {pm_target} Perfekte Monate" if perfect_months < 4 else f"{perfect_months} Perfekte Monate",
+        "progress_text": pm_progress,
         "description_key": "achievements.perfect_month_desc",
-        "detail_text": f"{perfect_months}x alle Spiele eines Kalendermonats mitgespielt und gewonnen" if perfect_months > 0 else "Alle Spiele eines Kalendermonats mitspielen und gewinnen"
+        "detail_text": pm_detail,
+        "months": perfect_months_formatted,
     })
 
     # Group matches by teammate
@@ -517,18 +587,23 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
     # 12. Teamplayer
     # Rule: With all players linked to an approved account (minimum 15 accounts): 1 (bronze), 2 (silver), 3 (gold) games.
     # Below bronze: displayed as a neutral badge. If new accounts link, badge is kept, tier adjusts, missing players listed.
+    acc_conn_to_use = accounts_connection
+    close_local_acc = False
+    if acc_conn_to_use is None:
+        try:
+            acc_conn_to_use = get_accounts_connection()
+            close_local_acc = True
+        except Exception:
+            acc_conn_to_use = None
+
     linked_players = set()
-    try:
-        if accounts_connection is not None:
-            linked_players = get_approved_linked_players(accounts_connection)
-        else:
-            acc_conn = get_accounts_connection()
-            try:
-                linked_players = get_approved_linked_players(acc_conn)
-            finally:
-                acc_conn.close()
-    except Exception:
-        linked_players = set()
+    bronze_ever_reached = False
+    if acc_conn_to_use is not None:
+        try:
+            linked_players = get_approved_linked_players(acc_conn_to_use)
+            bronze_ever_reached = has_player_unlocked_achievement(acc_conn_to_use, player_id, "teamplayer:bronze")
+        except Exception:
+            linked_players = set()
 
     target_linked_pids = sorted([pid for pid in linked_players if pid != player_id])
     target_count = len(target_linked_pids)
@@ -552,6 +627,28 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
     else:
         tp_tier = "neutral"
         next_req = 1
+
+    if has_minimum_accounts and min_games >= 1:
+        if acc_conn_to_use is not None:
+            try:
+                record_player_unlocked_achievement(acc_conn_to_use, player_id, "teamplayer:bronze")
+            except Exception:
+                pass
+        bronze_ever_reached = True
+
+    if tp_tier in ("bronze", "silver", "gold", "platin"):
+        tp_unlocked = True
+    elif tp_tier == "neutral":
+        # Only displayed / unlocked if bronze was achieved at least once!
+        tp_unlocked = bronze_ever_reached
+    else:
+        tp_unlocked = False
+
+    if close_local_acc and acc_conn_to_use is not None:
+        try:
+            acc_conn_to_use.close()
+        except Exception:
+            pass
 
     missing_pids = [pid for pid in target_linked_pids if games_with.get(pid, 0) < next_req]
     missing_names = [players[pid]["aliases"][0] if pid in players else f"Spieler {pid}" for pid in missing_pids]
@@ -578,7 +675,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         "icon": "🌐",
         "title_key": "achievements.teamplayer_title",
         "tier": tp_tier,
-        "unlocked": True,  # Neutral badge or bronze+ is always unlocked/displayed
+        "unlocked": tp_unlocked,
         "progress_text": tp_prog,
         "description_key": "achievements.teamplayer_desc",
         "detail_text": tp_detail,
