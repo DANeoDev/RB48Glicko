@@ -5,7 +5,7 @@
 {% endblock %}
 
 {% block head %}
-{% if has_tier('glicko_user') %}
+{% if show_player_glicko %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {% endif %}
 <link rel="stylesheet" href="{{ url_for('static', filename='player.css') }}">
@@ -23,8 +23,6 @@
 </div>
 
 {% set player_name = player["aliases"][0] %}
-{% set is_player_opted_out = (player_id in opted_out_player_ids) and not has_tier('webmaster') %}
-{% set show_player_glicko = has_tier('glicko_user') and not is_player_opted_out %}
 {% set box_only = stats["box"]["games"] > 0 and stats["hf"]["games"] == 0 %}
 {% set hf_only = stats["hf"]["games"] > 0 and stats["box"]["games"] == 0 %}
 {% set rating_diverges = (box_only and ratings["total"]["rating"] != ratings["box"]["rating"]) or (hf_only and ratings["total"]["rating"] != ratings["hf"]["rating"]) %}
@@ -75,7 +73,9 @@
 {% for rating_type in ["total", "box", "hf"] %}
 <div class="graph">
 <h3>{{ rating_type | upper }}</h3>
+<div class="graph-canvas-container">
 <canvas id="{{ rating_type }}Chart"></canvas>
+</div>
 <div class="rating-extremes">
 <div><strong>{{ t('player.peak', 'Peak') }}</strong>{% if rating_extremes[rating_type]["peak"] %} {{ rating_extremes[rating_type]["peak"]["rating"] | round | int }}{% if rating_extremes[rating_type]["peak"]["date"] %} · {{ rating_extremes[rating_type]["peak"]["date"][:10] }}{% endif %}{% else %} —{% endif %}</div>
 <div><strong>{{ t('player.low', 'Low') }}</strong>{% if rating_extremes[rating_type]["low"] %} {{ rating_extremes[rating_type]["low"]["rating"] | round | int }}{% if rating_extremes[rating_type]["low"]["date"] %} · {{ rating_extremes[rating_type]["low"]["date"][:10] }}{% endif %}{% else %} —{% endif %}</div>

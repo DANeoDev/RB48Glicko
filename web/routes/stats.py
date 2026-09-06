@@ -105,6 +105,8 @@ def player_profile(player_id):
         acc_conn.close()
 
     players_map = {pid: p["aliases"][0] for pid, p in players.items()}
+    is_player_opted_out = (player_id in opted_out_player_ids) and not has_tier(Tier.WEBMASTER)
+    show_player_glicko = has_tier(Tier.GLICKO_USER) and not is_player_opted_out
 
     return render_template(
         "player.html",
@@ -119,6 +121,8 @@ def player_profile(player_id):
         linked_user=linked_user,
         players_map=players_map,
         opted_out_player_ids=opted_out_player_ids,
+        is_player_opted_out=is_player_opted_out,
+        show_player_glicko=show_player_glicko,
     )
 
 
