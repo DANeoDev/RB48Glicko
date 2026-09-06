@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import sqlite3
+from datetime import datetime
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -81,6 +82,16 @@ def create_account_tables(connection):
             PRIMARY KEY (user_id, bubble_id),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (bubble_id) REFERENCES noise_bubbles(id) ON DELETE CASCADE
+        )
+    """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS gallery_photos (
+            filename TEXT PRIMARY KEY,
+            uploader_user_id INTEGER,
+            uploader_username TEXT,
+            capture_date TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (uploader_user_id) REFERENCES users(id) ON DELETE SET NULL
         )
     """)
 
@@ -821,5 +832,56 @@ def get_user_authored_noise_bubbles(connection, user_id):
         (user_id,),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def record_gallery_photo(connection, filename, uploader_user_id=None, uploader_username=None, capture_date=None):
+    """Store or update metadata for an uploaded gallery photo."""
+    now_iso = datetime.now().isoformat()
+    connection.execute("""
+        INSERT INTO gallery_photos (filename, uploader_user_id, uploader_username, capture_date, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(filename) DO UPDATE SET
+            uploader_user_id = COALESCE(excluded.uploader_user_id, gallery_photos.uploader_user_id),
+            uploader_username = COALESCE(excluded.uploader_username, gallery_photos.uploader_username),
+            capture_date = COALESCE(excluded.capture_date, gallery_photos.capture_date)
+    """, (filename, uploader_user_id, uploader_username, capture_date, now_iso))
+    connection.commit()
+
+
+def get_gallery_photo_metadata(connection, filename):
+    """Retrieve metadata for a specific gallery photo."""
+    row = connection.execute("""
+        SELECT filename, uploader_user_id, uploader_username, capture_date, created_at
+        FROM gallery_photos
+        WHERE filename = ?
+    """, (filename,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_all_gallery_photos_metadata(connection):
+    """Retrieve all gallery photo metadata keyed by filename."""
+    rows = connection.execute("""
+        SELECT filename, uploader_user_id, uploader_username, capture_date, created_at
+        FROM gallery_photos
+    """).fetchall()
+    return {r["filename"]: dict(r) for r in rows}
+
+
+def update_gallery_photo_date(connection, filename, capture_date_str):
+    """Update or insert the capture date for a gallery photo."""
+    now_iso = datetime.now().isoformat()
+    connection.execute("""
+        INSERT INTO gallery_photos (filename, capture_date, created_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(filename) DO UPDATE SET
+            capture_date = excluded.capture_date
+    """, (filename, capture_date_str, now_iso))
+    connection.commit()
+
+
+def delete_gallery_photo_record(connection, filename):
+    """Remove gallery photo record upon deletion."""
+    connection.execute("DELETE FROM gallery_photos WHERE filename = ?", (filename,))
+    connection.commit()
 
 
