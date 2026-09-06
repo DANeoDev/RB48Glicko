@@ -13,7 +13,15 @@ from scripts.database.database import (
     create_ratings_table,
     get_connection,
 )
-from scripts.analysis.achievements import get_player_achievements
+from scripts.accounts.database import (
+    create_account_tables,
+    get_user_seen_achievements,
+    mark_user_achievements_seen,
+)
+from scripts.analysis.achievements import (
+    get_player_achievements,
+    get_user_unseen_achievements_count,
+)
 from web.services.translations import t
 
 
@@ -25,7 +33,6 @@ class TestAchievements(unittest.TestCase):
         self.conn.close()
 
     def test_get_player_achievements_structure(self):
-        # Test for player 1
         achievements = get_player_achievements(self.conn, 1, user_has_glicko_tier=True)
         self.assertIsInstance(achievements, list)
         self.assertGreater(len(achievements), 0)
@@ -39,7 +46,6 @@ class TestAchievements(unittest.TestCase):
             self.assertIn("tier", ach)
 
     def test_highest_rank_tier_gating(self):
-        # Non-glicko user should see locked or hidden highest rank
         ach_non_glicko = get_player_achievements(self.conn, 1, user_has_glicko_tier=False)
         rank_ach = [a for a in ach_non_glicko if a["id"] == "highest_rank"]
         self.assertTrue(len(rank_ach) == 0 or not rank_ach[0]["unlocked"])
@@ -49,26 +55,39 @@ class TestAchievements(unittest.TestCase):
         self.assertEqual(ach, [])
 
     def test_translations_keys_resolve(self):
-        # Ensure new achievement keys exist in de and en catalogs
-        for key in [
+        keys = [
             "achievements.perfect_month_title",
             "achievements.perfect_month_desc",
+            "achievements.buddies_title",
+            "achievements.buddies_partner_title",
+            "achievements.golden_duo_title",
+            "achievements.golden_duo_partner_title",
+            "achievements.thick_and_thin_title",
+            "achievements.thick_and_thin_partner_title",
+            "achievements.underdog_duo_title",
+            "achievements.underdog_duo_partner_title",
+            "achievements.teamplayer_title",
+            "achievements.teamplayer_desc",
+            "achievements.closed_society_title",
+            "achievements.closed_society_desc",
             "achievements.cursebreaker_title",
             "achievements.cursebreaker_desc",
-            "achievements.cursebreaker_partner_title",
-            "achievements.cursebreaker_partner_detail",
             "achievements.comeback_king_title",
             "achievements.comeback_king_desc",
-            "achievements.tier_platin"
-        ]:
-            res_de = t(key, lang="de", partner="Max", streak=4)
-            res_en = t(key, lang="en", partner="Max", streak=4)
+            "achievements.tier_platin",
+            "achievements.tier_neutral",
+            "achievements.badge_new",
+            "achievements.new_notification",
+        ]
+        for key in keys:
+            res_de = t(key, lang="de", partner="Max", count=10, streak=4)
+            res_en = t(key, lang="en", partner="Max", count=10, streak=4)
             self.assertNotEqual(str(res_de), key)
             self.assertNotEqual(str(res_en), key)
 
 
 class TestAchievementsLogicSynthetic(unittest.TestCase):
-    """In-memory tests verifying specific achievement edge cases and calculations."""
+    """In-memory tests verifying revised achievement rules and calculations."""
 
     def setUp(self):
         self.conn = sqlite3.connect(":memory:")
@@ -83,8 +102,13 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         create_match_ratings_table(self.conn)
         create_ratings_table(self.conn)
 
-        # Create players 1 to 10
-        for pid in range(1, 11):
+        # Accounts in-memory DB for testing linked players and notifications
+        self.acc_conn = sqlite3.connect(":memory:")
+        self.acc_conn.row_factory = sqlite3.Row
+        create_account_tables(self.acc_conn)
+
+        # Create players 1 to 25
+        for pid in range(1, 26):
             self.conn.execute("INSERT INTO players (player_id) VALUES (?)", (pid,))
             self.conn.execute("INSERT INTO aliases (alias, player_id) VALUES (?, ?)", (f"Player_{pid}", pid))
         self.conn.commit()
@@ -92,6 +116,7 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
 
     def tearDown(self):
         self.conn.close()
+        self.acc_conn.close()
 
     def add_match(self, date_str, team_a, team_b, goals_a, goals_b, ratings_map=None):
         mid = f"m_{self.match_id_counter}"
@@ -114,151 +139,199 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         self.conn.commit()
         return mid
 
-    def test_first_game_ignored(self):
-        # Add 1 match for player 1 (won 10-0) -> this is their debut match
-        self.add_match("2026-05-01", [1, 2], [3, 4], 10, 0, {1: 1600, 2: 1600, 3: 1400, 4: 1400})
+    def add_warmup_5_matches(self):
+        """Add first 5 global matches that must be ignored by achievement calculations."""
+        for i in range(1, 6):
+            self.add_match(f"2026-01-0{i}", [1, 2], [3, 4], 10, 0, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
 
-        ach = get_player_achievements(self.conn, 1)
-        # Clean sheet should NOT be unlocked because first match is ignored
+    def test_first_5_global_matches_ignored(self):
+        # 1. Add 5 matches where player 1 wins with clean sheet
+        self.add_warmup_5_matches()
+
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
         clean_sheet = [a for a in ach if a["id"] == "weisse_wand"][0]
         self.assertFalse(clean_sheet["unlocked"])
         century = [a for a in ach if a["id"] == "century_club"][0]
         self.assertFalse(century["unlocked"])
         self.assertIn("0 / 25 Spiele", century["progress_text"])
 
-        # Add second match (won 10-0) -> active_matches now has 1 match
-        self.add_match("2026-05-02", [1, 2], [3, 4], 10, 0, {1: 1600, 2: 1600, 3: 1400, 4: 1400})
-        ach2 = get_player_achievements(self.conn, 1)
+        # 2. Add match 6 (won with clean sheet) -> now active_matches has 1 match
+        self.add_match("2026-02-01", [1, 2], [3, 4], 5, 0, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
+        ach2 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
         clean_sheet2 = [a for a in ach2 if a["id"] == "weisse_wand"][0]
         self.assertTrue(clean_sheet2["unlocked"])
         self.assertEqual(clean_sheet2["tier"], "bronze")
 
-    def test_perfect_month(self):
-        # Debut match on 2026-04-01 (ignored)
-        self.add_match("2026-04-01", [1, 2], [3, 4], 5, 2)
+    def test_ironman_thresholds(self):
+        self.add_warmup_5_matches()
 
-        # Month 1 (2026-05): 2 matches, 2 wins
-        self.add_match("2026-05-10", [1, 2], [3, 4], 5, 2)
-        self.add_match("2026-05-15", [1, 2], [3, 4], 4, 1)
-
-        ach = get_player_achievements(self.conn, 1)
-        pm = [a for a in ach if a["id"] == "perfect_month"][0]
-        self.assertTrue(pm["unlocked"])
-        self.assertEqual(pm["tier"], "bronze")
-
-        # Month 2 (2026-06): 2 matches, 2 wins
-        self.add_match("2026-06-05", [1, 2], [3, 4], 5, 2)
-        self.add_match("2026-06-12", [1, 2], [3, 4], 6, 3)
-
-        ach = get_player_achievements(self.conn, 1)
-        pm = [a for a in ach if a["id"] == "perfect_month"][0]
-        self.assertTrue(pm["unlocked"])
-        self.assertEqual(pm["tier"], "silver")
-
-        # Month 3 (2026-07): 2 matches, 2 wins
-        self.add_match("2026-07-02", [1, 2], [3, 4], 5, 2)
-        self.add_match("2026-07-09", [1, 2], [3, 4], 4, 0)
-
-        ach = get_player_achievements(self.conn, 1)
-        pm = [a for a in ach if a["id"] == "perfect_month"][0]
-        self.assertTrue(pm["unlocked"])
-        self.assertEqual(pm["tier"], "gold")
-
-    def test_cursebreaker_placeholder_when_no_curses_broken(self):
-        # Player plays matches without forming or breaking curses
-        self.add_match("2026-01-01", [1, 2], [3, 4], 5, 2)
-        self.add_match("2026-01-05", [1, 2], [3, 4], 5, 3)
-
-        ach = get_player_achievements(self.conn, 1)
-        cb = [a for a in ach if a["id"] == "cursebreaker_placeholder"][0]
-        self.assertFalse(cb["unlocked"])
-        self.assertEqual(cb["tier"], "locked")
-
-    def test_cursebreaker_partner_streaks_and_tiers(self):
-        # Debut match for player 1 (ignored)
-        self.add_match("2026-01-01", [1, 10], [8, 9], 5, 3)
-
-        # 1. Partner 2: 4 consecutive losses together, then win -> Bronze
-        for d in range(1, 5):
-            self.add_match(f"2026-02-0{d}", [1, 2], [8, 9], 2, 5, {1: 1500, 2: 1500, 8: 1500, 9: 1500})
-        # Win together on Feb 5
-        self.add_match("2026-02-05", [1, 2], [8, 9], 6, 2, {1: 1500, 2: 1500, 8: 1500, 9: 1500})
-
-        # 2. Partner 3: 5 consecutive losses together, then win -> Silver
+        # 5 consecutive matchdays: bronze
         for d in range(1, 6):
-            self.add_match(f"2026-03-0{d}", [1, 3], [8, 9], 1, 4, {1: 1500, 3: 1500, 8: 1500, 9: 1500})
-        # Win together on March 6
-        self.add_match("2026-03-06", [1, 3], [8, 9], 5, 3, {1: 1500, 3: 1500, 8: 1500, 9: 1500})
+            self.add_match(f"2026-03-{d:02d}", [1, 2], [3, 4], 3, 1)
 
-        # 3. Partner 4: 6 consecutive losses together, then win as favorite (rating higher) -> Gold
-        for d in range(1, 7):
-            self.add_match(f"2026-04-0{d}", [1, 4], [8, 9], 0, 3, {1: 1600, 4: 1600, 8: 1400, 9: 1400})
-        # Win together on April 7 (expected win prob ~ 0.76 > 0.50)
-        self.add_match("2026-04-07", [1, 4], [8, 9], 5, 2, {1: 1600, 4: 1600, 8: 1400, 9: 1400})
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        iron = [a for a in ach if a["id"] == "iron_man"][0]
+        self.assertTrue(iron["unlocked"])
+        self.assertEqual(iron["tier"], "bronze")
+        self.assertIn("5 / 5 Spieltage", iron["progress_text"])
 
-        # 4. Partner 5: 6 consecutive losses together, then win as underdog (rating lower) -> Platin
-        for d in range(1, 7):
-            self.add_match(f"2026-05-0{d}", [1, 5], [8, 9], 1, 5, {1: 1300, 5: 1300, 8: 1600, 9: 1600})
-        # Win together on May 7 (underdog, avg team 1300 vs 1600, expected prob < 0.20 <= 0.50)
-        self.add_match("2026-05-07", [1, 5], [8, 9], 5, 4, {1: 1300, 5: 1300, 8: 1600, 9: 1600})
+        # Up to 10: silver
+        for d in range(6, 11):
+            self.add_match(f"2026-03-{d:02d}", [1, 2], [3, 4], 3, 1)
 
-        ach = get_player_achievements(self.conn, 1)
+        ach10 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        iron10 = [a for a in ach10 if a["id"] == "iron_man"][0]
+        self.assertEqual(iron10["tier"], "silver")
 
-        # Check badges
-        cb_p2 = [a for a in ach if a["id"] == "cursebreaker_2"]
-        self.assertEqual(len(cb_p2), 1)
-        self.assertEqual(cb_p2[0]["tier"], "bronze")
-        self.assertIn("Player_2", cb_p2[0]["title"])
-        self.assertIn("4", cb_p2[0]["progress_text"])
+    def test_underdog_threshold_32_percent(self):
+        self.add_warmup_5_matches()
 
-        cb_p3 = [a for a in ach if a["id"] == "cursebreaker_3"]
-        self.assertEqual(len(cb_p3), 1)
-        self.assertEqual(cb_p3[0]["tier"], "silver")
-        self.assertIn("Player_3", cb_p3[0]["title"])
-        self.assertIn("5", cb_p3[0]["progress_text"])
+        # Win with 35% win probability (team A: 1400 vs team B: 1510 -> expected ~0.347)
+        # Should NOT count for underdog hero (requires < 32%)
+        self.add_match("2026-03-01", [1, 2], [3, 4], 4, 2, {1: 1400, 2: 1400, 3: 1510, 4: 1510})
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ud = [a for a in ach if a["id"] == "underdog_hero"][0]
+        self.assertFalse(ud["unlocked"])
 
-        cb_p4 = [a for a in ach if a["id"] == "cursebreaker_4"]
-        self.assertEqual(len(cb_p4), 1)
-        self.assertEqual(cb_p4[0]["tier"], "gold")
-        self.assertIn("Player_4", cb_p4[0]["title"])
-        self.assertIn("6", cb_p4[0]["progress_text"])
+        # Win with 25% win probability (team A: 1300 vs team B: 1550 -> expected ~0.19 < 0.32)
+        # Should count as underdog victory!
+        self.add_match("2026-03-05", [1, 2], [3, 4], 4, 3, {1: 1300, 2: 1300, 3: 1550, 4: 1550})
+        ach2 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ud2 = [a for a in ach2 if a["id"] == "underdog_hero"][0]
+        self.assertTrue(ud2["unlocked"])
+        self.assertEqual(ud2["tier"], "bronze")
 
-        cb_p5 = [a for a in ach if a["id"] == "cursebreaker_5"]
-        self.assertEqual(len(cb_p5), 1)
-        self.assertEqual(cb_p5[0]["tier"], "platin")
-        self.assertIn("Player_5", cb_p5[0]["title"])
-        self.assertIn("6", cb_p5[0]["progress_text"])
+    def test_makelloser_monat_all_matches_participated_and_won(self):
+        self.add_warmup_5_matches()
 
-    def test_comeback_king_tiers(self):
-        # Debut match (ignored)
-        self.add_match("2026-01-01", [1, 2], [3, 4], 5, 5, {1: 1500})
+        # Month 2026-04 has 3 global matches.
+        # Player 1 participates in only 2 of them (and wins both)
+        self.add_match("2026-04-05", [1, 2], [3, 4], 5, 2)
+        self.add_match("2026-04-12", [1, 2], [3, 4], 4, 1)
+        self.add_match("2026-04-19", [5, 2], [3, 4], 4, 1) # player 1 did NOT play in this match
 
-        # Bronze: drop 120, gain 135 within 30 days
-        self.add_match("2026-01-10", [1, 2], [3, 4], 5, 3, {1: 1600})
-        self.add_match("2026-01-20", [1, 2], [3, 4], 1, 4, {1: 1480})
-        self.add_match("2026-02-05", [1, 2], [3, 4], 5, 2, {1: 1615})
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        pm = [a for a in ach if a["id"] == "perfect_month"][0]
+        self.assertFalse(pm["unlocked"])
 
-        ach = get_player_achievements(self.conn, 1)
-        cb = [a for a in ach if a["id"] == "comeback_king"][0]
-        self.assertTrue(cb["unlocked"])
-        self.assertEqual(cb["tier"], "bronze")
-        self.assertIn("-120 / +135 Rating (1 Monat)", cb["progress_text"])
+        # Month 2026-05 has 2 global matches. Player 1 plays and wins ALL of them!
+        self.add_match("2026-05-05", [1, 2], [3, 4], 6, 2)
+        self.add_match("2026-05-12", [1, 2], [3, 4], 5, 3)
 
-        # Silver: drop 220, gain 240
-        self.add_match("2026-02-20", [1, 2], [3, 4], 0, 5, {1: 1395}) # drop of 220 from 1615 in 15 days
-        self.add_match("2026-03-05", [1, 2], [3, 4], 5, 1, {1: 1635}) # gain of 240 from 1395 in 13 days
+        ach2 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        pm2 = [a for a in ach2 if a["id"] == "perfect_month"][0]
+        self.assertTrue(pm2["unlocked"])
+        self.assertEqual(pm2["tier"], "bronze")
 
-        ach_silver = get_player_achievements(self.conn, 1)
-        cb_silver = [a for a in ach_silver if a["id"] == "comeback_king"][0]
-        self.assertEqual(cb_silver["tier"], "silver")
+        # Month 2026-06: plays and wins all global matches -> Silver (2 perfect months)
+        self.add_match("2026-06-05", [1, 2], [3, 4], 6, 2)
+        ach3 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        pm3 = [a for a in ach3 if a["id"] == "perfect_month"][0]
+        self.assertEqual(pm3["tier"], "silver")
 
-        # Gold: drop 310, gain 330
-        self.add_match("2026-03-20", [1, 2], [3, 4], 0, 5, {1: 1325}) # drop of 310 from 1635 in 15 days
-        self.add_match("2026-04-05", [1, 2], [3, 4], 5, 0, {1: 1655}) # gain of 330 from 1325 in 16 days
+    def test_teammate_achievements_buddies_duos(self):
+        self.add_warmup_5_matches()
 
-        ach_gold = get_player_achievements(self.conn, 1)
-        cb_gold = [a for a in ach_gold if a["id"] == "comeback_king"][0]
-        self.assertEqual(cb_gold["tier"], "gold")
+        # Player 1 plays 10 matches with Player 2: 7 wins (2 underdog <32%), 3 losses
+        for i in range(1, 8):
+            # 2 underdog wins
+            if i <= 2:
+                ratings = {1: 1300, 2: 1300, 3: 1600, 4: 1600}
+            else:
+                ratings = {1: 1500, 2: 1500, 3: 1500, 4: 1500}
+            self.add_match(f"2026-07-{i:02d}", [1, 2], [3, 4], 5, 2, ratings)
+
+        for i in range(8, 11):
+            self.add_match(f"2026-07-{i:02d}", [1, 2], [3, 4], 1, 4, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
+
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+
+        # Buddies 2: 10 games -> bronze
+        buddies = [a for a in ach if a["id"] == "buddies_2"]
+        self.assertEqual(len(buddies), 1)
+        self.assertEqual(buddies[0]["tier"], "bronze")
+        self.assertIn("Player_2", buddies[0]["title"])
+
+        # Golden duo: only 7 wins, needs 10 for bronze -> not unlocked
+        gd = [a for a in ach if a["id"] == "golden_duo_2"]
+        self.assertEqual(len(gd), 0)
+
+        # Add 3 more wins with Player 2 (total 10 wins, 1 underdog) -> Golden Duo Bronze, Underdog Duo 3 -> Bronze!
+        self.add_match("2026-07-15", [1, 2], [3, 4], 4, 1, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
+        self.add_match("2026-07-16", [1, 2], [3, 4], 4, 1, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
+        self.add_match("2026-07-17", [1, 2], [3, 4], 4, 1, {1: 1300, 2: 1300, 3: 1600, 4: 1600}) # underdog
+
+        ach2 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        gd2 = [a for a in ach2 if a["id"] == "golden_duo_2"]
+        self.assertEqual(len(gd2), 1)
+        self.assertEqual(gd2[0]["tier"], "bronze")
+
+        ud_duo = [a for a in ach2 if a["id"] == "underdog_duo_2"]
+        self.assertEqual(len(ud_duo), 1)
+        self.assertEqual(ud_duo[0]["tier"], "bronze")
+
+    def test_geschlossene_gesellschaft(self):
+        self.add_warmup_5_matches()
+
+        # Same exact team [1, 2, 3] on 2 distinct dates
+        self.add_match("2026-08-01", [1, 2, 3], [4, 5, 6], 5, 3)
+        self.add_match("2026-08-08", [1, 2, 3], [4, 5, 6], 4, 2)
+
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        cs = [a for a in ach if a["id"] == "closed_society"][0]
+        self.assertTrue(cs["unlocked"])
+        self.assertEqual(cs["tier"], "bronze")
+
+    def test_teamplayer_progression_and_neutral_tier(self):
+        self.add_warmup_5_matches()
+
+        # Create approved users linked to players 2 through 16 (15 linked players)
+        for pid in range(2, 17):
+            self.acc_conn.execute(
+                "INSERT INTO users (username, email, password_hash, role, email_verified, is_approved, player_id, created_at) VALUES (?, ?, 'pw', 'user', 1, 1, ?, '2026-01-01')",
+                (f"user_{pid}", f"user_{pid}@example.com", pid)
+            )
+        self.acc_conn.commit()
+
+        # Before playing with all of them -> Teamplayer is displayed with tier "neutral"
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        tp = [a for a in ach if a["id"] == "teamplayer"][0]
+        self.assertTrue(tp["unlocked"])
+        self.assertEqual(tp["tier"], "neutral")
+
+        # Now play at least 1 match with each linked player (pids 2 to 16)
+        for pid in range(2, 17):
+            self.add_match("2026-09-01", [1, pid], [18, 19], 5, 2)
+
+        ach_bronze = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        tp_bronze = [a for a in ach_bronze if a["id"] == "teamplayer"][0]
+        self.assertTrue(tp_bronze["unlocked"])
+        self.assertEqual(tp_bronze["tier"], "bronze")
+
+    def test_unseen_achievements_count_and_mark_seen(self):
+        self.add_warmup_5_matches()
+
+        # Create user for player 1 in acc_conn
+        self.acc_conn.execute(
+            "INSERT INTO users (id, username, email, password_hash, role, email_verified, is_approved, player_id, created_at) VALUES (101, 'testuser', 'tu@example.com', 'pw', 'user', 1, 1, 1, '2026-01-01')"
+        )
+        self.acc_conn.commit()
+
+        # Player 1 wins match with clean sheet -> unlocks weisse_wand:bronze
+        self.add_match("2026-02-01", [1, 2], [3, 4], 5, 0, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
+
+        unseen = get_user_unseen_achievements_count(101, 1, accounts_connection=self.acc_conn, primary_connection=self.conn)
+        self.assertGreater(unseen, 0)
+
+        # Verify weisse_wand:bronze was unlocked
+        achievements = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        unlocked_keys = [f"{a['id']}:{a.get('tier', '')}" for a in achievements if a.get("unlocked") and a.get("tier") != "neutral"]
+        self.assertIn("weisse_wand:bronze", unlocked_keys)
+
+        # Mark all unlocked as seen
+        mark_user_achievements_seen(self.acc_conn, 101, unlocked_keys)
+        unseen_after = get_user_unseen_achievements_count(101, 1, accounts_connection=self.acc_conn, primary_connection=self.conn)
+        self.assertEqual(unseen_after, 0)
 
 
 if __name__ == "__main__":
