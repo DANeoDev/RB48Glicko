@@ -246,12 +246,45 @@ def player_achievements(player_id: int):
         connection.close()
         return redirect(url_for("stats.achievements_overview"))
     user_has_glicko = has_tier(Tier.GLICKO_USER)
-    achievements = get_player_achievements(connection, player_id, user_has_glicko_tier=user_has_glicko)
-    connection.close()
+
+    from scripts.accounts.database import (
+        get_accounts_connection,
+        get_user_seen_achievements,
+        mark_user_achievements_seen,
+    )
+
+    is_own_profile = (user.get("player_id") == player_id)
+    acc_conn = get_accounts_connection()
+    try:
+        seen_keys = get_user_seen_achievements(acc_conn, user["id"]) if is_own_profile else set()
+        achievements = get_player_achievements(
+            connection,
+            player_id,
+            user_has_glicko_tier=user_has_glicko,
+            accounts_connection=acc_conn,
+        )
+        all_unlocked_keys = []
+        for a in achievements:
+            if a.get("unlocked") and a.get("tier") != "neutral":
+                k = f"{a['id']}:{a.get('tier', '')}"
+                all_unlocked_keys.append(k)
+                if is_own_profile and k not in seen_keys:
+                    a["is_new"] = True
+
+        if is_own_profile and all_unlocked_keys:
+            mark_user_achievements_seen(acc_conn, user["id"], all_unlocked_keys)
+            session["unseen_achievements_count"] = 0
+    finally:
+        acc_conn.close()
+        connection.close()
 
     players_map = {pid: p["aliases"][0] for pid, p in players.items()}
     unlocked_count = sum(1 for a in achievements if a.get("unlocked"))
     total_count = len(achievements)
+
+    # Regular users only see unlocked achievements; Webmaster sees all
+    if not is_webmaster:
+        achievements = [a for a in achievements if a.get("unlocked")]
 
     return render_template(
         "achievements.html",

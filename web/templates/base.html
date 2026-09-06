@@ -42,6 +42,45 @@
             opacity: 0.85;
         }
 
+        /* Achievements notification glow */
+        .profile-button.glowing-profile-btn {
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.7);
+            border-color: #ffd700 !important;
+            animation: profile-glow-pulse 2s infinite ease-in-out;
+        }
+        @keyframes profile-glow-pulse {
+            0%, 100% { box-shadow: 0 0 8px rgba(255, 215, 0, 0.5), 0 0 2px #ffd700; border-color: rgba(255, 215, 0, 0.6); }
+            50% { box-shadow: 0 0 18px rgba(255, 215, 0, 0.95), 0 0 6px #ffd700; border-color: #ffd700; }
+        }
+        .profile-notification-dot {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 10px;
+            height: 10px;
+            background: #ffd700;
+            border-radius: 50%;
+            border: 2px solid #140b28;
+            box-shadow: 0 0 6px #ffd700;
+        }
+        .glowing-nav-achievement {
+            color: #ffd700 !important;
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+            background: rgba(255, 215, 0, 0.1) !important;
+            border-radius: 6px;
+        }
+        .nav-achievement-pill {
+            background: #ffd700;
+            color: #140b28;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 1px 6px;
+            border-radius: 10px;
+            letter-spacing: 0.5px;
+            margin-left: 8px;
+            box-shadow: 0 0 6px rgba(255, 215, 0, 0.6);
+        }
+
         /* Webmaster View Simulation Bar */
         .webmaster-sim-bar {
             background: #2a1548;
@@ -270,11 +309,14 @@
                 </button>
             {% endif %}
             <div class="profile-menu">
-                <button type="button" class="profile-button" aria-label="{{ t('nav.account', 'Account') }}" title="{{ t('nav.account', 'Account') }}">
+                <button type="button" class="profile-button {% if unseen_achievements_count > 0 %}glowing-profile-btn{% endif %}" aria-label="{{ t('nav.account', 'Account') }}" title="{{ t('nav.account', 'Account') }}" style="position: relative;">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <circle cx="12" cy="8" r="3.5"></circle>
                         <path d="M5 20c.7-3.3 3.2-5.2 7-5.2s6.3 1.9 7 5.2"></path>
                     </svg>
+                    {% if unseen_achievements_count > 0 %}
+                        <span class="profile-notification-dot" title="{{ t('achievements.new_notification', 'Neue Auszeichnungen!') }}"></span>
+                    {% endif %}
                 </button>
                 <div class="profile-dropdown">
                     {% if current_user %}
@@ -297,7 +339,12 @@
                         {% else %}
                             <a href="{{ url_for('auth.settings') }}" title="{{ t('nav.link_player_tooltip', 'Verknüpfe dein Spielerprofil in den Einstellungen') }}">📊 {{ t('nav.my_stats', 'Meine Statistiken') }}</a>
                         {% endif %}
-                        <a href="{{ url_for('stats.achievements_overview') }}">🏆 {{ t('nav.achievements', 'Auszeichnungen') }}</a>
+                        <a href="{{ url_for('stats.achievements_overview') }}" class="{% if unseen_achievements_count > 0 %}glowing-nav-achievement{% endif %}" style="display: flex; align-items: center; justify-content: space-between;">
+                            <span>🏆 {{ t('nav.achievements', 'Auszeichnungen') }}</span>
+                            {% if unseen_achievements_count > 0 %}
+                                <span class="nav-achievement-pill">{{ unseen_achievements_count }} {{ t('achievements.badge_new', 'NEU') }}</span>
+                            {% endif %}
+                        </a>
                         <a href="{{ url_for('auth.settings') }}">{{ t('nav.profile_settings', '⚙️ Profile & Settings') }}</a>
                         <a href="{{ url_for('planner.planner') }}">{{ t('nav.attendance_planner', 'Attendance Planner') }}</a>
                         {% if has_tier('user') and not current_user.get('psychology_test_passed') %}

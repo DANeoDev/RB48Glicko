@@ -119,6 +119,8 @@
 .achievement-card-full.tier-bronze .achievement-icon-wrapper { background: rgba(205, 127, 50, 0.15); border-color: #cd7f32; }
 .achievement-card-full.tier-special { border-color: rgba(128, 222, 234, 0.6); }
 .achievement-card-full.tier-special .achievement-icon-wrapper { background: rgba(128, 222, 234, 0.15); border-color: #80deea; }
+.achievement-card-full.tier-neutral { border-color: rgba(156, 110, 240, 0.5); background: rgba(156, 110, 240, 0.06); }
+.achievement-card-full.tier-neutral .achievement-icon-wrapper { background: rgba(156, 110, 240, 0.15); border-color: #9c6ef0; }
 
 .achievement-icon-wrapper {
     width: 46px;
@@ -161,7 +163,23 @@
 .badge-silver { background: rgba(192, 192, 192, 0.2); color: #e0e0e0; border: 1px solid rgba(192, 192, 192, 0.4); }
 .badge-bronze { background: rgba(205, 127, 50, 0.2); color: #ffb74d; border: 1px solid rgba(205, 127, 50, 0.4); }
 .badge-special { background: rgba(128, 222, 234, 0.2); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.4); }
+.badge-neutral { background: rgba(156, 110, 240, 0.2); color: #c4a7fc; border: 1px solid rgba(156, 110, 240, 0.4); }
 .badge-locked { background: rgba(255, 255, 255, 0.08); color: var(--text-muted); }
+.badge-new-anim {
+    background: #ffd700;
+    color: #140b28;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.7);
+    animation: badge-pulse 2s infinite ease-in-out;
+}
+@keyframes badge-pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 6px rgba(255, 215, 0, 0.6); }
+    50% { transform: scale(1.05); box-shadow: 0 0 12px rgba(255, 215, 0, 0.95); }
+}
 .achievement-desc-text {
     font-size: 12px;
     color: #C9C2D8;
@@ -204,7 +222,11 @@
             </div>
             {% endif %}
             <div class="achievements-progress-pill">
-                ✓ {{ unlocked_count }} / {{ total_count }} {{ t('achievements.unlocked', 'Freigeschaltet') }}
+                {% if is_webmaster %}
+                    ✓ {{ unlocked_count }} / {{ total_count }} {{ t('achievements.unlocked', 'Freigeschaltet') }}
+                {% else %}
+                    ✓ {{ unlocked_count }} {{ t('achievements.unlocked', 'Freigeschaltet') }}
+                {% endif %}
             </div>
         </div>
     </div>
@@ -216,13 +238,20 @@
                 <div class="achievement-info">
                     <div class="achievement-title-row">
                         <span class="achievement-title-text">{% if ach.title_params %}{{ t(ach.title_key, **ach.title_params) }}{% elif ach.title %}{{ ach.title }}{% else %}{{ t(ach.title_key) }}{% endif %}</span>
-                        {% if ach.tier and ach.tier != 'locked' and ach.tier != 'unlocked' %}
-                            <span class="achievement-badge-pill badge-{{ ach.tier }}">{{ ach.tier | upper }}</span>
-                        {% elif ach.unlocked %}
-                            <span class="achievement-badge-pill badge-special">✓</span>
-                        {% else %}
-                            <span class="achievement-badge-pill badge-locked">🔒</span>
-                        {% endif %}
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            {% if ach.is_new %}
+                                <span class="badge-new-anim">✨ {{ t('achievements.badge_new', 'NEU') }}</span>
+                            {% endif %}
+                            {% if ach.tier and ach.tier == 'neutral' %}
+                                <span class="achievement-badge-pill badge-neutral">{{ t('achievements.tier_neutral', 'AKTIV') }}</span>
+                            {% elif ach.tier and ach.tier != 'locked' and ach.tier != 'unlocked' %}
+                                <span class="achievement-badge-pill badge-{{ ach.tier }}">{{ ach.tier | upper }}</span>
+                            {% elif ach.unlocked %}
+                                <span class="achievement-badge-pill badge-special">✓</span>
+                            {% else %}
+                                <span class="achievement-badge-pill badge-locked">🔒</span>
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="achievement-desc-text">{% if ach.description_params %}{{ t(ach.description_key, **ach.description_params) }}{% elif ach.description %}{{ ach.description }}{% else %}{{ t(ach.description_key) }}{% endif %}</div>
                     {% if ach.progress_text %}

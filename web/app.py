@@ -41,6 +41,29 @@ def create_app():
     def inject_template_context():
         user = get_current_user()
         lang = get_current_lang()
+
+        unseen_achievements_count = 0
+        if user and user.get("player_id"):
+            try:
+                from scripts.database.database import get_connection
+                prim_conn = get_connection()
+                try:
+                    m_row = prim_conn.execute("SELECT COUNT(*) as cnt FROM matches").fetchone()
+                    curr_m_cnt = m_row["cnt"] if m_row else 0
+                finally:
+                    prim_conn.close()
+
+                last_m_cnt = session.get("_ach_match_count")
+                if last_m_cnt != curr_m_cnt or "unseen_achievements_count" not in session:
+                    from scripts.analysis.achievements import get_user_unseen_achievements_count
+                    unseen_achievements_count = get_user_unseen_achievements_count(user["id"], user["player_id"])
+                    session["unseen_achievements_count"] = unseen_achievements_count
+                    session["_ach_match_count"] = curr_m_cnt
+                else:
+                    unseen_achievements_count = session.get("unseen_achievements_count", 0)
+            except Exception:
+                unseen_achievements_count = session.get("unseen_achievements_count", 0)
+
         return {
             "current_user": user,
             "effective_tier": get_effective_tier(),
@@ -52,6 +75,7 @@ def create_app():
             "t": t,
             "get_current_lang": get_current_lang,
             "format_date_localized": format_date_localized,
+            "unseen_achievements_count": unseen_achievements_count,
         }
 
     register_routes(app)

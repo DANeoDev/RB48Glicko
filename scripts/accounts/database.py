@@ -94,6 +94,15 @@ def create_account_tables(connection):
             FOREIGN KEY (uploader_user_id) REFERENCES users(id) ON DELETE SET NULL
         )
     """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS user_seen_achievements (
+            user_id INTEGER NOT NULL,
+            achievement_key TEXT NOT NULL,
+            seen_at TEXT NOT NULL,
+            PRIMARY KEY (user_id, achievement_key),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
 
     # Column migrations for existing tables
     cursor = connection.execute("PRAGMA table_info(users)")
@@ -885,3 +894,32 @@ def delete_gallery_photo_record(connection, filename):
     connection.commit()
 
 
+
+
+def get_user_seen_achievements(connection, user_id: int) -> set:
+    """Return set of achievement keys that the user has already viewed."""
+    rows = connection.execute("""
+        SELECT achievement_key FROM user_seen_achievements WHERE user_id = ?
+    """, (user_id,)).fetchall()
+    return {r["achievement_key"] for r in rows}
+
+
+def mark_user_achievements_seen(connection, user_id: int, achievement_keys):
+    """Mark a collection of achievement keys as seen for a user."""
+    if not achievement_keys:
+        return
+    now_iso = datetime.now().isoformat()
+    connection.executemany("""
+        INSERT OR IGNORE INTO user_seen_achievements (user_id, achievement_key, seen_at)
+        VALUES (?, ?, ?)
+    """, [(user_id, str(k), now_iso) for k in achievement_keys])
+    connection.commit()
+
+
+def get_approved_linked_players(connection) -> set:
+    """Return set of player_ids for all approved users with a linked player account."""
+    rows = connection.execute("""
+        SELECT DISTINCT player_id FROM users
+        WHERE player_id IS NOT NULL AND (is_approved = 1 OR role IN ('admin', 'webmaster'))
+    """).fetchall()
+    return {r["player_id"] for r in rows}
