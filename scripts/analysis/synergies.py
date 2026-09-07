@@ -48,9 +48,12 @@ def get_community_synergies(connection, min_games=5):
                 if pair not in duo_stats:
                     duo_stats[pair] = {"games": 0, "wins": 0, "draws": 0, "losses": 0, "goals_for": 0, "goals_against": 0}
                 duo_stats[pair]["games"] += 1
-                if a_win: duo_stats[pair]["wins"] += 1
-                elif draw: duo_stats[pair]["draws"] += 1
-                else: duo_stats[pair]["losses"] += 1
+                if a_win:
+                    duo_stats[pair]["wins"] += 1
+                elif draw:
+                    duo_stats[pair]["draws"] += 1
+                else:
+                    duo_stats[pair]["losses"] += 1
                 duo_stats[pair]["goals_for"] += ga
                 duo_stats[pair]["goals_against"] += gb
 
@@ -62,9 +65,12 @@ def get_community_synergies(connection, min_games=5):
                 if pair not in duo_stats:
                     duo_stats[pair] = {"games": 0, "wins": 0, "draws": 0, "losses": 0, "goals_for": 0, "goals_against": 0}
                 duo_stats[pair]["games"] += 1
-                if b_win: duo_stats[pair]["wins"] += 1
-                elif draw: duo_stats[pair]["draws"] += 1
-                else: duo_stats[pair]["losses"] += 1
+                if b_win:
+                    duo_stats[pair]["wins"] += 1
+                elif draw:
+                    duo_stats[pair]["draws"] += 1
+                else:
+                    duo_stats[pair]["losses"] += 1
                 duo_stats[pair]["goals_for"] += gb
                 duo_stats[pair]["goals_against"] += ga
 

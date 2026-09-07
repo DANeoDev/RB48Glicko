@@ -1,9 +1,7 @@
 """Noise bubbles API routes for spatial banter across RB48 pages."""
 
-import html
 from flask import Blueprint, flash, jsonify, redirect, request, url_for
 
-from scripts.accounts.auth import get_user
 from scripts.accounts.database import (
     add_noise_bubble,
     delete_noise_bubble,
@@ -13,7 +11,6 @@ from scripts.accounts.database import (
     get_noise_bubbles_for_page,
     normalize_noise_page_path,
     set_user_noise_display_mode,
-    set_user_noise_override,
     update_noise_bubble_position,
 )
 from web.services.security import Tier, get_current_user, require_tier

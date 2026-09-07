@@ -79,7 +79,7 @@ def set_current_lang(lang):
 
 def t(key, default=None, **kwargs):
     """Lookup translation for key in active language catalog with formatting support.
-    
+
     Returns Markup string so embedded safe HTML is not double-escaped by Jinja.
     """
     lang = kwargs.pop("lang", None)

@@ -82,6 +82,14 @@ class RouteTests(unittest.TestCase):
 
         resp_stats = self.client.get("/stats")
         self.assertEqual(resp_stats.status_code, 200)
+        stats_html = resp_stats.get_data(as_text=True)
+        self.assertIn("time-rail-title-badge", stats_html)
+        self.assertIn("Rating<br>Geschichte", stats_html)
+
+        # Check matches timeline top scroll button
+        resp_matches = self.client.get("/matches")
+        self.assertEqual(resp_matches.status_code, 200)
+        self.assertIn("Nach oben scrollen", resp_matches.get_data(as_text=True))
 
         # But cannot access model analysis yet (requires psychology test)
         resp_model = self.client.get("/model-analysis")
@@ -130,6 +138,11 @@ class RouteTests(unittest.TestCase):
         self.assertIn("delta-toggle-btn", html)
         self.assertTrue("Letztes Spiel" in html or "Last Game" in html)
         self.assertTrue("Letzter Monat" in html or "Last Month" in html)
+
+        # Also verify player profile timeline
+        resp_player = self.client.get("/player/1")
+        self.assertEqual(resp_player.status_code, 200)
+        self.assertIn("Nach oben scrollen", resp_player.get_data(as_text=True))
         self.assertTrue("Letztes Quartal" in html or "Last Quarter" in html)
         self.assertTrue("Letztes Jahr" in html or "Last Year" in html)
         self.assertTrue("Δ C-Rating" in html or "Δ C Rating" in html)

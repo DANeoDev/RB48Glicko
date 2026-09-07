@@ -19,16 +19,8 @@ from scripts.glicko.glicko2 import (
 )
 
 
-def compute_leaderboard_deltas(connection, ratings, players):
-    """Compute rating and performance deltas across game, month, quarter, and year intervals."""
-    matches = get_matches(connection)
-    sorted_matches = sorted(matches.values(), key=lambda m: (m["date"], m["match_id"]))
-
-    today = datetime.now().date()
-    cutoff_month = (today - timedelta(days=30)).strftime("%Y-%m-%d")
-    cutoff_quarter = (today - timedelta(days=90)).strftime("%Y-%m-%d")
-    cutoff_year = (today - timedelta(days=365)).strftime("%Y-%m-%d")
-
+def _collect_player_match_events(connection, sorted_matches: list[dict], players: dict) -> dict[int, dict[str, list[dict]]]:
+    """Collect and cache match outcome events and prior ratings per player and pitch type."""
     match_data_cache = {}
     for m in sorted_matches:
         mid = m["match_id"]
@@ -36,7 +28,7 @@ def compute_leaderboard_deltas(connection, ratings, players):
         mps = get_match_players(connection, mid)
         match_data_cache[mid] = (mr, mps)
 
-    player_events = {pid: {TOTAL: [], BOX: [], HF: []} for pid in players}
+    player_events: dict[int, dict[str, list[dict]]] = {pid: {TOTAL: [], BOX: [], HF: []} for pid in players}
     for m in sorted_matches:
         mid = m["match_id"]
         mr, mps = match_data_cache[mid]
@@ -71,7 +63,111 @@ def compute_leaderboard_deltas(connection, ratings, players):
             if pitch_type in player_events[pid]:
                 player_events[pid][pitch_type].append(event_entry)
 
-    deltas = {}
+    return player_events
+
+
+def _compute_single_game_delta(
+    evts: list[dict],
+    pitch_const: str,
+    curr_r: float,
+    curr_rd: float,
+    curr_c: float,
+) -> dict:
+    """Compute rating delta for the most recent match in the events list."""
+    if not evts:
+        return {
+            "conservative": 0.0,
+            "rating": 0.0,
+            "rd": 0.0,
+            "games": 0,
+            "wins": 0,
+            "losses": 0,
+            "win_percent": 0.0,
+        }
+
+    last_evt = evts[-1]
+    b_r = last_evt["rating_before_total"] if pitch_const == TOTAL else last_evt["rating_before_pitch"]
+    b_rd = last_evt["rd_before_total"] if pitch_const == TOTAL else last_evt["rd_before_pitch"]
+    if b_r is not None and b_rd is not None:
+        b_c = b_r - 3 * b_rd
+        game_delta_r = curr_r - b_r
+        game_delta_rd = curr_rd - b_rd
+        game_delta_c = curr_c - b_c
+    else:
+        game_delta_r = 0.0
+        game_delta_rd = 0.0
+        game_delta_c = 0.0
+
+    is_win = bool(last_evt.get("is_win"))
+    is_loss = bool(last_evt.get("is_loss"))
+    return {
+        "conservative": game_delta_c,
+        "rating": game_delta_r,
+        "rd": game_delta_rd,
+        "games": 1,
+        "wins": 1 if is_win else 0,
+        "losses": 1 if is_loss else 0,
+        "win_percent": 100.0 if is_win else 0.0,
+    }
+
+
+def _compute_period_delta(
+    evts: list[dict],
+    cutoff_str: str,
+    pitch_const: str,
+    curr_r: float,
+    curr_rd: float,
+    curr_c: float,
+) -> dict:
+    """Compute aggregated rating and performance metrics since a cutoff date."""
+    p_evts = [e for e in evts if e["date"] >= cutoff_str]
+    g = len(p_evts)
+    w = sum(1 for e in p_evts if e["is_win"])
+    losses = sum(1 for e in p_evts if e["is_loss"])
+    wp = (w / g * 100) if g > 0 else 0.0
+
+    if p_evts:
+        first_e = p_evts[0]
+        first_b_r = first_e["rating_before_total"] if pitch_const == TOTAL else first_e["rating_before_pitch"]
+        first_b_rd = first_e["rd_before_total"] if pitch_const == TOTAL else first_e["rd_before_pitch"]
+        if first_b_r is not None and first_b_rd is not None:
+            first_b_c = first_b_r - 3 * first_b_rd
+            delta_r = curr_r - first_b_r
+            delta_rd = curr_rd - first_b_rd
+            delta_c = curr_c - first_b_c
+        else:
+            delta_r = 0.0
+            delta_rd = 0.0
+            delta_c = 0.0
+    else:
+        delta_r = 0.0
+        delta_rd = 0.0
+        delta_c = 0.0
+
+    return {
+        "conservative": delta_c,
+        "rating": delta_r,
+        "rd": delta_rd,
+        "games": g,
+        "wins": w,
+        "losses": losses,
+        "win_percent": wp,
+    }
+
+
+def compute_leaderboard_deltas(connection, ratings: dict, players: dict) -> dict[int, dict[str, dict]]:
+    """Compute rating and performance deltas across game, month, quarter, and year intervals."""
+    matches = get_matches(connection)
+    sorted_matches = sorted(matches.values(), key=lambda m: (m["date"], m["match_id"]))
+
+    today = datetime.now().date()
+    cutoff_month = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    cutoff_quarter = (today - timedelta(days=90)).strftime("%Y-%m-%d")
+    cutoff_year = (today - timedelta(days=365)).strftime("%Y-%m-%d")
+
+    player_events = _collect_player_match_events(connection, sorted_matches, players)
+
+    deltas: dict[int, dict[str, dict]] = {}
     for pid in players:
         deltas[pid] = {}
         for pitch_key, pitch_const in [("total", TOTAL), ("box", BOX), ("hf", HF)]:
@@ -81,76 +177,22 @@ def compute_leaderboard_deltas(connection, ratings, players):
             curr_rd = p_rating_data.get("rd", 350.0)
             curr_c = curr_r - 3 * curr_rd
 
-            if evts:
-                last_evt = evts[-1]
-                b_r = last_evt["rating_before_total"] if pitch_const == TOTAL else last_evt["rating_before_pitch"]
-                b_rd = last_evt["rd_before_total"] if pitch_const == TOTAL else last_evt["rd_before_pitch"]
-                if b_r is not None and b_rd is not None:
-                    b_c = b_r - 3 * b_rd
-                    game_delta_r = curr_r - b_r
-                    game_delta_rd = curr_rd - b_rd
-                    game_delta_c = curr_c - b_c
-                else:
-                    game_delta_r = 0.0
-                    game_delta_rd = 0.0
-                    game_delta_c = 0.0
-            else:
-                game_delta_r = 0.0
-                game_delta_rd = 0.0
-                game_delta_c = 0.0
-
-            def period_metrics(cutoff_str):
-                p_evts = [e for e in evts if e["date"] >= cutoff_str]
-                g = len(p_evts)
-                w = sum(1 for e in p_evts if e["is_win"])
-                l = sum(1 for e in p_evts if e["is_loss"])
-                wp = (w / g * 100) if g > 0 else 0.0
-                if p_evts:
-                    first_e = p_evts[0]
-                    first_b_r = first_e["rating_before_total"] if pitch_const == TOTAL else first_e["rating_before_pitch"]
-                    first_b_rd = first_e["rd_before_total"] if pitch_const == TOTAL else first_e["rd_before_pitch"]
-                    if first_b_r is not None and first_b_rd is not None:
-                        first_b_c = first_b_r - 3 * first_b_rd
-                        delta_r = curr_r - first_b_r
-                        delta_rd = curr_rd - first_b_rd
-                        delta_c = curr_c - first_b_c
-                    else:
-                        delta_r = 0.0
-                        delta_rd = 0.0
-                        delta_c = 0.0
-                else:
-                    delta_r = 0.0
-                    delta_rd = 0.0
-                    delta_c = 0.0
-                return {
-                    "conservative": delta_c,
-                    "rating": delta_r,
-                    "rd": delta_rd,
-                    "games": g,
-                    "wins": w,
-                    "losses": l,
-                    "win_percent": wp,
-                }
-
             deltas[pid][pitch_key] = {
-                "game": {
-                    "conservative": game_delta_c,
-                    "rating": game_delta_r,
-                    "rd": game_delta_rd,
-                    "games": 1 if evts else 0,
-                    "wins": 1 if (evts and evts[-1]["is_win"]) else 0,
-                    "losses": 1 if (evts and evts[-1]["is_loss"]) else 0,
-                    "win_percent": 100.0 if (evts and evts[-1]["is_win"]) else 0.0,
-                },
-                "month": period_metrics(cutoff_month),
-                "quarter": period_metrics(cutoff_quarter),
-                "year": period_metrics(cutoff_year),
+                "game": _compute_single_game_delta(evts, pitch_const, curr_r, curr_rd, curr_c),
+                "month": _compute_period_delta(evts, cutoff_month, pitch_const, curr_r, curr_rd, curr_c),
+                "quarter": _compute_period_delta(evts, cutoff_quarter, pitch_const, curr_r, curr_rd, curr_c),
+                "year": _compute_period_delta(evts, cutoff_year, pitch_const, curr_r, curr_rd, curr_c),
             }
 
     return deltas
 
 
-def build_leaderboard(ratings, players, stats, deltas=None):
+def build_leaderboard(
+    ratings: dict,
+    players: dict,
+    stats: dict,
+    deltas: dict | None = None,
+) -> list[dict]:
     deltas = deltas or {}
     default_deltas = {
         "game": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
@@ -191,7 +233,14 @@ def build_leaderboard(ratings, players, stats, deltas=None):
     return leaderboard
 
 
-def calculate_match_details(match, team_a, team_b, match_ratings, rating_type=TOTAL, player_id=None):
+def calculate_match_details(
+    match: dict,
+    team_a: list[int],
+    team_b: list[int],
+    match_ratings: dict,
+    rating_type: str = TOTAL,
+    player_id: int | None = None,
+) -> dict:
     empty_details = {
         "team_a_rating": None,
         "team_a_rd": None,
@@ -302,7 +351,12 @@ def calculate_match_details(match, team_a, team_b, match_ratings, rating_type=TO
     }
 
 
-def build_match_history(connection, players, player_id=None, rating_type=TOTAL):
+def build_match_history(
+    connection,
+    players: dict,
+    player_id: int | None = None,
+    rating_type: str = TOTAL,
+) -> list[dict]:
     if request and "rating_type" in request.args:
         requested = request.args.get("rating_type", "").lower()
         rating_type = {"total": TOTAL, "box": BOX, "hf": HF}.get(requested, rating_type)

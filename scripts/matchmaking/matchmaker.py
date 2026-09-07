@@ -4,9 +4,6 @@ import random
 from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_calibrations
 from scripts.glicko.glicko2 import (
-    TOTAL,
-    BOX,
-    HF,
     Rating,
     DEFAULT_RATING,
     DEFAULT_RD,

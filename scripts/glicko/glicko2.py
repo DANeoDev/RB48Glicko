@@ -609,15 +609,15 @@ class Glicko2:
 # Win-Expectation
 
 
-Q = math.log(10) / 400
+Q: float = math.log(10) / 400
 
 
-def g(rd):
+def g(rd: float) -> float:
     """Glicko-2 g(RD) function."""
     return 1 / math.sqrt(1 + (3 * Q**2 * rd**2) / math.pi**2)
 
 
-def expected_score(rating, opponent_rating, opponent_rd):
+def expected_score(rating: float, opponent_rating: float, opponent_rd: float) -> float:
     """Expected score against an opponent.
 
     Returns a value between 0 and 1:

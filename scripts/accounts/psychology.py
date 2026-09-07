@@ -390,7 +390,7 @@ def evaluate_psychology_submission(form_data, lang="de"):
     priority = ["legend", "tactician", "pragmatist", "tryhard", "conspiracy", "fragile_ego"]
     sorted_personas = sorted(priority, key=lambda k: scores[k], reverse=True)
     assigned_key = sorted_personas[0]
-    
+
     personas = get_psychology_personas(lang)
     persona_info = personas.get(assigned_key, personas["legend"])
 

@@ -2,7 +2,28 @@
 
 {% block title %}RB48 — {{ t('stats.title', 'Stats') }}{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='time_scrollbar.css') }}">
+{% endblock %}
+
 {% block content %}
+
+<!-- Left Time-Rail Navigation -->
+<div class="time-rail-wrapper" id="time-rail-container">
+    <div class="time-rail-header">
+        <div class="time-rail-title-btn" id="time-rail-title-badge" title="{{ t('timeline.rating_history_title', 'Rating-Geschichte (Zeitreise)') }}">
+            {{ t('timeline.rating_history', 'Rating<br>Geschichte') | safe }}
+        </div>
+        <button type="button" class="time-mode-toggle-btn" id="time-mode-toggle-btn" title="{{ t('timeline.mode_toggle_title', 'Modus wechseln: Spieltage oder Monate scrollen') }}">
+            <span id="time-mode-icon">⚡</span>
+            <span class="time-mode-label" id="time-mode-label">{{ t('timeline.mode_matchdays', 'Spieltage') }}</span>
+        </button>
+    </div>
+    <div class="time-rail-track" id="time-rail-track"></div>
+    <div class="time-rail-footer">
+        <button type="button" class="time-rail-reset-btn" id="time-rail-reset-btn" title="{{ t('timeline.current_title', 'Aktuelle Rangliste anzeigen') }}">↺</button>
+    </div>
+</div>
 
 <!-- Community Synergies Modal -->
 <div class="corr-modal-backdrop" id="synergies-modal-backdrop" onclick="closeSynergiesModal()"></div>
@@ -258,6 +279,15 @@
     </div>
 </div>
 
+<div class="historical-leaderboard-banner" id="historical-leaderboard-banner">
+    <div class="historical-banner-info">
+        <span id="historical-banner-text" class="historical-banner-text"></span>
+    </div>
+    <button type="button" class="historical-banner-reset-btn" id="historical-banner-reset-btn">
+        {{ t('timeline.historical_reset', '✕ Zurück zur aktuellen Rangliste') }}
+    </button>
+</div>
+
 <div id="stats-table-container" class="pitch-total">
     <table id="leaderboard">
         <thead>
@@ -287,6 +317,7 @@
             {% for player in leaderboard %}
             {% set is_opted_out = (player['player_id'] in opted_out_player_ids) and not has_tier('webmaster') %}
             <tr
+                data-player-id="{{ player['player_id'] }}"
                 data-opted-out="{{ 'true' if is_opted_out else 'false' }}"
                 {% for pitch in ["total", "box", "hf"] %}
                     data-{{ pitch }}-conservative="{{ 0 if is_opted_out else player[pitch]['conservative'] }}"
@@ -683,5 +714,34 @@ window.switchStreakTab = switchStreakTab;
 // Initial Setup
 syncDeltaRowAttributesAndCells();
 selectPitch("total");
+
+// Expose helper functions for Time-Scrollbar
+window.getCurrentPitch = function() {
+    return currentPitch;
+};
+window.applyTableFilters = function() {
+    selectPitch(currentPitch);
+};
+</script>
+
+<script id="historical-snapshots-data" type="application/json">
+{{ historical_snapshots | tojson }}
+</script>
+<script src="{{ url_for('static', filename='time_scrollbar.js') }}"></script>
+<script>
+(function() {
+    const historicalDataEl = document.getElementById('historical-snapshots-data');
+    if (historicalDataEl) {
+        try {
+            const historicalData = JSON.parse(historicalDataEl.textContent);
+            window.timeScrollbar = new RB48TimeScrollbar({
+                pageType: 'stats',
+                data: historicalData
+            });
+        } catch (e) {
+            console.error('Failed to parse historical snapshots:', e);
+        }
+    }
+})();
 </script>
 {% endblock %}

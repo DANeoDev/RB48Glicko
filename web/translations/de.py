@@ -43,7 +43,7 @@ TRANSLATIONS_DE = {
     "nav.sim_reset": "Zurücksetzen",
     "nav.sim_hide_title": "Simulation ausblenden",
     "nav.sim_show_title": "Simulation einblenden",
-    "nav.footer_home": "RB 48 Startseite",
+    "nav.footer_home": "RB 48 Homepage",
     "nav.footer_about": "Über uns",
     "nav.footer_faq": "FAQ",
     "nav.footer_github": "GitHub",
@@ -221,7 +221,7 @@ TRANSLATIONS_DE = {
     "about.golden_rule_title": "Dabei gilt:",
     "about.golden_rule_text": "Das mathematische Modell dient einzig dem Zweck, spannende und ausgeglichene Spiele zu ermöglichen und eine gewisse Nerd-Leidenschaft für Zahlen zu befriedigen. Ratings spiegeln vergangene Teamergebnisse wider – sie definieren niemals den persönlichen Wert oder Charakter eines Spielers.",
     "about.guest_title": "👋 Als Gast mitspielen",
-    "about.guest_p1": "Neu bei RB 48? Gäste und Freunde sind herzlich eingeladen, bei unseren Spieltagen als Gastspieler mitzumachen, sofern sie sich an unsere Regeln des Respekt und Fair-Play halten!",
+    "about.guest_p1": "Neu bei RB 48? Gäste und Freunde sind herzlich eingeladen, bei unseren Spieltagen als Gastspieler mitzumachen, sofern unsere Regeln des Respekts und Fair-Plays eingehalten werden!",
     "about.guest_p2": "Die Gästeeinschreibung öffnet im <a href=\"{planner_url}\" style=\"color: #80deea; font-weight: 600;\">Anwesenheitsplaner</a> jeweils am <strong>Sonntag um 00:00 Uhr</strong> vor dem jeweiligen Spieltag. Einfach eintragen und mitkicken!",
     "about.explore_planner": "Zum Anwesenheitsplaner →",
 
@@ -695,8 +695,8 @@ TRANSLATIONS_DE = {
     "player.link_copied": "Filter-Link in Zwischenablage kopiert!",
 
     # Calendar Export
-    "planner.export_ics": "📅 In Kalender eintragen (.ics)",
-    "planner.export_ics_title": "Alle anstehenden Spieltage als iCalendar (.ics) herunterladen",
+    "planner.export_ics": "Kalender (.ics)",
+    "planner.export_ics_title": "Lädt eine .ics-Kalenderdatei herunter. Öffne diese Datei auf deinem Smartphone oder PC (oder per Doppelklick in Outlook, Apple Kalender oder Google Kalender importieren), um alle anstehenden Spieltermine automatisch in deinen persönlichen Kalender einzutragen.",
 
     # Match Center Planner Roster Import
     "match_center.import_planner_roster": "📅 Kader aus Planer importieren",
@@ -736,14 +736,11 @@ TRANSLATIONS_DE = {
     "search.pages": "Seiten & Funktionen",
     "search.players": "Spieler",
     "search.no_results": "Keine Ergebnisse gefunden.",
-    "planner.export_ics": "Kalender (.ics)",
-    "planner.export_ics_title": "Spieltermine in persönlichen Kalender exportieren (Apple, Google, Outlook)",
     "streaks.btn_title": "Serien & Rekorde",
     "streaks.modal_title": "RB48 Serien & Rekorde",
     "streaks.modal_sub": "Aktuelle Siegesserien, Allzeit-Rekorde und Formaufschwünge der letzten 30 Tage",
     "streaks.surge_glicko_hover": "Basiert auf der internen Ratingentwicklung (nur mit Glicko-Berechtigung sichtbar)",
     "search.placeholder": "Suche nach Seiten oder Spielern (Strg+K)...",
-    "planner.export_ics_title": "Lädt eine .ics-Kalenderdatei herunter. Öffne diese Datei auf deinem Smartphone oder PC (oder per Doppelklick in Outlook, Apple Kalender oder Google Kalender importieren), um alle anstehenden Spieltermine automatisch in deinen persönlichen Kalender einzutragen.",
     "achievements.section_title": "🏆 Auszeichnungen & Meilensteine",
     "achievements.unlocked": "Freigeschaltet",
     "achievements.locked": "Noch gesperrt",
@@ -849,4 +846,22 @@ TRANSLATIONS_DE = {
     "gallery.edit_date_error": "Aufnahmedatum konnte nicht aktualisiert werden.",
     "gallery.uploaded_by": "Hochgeladen von:",
 
+    # =========================================================================
+    # Time-Scrollbar, Floating Mini-Card & Match History
+    # =========================================================================
+    "timeline.mode_matchdays": "Spieltage",
+    "timeline.mode_months": "Monate",
+    "timeline.mode_toggle_title": "Modus wechseln: Spieltage oder Monate scrollen",
+    "timeline.matchday_prefix": "Spieltag",
+    "timeline.season_prefix": "Saison",
+    "timeline.current_leaderboard": "Aktuell",
+    "timeline.current_title": "Aktuelle Rangliste anzeigen",
+    "timeline.scroll_top_title": "Nach oben scrollen",
+    "timeline.rating_history": "Rating<br>Geschichte",
+    "timeline.rating_history_title": "Rating-Geschichte (Zeitreise)",
+    "timeline.historical_banner": "🕒 Historische Ansicht: {label}",
+    "timeline.historical_reset": "✕ Zurück zur aktuellen Rangliste",
+    "timeline.matches_count": "{count} Spiele",
+    "timeline.single_match": "1 Spiel",
+    "timeline.month_endstand": "Monats-Endstand",
 }

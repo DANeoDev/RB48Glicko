@@ -67,6 +67,20 @@ class MatchCenterFrontendTests(unittest.TestCase):
             css_response.close()
             js_response.close()
 
+    def test_match_center_post_generate_action(self):
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
+            response = client.post("/match-center", data={
+                "action": "generate",
+                "mode": "total",
+                "pitch": "box",
+                "players": ["1", "2"],
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"window.matchCenterPlayers", response.data)
+
     def test_match_center_js_syntax_is_valid(self):
         node_path = shutil.which("node")
         if node_path:

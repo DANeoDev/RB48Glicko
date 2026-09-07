@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 import random
 from datetime import datetime
-from PIL import Image, ExifTags
+from PIL import Image
 from werkzeug.utils import secure_filename
 
 from scripts.accounts.database import (

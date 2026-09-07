@@ -1,11 +1,5 @@
-from pathlib import Path
-import sqlite3
-
+from scripts.database.database import get_connection
 from scripts.database.db_players import get_players
-
-
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DB_PATH = PROJECT_ROOT / "data" / "rb48.db"
 
 
 def get_player_matches(connection, player_id):
@@ -55,8 +49,7 @@ def delete_player(connection, player_id):
 
 
 def main():
-    connection = sqlite3.connect(DB_PATH)
-    connection.row_factory = sqlite3.Row
+    connection = get_connection()
 
     try:
         players = get_players(connection)

@@ -222,14 +222,14 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
 
         goals_a = match["goals_a"]
         goals_b = match["goals_b"]
-        w = max(goals_a, goals_b)
-        l = min(goals_a, goals_b)
-        raw_diff = w - l
+        winner_goals = max(goals_a, goals_b)
+        loser_goals = min(goals_a, goals_b)
+        raw_diff = winner_goals - loser_goals
 
         if mode == TOTAL and match["pitch"] == HF:
             # Scale HF games to 10 goals for winner (e.g. 4:1 -> 10:2.5, diff = 7.5)
-            if w > 0:
-                goal_diff = 10.0 * (w - l) / w
+            if winner_goals > 0:
+                goal_diff = 10.0 * (winner_goals - loser_goals) / winner_goals
             else:
                 goal_diff = 0.0
         else:
