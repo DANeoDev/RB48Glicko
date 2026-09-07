@@ -5,6 +5,7 @@
 {% endblock %}
 
 {% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='time_scrollbar.css') }}">
 <style>
 .match-entry-controls { display:flex; flex-direction:column; align-items:center; gap:12px; margin:18px 0 26px; }
 .match-entry-button { display:inline-block; padding:11px 22px; border-radius:var(--radius); background:var(--accent-dark); color:var(--text-main); border:1px solid var(--accent-dark); font-weight:700; text-decoration:none; }
@@ -19,6 +20,20 @@
 {% endblock %}
 
 {% block content %}
+<!-- Left Time-Rail Navigation -->
+<div class="time-rail-wrapper" id="time-rail-container">
+    <div class="time-rail-header">
+        <button type="button" class="time-mode-toggle-btn" id="time-mode-toggle-btn" title="{{ t('timeline.mode_toggle_title', 'Modus wechseln: Spieltage oder Monate scrollen') }}">
+            <span id="time-mode-icon">⚡</span>
+            <span class="time-mode-label" id="time-mode-label">{{ t('timeline.mode_matchdays', 'Spieltage') }}</span>
+        </button>
+    </div>
+    <div class="time-rail-track" id="time-rail-track"></div>
+    <div class="time-rail-footer">
+        <button type="button" class="time-rail-reset-btn" id="time-rail-reset-btn" title="{{ t('timeline.scroll_top_title', 'Nach oben scrollen') }}">▲</button>
+    </div>
+</div>
+
 <div class="page-header">
     <h1>{{ t('matches.title', 'Match History') }}</h1>
     <p>{{ t('matches.subtitle', 'All recorded RB48 matches') }}</p>
@@ -45,96 +60,130 @@
 </div>
 
 <div class="match-history">
-{% for match in matches %}
-<div class="match">
-    <div class="match-header">{{ match["match_id"] }} — {{ match["pitch"] | upper }}</div>
-    <div class="match-info">
-        <div class="team team-a">
-            <strong>{{ t('matches.team_a', 'Team A') }}</strong>
-            <div class="players">
-                {% for player in match["team_a_players"] %}
-                    <span class="match-player">
-                        {% if has_tier('user') %}
-                            {{ player["name"] }}
-                        {% else %}
-                            {{ t('matches.player_anon', 'Player') }} {{ loop.index }}
-                        {% endif %}
-                        {% if has_tier('glicko_user') and player["rating"] is not none and (has_tier('webmaster') or player["player_id"] not in opted_out_player_ids) %}
-                            <span class="player-rating" title="Pre-match rating">({{ player["rating"] | round | int }})</span>
-                        {% endif %}
-                        {% if not loop.last %}, {% endif %}
-                    </span>
-                {% endfor %}
-                {% if match["external_a"] > 0 %}{% if match["team_a_players"] %}, {% endif %}{% if match["external_a"] == 1 %}{{ t('matches.external_player', count=match['external_a']) }}{% else %}{{ t('matches.external_players', count=match['external_a']) }}{% endif %}{% endif %}
-            </div>
+{% for month_group in months_grouped %}
+<div class="month-group" id="m-{{ month_group.month_key }}" data-month-key="{{ month_group.month_key }}">
+    <div class="month-divider">
+        <div class="month-divider-line"></div>
+        <div class="month-divider-title">
+            <span>📅</span>
+            <span>{{ month_group.month_label }}</span>
         </div>
-        <div class="score">{{ match["goals_a"] }} - {{ match["goals_b"] }}</div>
-        <div class="team team-b">
-            <strong>{{ t('matches.team_b', 'Team B') }}</strong>
-            <div class="players">
-                {% for player in match["team_b_players"] %}
-                    <span class="match-player">
-                        {% if has_tier('user') %}
-                            {{ player["name"] }}
-                        {% else %}
-                            {{ t('matches.player_anon', 'Player') }} {{ loop.index }}
-                        {% endif %}
-                        {% if has_tier('glicko_user') and player["rating"] is not none and (has_tier('webmaster') or player["player_id"] not in opted_out_player_ids) %}
-                            <span class="player-rating" title="Pre-match rating">({{ player["rating"] | round | int }})</span>
-                        {% endif %}
-                        {% if not loop.last %}, {% endif %}
-                    </span>
-                {% endfor %}
-                {% if match["external_b"] > 0 %}{% if match["team_b_players"] %}, {% endif %}{% if match["external_b"] == 1 %}{{ t('matches.external_player', count=match['external_b']) }}{% else %}{{ t('matches.external_players', count=match['external_b']) }}{% endif %}{% endif %}
-            </div>
-        </div>
+        <div class="month-divider-line"></div>
     </div>
-    {% if has_tier('glicko_user') %}
-        <div class="match-details">
-        {% if match["team_a_rating"] is not none %}
-            <div class="team-details team-a">
-                <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_a_rating"] | round | int }}</span></div>
-                <div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_a_rd"] | round(1) }}</span></div>
-                <div class="team-stat"><span class="stat-label">{{ t('matches.expected', 'Expected') }}</span><span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span></div>
-            </div>
-            <div class="rating-delta" title="{{ match['session_tooltip'] if match['session_tooltip'] else 'Individual change varies from this depending on personal RD' }}">
-                {% if match["is_session_pending"] %}
-                    <span class="session-indicator" title="{{ match['session_tooltip'] }}">{{ t('matches.game_session', current=match['session_match_num'], total=match['session_matches_total']) }}</span>
-                {% else %}
-                    {% if match["delta_a"] is not none %}
-                        {% if match["delta_a"] > 0 %}<span class="positive">↑ {{ match["delta_a"] | round(1) }}</span>{% elif match["delta_a"] < 0 %}<span class="negative">↓ {{ match["delta_a"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
-                    {% elif match["rating_delta"] is not none %}
-                        {% if match["rating_delta"] > 0 %}<span class="positive">↑ {{ match["rating_delta"] | round(1) }}</span>{% elif match["rating_delta"] < 0 %}<span class="negative">↓ {{ match["rating_delta"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+
+    <div class="month-group-content">
+        <div class="month-vertical-rail">
+            <div class="month-vertical-text">{{ month_group.month_vertical }}</div>
+        </div>
+
+        <div class="month-matches-list">
+            {% set prev_date = namespace(val=None) %}
+            {% for match in month_group.matches %}
+            <div class="match" {% if match.date != prev_date.val %}id="d-{{ match.date }}" data-match-date="{{ match.date }}"{% set prev_date.val = match.date %}{% endif %}>
+                <div class="match-header">
+                    <span>{{ match["match_id"] }} — {{ match["pitch"] | upper }}</span>
+                    <span style="font-size: 11px; opacity: 0.8; font-weight: normal; margin-left: 8px;">{{ match.get("date_formatted", match["date"]) }} · {{ match.get("short_label", "") }}</span>
+                </div>
+                <div class="match-info">
+                    <div class="team team-a">
+                        <strong>{{ t('matches.team_a', 'Team A') }}</strong>
+                        <div class="players">
+                            {% for player in match["team_a_players"] %}
+                                <span class="match-player">
+                                    {% if has_tier('user') %}
+                                        {{ player["name"] }}
+                                    {% else %}
+                                        {{ t('matches.player_anon', 'Player') }} {{ loop.index }}
+                                    {% endif %}
+                                    {% if has_tier('glicko_user') and player["rating"] is not none and (has_tier('webmaster') or player["player_id"] not in opted_out_player_ids) %}
+                                        <span class="player-rating" title="Pre-match rating">({{ player["rating"] | round | int }})</span>
+                                    {% endif %}
+                                    {% if not loop.last %}, {% endif %}
+                                </span>
+                            {% endfor %}
+                            {% if match["external_a"] > 0 %}{% if match["team_a_players"] %}, {% endif %}{% if match["external_a"] == 1 %}{{ t('matches.external_player', count=match['external_a']) }}{% else %}{{ t('matches.external_players', count=match['external_a']) }}{% endif %}{% endif %}
+                        </div>
+                    </div>
+                    <div class="score">{{ match["goals_a"] }} - {{ match["goals_b"] }}</div>
+                    <div class="team team-b">
+                        <strong>{{ t('matches.team_b', 'Team B') }}</strong>
+                        <div class="players">
+                            {% for player in match["team_b_players"] %}
+                                <span class="match-player">
+                                    {% if has_tier('user') %}
+                                        {{ player["name"] }}
+                                    {% else %}
+                                        {{ t('matches.player_anon', 'Player') }} {{ loop.index }}
+                                    {% endif %}
+                                    {% if has_tier('glicko_user') and player["rating"] is not none and (has_tier('webmaster') or player["player_id"] not in opted_out_player_ids) %}
+                                        <span class="player-rating" title="Pre-match rating">({{ player["rating"] | round | int }})</span>
+                                    {% endif %}
+                                    {% if not loop.last %}, {% endif %}
+                                </span>
+                            {% endfor %}
+                            {% if match["external_b"] > 0 %}{% if match["team_b_players"] %}, {% endif %}{% if match["external_b"] == 1 %}{{ t('matches.external_player', count=match['external_b']) }}{% else %}{{ t('matches.external_players', count=match['external_b']) }}{% endif %}{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% if has_tier('glicko_user') %}
+                    <div class="match-details">
+                    {% if match["team_a_rating"] is not none %}
+                        <div class="team-details team-a">
+                            <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_a_rating"] | round | int }}</span></div>
+                            <div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_a_rd"] | round(1) }}</span></div>
+                            <div class="team-stat"><span class="stat-label">{{ t('matches.expected', 'Expected') }}</span><span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span></div>
+                        </div>
+                        <div class="rating-delta" title="{{ match['session_tooltip'] if match['session_tooltip'] else 'Individual change varies from this depending on personal RD' }}">
+                            {% if match["is_session_pending"] %}
+                                <span class="session-indicator" title="{{ match['session_tooltip'] }}">{{ t('matches.game_session', current=match['session_match_num'], total=match['session_matches_total']) }}</span>
+                            {% else %}
+                                {% if match["delta_a"] is not none %}
+                                    {% if match["delta_a"] > 0 %}<span class="positive">↑ {{ match["delta_a"] | round(1) }}</span>{% elif match["delta_a"] < 0 %}<span class="negative">↓ {{ match["delta_a"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+                                {% elif match["rating_delta"] is not none %}
+                                    {% if match["rating_delta"] > 0 %}<span class="positive">↑ {{ match["rating_delta"] | round(1) }}</span>{% elif match["rating_delta"] < 0 %}<span class="negative">↓ {{ match["rating_delta"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+                                {% else %}
+                                    <span>— 0.0</span>
+                                {% endif %}
+                                <span class="delta-separator">|</span>
+                                {% if match["delta_b"] is not none %}
+                                    {% if match["delta_b"] > 0 %}<span class="positive">↑ {{ match["delta_b"] | round(1) }}</span>{% elif match["delta_b"] < 0 %}<span class="negative">↓ {{ match["delta_b"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+                                {% elif match["rating_delta"] is not none %}
+                                    {% if match["rating_delta"] < 0 %}<span class="positive">↑ {{ match["rating_delta"] | abs | round(1) }}</span>{% elif match["rating_delta"] > 0 %}<span class="negative">↓ {{ match["rating_delta"] | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
+                                {% else %}
+                                    <span>— 0.0</span>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                        <div class="team-details team-b">
+                            <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_b_rating"] | round | int }}</span></div>
+                            <div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_b_rd"] | round(1) }}</span></div>
+                            <div class="team-stat"><span class="stat-label">{{ t('matches.expected', 'Expected') }}</span><span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span></div>
+                        </div>
                     {% else %}
-                        <span>— 0.0</span>
+                        <div class="team-details"><span>{{ t('matches.not_calculated', 'Ratings for this match have not been calculated yet.') }}</span></div>
                     {% endif %}
-                    <span class="delta-separator">|</span>
-                    {% if match["delta_b"] is not none %}
-                        {% if match["delta_b"] > 0 %}<span class="positive">↑ {{ match["delta_b"] | round(1) }}</span>{% elif match["delta_b"] < 0 %}<span class="negative">↓ {{ match["delta_b"] | abs | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
-                    {% elif match["rating_delta"] is not none %}
-                        {% if match["rating_delta"] < 0 %}<span class="positive">↑ {{ match["rating_delta"] | abs | round(1) }}</span>{% elif match["rating_delta"] > 0 %}<span class="negative">↓ {{ match["rating_delta"] | round(1) }}</span>{% else %}<span>— 0.0</span>{% endif %}
-                    {% else %}
-                        <span>— 0.0</span>
-                    {% endif %}
+                    </div>
                 {% endif %}
             </div>
-            <div class="team-details team-b">
-                <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_b_rating"] | round | int }}</span></div>
-                <div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_b_rd"] | round(1) }}</span></div>
-                <div class="team-stat"><span class="stat-label">{{ t('matches.expected', 'Expected') }}</span><span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span></div>
-            </div>
-        {% else %}
-            <div class="team-details"><span>{{ t('matches.not_calculated', 'Ratings for this match have not been calculated yet.') }}</span></div>
-        {% endif %}
+            {% endfor %}
         </div>
-    {% endif %}
+    </div>
 </div>
 {% endfor %}
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='time_scrollbar.js') }}"></script>
 <script>
-document.querySelectorAll(".match").forEach(match => { match.addEventListener("click", () => match.classList.toggle("expanded")); });
+document.querySelectorAll(".match").forEach(match => {
+    match.addEventListener("click", () => match.classList.toggle("expanded"));
+});
+
+const timelineData = {{ timeline_data | tojson }};
+window.timeScrollbar = new RB48TimeScrollbar({
+    pageType: 'matches',
+    data: timelineData
+});
 </script>
 {% endblock %}

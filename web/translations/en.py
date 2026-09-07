@@ -673,8 +673,8 @@ TRANSLATIONS_EN = {
     "player.link_copied": "Filter link copied to clipboard!",
 
     # Calendar Export
-    "planner.export_ics": "📅 Add to Calendar (.ics)",
-    "planner.export_ics_title": "Download upcoming matchdays as an iCalendar (.ics) file",
+    "planner.export_ics": "Calendar (.ics)",
+    "planner.export_ics_title": "Downloads an .ics calendar file. Open this file on your smartphone or PC (or double-click to import into Apple Calendar, Google Calendar, or Outlook) to add all upcoming match dates to your personal calendar.",
 
     # Match Center Planner Roster Import
     "match_center.import_planner_roster": "📅 Import Roster from Planner",
@@ -714,14 +714,11 @@ TRANSLATIONS_EN = {
     "search.pages": "Pages & Features",
     "search.players": "Players",
     "search.no_results": "No results found.",
-    "planner.export_ics": "Calendar (.ics)",
-    "planner.export_ics_title": "Export match schedule to personal calendar (Apple, Google, Outlook)",
     "streaks.btn_title": "Streaks & Records",
     "streaks.modal_title": "RB48 Streaks & Records",
     "streaks.modal_sub": "Current win streaks, all-time records, and 30-day form surges",
     "streaks.surge_glicko_hover": "Based on internal rating progression (visible with Glicko access tier)",
     "search.placeholder": "Search pages or players (Ctrl+K)...",
-    "planner.export_ics_title": "Downloads an .ics calendar file. Open this file on your smartphone or PC (or double-click to import into Apple Calendar, Google Calendar, or Outlook) to add all upcoming match dates to your personal calendar.",
     "achievements.section_title": "🏆 Achievements & Milestones",
     "achievements.unlocked": "Unlocked",
     "achievements.locked": "Locked",
@@ -827,4 +824,22 @@ TRANSLATIONS_EN = {
     "gallery.edit_date_error": "Capture date could not be updated.",
     "gallery.uploaded_by": "Uploaded by:",
 
+    # =========================================================================
+    # Time-Scrollbar, Floating Mini-Card & Match History
+    # =========================================================================
+    "timeline.mode_matchdays": "Matchdays",
+    "timeline.mode_months": "Months",
+    "timeline.mode_toggle_title": "Switch mode: Scroll matchdays or months",
+    "timeline.matchday_prefix": "Matchday",
+    "timeline.season_prefix": "Season",
+    "timeline.current_leaderboard": "Current",
+    "timeline.current_title": "Show current leaderboard",
+    "timeline.scroll_top_title": "Scroll to top",
+    "timeline.rating_history": "Rating<br>History",
+    "timeline.rating_history_title": "Rating History (Time Machine)",
+    "timeline.historical_banner": "🕒 Historical view: {label}",
+    "timeline.historical_reset": "✕ Return to current leaderboard",
+    "timeline.matches_count": "{count} matches",
+    "timeline.single_match": "1 match",
+    "timeline.month_endstand": "Month-end standing",
 }

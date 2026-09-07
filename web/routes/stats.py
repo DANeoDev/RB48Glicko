@@ -1,15 +1,44 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
-from scripts.database.database import get_connection
-from scripts.database.db_ratings import get_ratings, get_player_rating_history
-from scripts.database.db_players import get_players
-from scripts.database.db_matches import get_player_stats
-from scripts.frontend.view_models import build_leaderboard, build_match_history, compute_leaderboard_deltas
-from scripts.analysis.model_analysis import analyze_model
-from scripts.analysis.synergies import get_community_synergies
-from scripts.analysis.streaks import get_dashboard_streaks
+from flask import (
+    Blueprint,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
+from scripts.accounts.database import (
+    get_accounts_connection,
+    get_opted_out_player_ids,
+    get_user_by_player_id,
+    get_user_seen_achievements,
+    mark_user_achievements_seen,
+)
 from scripts.analysis.achievements import get_player_achievements
-from scripts.glicko.glicko2 import TOTAL, BOX, HF
-from web.services.security import Tier, require_tier, has_tier, get_current_user
+from scripts.analysis.history_snapshots import (
+    compute_historical_snapshots,
+    get_matchday_metadata_map,
+)
+from scripts.analysis.model_analysis import analyze_model
+from scripts.analysis.streaks import get_dashboard_streaks
+from scripts.analysis.synergies import get_community_synergies
+from scripts.database.database import get_connection
+from scripts.database.db_matches import get_player_stats
+from scripts.database.db_players import get_players
+from scripts.database.db_ratings import get_player_rating_history, get_ratings
+from scripts.frontend.view_models import (
+    build_leaderboard,
+    build_match_history,
+    compute_leaderboard_deltas,
+)
+from scripts.glicko.glicko2 import BOX, HF, TOTAL
+from web.services.security import (
+    Tier,
+    get_current_user,
+    has_tier,
+    require_tier,
+)
 from .news import get_dashboard_news
 
 stats_bp = Blueprint("stats", __name__)
@@ -31,15 +60,17 @@ def dashboard():
 @require_tier(Tier.USER)
 def stats():
     connection = get_connection()
-    ratings = get_ratings(connection)
-    players = get_players(connection)
-    player_stats = get_player_stats(connection)
-    deltas = compute_leaderboard_deltas(connection, ratings, players)
-    synergies = get_community_synergies(connection, min_games=5)
-    streaks = get_dashboard_streaks(connection)
-    connection.close()
+    try:
+        ratings = get_ratings(connection)
+        players = get_players(connection)
+        player_stats = get_player_stats(connection)
+        deltas = compute_leaderboard_deltas(connection, ratings, players)
+        synergies = get_community_synergies(connection, min_games=5)
+        streaks = get_dashboard_streaks(connection)
+        historical_snapshots = compute_historical_snapshots(connection)
+    finally:
+        connection.close()
 
-    from scripts.accounts.database import get_accounts_connection, get_opted_out_player_ids
     acc_conn = get_accounts_connection()
     try:
         opted_out_player_ids = get_opted_out_player_ids(acc_conn)
@@ -57,14 +88,13 @@ def stats():
         synergies=synergies,
         streaks=streaks,
         opted_out_player_ids=opted_out_player_ids,
+        historical_snapshots=historical_snapshots,
     )
 
 
 @stats_bp.route("/my-stats")
 @require_tier(Tier.USER)
 def my_stats():
-    from web.services.security import get_current_user
-    from flask import redirect, url_for, flash
     user = get_current_user()
     if user and user.get("player_id"):
         return redirect(url_for("stats.player_profile", player_id=user["player_id"]))
@@ -75,11 +105,20 @@ def my_stats():
 @stats_bp.route("/player/<int:player_id>")
 @require_tier(Tier.USER)
 def player_profile(player_id):
+    pitch_map = {"total": TOTAL, "box": BOX, "hf": HF}
     connection = get_connection()
-    players = get_players(connection)
-    ratings = get_ratings(connection)
-    player_stats = get_player_stats(connection)
-    rating_history = get_player_rating_history(connection, player_id)
+    try:
+        players = get_players(connection)
+        ratings = get_ratings(connection)
+        player_stats = get_player_stats(connection)
+        rating_history = get_player_rating_history(connection, player_id)
+        selected_rating_type = request.args.get("rating_type", "total").lower()
+        selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
+        matches = build_match_history(connection, players, player_id, pitch_map[selected_rating_type])
+        metadata_map = get_matchday_metadata_map(connection)
+    finally:
+        connection.close()
+
     rating_extremes = {}
     for rating_type in ["total", "box", "hf"]:
         history = rating_history[rating_type]
@@ -87,15 +126,82 @@ def player_profile(player_id):
             "peak": max(history, key=lambda entry: entry["rating"]),
             "low": min(history, key=lambda entry: entry["rating"])
         } if history else {"peak": None, "low": None}
-    selected_rating_type = request.args.get("rating_type", "total").lower()
-    selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
-    matches = build_match_history(connection, players, player_id, {"total": TOTAL, "box": BOX, "hf": HF}[selected_rating_type])
-    
-    # achievements moved to dedicated route
-    connection.close()
+
+    # Enrich each match with metadata
+    for m in matches:
+        meta = metadata_map.get(m["date"], {})
+        m["date_formatted"] = meta.get("date_formatted", m["date"])
+        m["matchday_number"] = meta.get("matchday_number", 1)
+        m["season"] = meta.get("season", 2026)
+        m["matchday_label"] = meta.get("label", f"{meta.get('matchday_number', 1)}. Spieltag")
+        m["short_label"] = meta.get("short_label", f"{meta.get('matchday_number', 1)}. Spieltag")
+        m["month_key"] = meta.get("month_key", m["date"][:7])
+        m["month_label"] = meta.get("month_label", m["date"][:7])
+        m["month_vertical"] = meta.get("month_vertical", m["date"][:7])
+
     matches.reverse()
 
-    from scripts.accounts.database import get_accounts_connection, get_user_by_player_id, get_opted_out_player_ids
+    # Group matches by month
+    months_dict = {}
+    for m in matches:
+        mkey = m["month_key"]
+        if mkey not in months_dict:
+            months_dict[mkey] = {
+                "month_key": mkey,
+                "month_label": m["month_label"],
+                "month_vertical": m["month_vertical"],
+                "matches": [],
+            }
+        months_dict[mkey]["matches"].append(m)
+
+    months_grouped = list(months_dict.values())
+
+    # Build timeline items (newest at top of the scrollbar)
+    distinct_dates_seen = set()
+    timeline_matchdays = []
+    for m in matches:
+        d = m["date"]
+        if d not in distinct_dates_seen:
+            distinct_dates_seen.add(d)
+            meta = metadata_map.get(d, {})
+            day_matches = [x for x in matches if x["date"] == d]
+            pitches = sorted(list(set(x["pitch"].upper() for x in day_matches)))
+            timeline_matchdays.append({
+                "id": f"d-{d}",
+                "date": d,
+                "date_formatted": meta.get("date_formatted", d),
+                "season": meta.get("season", 2026),
+                "matchday_number": meta.get("matchday_number", 1),
+                "label": meta.get("label", f"{meta.get('matchday_number', 1)}. Spieltag"),
+                "short_label": meta.get("short_label", f"{meta.get('matchday_number', 1)}. Spieltag"),
+                "month_key": meta.get("month_key", d[:7]),
+                "month_label": meta.get("month_label", d[:7]),
+                "matches_count": len(day_matches),
+                "pitch_types": pitches,
+            })
+
+    timeline_months = []
+    for mg in months_grouped:
+        m_matches = mg["matches"]
+        pitches = sorted(list(set(x["pitch"].upper() for x in m_matches)))
+        timeline_months.append({
+            "id": f"m-{mg['month_key']}",
+            "month_key": mg["month_key"],
+            "month_label": mg["month_label"],
+            "month_vertical": mg["month_vertical"],
+            "date": m_matches[0]["date"],
+            "date_formatted": m_matches[0]["date_formatted"],
+            "label": mg["month_label"],
+            "short_label": mg["month_label"],
+            "matches_count": len(m_matches),
+            "pitch_types": pitches,
+        })
+
+    timeline_data = {
+        "matchdays": timeline_matchdays,
+        "months": timeline_months,
+    }
+
     acc_conn = get_accounts_connection()
     try:
         linked_user = get_user_by_player_id(acc_conn, player_id)
@@ -116,6 +222,8 @@ def player_profile(player_id):
         rating_history=rating_history,
         rating_extremes=rating_extremes,
         matches=matches,
+        months_grouped=months_grouped,
+        timeline_data=timeline_data,
         selected_rating_type=selected_rating_type,
         player_id=player_id,
         linked_user=linked_user,
@@ -129,19 +237,101 @@ def player_profile(player_id):
 @stats_bp.route("/matches")
 def match_history():
     connection = get_connection()
-    players = get_players(connection)
-    matches = build_match_history(connection, players)
-    matches.reverse()
-    connection.close()
+    try:
+        players = get_players(connection)
+        matches = build_match_history(connection, players)
+        metadata_map = get_matchday_metadata_map(connection)
+    finally:
+        connection.close()
 
-    from scripts.accounts.database import get_accounts_connection, get_opted_out_player_ids
+    # Enrich each match with metadata
+    for m in matches:
+        meta = metadata_map.get(m["date"], {})
+        m["date_formatted"] = meta.get("date_formatted", m["date"])
+        m["matchday_number"] = meta.get("matchday_number", 1)
+        m["season"] = meta.get("season", 2026)
+        m["matchday_label"] = meta.get("label", f"{meta.get('matchday_number', 1)}. Spieltag")
+        m["month_key"] = meta.get("month_key", m["date"][:7])
+        m["month_label"] = meta.get("month_label", m["date"][:7])
+        m["month_vertical"] = meta.get("month_vertical", m["date"][:7])
+
+    # Reverse matches so newest matches are first
+    matches.reverse()
+
+    # Group matches by month, preserving reverse chronological order of months
+    months_dict = {}
+    for m in matches:
+        mkey = m["month_key"]
+        if mkey not in months_dict:
+            months_dict[mkey] = {
+                "month_key": mkey,
+                "month_label": m["month_label"],
+                "month_vertical": m["month_vertical"],
+                "matches": [],
+            }
+        months_dict[mkey]["matches"].append(m)
+
+    months_grouped = list(months_dict.values())
+
+    # Build timeline items (newest at top of the scrollbar)
+    distinct_dates_seen = set()
+    timeline_matchdays = []
+    for m in matches:
+        d = m["date"]
+        if d not in distinct_dates_seen:
+            distinct_dates_seen.add(d)
+            meta = metadata_map.get(d, {})
+            day_matches = [x for x in matches if x["date"] == d]
+            pitches = sorted(list(set(x["pitch"].upper() for x in day_matches)))
+            timeline_matchdays.append({
+                "id": f"d-{d}",
+                "date": d,
+                "date_formatted": meta.get("date_formatted", d),
+                "season": meta.get("season", 2026),
+                "matchday_number": meta.get("matchday_number", 1),
+                "label": meta.get("label", f"{meta.get('matchday_number', 1)}. Spieltag"),
+                "short_label": meta.get("short_label", f"{meta.get('matchday_number', 1)}. Spieltag"),
+                "month_key": meta.get("month_key", d[:7]),
+                "month_label": meta.get("month_label", d[:7]),
+                "matches_count": len(day_matches),
+                "pitch_types": pitches,
+            })
+
+    timeline_months = []
+    for mg in months_grouped:
+        m_matches = mg["matches"]
+        pitches = sorted(list(set(x["pitch"].upper() for x in m_matches)))
+        timeline_months.append({
+            "id": f"m-{mg['month_key']}",
+            "month_key": mg["month_key"],
+            "month_label": mg["month_label"],
+            "month_vertical": mg["month_vertical"],
+            "date": m_matches[0]["date"],
+            "date_formatted": m_matches[0]["date_formatted"],
+            "label": mg["month_label"],
+            "short_label": mg["month_label"],
+            "matches_count": len(m_matches),
+            "pitch_types": pitches,
+        })
+
+    timeline_data = {
+        "matchdays": timeline_matchdays,
+        "months": timeline_months,
+    }
+
     acc_conn = get_accounts_connection()
     try:
         opted_out_player_ids = get_opted_out_player_ids(acc_conn)
     finally:
         acc_conn.close()
 
-    return render_template("matches.html", matches=matches, opted_out_player_ids=opted_out_player_ids)
+    return render_template(
+        "matches.html",
+        matches=matches,
+        months_grouped=months_grouped,
+        timeline_data=timeline_data,
+        opted_out_player_ids=opted_out_player_ids,
+    )
 
 
 @stats_bp.route("/model-analysis")
@@ -150,8 +340,10 @@ def model_analysis():
     mode = request.args.get("mode", "total")
     mode = mode if mode in ("total", "pitch") else "total"
     connection = get_connection()
-    analysis = analyze_model(connection, mode)
-    connection.close()
+    try:
+        analysis = analyze_model(connection, mode)
+    finally:
+        connection.close()
     return render_template("model_analysis.html", analysis=analysis, mode=mode)
 
 
@@ -171,11 +363,12 @@ def about():
 def api_players_list():
     """Return all active players for global search and autocomplete."""
     connection = get_connection()
-    players = get_players(connection)
-    ratings = get_ratings(connection)
-    connection.close()
+    try:
+        players = get_players(connection)
+        ratings = get_ratings(connection)
+    finally:
+        connection.close()
 
-    from scripts.accounts.database import get_accounts_connection, get_opted_out_player_ids
     acc_conn = get_accounts_connection()
     try:
         opted_out_player_ids = get_opted_out_player_ids(acc_conn)
@@ -204,9 +397,12 @@ def api_community_synergies():
     """Return community synergy duos and rivalries."""
     min_games = request.args.get("min_games", 5, type=int)
     connection = get_connection()
-    synergies = get_community_synergies(connection, min_games=min_games)
-    connection.close()
+    try:
+        synergies = get_community_synergies(connection, min_games=min_games)
+    finally:
+        connection.close()
     return jsonify(synergies)
+
 
 @stats_bp.route("/achievements")
 @require_tier(Tier.USER)
@@ -218,11 +414,12 @@ def achievements_overview():
         return redirect(url_for("stats.player_achievements", player_id=user["player_id"]))
     if user.get("role") == "webmaster":
         connection = get_connection()
-        players = get_players(connection)
-        connection.close()
+        try:
+            players = get_players(connection)
+        finally:
+            connection.close()
         first_pid = next(iter(players.keys()), 1)
         return redirect(url_for("stats.player_achievements", player_id=first_pid))
-    from flask import flash
     flash("Bitte verknüpfe dein Profil in den Einstellungen mit einem Spieler, um deine Auszeichnungen zu sehen.", "info")
     return redirect(url_for("auth.settings"))
 
@@ -233,10 +430,9 @@ def player_achievements(player_id: int):
     user = get_current_user()
     if not user:
         return redirect(url_for("auth.login", next=request.path))
-    
+
     is_webmaster = (user.get("role") == "webmaster")
     if not is_webmaster and user.get("player_id") != player_id:
-        from flask import flash
         if user.get("player_id"):
             flash("Du kannst nur deine eigenen Auszeichnungen einsehen.", "info")
             return redirect(url_for("stats.player_achievements", player_id=user["player_id"]))
@@ -245,41 +441,36 @@ def player_achievements(player_id: int):
             return redirect(url_for("auth.settings"))
 
     connection = get_connection()
-    players = get_players(connection)
-    if player_id not in players:
-        connection.close()
-        return redirect(url_for("stats.achievements_overview"))
-    user_has_glicko = has_tier(Tier.GLICKO_USER)
-
-    from scripts.accounts.database import (
-        get_accounts_connection,
-        get_user_seen_achievements,
-        mark_user_achievements_seen,
-    )
-
-    is_own_profile = (user.get("player_id") == player_id)
-    acc_conn = get_accounts_connection()
     try:
-        seen_keys = get_user_seen_achievements(acc_conn, user["id"]) if is_own_profile else set()
-        achievements = get_player_achievements(
-            connection,
-            player_id,
-            user_has_glicko_tier=user_has_glicko,
-            accounts_connection=acc_conn,
-        )
-        all_unlocked_keys = []
-        for a in achievements:
-            if a.get("unlocked") and a.get("tier") != "neutral":
-                k = f"{a['id']}:{a.get('tier', '')}"
-                all_unlocked_keys.append(k)
-                if is_own_profile and k not in seen_keys:
-                    a["is_new"] = True
+        players = get_players(connection)
+        if player_id not in players:
+            return redirect(url_for("stats.achievements_overview"))
+        user_has_glicko = has_tier(Tier.GLICKO_USER)
 
-        if is_own_profile and all_unlocked_keys:
-            mark_user_achievements_seen(acc_conn, user["id"], all_unlocked_keys)
-            session["unseen_achievements_count"] = 0
+        is_own_profile = (user.get("player_id") == player_id)
+        acc_conn = get_accounts_connection()
+        try:
+            seen_keys = get_user_seen_achievements(acc_conn, user["id"]) if is_own_profile else set()
+            achievements = get_player_achievements(
+                connection,
+                player_id,
+                user_has_glicko_tier=user_has_glicko,
+                accounts_connection=acc_conn,
+            )
+            all_unlocked_keys = []
+            for a in achievements:
+                if a.get("unlocked") and a.get("tier") != "neutral":
+                    k = f"{a['id']}:{a.get('tier', '')}"
+                    all_unlocked_keys.append(k)
+                    if is_own_profile and k not in seen_keys:
+                        a["is_new"] = True
+
+            if is_own_profile and all_unlocked_keys:
+                mark_user_achievements_seen(acc_conn, user["id"], all_unlocked_keys)
+                session["unseen_achievements_count"] = 0
+        finally:
+            acc_conn.close()
     finally:
-        acc_conn.close()
         connection.close()
 
     players_map = {pid: p["aliases"][0] for pid, p in players.items()}

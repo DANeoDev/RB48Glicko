@@ -15,7 +15,6 @@ from scripts.database.database import (
 )
 from scripts.accounts.database import (
     create_account_tables,
-    get_user_seen_achievements,
     mark_user_achievements_seen,
 )
 from scripts.analysis.achievements import (

@@ -1,1 +1,1 @@
-﻿"""RB48 localization package."""
+"""RB48 localization package."""

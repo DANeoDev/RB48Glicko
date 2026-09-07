@@ -27,7 +27,6 @@ def get_dashboard_streaks(connection):
         ga, gb = r["goals_a"], r["goals_b"]
         is_win = (team == "a" and ga > gb) or (team == "b" and gb > ga)
         is_loss = (team == "a" and ga < gb) or (team == "b" and gb < ga)
-        is_draw = ga == gb
 
         result_type = "W" if is_win else ("L" if is_loss else "D")
         ps = player_streaks[pid]

@@ -10,7 +10,7 @@ import math
 from pathlib import Path
 import shutil
 
-from scripts.database.database import get_connection
+from scripts.database.database import get_connection, get_database_file
 from scripts.database.db_matches import get_matches, get_match_teams
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_calibrations
@@ -34,8 +34,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def backup_database():
-    database_file = PROJECT_ROOT / "data" / "rb48.db"
-    backup_folder = PROJECT_ROOT / "data" / "backups"
+    database_file = get_database_file()
+    backup_folder = database_file.parent / "backups"
     backup_folder.mkdir(exist_ok=True)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     backup_file = backup_folder / f"rb48_{timestamp}.db"

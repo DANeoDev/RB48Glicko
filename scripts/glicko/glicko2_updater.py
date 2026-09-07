@@ -9,7 +9,6 @@ from scripts.glicko.glicko2_calculator import (
     ratings_to_glicko_table,
     group_matches_by_date,
     update_session,
-    update_match,
     write_match_ratings,
     write_glicko,
     initialize_player_ratings

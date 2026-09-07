@@ -5,6 +5,7 @@ __pycache__/
 # Local databases
 
 data/
+*.db
 
 #env
 .env

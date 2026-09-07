@@ -1,7 +1,7 @@
 """Routes and business logic for the Attendance Planner tool."""
 
 from datetime import datetime, timedelta, timezone
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, render_template, request, url_for, Response
 
 from scripts.accounts.database import get_accounts_connection, get_user_by_id, set_user_attendance_name
 from scripts.database.database import get_connection as get_main_connection
@@ -10,6 +10,7 @@ from scripts.matchmaking.match_parser import normalize_player_name
 from scripts.planner.database import (
     add_guest_rsvp,
     add_standard_wednesday_events,
+    backup_and_clear_events,
     cancel_user_rsvp,
     create_event,
     delete_event,
@@ -18,8 +19,6 @@ from scripts.planner.database import (
     get_event_by_id,
     get_planner_connection,
     get_upcoming_events,
-    get_user_event_rsvp,
-    get_user_registered_guests,
     remove_attendee,
     set_user_rsvp,
     update_attendee,
@@ -372,8 +371,6 @@ def auto_seed_events():
 @require_webmaster
 def clear_dates():
     """Webmaster tool: Wipe selected upcoming matchdates with 2-step verification after saving a backup."""
-    from scripts.planner.database import backup_and_clear_events
-
     confirm_text = request.form.get("confirm_text", "").strip().upper()
     if not confirm_text:
         confirm_text = request.form.get("confirm_2", "").strip().upper()
@@ -442,7 +439,6 @@ def update_attendance_name():
 @require_tier(Tier.USER)
 def export_ics():
     """Export upcoming match events as an iCalendar (.ics) file."""
-    from flask import Response
     connection = get_planner_connection()
     try:
         events = get_upcoming_events(connection)
@@ -458,9 +454,9 @@ def export_ics():
         "X-WR-CALNAME:RB48 Spieltage",
         "X-WR-TIMEZONE:Europe/Berlin",
     ]
-    
+
     now_utc_str = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    
+
     for row in events:
         ev = dict(row)
         date_val = ev.get("event_date", "")
@@ -473,7 +469,7 @@ def export_ics():
                 dt = datetime.strptime(date_val, "%Y-%m-%d")
         except Exception:
             continue
-            
+
         dt_start_str = dt.strftime("%Y%m%dT%H%M%S")
         dt_end = dt + timedelta(hours=2)
         dt_end_str = dt_end.strftime("%Y%m%dT%H%M%S")
@@ -483,7 +479,7 @@ def export_ics():
         max_p = ev.get("max_players", 10)
         description = f"RB48 Kickoff Spieltag. Max Spieler: {max_p}"
         uid = f"rb48-event-{ev.get('id', 0)}@rb48.de"
-        
+
         lines.extend([
             "BEGIN:VEVENT",
             f"UID:{uid}",
@@ -496,7 +492,7 @@ def export_ics():
             "STATUS:CONFIRMED",
             "END:VEVENT",
         ])
-        
+
     lines.append("END:VCALENDAR")
     ics_data = "\r\n".join(lines) + "\r\n"
     return Response(

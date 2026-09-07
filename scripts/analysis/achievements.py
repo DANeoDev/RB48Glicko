@@ -1,6 +1,7 @@
 """Analysis module for computing player achievements and milestones."""
 
 from datetime import datetime
+from scripts.database.database import get_connection
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_player_rating_history
 from scripts.accounts.database import (
@@ -16,14 +17,11 @@ MONTH_NAMES_DE = {
     7: "Juli", 8: "August", 9: "September", 10: "Oktober", 11: "November", 12: "Dezember"
 }
 
+TIER_ORDER = {"platin": 4, "gold": 3, "silver": 2, "bronze": 1}
 
-def get_player_achievements(connection, player_id, user_has_glicko_tier=True, accounts_connection=None, reference_date=None):
-    """Compute and return all unlocked and locked achievements for a player."""
-    players = get_players(connection)
-    if player_id not in players:
-        return []
 
-    # Fetch all matches with match_players in chronological order
+def _load_player_matches(connection, player_id):
+    """Fetch and prepare active matches and expectation data for the player."""
     rows = connection.execute("""
         SELECT m.match_id, m.date, m.goals_a, m.goals_b,
                mp.player_id, mp.team
@@ -49,7 +47,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         else:
             matches[mid]["team_b"].append(r["player_id"])
 
-    # Rule: Ignore the first 5 matches of the global match history
+    # Ignore the first 5 matches of the global match history
     sorted_mids = sorted(matches.keys(), key=lambda mid: (matches[mid]["date"], matches[mid]["match_id"]))
     ignored_global_mids = set(sorted_mids[:5])
     active_global_matches = {mid: m for mid, m in matches.items() if mid not in ignored_global_mids}
@@ -105,11 +103,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
                 "opp_team_ids": opp_team_ids
             })
 
-    active_matches = player_matches
-    total_games = len(active_matches)
-    achievements = []
+    return player_matches, active_global_matches, rows
 
-    # 1. Century Club (Milestone: 25, 50, 100 Games)
+
+def _eval_century_club(total_games: int) -> dict:
     century_tiers = [(100, "gold"), (50, "silver"), (25, "bronze")]
     unlocked_tier = None
     next_target = 25
@@ -119,7 +116,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             next_target = target
             break
 
-    achievements.append({
+    return {
         "id": "century_club",
         "icon": "💯",
         "title_key": "achievements.century_title",
@@ -128,9 +125,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         "progress_text": f"{total_games} / {next_target} Spiele" if not unlocked_tier or total_games < 100 else f"{total_games} Spiele absolviert",
         "description_key": "achievements.century_desc",
         "detail_text": f"Aktuell: {total_games} Spiele absolviert"
-    })
+    }
 
-    # 2. Winning Streak (Milestone: 4, 8, 12, 20 consecutive wins)
+
+def _eval_winning_streak(active_matches: list) -> dict:
     current_w_streak = 0
     max_w_streak = 0
     for m in active_matches:
@@ -159,7 +157,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
     else:
         ws_target = 4
 
-    achievements.append({
+    return {
         "id": "winning_streak",
         "icon": "🔥",
         "title_key": "achievements.winning_streak_title",
@@ -168,10 +166,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         "progress_text": f"{max_w_streak} / {ws_target} Siege in Folge" if not ws_unlocked_tier or max_w_streak < 20 else f"{max_w_streak} Siege in Folge erreicht!",
         "description_key": "achievements.winning_streak_desc",
         "detail_text": f"Rekord-Siegesserie: {max_w_streak} Siege in Folge (aktuell: {current_w_streak})" if ws_unlocked_tier else f"Aktuelle Serie: {current_w_streak} Siege (Rekord: {max_w_streak})"
-    })
+    }
 
-    # 3. Iron Man (Milestone: consecutive session attendance)
-    # Thresholds: Bronze 5, Silber 10, Gold 15, Platin 25
+
+def _eval_iron_man(active_matches: list, active_global_matches: dict) -> dict:
     distinct_dates = sorted(list(set(m["date"] for m in active_global_matches.values())))
     player_dates = set(m["date"] for m in active_matches)
 
@@ -194,7 +192,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             iron_target = target
             break
 
-    achievements.append({
+    return {
         "id": "iron_man",
         "icon": "🛡️",
         "title_key": "achievements.iron_man_title",
@@ -203,12 +201,13 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         "progress_text": f"{max_consecutive_sessions} / {iron_target} Spieltage in Folge",
         "description_key": "achievements.iron_man_desc",
         "detail_text": f"Rekord: {max_consecutive_sessions} aufeinanderfolgende Spieltage"
-    })
+    }
 
-    # 3. Underdog Hero (Won a match where win expectation was < 32%)
+
+def _eval_underdog_hero(active_matches: list) -> dict:
     underdog_wins = [m for m in active_matches if m["is_win"] and m["expected_win_prob"] < 0.32]
     underdog_tier = "gold" if len(underdog_wins) >= 3 else ("silver" if len(underdog_wins) >= 2 else ("bronze" if len(underdog_wins) >= 1 else "locked"))
-    achievements.append({
+    return {
         "id": "underdog_hero",
         "icon": "🦸",
         "title_key": "achievements.underdog_title",
@@ -217,9 +216,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         "progress_text": f"{len(underdog_wins)} Underdog-Siege (<32% Chance)",
         "description_key": "achievements.underdog_desc",
         "detail_text": f"{len(underdog_wins)}x gegen statistische Quoten (< 32%) gewonnen"
-    })
+    }
 
-    # 4. Weiße Wand (Zu null gewonnen: goals_against == 0 and is_win)
+
+def _eval_weisse_wand(active_matches: list) -> dict:
     clean_sheets = [m for m in active_matches if m["is_win"] and m["goals_against"] == 0]
     cs_tiers = [(5, "gold"), (3, "silver"), (1, "bronze")]
     cs_unlocked = None
@@ -230,7 +230,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             cs_target = target
             break
 
-    achievements.append({
+    return {
         "id": "weisse_wand",
         "icon": "🧱",
         "title_key": "achievements.clean_sheet_title",
@@ -239,60 +239,61 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         "progress_text": f"{len(clean_sheets)} / {cs_target} Zu-Null-Siege",
         "description_key": "achievements.clean_sheet_desc",
         "detail_text": f"{len(clean_sheets)}x ohne Gegentor gewonnen"
-    })
+    }
 
-    # 5. Highest Rank (Platzierung #1, #2, #3 auf der Rangliste - Tier Gated)
-    if user_has_glicko_tier:
-        if len(active_matches) == 0:
-            rank_unlocked = False
-            rank_tier = "locked"
-            best_rank = 999
-            days_at_rank_1 = 0
-        else:
-            all_hist = connection.execute("""
-                SELECT mr.player_id, mr.rating, m.date
-                FROM match_ratings mr
-                JOIN matches m ON m.match_id = mr.match_id
-                WHERE mr.rating_type = 'total'
-                ORDER BY m.date ASC
-            """).fetchall()
 
-            active_dates = set(m["date"] for m in active_matches)
-            date_groups = {}
-            for r in all_hist:
-                date_groups.setdefault(r["date"], []).append((r["player_id"], r["rating"]))
+def _eval_highest_rank(connection, player_id: int, active_matches: list, user_has_glicko_tier: bool):
+    if not user_has_glicko_tier:
+        return None
 
-            best_rank = 999
-            days_at_rank_1 = 0
-            for d, p_list in date_groups.items():
-                if d not in active_dates:
-                    continue
-                p_list.sort(key=lambda x: -x[1])
-                for rank_idx, (pid, _) in enumerate(p_list, 1):
-                    if pid == player_id:
-                        if rank_idx < best_rank:
-                            best_rank = rank_idx
-                        if rank_idx == 1:
-                            days_at_rank_1 += 1
+    if len(active_matches) == 0:
+        rank_unlocked = False
+        rank_tier = "locked"
+        best_rank = 999
+        days_at_rank_1 = 0
+    else:
+        all_hist = connection.execute("""
+            SELECT mr.player_id, mr.rating, m.date
+            FROM match_ratings mr
+            JOIN matches m ON m.match_id = mr.match_id
+            WHERE mr.rating_type = 'total'
+            ORDER BY m.date ASC
+        """).fetchall()
 
-            rank_unlocked = best_rank <= 3
-            rank_tier = "gold" if best_rank == 1 else ("silver" if best_rank == 2 else ("bronze" if best_rank == 3 else "locked"))
+        active_dates = set(m["date"] for m in active_matches)
+        date_groups = {}
+        for r in all_hist:
+            date_groups.setdefault(r["date"], []).append((r["player_id"], r["rating"]))
 
-        achievements.append({
-            "id": "highest_rank",
-            "icon": "👑",
-            "title_key": "achievements.highest_rank_title",
-            "tier": rank_tier,
-            "unlocked": rank_unlocked,
-            "progress_text": f"Beste Platzierung: #{best_rank}" if best_rank <= 50 else "Noch nicht Top 3",
-            "description_key": "achievements.highest_rank_desc",
-            "detail_text": f"Platz #{best_rank} erreicht ({days_at_rank_1} Spieltage auf Platz 1)" if rank_unlocked else f"Beste Platzierung: #{best_rank}"
-        })
+        best_rank = 999
+        days_at_rank_1 = 0
+        for d, p_list in date_groups.items():
+            if d not in active_dates:
+                continue
+            p_list.sort(key=lambda x: -x[1])
+            for rank_idx, (pid, _) in enumerate(p_list, 1):
+                if pid == player_id:
+                    if rank_idx < best_rank:
+                        best_rank = rank_idx
+                    if rank_idx == 1:
+                        days_at_rank_1 += 1
 
-    # 7. Makelloser Monat
-    # Rule: All matches played in that calendar month must have been attended and won.
-    # Must be a completed month (ym < current_ym).
-    # Tiers per additional perfect month: 1 (bronze), 2 (silver), 3 (gold), 4+ (platin)
+        rank_unlocked = best_rank <= 3
+        rank_tier = "gold" if best_rank == 1 else ("silver" if best_rank == 2 else ("bronze" if best_rank == 3 else "locked"))
+
+    return {
+        "id": "highest_rank",
+        "icon": "👑",
+        "title_key": "achievements.highest_rank_title",
+        "tier": rank_tier,
+        "unlocked": rank_unlocked,
+        "progress_text": f"Beste Platzierung: #{best_rank}" if best_rank <= 50 else "Noch nicht Top 3",
+        "description_key": "achievements.highest_rank_desc",
+        "detail_text": f"Platz #{best_rank} erreicht ({days_at_rank_1} Spieltage auf Platz 1)" if rank_unlocked else f"Beste Platzierung: #{best_rank}"
+    }
+
+
+def _eval_perfect_month(active_matches: list, active_global_matches: dict, all_rows: list, reference_date=None) -> dict:
     global_months = {}
     for mid, m in active_global_matches.items():
         ym = m["date"][:7]
@@ -303,17 +304,15 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         ym = m["date"][:7]
         player_month_matches.setdefault(ym, []).append(m)
 
-    all_history_months = sorted(list(set(r["date"][:7] for r in rows)))
+    all_history_months = sorted(list(set(r["date"][:7] for r in all_rows)))
     first_history_month = all_history_months[0] if all_history_months else None
 
     current_ym = (reference_date or datetime.now()).strftime("%Y-%m")
     perfect_months = 0
     perfect_months_formatted = []
     for ym in sorted(global_months.keys()):
-        # The first month of the match history is not eligible!
         if ym == first_history_month:
             continue
-        # Only completed calendar months count!
         if ym >= current_ym:
             continue
         g_mids = global_months[ym]
@@ -321,7 +320,6 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             continue
         p_ms = player_month_matches.get(ym, [])
         p_mids = set(m["match_id"] for m in p_ms)
-        # Did the player participate in ALL global matches that month, and win every single one?
         if g_mids.issubset(p_mids) and all(m["is_win"] for m in p_ms):
             perfect_months += 1
             try:
@@ -342,7 +340,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         pm_detail = "Alle Spiele eines abgeschlossenen Kalendermonats mitspielen und gewinnen"
         pm_progress = "0 / 1 Perfekte Monate"
 
-    achievements.append({
+    return {
         "id": "perfect_month",
         "icon": "📅",
         "title_key": "achievements.perfect_month_title",
@@ -352,17 +350,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         "description_key": "achievements.perfect_month_desc",
         "detail_text": pm_detail,
         "months": perfect_months_formatted,
-    })
+    }
 
-    # Group matches by teammate
-    partner_games = {}
-    for m in active_matches:
-        for tm in m["own_team_ids"]:
-            partner_games.setdefault(tm, []).append(m)
 
-    tier_order = {"platin": 4, "gold": 3, "silver": 2, "bronze": 1}
-
-    # 7. Fluchbrecher (Cursebreaker)
+def _eval_cursebreaker(partner_games: dict, players: dict, tier_order: dict) -> list:
     partner_broken_curses = []
     for tm_id, g_list in partner_games.items():
         loss_streak = 0
@@ -408,10 +399,11 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
 
     partner_broken_curses.sort(key=lambda x: (-tier_order[x["tier"]], -x["streak"]))
 
+    results = []
     if partner_broken_curses:
         for p_info in partner_broken_curses:
             underdog_note = " (als Underdog)" if p_info["is_underdog"] else ""
-            achievements.append({
+            results.append({
                 "id": f"cursebreaker_{p_info['partner_id']}",
                 "icon": "⚡",
                 "title": f"Fluchbrecher: {p_info['partner_name']}",
@@ -426,7 +418,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
                 "detail_params": {"partner": p_info["partner_name"], "streak": p_info["streak"]}
             })
     else:
-        achievements.append({
+        results.append({
             "id": "cursebreaker_placeholder",
             "icon": "⚡",
             "title_key": "achievements.cursebreaker_title",
@@ -436,9 +428,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             "description_key": "achievements.cursebreaker_desc",
             "detail_text": "Mindestens 4 gemeinsame Niederlagen in Folge mit einem Partner, dann gemeinsam gewonnen."
         })
+    return results
 
-    # 8. Teammate: Buddies (10 / 20 / 35 / 50 gemeinsame Spiele)
-    buddies_tiers = [(50, "platin"), (35, "gold"), (20, "silver"), (10, "bronze")]
+
+def _eval_buddies(partner_games: dict, players: dict, tier_order: dict) -> list:
     buddies_unlocked = []
     for tm_id, g_list in partner_games.items():
         cnt = len(g_list)
@@ -448,9 +441,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             buddies_unlocked.append((tm_id, tm_name, cnt, tier))
 
     buddies_unlocked.sort(key=lambda x: (-tier_order[x[3]], -x[2]))
+    results = []
     if buddies_unlocked:
         for tm_id, tm_name, cnt, tier in buddies_unlocked:
-            achievements.append({
+            results.append({
                 "id": f"buddies_{tm_id}",
                 "icon": "🤝",
                 "title": f"Buddies: {tm_name}",
@@ -465,7 +459,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
                 "detail_text": f"{cnt} gemeinsame Spiele im selben Team mit {tm_name}"
             })
     else:
-        achievements.append({
+        results.append({
             "id": "buddies_placeholder",
             "icon": "🤝",
             "title_key": "achievements.buddies_title",
@@ -475,8 +469,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             "description_key": "achievements.buddies_desc",
             "detail_text": "Absolviere 10, 20, 35 oder 50 Spiele im selben Team mit einem Mitspieler."
         })
+    return results
 
-    # 9. Teammate: Goldenes Duo (10 / 20 / 35 / 50 gemeinsame Siege)
+
+def _eval_golden_duo(partner_games: dict, players: dict, tier_order: dict) -> list:
     golden_duo_unlocked = []
     for tm_id, g_list in partner_games.items():
         wins_together = len([g for g in g_list if g["is_win"]])
@@ -486,9 +482,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             golden_duo_unlocked.append((tm_id, tm_name, wins_together, tier))
 
     golden_duo_unlocked.sort(key=lambda x: (-tier_order[x[3]], -x[2]))
+    results = []
     if golden_duo_unlocked:
         for tm_id, tm_name, wins_cnt, tier in golden_duo_unlocked:
-            achievements.append({
+            results.append({
                 "id": f"golden_duo_{tm_id}",
                 "icon": "✨",
                 "title": f"Goldenes Duo: {tm_name}",
@@ -503,7 +500,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
                 "detail_text": f"{wins_cnt} gemeinsame Siege im selben Team mit {tm_name}"
             })
     else:
-        achievements.append({
+        results.append({
             "id": "golden_duo_placeholder",
             "icon": "✨",
             "title_key": "achievements.golden_duo_title",
@@ -513,8 +510,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             "description_key": "achievements.golden_duo_desc",
             "detail_text": "Erringe 10, 20, 35 oder 50 Siege im selben Team mit einem Mitspieler."
         })
+    return results
 
-    # 10. Teammate: Durch Dick und Dünn (10 / 20 / 35 / 50 gemeinsame Niederlagen)
+
+def _eval_thick_and_thin(partner_games: dict, players: dict, tier_order: dict) -> list:
     thick_thin_unlocked = []
     for tm_id, g_list in partner_games.items():
         losses_together = len([g for g in g_list if g["is_loss"]])
@@ -524,9 +523,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             thick_thin_unlocked.append((tm_id, tm_name, losses_together, tier))
 
     thick_thin_unlocked.sort(key=lambda x: (-tier_order[x[3]], -x[2]))
+    results = []
     if thick_thin_unlocked:
         for tm_id, tm_name, losses_cnt, tier in thick_thin_unlocked:
-            achievements.append({
+            results.append({
                 "id": f"thick_and_thin_{tm_id}",
                 "icon": "🌧️",
                 "title": f"Durch Dick und Dünn: {tm_name}",
@@ -541,7 +541,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
                 "detail_text": f"{losses_cnt} gemeinsame Niederlagen durchgestanden mit {tm_name}"
             })
     else:
-        achievements.append({
+        results.append({
             "id": "thick_and_thin_placeholder",
             "icon": "🌧️",
             "title_key": "achievements.thick_and_thin_title",
@@ -551,8 +551,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             "description_key": "achievements.thick_and_thin_desc",
             "detail_text": "Stehe 10, 20, 35 oder 50 Niederlagen gemeinsam mit einem Mitspieler durch."
         })
+    return results
 
-    # 11. Teammate: Underdog-Duo (3 / 6 / 9 / 15 Underdog-Siege mit < 32%)
+
+def _eval_underdog_duo(partner_games: dict, players: dict, tier_order: dict) -> list:
     underdog_duo_unlocked = []
     for tm_id, g_list in partner_games.items():
         ud_wins = len([g for g in g_list if g["is_win"] and g["expected_win_prob"] < 0.32])
@@ -562,9 +564,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             underdog_duo_unlocked.append((tm_id, tm_name, ud_wins, tier))
 
     underdog_duo_unlocked.sort(key=lambda x: (-tier_order[x[3]], -x[2]))
+    results = []
     if underdog_duo_unlocked:
         for tm_id, tm_name, ud_cnt, tier in underdog_duo_unlocked:
-            achievements.append({
+            results.append({
                 "id": f"underdog_duo_{tm_id}",
                 "icon": "🦊",
                 "title": f"Underdog-Duo: {tm_name}",
@@ -579,7 +582,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
                 "detail_text": f"{ud_cnt} Underdog-Siege (< 32% Siegwahrscheinlichkeit) zusammen mit {tm_name}"
             })
     else:
-        achievements.append({
+        results.append({
             "id": "underdog_duo_placeholder",
             "icon": "🦊",
             "title_key": "achievements.underdog_duo_title",
@@ -589,10 +592,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             "description_key": "achievements.underdog_duo_desc",
             "detail_text": "Erringe 3, 6, 9 oder 15 Underdog-Siege (< 32%) gemeinsam mit einem Mitspieler."
         })
+    return results
 
-    # 12. Teamplayer
-    # Rule: With all players linked to an approved account (minimum 15 accounts): 1 (bronze), 2 (silver), 3 (gold) games.
-    # Below bronze: displayed as a neutral badge. If new accounts link, badge is kept, tier adjusts, missing players listed.
+
+def _eval_teamplayer(partner_games: dict, player_id: int, players: dict, accounts_connection) -> dict:
     acc_conn_to_use = accounts_connection
     close_local_acc = False
     if acc_conn_to_use is None:
@@ -645,7 +648,6 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
     if tp_tier in ("bronze", "silver", "gold", "platin"):
         tp_unlocked = True
     elif tp_tier == "neutral":
-        # Only displayed / unlocked if bronze was achieved at least once!
         tp_unlocked = bronze_ever_reached
     else:
         tp_unlocked = False
@@ -676,7 +678,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             else:
                 tp_detail = f"Mit allen {target_count} verknüpften Spielern mindestens {min_games} Spiele absolviert!"
 
-    achievements.append({
+    return {
         "id": "teamplayer",
         "icon": "🌐",
         "title_key": "achievements.teamplayer_title",
@@ -686,9 +688,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         "description_key": "achievements.teamplayer_desc",
         "detail_text": tp_detail,
         "missing_players": missing_names
-    })
+    }
 
-    # 13. Geschlossene Gesellschaft (Spiele mit dem exakt gleichen Team an 2, 4, 6, 10 verschiedenen Spieltagen)
+
+def _eval_closed_society(player_id: int, active_matches: list) -> dict:
     lineup_dates = {}
     for m in active_matches:
         roster = frozenset([player_id] + m["own_team_ids"])
@@ -697,15 +700,13 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
     max_roster_dates = max((len(d_set) for d_set in lineup_dates.values()), default=0)
     cs_tiers = [(10, "platin"), (6, "gold"), (4, "silver"), (2, "bronze")]
     cs_unlocked = None
-    cs_target = 2
     for target, tier in cs_tiers:
         if max_roster_dates >= target:
             cs_unlocked = tier
-            cs_target = target
             break
 
     if cs_unlocked:
-        achievements.append({
+        return {
             "id": "closed_society",
             "icon": "🥂",
             "title_key": "achievements.closed_society_title",
@@ -714,9 +715,9 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             "progress_text": f"{max_roster_dates} Spieltage mit exakt gleichem Team",
             "description_key": "achievements.closed_society_desc",
             "detail_text": f"Mit einem identischen Team an {max_roster_dates} verschiedenen Spieltagen angetreten."
-        })
+        }
     else:
-        achievements.append({
+        return {
             "id": "closed_society",
             "icon": "🥂",
             "title_key": "achievements.closed_society_title",
@@ -725,9 +726,10 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             "progress_text": f"{max_roster_dates} / 2 Spieltage mit gleichem Team",
             "description_key": "achievements.closed_society_desc",
             "detail_text": "Spiele mit dem exakt gleichen Team an 2, 4, 6 oder 10 verschiedenen Spieltagen."
-        })
+        }
 
-    # 14. Comeback King (Interval-based rating drop and recovery)
+
+def _eval_comeback_king(connection, player_id: int, active_matches: list, user_has_glicko_tier: bool) -> dict:
     p_hist = get_player_rating_history(connection, player_id).get("total", [])
     active_dates_set = set(m["date"] for m in active_matches)
     active_hist = [h for h in p_hist if h.get("date") in active_dates_set]
@@ -781,7 +783,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         drop_val = round(best_comeback["drop"])
         gain_val = round(best_comeback["gain"])
         w_lbl = best_comeback["window_de"]
-        achievements.append({
+        return {
             "id": "comeback_king",
             "icon": "🦅",
             "title_key": "achievements.comeback_king_title",
@@ -790,9 +792,9 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             "progress_text": f"-{drop_val} / +{gain_val} Rating ({w_lbl})" if user_has_glicko_tier else f"Comeback ({w_lbl})",
             "description_key": "achievements.comeback_king_desc",
             "detail_text": f"-{drop_val} Rating verloren, danach +{gain_val} Rating zurückgeholt (Zeitraum: {w_lbl})" if user_has_glicko_tier else f"Nach deutlichem Formtief erfolgreich zurückgekämpft (Zeitraum: {w_lbl})"
-        })
+        }
     else:
-        achievements.append({
+        return {
             "id": "comeback_king",
             "icon": "🦅",
             "title_key": "achievements.comeback_king_title",
@@ -801,7 +803,45 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
             "progress_text": "Noch kein Comeback",
             "description_key": "achievements.comeback_king_desc",
             "detail_text": "Verliere ≥ 100 Rating in 1, 3 oder 6 Monaten und hole mehr als das im Folgezeitraum zurück."
-        })
+        }
+
+
+def get_player_achievements(connection, player_id, user_has_glicko_tier=True, accounts_connection=None, reference_date=None):
+    """Compute and return all unlocked and locked achievements for a player."""
+    players = get_players(connection)
+    if player_id not in players:
+        return []
+
+    active_matches, active_global_matches, all_rows = _load_player_matches(connection, player_id)
+    total_games = len(active_matches)
+
+    # Group matches by teammate
+    partner_games = {}
+    for m in active_matches:
+        for tm in m["own_team_ids"]:
+            partner_games.setdefault(tm, []).append(m)
+
+    achievements = [
+        _eval_century_club(total_games),
+        _eval_winning_streak(active_matches),
+        _eval_iron_man(active_matches, active_global_matches),
+        _eval_underdog_hero(active_matches),
+        _eval_weisse_wand(active_matches),
+    ]
+
+    rank_ach = _eval_highest_rank(connection, player_id, active_matches, user_has_glicko_tier)
+    if rank_ach is not None:
+        achievements.append(rank_ach)
+
+    achievements.append(_eval_perfect_month(active_matches, active_global_matches, all_rows, reference_date))
+    achievements.extend(_eval_cursebreaker(partner_games, players, TIER_ORDER))
+    achievements.extend(_eval_buddies(partner_games, players, TIER_ORDER))
+    achievements.extend(_eval_golden_duo(partner_games, players, TIER_ORDER))
+    achievements.extend(_eval_thick_and_thin(partner_games, players, TIER_ORDER))
+    achievements.extend(_eval_underdog_duo(partner_games, players, TIER_ORDER))
+    achievements.append(_eval_teamplayer(partner_games, player_id, players, accounts_connection))
+    achievements.append(_eval_closed_society(player_id, active_matches))
+    achievements.append(_eval_comeback_king(connection, player_id, active_matches, user_has_glicko_tier))
 
     return achievements
 
@@ -810,7 +850,6 @@ def get_user_unseen_achievements_count(user_id: int, player_id: int, accounts_co
     """Compute how many unlocked achievements the user has not yet viewed."""
     if not player_id:
         return 0
-    from scripts.database.database import get_connection
 
     close_acc = False
     if accounts_connection is None:

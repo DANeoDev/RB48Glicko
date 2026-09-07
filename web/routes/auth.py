@@ -1,17 +1,14 @@
 """Authentication, email verification, psychology test gating, and Webmaster view switching."""
 
-import os
+from datetime import datetime, timezone
 from pathlib import Path
 import time
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
-from werkzeug.utils import secure_filename
 
 from scripts.accounts.auth import (
     authenticate,
     generate_verification_token,
-    get_user,
-    pass_psychology_test,
     register_user,
     verify_email_token,
     verify_user_email,
@@ -29,14 +26,20 @@ from scripts.accounts.database import (
     reject_player_link,
     request_player_link,
     set_user_access_level,
+    set_user_persona,
     unlink_player,
     update_user_password,
     update_user_profile,
-    update_user_role,
+)
+from scripts.accounts.psychology import (
+    evaluate_psychology_submission,
+    get_imp_questions,
+    get_psychology_personas,
 )
 from scripts.database.database import get_connection as get_main_connection
 from scripts.database.db_players import get_players
 from web.services.email_service import is_smtp_configured, send_verification_email
+from web.services.translations import get_current_lang
 from web.services.security import (
     Tier,
     TIER_BY_NAME,
@@ -154,15 +157,6 @@ def resend_verification():
 @require_tier(Tier.USER)
 def glicko_test():
     """Glicko sportsmanship and personality assessment (Jagged Alliance 2 I.M.P. style)."""
-    from datetime import datetime, timezone
-    from scripts.accounts.database import get_accounts_connection, set_user_persona
-    from scripts.accounts.psychology import (
-        evaluate_psychology_submission,
-        get_imp_questions,
-        get_psychology_personas,
-    )
-    from web.services.translations import get_current_lang
-
     user = get_current_user()
     step = request.args.get("step", "intro")
     lang = get_current_lang()
@@ -410,7 +404,6 @@ def update_profile():
 
         # Handle player profile connection logic
         current_linked_id = user.get("player_id")
-        current_pending_id = user.get("pending_player_id")
 
         if player_id != current_linked_id:
             if user.get("role") == "webmaster":
@@ -465,8 +458,6 @@ def update_password():
 @require_webmaster
 def delete_user_route(user_id):
     """Permanently delete a user account with 2-step verification and automatic database backup."""
-    from scripts.accounts.database import backup_and_delete_user
-
     curr_user = get_current_user()
     if curr_user and curr_user["id"] == user_id:
         flash("You cannot delete your own active Webmaster account.", "danger")
