@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
+from pathlib import Path
 import re
-from flask import Blueprint, request, redirect, url_for, jsonify
+from flask import Blueprint, request, redirect, url_for, jsonify, send_from_directory
 
 from scripts.database.news_database import get_news_connection, get_published_news, add_news_item, publish_news_item
 from web.services.ai_service import NewsAIError, format_news_markdown
@@ -85,3 +86,10 @@ def create_news():
     except (NewsFileError, OSError):
         return redirect(url_for("stats.home"))
     return redirect(url_for("stats.home"))
+
+
+@news_bp.route("/favicon.ico")
+def favicon():
+    static_images_dir = Path(__file__).resolve().parent.parent / "static" / "images"
+    return send_from_directory(static_images_dir, "RB48_logo.png", mimetype="image/png")
+
