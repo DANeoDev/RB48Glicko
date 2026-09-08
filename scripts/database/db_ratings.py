@@ -77,6 +77,34 @@ def get_match_ratings(connection, match_id):
     return ratings
 
 
+def get_all_match_ratings(connection):
+    """Return a mapping of match_id -> {player_id -> {rating_type -> {rating, rd, sigma}}} in a single query."""
+    rows = connection.execute("""
+        SELECT match_id, player_id, rating_type, rating, rd, sigma
+        FROM match_ratings
+        ORDER BY match_id
+    """).fetchall()
+
+    all_ratings = {}
+    for row in rows:
+        mid = row["match_id"]
+        pid = row["player_id"]
+        rtype = row["rating_type"]
+
+        if mid not in all_ratings:
+            all_ratings[mid] = {}
+        if pid not in all_ratings[mid]:
+            all_ratings[mid][pid] = {}
+
+        all_ratings[mid][pid][rtype] = {
+            "rating": row["rating"],
+            "rd": row["rd"],
+            "sigma": row["sigma"]
+        }
+
+    return all_ratings
+
+
 def get_processed_match_ids(connection):
     rows = connection.execute("""
         SELECT DISTINCT match_id

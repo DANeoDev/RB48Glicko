@@ -63,10 +63,14 @@ def initialize_player_ratings(player_id, ratings, calibration=None):
     }
 
 
-def prepare_glicko_table(connection, matches, calibration_ratings):
+def prepare_glicko_table(connection, matches, calibration_ratings, match_teams_map=None):
     prepared_glicko = {}
     for match in matches.values():
-        team_a, team_b = get_match_teams(connection, match["match_id"])
+        mid = match["match_id"]
+        if match_teams_map is not None:
+            team_a, team_b = match_teams_map.get(mid, ([], []))
+        else:
+            team_a, team_b = get_match_teams(connection, mid)
         for player_id in team_a + team_b:
             if player_id not in prepared_glicko:
                 initial = calibration_ratings.get(
@@ -205,7 +209,7 @@ def select_debug_player(connection):
         print("Please enter a valid player number.")
 
 
-def update_session(connection, session_matches, ratings, engine, debug_player=None):
+def update_session(connection, session_matches, ratings, engine, debug_player=None, match_teams_map=None):
     """
     Update ratings for a session (all matches played on the same calendar date).
 
@@ -227,7 +231,11 @@ def update_session(connection, session_matches, ratings, engine, debug_player=No
     session_pitches = set()
 
     for match in session_matches:
-        team1_ids, team2_ids = get_match_teams(connection, match["match_id"])
+        mid = match["match_id"]
+        if match_teams_map is not None:
+            team1_ids, team2_ids = match_teams_map.get(mid, ([], []))
+        else:
+            team1_ids, team2_ids = get_match_teams(connection, mid)
         if not team1_ids or not team2_ids:
             continue
 

@@ -28,6 +28,7 @@ from scripts.planner.database import (
     get_upcoming_events,
 )
 from web.routes.planner import resolve_active_roster_player_ids
+from web.services.cache import invalidate_stats_cache
 from web.services.security import require_admin
 
 match_center_bp = Blueprint("match_center", __name__)
@@ -168,6 +169,7 @@ def _handle_add_parser_alias(form, connection, players, selected_ids):
             raise ValueError(f"The alias '{alias}' already exists.")
         add_alias(connection, alias, player_id)
         connection.commit()
+        invalidate_stats_cache()
         players = get_players(connection)
         selected_ids = list(dict.fromkeys(selected_ids + [player_id]))
         parse_result = _rebuild_parser_result(form, players)
@@ -192,6 +194,7 @@ def _handle_create_parser_player(form, connection, players, selected_ids):
             main_position=main_position,
             certainty_level=certainty,
         )
+        invalidate_stats_cache()
         players = get_players(connection)
         selected_ids = list(dict.fromkeys(selected_ids + [created_id]))
         parse_result = _rebuild_parser_result(form, players)
@@ -241,6 +244,7 @@ def _handle_create_player(form, is_xhr, connection, players, selected_ids):
             main_position=main_position,
             certainty_level=certainty,
         )
+        invalidate_stats_cache()
         selected_ids.append(created_id)
         success = f"Created {alias.strip()} and added them to the match."
         cal_msg = f"Calibration rating: {values['rating']:.1f} (RD {values['rd']:.1f})."
@@ -289,6 +293,7 @@ def _handle_save_match(form, is_xhr, connection, players):
         date.fromisoformat(match_date)
         match_id = add_match(connection, match_date, pitch, team_a, team_b, goals_a_int, goals_b_int, len(team_a) + external_a, len(team_b) + external_b)
         processed = process_new_matches(connection)
+        invalidate_stats_cache()
         success = f"Saved {match_id} and updated Glicko ({processed} match processed)."
         if is_xhr:
             next_id = next_match_id(connection, match_date)

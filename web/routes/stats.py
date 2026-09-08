@@ -33,6 +33,7 @@ from scripts.frontend.view_models import (
     compute_leaderboard_deltas,
 )
 from scripts.glicko.glicko2 import BOX, HF, TOTAL
+from web.services.cache import get_cached_stats_data
 from web.services.security import (
     Tier,
     get_current_user,
@@ -59,25 +60,17 @@ def dashboard():
 @stats_bp.route("/stats")
 @require_tier(Tier.USER)
 def stats():
-    connection = get_connection()
-    try:
-        ratings = get_ratings(connection)
-        players = get_players(connection)
-        player_stats = get_player_stats(connection)
-        deltas = compute_leaderboard_deltas(connection, ratings, players)
-        synergies = get_community_synergies(connection, min_games=5)
-        streaks = get_dashboard_streaks(connection)
-        historical_snapshots = compute_historical_snapshots(connection)
-    finally:
-        connection.close()
+    cached = get_cached_stats_data()
+    leaderboard = [dict(p) for p in cached["leaderboard_base"]]
+    synergies = cached["synergies"]
+    streaks = cached["streaks"]
+    historical_snapshots = cached["historical_snapshots"]
 
     acc_conn = get_accounts_connection()
     try:
         opted_out_player_ids = get_opted_out_player_ids(acc_conn)
     finally:
         acc_conn.close()
-
-    leaderboard = build_leaderboard(ratings, players, player_stats, deltas=deltas)
 
     if not has_tier(Tier.WEBMASTER) and opted_out_player_ids:
         leaderboard.sort(key=lambda p: (p["player_id"] in opted_out_player_ids, -p["total"]["conservative"]))

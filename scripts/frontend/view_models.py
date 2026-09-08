@@ -5,8 +5,8 @@ except ImportError:
     request = None
 
 from datetime import datetime, timedelta
-from scripts.database.db_matches import get_matches, get_match_players, get_match_teams
-from scripts.database.db_ratings import get_match_ratings
+from scripts.database.db_matches import get_matches, get_match_players, get_match_teams, get_all_match_players
+from scripts.database.db_ratings import get_match_ratings, get_all_match_ratings
 from scripts.glicko.glicko2 import (
     Glicko2,
     Rating,
@@ -21,12 +21,12 @@ from scripts.glicko.glicko2 import (
 
 def _collect_player_match_events(connection, sorted_matches: list[dict], players: dict) -> dict[int, dict[str, list[dict]]]:
     """Collect and cache match outcome events and prior ratings per player and pitch type."""
-    match_data_cache = {}
-    for m in sorted_matches:
-        mid = m["match_id"]
-        mr = get_match_ratings(connection, mid)
-        mps = get_match_players(connection, mid)
-        match_data_cache[mid] = (mr, mps)
+    all_mr = get_all_match_ratings(connection)
+    all_mps = get_all_match_players(connection)
+    match_data_cache = {
+        m["match_id"]: (all_mr.get(m["match_id"], {}), all_mps.get(m["match_id"], []))
+        for m in sorted_matches
+    }
 
     player_events: dict[int, dict[str, list[dict]]] = {pid: {TOTAL: [], BOX: [], HF: []} for pid in players}
     for m in sorted_matches:
