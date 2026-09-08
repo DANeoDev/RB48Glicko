@@ -30,12 +30,12 @@
                     {{ t('planner.custom_matchday', '＋ Custom Matchday') }}
                 </button>
             {% endif %}
-            {% if current_user and current_user.role == 'webmaster' and events %}
+            {% if has_tier('webmaster') and events %}
                 <button type="button" class="planner-btn-pill planner-btn-danger" id="open-clear-all-modal-btn" title="{{ t('planner.clear_dates_title', 'Webmaster tool: Archive and clear match dates with 2-step verification') }}">
                     {{ t('planner.clear_dates', '🗑️ Clear Dates') }}
                 </button>
             {% endif %}
-            <a href="{{ url_for('planner.export_ics') }}" class="planner-btn-pill planner-btn-ics" title="{{ t('planner.export_ics_title', 'Lädt eine .ics-Kalenderdatei herunter. Öffne diese Datei auf deinem Smartphone oder PC (oder per Doppelklick in Outlook, Apple Kalender oder Google Kalender importieren), um alle anstehenden Spieltermine automatisch in deinen persönlichen Kalender einzutragen.') }}" style="background: rgba(123, 82, 197, 0.25); border: 1px solid #7B52C5; color: #ffffff; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            <a href="{{ url_for('planner.export_ics') }}" class="planner-btn-pill planner-btn-ics" title="{{ t('planner.export_ics_title', 'Lädt eine .ics-Kalenderdatei herunter. Öffne diese Datei auf deinem Smartphone oder PC (oder per Doppelklick in Outlook, Apple Kalender oder Google Kalender importieren), um alle anstehenden Spieltermine automatisch in deinen persönlichen Kalender einzutragen.') }}" style="background: rgba(123, 82, 197, 0.25); border: 1px solid #7B52C5; color: var(--text-main); text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
                 📅 {{ t('planner.export_ics', 'Kalender (.ics)') }}
             </a>
         </div>
@@ -221,7 +221,7 @@
         </div>
     {% else %}
         <div class="planner-empty-state">
-            <h2 style="color: #ffffff; margin-bottom: 8px;">{{ t('planner.no_upcoming', 'No Upcoming Matchdays') }}</h2>
+            <h2 style="color: var(--text-main); margin-bottom: 8px;">{{ t('planner.no_upcoming', 'No Upcoming Matchdays') }}</h2>
             <p class="muted">{{ t('planner.no_events_desc', 'Check back soon for the next scheduled game dates.') }}</p>
             {% if has_tier('admin') %}
                 <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
@@ -360,7 +360,7 @@
 {% endif %}
 
 <!-- Modal 5: Webmaster Clear Dates (2-Step Verification) -->
-{% if current_user and current_user.role == 'webmaster' %}
+{% if has_tier('webmaster') %}
 <div class="planner-modal-overlay" id="clear-all-modal">
     <div class="planner-modal-card" style="border-color: #dc3545; max-width: 520px;">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
@@ -375,7 +375,7 @@
             <!-- Step 1: Date Selection Checkboxes (Pre-selected) -->
             <div style="margin-bottom: 16px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <label style="font-size: 13px; font-weight: 700; color: #ffffff; margin: 0;">
+                    <label style="font-size: 13px; font-weight: 700; color: var(--text-main); margin: 0;">
                         <strong>{{ t('planner.modal_clear_step1', 'Step 1: Select Dates to Clear') }}</strong> (<span id="clear-selected-count">{{ events|length }}</span> / {{ events|length }}):
                     </label>
                     <div style="display: flex; gap: 8px;">
@@ -387,7 +387,7 @@
 
                 <div class="planner-clear-list" style="max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px;">
                     {% for event in events %}
-                        <label class="planner-clear-item" style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 6px 8px; border-radius: 6px; margin: 0; transition: background 0.15s ease; color: #ffffff; font-size: 13px;">
+                        <label class="planner-clear-item" style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 6px 8px; border-radius: 6px; margin: 0; transition: background 0.15s ease; color: var(--text-main); font-size: 13px;">
                             <input type="checkbox" name="event_ids" value="{{ event.id }}" checked class="clear-date-checkbox" style="margin: 0; width: 16px; height: 16px; accent-color: #dc3545;">
                             <span class="planner-pitch-badge planner-pitch-{{ event.pitch_lower }}" style="font-size: 10px; padding: 2px 6px;">{{ event.badge_label }}</span>
                             <span style="font-weight: 600;">{{ event.formatted_date }}</span>
@@ -400,7 +400,7 @@
 
             <!-- Step 2: Confirmation text verification -->
             <div style="margin-bottom: 20px;">
-                <label for="clear_confirm_text" style="font-size: 13px; font-weight: 600; color: #ffffff; display: block; margin-bottom: 6px;">
+                <label for="clear_confirm_text" style="font-size: 13px; font-weight: 600; color: var(--text-main); display: block; margin-bottom: 6px;">
                     <strong>{{ t('planner.modal_clear_step2', 'Step 2: Type CLEAR DATES below:') }}</strong>
                 </label>
                 <input type="text" id="clear_confirm_text" name="confirm_text" placeholder="CLEAR DATES" required autocomplete="off" style="margin-bottom: 0;">

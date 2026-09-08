@@ -13,7 +13,7 @@ from scripts.accounts.database import (
     set_user_noise_display_mode,
     update_noise_bubble_position,
 )
-from web.services.security import Tier, get_current_user, require_tier
+from web.services.security import Tier, get_current_user, has_tier, require_tier
 
 noise_bp = Blueprint("noise", __name__)
 
@@ -117,7 +117,7 @@ def move_noise(bubble_id):
     pos_y_percent = max(0.0, min(100.0, pos_y_percent))
     global_update = bool(data.get("global_update", False))
 
-    is_staff = user.get("role") in ("admin", "webmaster")
+    is_staff = has_tier(Tier.ADMIN)
 
     conn = get_accounts_connection()
     try:
@@ -164,7 +164,7 @@ def delete_noise(bubble_id):
     if not user:
         return jsonify({"success": False, "error": "Authentication required."}), 401
 
-    is_staff = user.get("role") in ("admin", "webmaster")
+    is_staff = has_tier(Tier.ADMIN)
 
     conn = get_accounts_connection()
     try:

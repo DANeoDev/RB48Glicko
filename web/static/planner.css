@@ -18,7 +18,8 @@
 .planner-title-wrap h1 {
     margin: 0;
     font-size: 28px;
-    color: #ffffff;
+    color: var(--text-main);
+    font-family: inherit;
 }
 
 .planner-title-wrap p {
@@ -41,6 +42,7 @@
     padding: 8px 18px;
     font-size: 13px;
     font-weight: 600;
+    font-family: inherit;
     border-radius: 24px;
     cursor: pointer;
     text-decoration: none;
@@ -50,36 +52,38 @@
 
 .planner-btn-standard {
     background: linear-gradient(135deg, #00897b, #005b4f);
-    color: #ffffff;
+    color: var(--text-main);
     border-color: rgba(0, 230, 180, 0.3);
     box-shadow: 0 2px 10px rgba(0, 137, 123, 0.25);
 }
 .planner-btn-standard:hover {
     background: linear-gradient(135deg, #00a896, #00796b);
+    color: #ffffff;
     box-shadow: 0 4px 14px rgba(0, 137, 123, 0.4);
     transform: translateY(-1px);
 }
 
 .planner-btn-custom {
     background: linear-gradient(135deg, #7B52C5, #582DA1);
-    color: #ffffff;
+    color: var(--text-main);
     border-color: rgba(160, 120, 240, 0.4);
     box-shadow: 0 2px 10px rgba(123, 82, 197, 0.25);
 }
 .planner-btn-custom:hover {
     background: linear-gradient(135deg, #8c62d8, #693bb8);
+    color: #ffffff;
     box-shadow: 0 4px 14px rgba(123, 82, 197, 0.4);
     transform: translateY(-1px);
 }
 
 .planner-btn-profile {
     background: rgba(255, 255, 255, 0.07);
-    color: #e0dcf0;
+    color: var(--text-main);
     border-color: rgba(255, 255, 255, 0.15);
 }
 .planner-btn-profile:hover {
     background: rgba(255, 255, 255, 0.15);
-    color: #ffffff;
+    color: var(--text-nav-gold);
     border-color: rgba(255, 255, 255, 0.3);
 }
 
@@ -165,7 +169,8 @@
 .planner-date-title {
     font-size: 17px;
     font-weight: 700;
-    color: #ffffff;
+    color: var(--text-main);
+    font-family: inherit;
 }
 
 .planner-time-tag {
@@ -247,6 +252,7 @@
     padding: 7px 14px;
     font-size: 13px;
     font-weight: 600;
+    font-family: inherit;
     border-radius: var(--radius);
     border: 1px solid transparent;
     cursor: pointer;
@@ -280,20 +286,22 @@
     color: var(--text-muted);
     border-color: rgba(255, 255, 255, 0.15);
     font-size: 12px;
+    font-family: inherit;
     padding: 7px 10px;
 }
 .btn-cancel-rsvp:hover {
     background: rgba(255, 255, 255, 0.2);
-    color: #ffffff;
+    color: var(--text-nav-gold);
 }
 
 .planner-guest-btn {
     padding: 7px 14px;
     font-size: 13px;
     font-weight: 600;
+    font-family: inherit;
     border-radius: var(--radius);
     background: var(--accent);
-    color: #ffffff;
+    color: var(--text-main);
     border: 1px solid var(--accent);
     cursor: pointer;
     transition: all 0.15s ease;
@@ -304,6 +312,7 @@
 .planner-guest-btn:hover {
     background: var(--accent-hover);
     border-color: var(--accent-hover);
+    color: var(--text-nav-gold);
 }
 
 .planner-guest-btn.btn-locked {
@@ -318,7 +327,8 @@
 .planner-roster-title {
     font-size: 15px;
     font-weight: 700;
-    color: #ffffff;
+    font-family: inherit;
+    color: var(--text-main);
     margin: 16px 0 10px;
     display: flex;
     justify-content: space-between;
@@ -343,7 +353,8 @@
     align-items: center;
     justify-content: space-between;
     font-size: 14px;
-    color: #ffffff;
+    font-family: inherit;
+    color: var(--text-main);
 }
 
 .planner-player-main {
@@ -357,7 +368,7 @@
     font-size: 11px;
     font-weight: 700;
     background: #582DA1;
-    color: #ffffff;
+    color: var(--text-main);
     min-width: 20px;
     height: 20px;
     border-radius: 10px;
@@ -375,7 +386,7 @@
 
 .planner-player-guest {
     font-style: italic;
-    color: #c9c2d8;
+    color: var(--text-muted);
 }
 
 .planner-admin-attendee-tools {
@@ -489,7 +500,8 @@
     border-radius: 4px;
     padding: 3px 8px;
     font-size: 12px;
-    color: #e2d9f3;
+    font-family: inherit;
+    color: var(--text-main);
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -532,12 +544,14 @@
     max-width: 440px;
     padding: 24px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    font-family: inherit;
 }
 
 .planner-modal-card h2 {
     margin: 0 0 12px;
-    color: #ffffff;
+    color: var(--text-main);
     font-size: 20px;
+    font-family: inherit;
 }
 
 .planner-modal-card p {
@@ -552,7 +566,7 @@
     font-size: 13px;
     font-weight: 600;
     margin-bottom: 6px;
-    color: #ffffff;
+    color: var(--text-main);
 }
 
 .planner-modal-form input,
@@ -563,7 +577,8 @@
     border-radius: var(--radius);
     background: #24194A;
     border: 1px solid #5A4A83;
-    color: #ffffff;
+    color: var(--text-main);
+    font-family: inherit;
     font-size: 14px;
     margin-bottom: 16px;
 }
@@ -574,12 +589,21 @@
     gap: 10px;
 }
 
+.planner-modal-actions button {
+    font-family: inherit;
+}
+
 .planner-empty-state {
     text-align: center;
     padding: 60px 20px;
     background: var(--bg-surface);
     border: 1px dashed var(--border);
     border-radius: var(--radius);
+}
+
+.planner-empty-state h2 {
+    color: var(--text-main);
+    font-family: inherit;
 }
 
 .planner-clear-item:hover {

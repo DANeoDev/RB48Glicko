@@ -210,7 +210,7 @@
             banner.id = "noise-mode-banner";
             banner.innerHTML = `
                 <span>📢 <strong>Noise Mode Active:</strong> Click anywhere on the page to drop banter!</span>
-                <button type="button" class="secondary" onclick="window.RB48Noise.toggle(false)" style="padding: 2px 8px; font-size: 11px; background: rgba(0,0,0,0.3); border-color: rgba(255,255,255,0.4); color: #ffffff; cursor: pointer; border-radius: 10px;">Esc</button>
+                <button type="button" class="secondary" onclick="window.RB48Noise.toggle(false)" style="padding: 2px 8px; font-size: 11px; background: rgba(0,0,0,0.3); border-color: rgba(255,255,255,0.4); color: var(--text-main); font-family: inherit; cursor: pointer; border-radius: 10px;">Esc</button>
             `;
             document.body.appendChild(banner);
         }
@@ -222,7 +222,7 @@
             modal.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
                     <strong style="color: #80deea; font-size: 16px;">📢 Make Some Noise</strong>
-                    <button type="button" onclick="window.RB48Noise.closeCreator()" style="background: none; border: none; color: #fff; font-size: 18px; cursor: pointer;">✕</button>
+                    <button type="button" onclick="window.RB48Noise.closeCreator()" style="background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer;">✕</button>
                 </div>
 
                 <!-- WYSIWYG Live Preview Textarea -->
@@ -251,13 +251,13 @@
                 <div style="display: flex; gap: 10px; margin-bottom: 18px;">
                     <div style="flex: 1;">
                         <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 4px;">Font Style:</label>
-                        <select id="noise-font-family" style="width: 100%; padding: 7px; border-radius: 6px; background: #24194A; border: 1px solid #5A4A83; color: #ffffff; font-size: 13px;">
+                        <select id="noise-font-family" style="width: 100%; padding: 7px; border-radius: 6px; background: #24194A; border: 1px solid #5A4A83; color: var(--text-main); font-family: inherit; font-size: 13px;">
                             ${FONTS.map(f => `<option value="${escapeHtml(f.value)}">${escapeHtml(f.label)}</option>`).join("")}
                         </select>
                     </div>
                     <div style="width: 110px;">
                         <label style="font-size: 12px; font-weight: 600; color: #c9c2d8; display: block; margin-bottom: 4px;">Size:</label>
-                        <select id="noise-font-size" style="width: 100%; padding: 7px; border-radius: 6px; background: #24194A; border: 1px solid #5A4A83; color: #ffffff; font-size: 13px;">
+                        <select id="noise-font-size" style="width: 100%; padding: 7px; border-radius: 6px; background: #24194A; border: 1px solid #5A4A83; color: var(--text-main); font-family: inherit; font-size: 13px;">
                             <option value="13">Small</option>
                             <option value="15" selected>Medium</option>
                             <option value="18">Large</option>
@@ -267,8 +267,8 @@
                 </div>
 
                 <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                    <button type="button" class="secondary" onclick="window.RB48Noise.closeCreator()" style="padding: 8px 14px; font-size: 13px;">Cancel</button>
-                    <button type="button" id="noise-save-btn" class="primary" onclick="window.RB48Noise.saveBubble()" style="padding: 9px 22px; font-size: 13.5px; font-weight: 700; border-radius: 20px;">
+                    <button type="button" class="secondary" onclick="window.RB48Noise.closeCreator()" style="padding: 8px 14px; font-size: 13px; font-family: inherit;">Cancel</button>
+                    <button type="button" id="noise-save-btn" class="primary" onclick="window.RB48Noise.saveBubble()" style="padding: 9px 22px; font-size: 13.5px; font-weight: 700; font-family: inherit; border-radius: 20px;">
                         Post Banter 🚀
                     </button>
                 </div>
