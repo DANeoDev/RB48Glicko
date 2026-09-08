@@ -3,7 +3,7 @@
 from enum import IntEnum
 from functools import wraps
 
-from flask import flash, has_request_context, redirect, render_template, request, session, url_for
+from flask import flash, g, has_request_context, redirect, render_template, request, session, url_for
 
 from scripts.accounts.auth import get_user
 
@@ -34,10 +34,15 @@ def get_current_user():
     """Return the currently authenticated user dictionary or None."""
     if not has_request_context():
         return None
+    if hasattr(g, "_current_user"):
+        return g._current_user
     user_id = session.get("user_id")
     if not user_id:
+        g._current_user = None
         return None
-    return get_user(user_id)
+    user = get_user(user_id)
+    g._current_user = user
+    return user
 
 
 def get_actual_tier(user=_UNSET) -> Tier:

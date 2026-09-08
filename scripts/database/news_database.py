@@ -6,15 +6,22 @@ NEWS_DATABASE_FILE = PROJECT_ROOT / "data" / "news.db"
 NEWS_DIRECTORY = PROJECT_ROOT / "data" / "news"
 
 
+_INITIALIZED_NEWS_DBS = set()
+
+
 def get_news_connection():
     """Return a connection to the separate News database with foreign keys enabled."""
-    NEWS_DATABASE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    db_file = NEWS_DATABASE_FILE.resolve()
+    db_file.parent.mkdir(parents=True, exist_ok=True)
     NEWS_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
-    connection = sqlite3.connect(NEWS_DATABASE_FILE)
+    connection = sqlite3.connect(db_file)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
-    create_news_table(connection)
+    connection.execute("PRAGMA busy_timeout = 5000")
+    if db_file not in _INITIALIZED_NEWS_DBS:
+        create_news_table(connection)
+        _INITIALIZED_NEWS_DBS.add(db_file)
     return connection
 
 

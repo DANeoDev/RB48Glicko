@@ -11,14 +11,20 @@ def get_accounts_db_file():
     return Path(override) if override else PROJECT_ROOT / "data" / "accounts.db"
 
 
+_INITIALIZED_ACCOUNT_DBS = set()
+
+
 def get_accounts_connection():
     """Return a connection to the separate account database with foreign keys enabled."""
-    db_file = get_accounts_db_file()
+    db_file = get_accounts_db_file().resolve()
     db_file.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(db_file)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
-    create_account_tables(connection)
+    connection.execute("PRAGMA busy_timeout = 5000")
+    if db_file not in _INITIALIZED_ACCOUNT_DBS:
+        create_account_tables(connection)
+        _INITIALIZED_ACCOUNT_DBS.add(db_file)
     return connection
 
 

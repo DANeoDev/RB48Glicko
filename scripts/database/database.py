@@ -18,6 +18,7 @@ def get_connection():
     connection = sqlite3.connect(get_database_file())
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA busy_timeout = 5000")
     return connection
 
 
