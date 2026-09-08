@@ -3,7 +3,7 @@
 {% block title %}RB48 — {{ t('stats.title', 'Stats') }}{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='time_scrollbar.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='time_scrollbar.css', v='20260908_1') }}">
 {% endblock %}
 
 {% block content %}
@@ -731,7 +731,7 @@ window.applyTableFilters = function() {
 <script id="historical-snapshots-data" type="application/json">
 {{ historical_snapshots | tojson }}
 </script>
-<script src="{{ url_for('static', filename='time_scrollbar.js') }}"></script>
+<script src="{{ url_for('static', filename='time_scrollbar.js', v='20260908_1') }}"></script>
 <script>
 (function() {
     const historicalDataEl = document.getElementById('historical-snapshots-data');

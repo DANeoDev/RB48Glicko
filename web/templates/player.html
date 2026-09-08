@@ -9,7 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {% endif %}
 <link rel="stylesheet" href="{{ url_for('static', filename='player.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='time_scrollbar.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='time_scrollbar.css', v='20260908_1') }}">
 {% endblock %}
 
 {% block content %}
@@ -421,7 +421,7 @@ window.userHasGlickoTier = {{ 'true' if show_player_glicko else 'false' }};
 </script>
 <script src="{{ url_for('static', filename='player_filters.js') }}"></script>
 <script src="{{ url_for('static', filename='correlation_map.js') }}"></script>
-<script src="{{ url_for('static', filename='time_scrollbar.js') }}"></script>
+<script src="{{ url_for('static', filename='time_scrollbar.js', v='20260908_1') }}"></script>
 <script>
 (function() {
     const timelineData = {{ timeline_data | tojson }};

@@ -74,6 +74,76 @@ def get_matchday_metadata_map(connection, matches=None):
     return metadata_map
 
 
+def _compute_snapshot_deltas(
+    evts_up_to_date: list[dict],
+    date_str: str,
+    cutoff_month: str,
+    cutoff_quarter: str,
+    cutoff_year: str,
+    pkey: str,
+    curr_r: float,
+    curr_rd: float,
+    curr_c: float,
+) -> dict:
+    """
+    Compute accurate backward-looking deltas for a historical snapshot date:
+    - 'game': Delta for the session matches played on date_str (or 0 if player didn't play that session).
+    - 'month': Delta across matches in the 30 days leading up to date_str.
+    - 'quarter': Delta across matches in the 90 days leading up to date_str.
+    - 'year': Delta across matches in the 365 days leading up to date_str.
+    """
+    def _calc_subset_delta(subset_evts: list[dict]) -> dict:
+        if not subset_evts:
+            return {
+                "conservative": 0.0,
+                "rating": 0.0,
+                "rd": 0.0,
+                "games": 0,
+                "wins": 0,
+                "losses": 0,
+                "win_percent": 0.0,
+            }
+        g = len(subset_evts)
+        w = sum(1 for e in subset_evts if e.get("is_win"))
+        losses = sum(1 for e in subset_evts if e.get("is_loss"))
+        wp = round((w / g * 100.0), 1) if g > 0 else 0.0
+
+        first_e = subset_evts[0]
+        first_b_r = first_e["rating_before_total"] if pkey == TOTAL else first_e["rating_before_pitch"]
+        first_b_rd = first_e["rd_before_total"] if pkey == TOTAL else first_e["rd_before_pitch"]
+        if first_b_r is not None and first_b_rd is not None:
+            first_b_c = first_b_r - 3.0 * first_b_rd
+            delta_r = curr_r - first_b_r
+            delta_rd = curr_rd - first_b_rd
+            delta_c = curr_c - first_b_c
+        else:
+            delta_r = 0.0
+            delta_rd = 0.0
+            delta_c = 0.0
+
+        return {
+            "conservative": delta_c,
+            "rating": delta_r,
+            "rd": delta_rd,
+            "games": g,
+            "wins": w,
+            "losses": losses,
+            "win_percent": wp,
+        }
+
+    session_evts = [e for e in evts_up_to_date if e["date"] == date_str]
+    month_evts = [e for e in evts_up_to_date if e["date"] >= cutoff_month]
+    quarter_evts = [e for e in evts_up_to_date if e["date"] >= cutoff_quarter]
+    year_evts = [e for e in evts_up_to_date if e["date"] >= cutoff_year]
+
+    return {
+        "game": _calc_subset_delta(session_evts),
+        "month": _calc_subset_delta(month_evts),
+        "quarter": _calc_subset_delta(quarter_evts),
+        "year": _calc_subset_delta(year_evts),
+    }
+
+
 def compute_historical_snapshots(connection):
     """
     Compute chronological rating and stats snapshots after each matchday (session),
@@ -191,12 +261,17 @@ def compute_historical_snapshots(connection):
                 all_p_evts = player_events.get(pid, {}).get(pkey, [])
                 evts_up_to_date = [e for e in all_p_evts if e["date"] <= date_str]
 
-                deltas = {
-                    "game": _compute_single_game_delta(evts_up_to_date, pkey, r_val, rd_val, c_val),
-                    "month": _compute_period_delta(evts_up_to_date, cutoff_month, pkey, r_val, rd_val, c_val),
-                    "quarter": _compute_period_delta(evts_up_to_date, cutoff_quarter, pkey, r_val, rd_val, c_val),
-                    "year": _compute_period_delta(evts_up_to_date, cutoff_year, pkey, r_val, rd_val, c_val),
-                }
+                deltas = _compute_snapshot_deltas(
+                    evts_up_to_date,
+                    date_str,
+                    cutoff_month,
+                    cutoff_quarter,
+                    cutoff_year,
+                    pkey,
+                    r_val,
+                    rd_val,
+                    c_val,
+                )
 
                 player_entry[pkey] = {
                     "rating": round(r_val, 1),
