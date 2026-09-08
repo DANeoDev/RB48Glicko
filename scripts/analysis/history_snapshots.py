@@ -1,6 +1,6 @@
 """Historical leaderboard snapshots and matchday metadata generator for time-scrollbar."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from scripts.database.db_matches import get_matches, get_all_match_teams
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_calibrations
@@ -11,6 +11,11 @@ from scripts.glicko.glicko2_calculator import (
     ratings_to_glicko_table,
     group_matches_by_date,
     update_session,
+)
+from scripts.frontend.view_models import (
+    _collect_player_match_events,
+    _compute_single_game_delta,
+    _compute_period_delta,
 )
 
 GERMAN_MONTHS = {
@@ -86,6 +91,9 @@ def compute_historical_snapshots(connection):
     ratings = glicko_table_to_ratings(prepared)
     engine = Glicko2()
 
+    sorted_matches_all = sorted(matches.values(), key=lambda m: (m["date"], m["match_id"]))
+    player_events = _collect_player_match_events(connection, sorted_matches_all, players)
+
     # Cumulative stats tracking per player and pitch
     cumulative_stats = {}
     for pid in players:
@@ -99,6 +107,10 @@ def compute_historical_snapshots(connection):
 
     for date_str in sorted_dates:
         session_matches = sessions[date_str]
+        dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+        cutoff_month = (dt - timedelta(days=30)).strftime("%Y-%m-%d")
+        cutoff_quarter = (dt - timedelta(days=90)).strftime("%Y-%m-%d")
+        cutoff_year = (dt - timedelta(days=365)).strftime("%Y-%m-%d")
 
         # 1. Update cumulative match stats with this session's matches
         for match in session_matches:
@@ -154,7 +166,7 @@ def compute_historical_snapshots(connection):
         update_session(connection, session_matches, ratings, engine, match_teams_map=match_teams_map)
         current_ratings_dict = ratings_to_glicko_table(ratings)
 
-        # 3. Assemble leaderboard snapshot
+        # 3. Assemble leaderboard snapshot with historical deltas
         leaderboard = []
         for pid, pdata in players.items():
             r_data = current_ratings_dict.get(pid, {})
@@ -176,6 +188,16 @@ def compute_historical_snapshots(connection):
                 losses = s_item["losses"]
                 wp = round((w / g * 100.0), 1) if g > 0 else 0.0
 
+                all_p_evts = player_events.get(pid, {}).get(pkey, [])
+                evts_up_to_date = [e for e in all_p_evts if e["date"] <= date_str]
+
+                deltas = {
+                    "game": _compute_single_game_delta(evts_up_to_date, pkey, r_val, rd_val, c_val),
+                    "month": _compute_period_delta(evts_up_to_date, cutoff_month, pkey, r_val, rd_val, c_val),
+                    "quarter": _compute_period_delta(evts_up_to_date, cutoff_quarter, pkey, r_val, rd_val, c_val),
+                    "year": _compute_period_delta(evts_up_to_date, cutoff_year, pkey, r_val, rd_val, c_val),
+                }
+
                 player_entry[pkey] = {
                     "rating": round(r_val, 1),
                     "rd": round(rd_val, 1),
@@ -184,6 +206,7 @@ def compute_historical_snapshots(connection):
                     "wins": w,
                     "losses": losses,
                     "win_percent": wp,
+                    "deltas": deltas,
                 }
 
             leaderboard.append(player_entry)
