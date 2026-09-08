@@ -70,6 +70,8 @@ def create_app():
             "actual_tier": get_actual_tier(user),
             "Tier": Tier,
             "has_tier": has_tier,
+            "is_webmaster": has_tier(Tier.WEBMASTER),
+            "is_admin": has_tier(Tier.ADMIN),
             "simulated_tier": session.get("simulated_tier") if user and user.get("role") == "webmaster" else None,
             "current_lang": lang,
             "t": t,

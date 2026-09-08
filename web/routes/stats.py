@@ -412,7 +412,7 @@ def achievements_overview():
         return redirect(url_for("auth.login", next=request.path))
     if user.get("player_id"):
         return redirect(url_for("stats.player_achievements", player_id=user["player_id"]))
-    if user.get("role") == "webmaster":
+    if has_tier(Tier.WEBMASTER):
         connection = get_connection()
         try:
             players = get_players(connection)
@@ -431,7 +431,7 @@ def player_achievements(player_id: int):
     if not user:
         return redirect(url_for("auth.login", next=request.path))
 
-    is_webmaster = (user.get("role") == "webmaster")
+    is_webmaster = has_tier(Tier.WEBMASTER)
     if not is_webmaster and user.get("player_id") != player_id:
         if user.get("player_id"):
             flash("Du kannst nur deine eigenen Auszeichnungen einsehen.", "info")

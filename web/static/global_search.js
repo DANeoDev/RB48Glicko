@@ -24,6 +24,7 @@
 
     function getUserTier() {
         if (!window.RB48_USER) return "visitor";
+        if (window.RB48_USER.effective_tier) return window.RB48_USER.effective_tier;
         const role = window.RB48_USER.role || "user";
         if (role === "webmaster" || role === "admin") return "admin";
         if (window.RB48_USER.psychology_test_passed) return "glicko_user";

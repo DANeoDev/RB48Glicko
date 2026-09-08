@@ -7,20 +7,20 @@
     <title>{% block title %}RB48{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Caveat:wght@600;700&family=Courier+Prime:wght@700&family=Creepster&family=Great+Vibes&family=Orbitron:wght@700;900&family=Permanent+Marker&family=Playfair+Display:ital,wght@1,700&family=Press+Start+2P&family=Rye&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bangers&family=Caveat:wght@600;700&family=Courier+Prime:wght@700&family=Creepster&family=Great+Vibes&family=Orbitron:wght@700;900&family=Permanent+Marker&family=Playfair+Display:ital,wght@1,700&family=Press+Start+2P&family=Rye&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='footer.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='noise.css') }}">
     {% block head %}{% endblock %}
     <style>
         .card { background: var(--modal-bg) !important; }
-        .modal { background: var(--modal-bg) !important; border-color: var(--accent-dark) !important; color: #ffffff; }
-        .modal h1, .modal h2, .modal h3, .modal h4, .modal strong { color: #ffffff; }
-        .modal input, .modal select, .modal textarea { background: #24194A; color: #ffffff; border-color: #5A4A83; }
+        .modal { background: var(--modal-bg) !important; border-color: var(--accent-dark) !important; color: var(--text-main); }
+        .modal h1, .modal h2, .modal h3, .modal h4, .modal strong { color: var(--text-main); }
+        .modal input, .modal select, .modal textarea { background: #24194A; color: var(--text-main); border-color: #5A4A83; font-family: inherit; }
         .modal input::placeholder, .modal textarea::placeholder { color: #C9C2D8; }
-        .primary { background: var(--accent) !important; color: #ffffff !important; border-color: var(--accent) !important; transition: background-color 0.15s ease, border-color 0.15s ease; }
+        .primary { background: var(--accent) !important; color: var(--text-main) !important; border-color: var(--accent) !important; font-family: inherit; transition: background-color 0.15s ease, border-color 0.15s ease; }
         .primary:hover { background: var(--accent-hover) !important; border-color: var(--accent-hover) !important; }
-        .add-btn { background: var(--accent-dark) !important; color: #ffffff !important; border-color: var(--accent-dark) !important; transition: background-color 0.15s ease, border-color 0.15s ease; }
+        .add-btn { background: var(--accent-dark) !important; color: var(--text-main) !important; border-color: var(--accent-dark) !important; font-family: inherit; transition: background-color 0.15s ease, border-color 0.15s ease; }
         .add-btn:hover { background: var(--accent-hover) !important; border-color: var(--accent-hover) !important; }
 
         /* Navigation locked indicators */
@@ -87,7 +87,7 @@
             border-bottom: 2px solid #7B52C5;
             padding: 6px 16px;
             font-size: 13px;
-            color: #ffffff;
+            color: var(--text-main);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -108,7 +108,7 @@
         .webmaster-eye-toggle {
             background: rgba(255, 255, 255, 0.12);
             border: 1px solid rgba(255, 255, 255, 0.25);
-            color: #ffffff;
+            color: var(--text-main);
             border-radius: 4px;
             cursor: pointer;
             padding: 4px 6px;
@@ -141,21 +141,24 @@
         }
         .webmaster-sim-btn {
             background: rgba(255, 255, 255, 0.1);
-            color: #ffffff;
+            color: var(--text-main);
             border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 4px;
             padding: 3px 8px;
             font-size: 12px;
+            font-family: inherit;
             cursor: pointer;
             transition: all 0.15s ease;
         }
         .webmaster-sim-btn:hover {
             background: #582DA1;
             border-color: #7B52C5;
+            color: #ffffff;
         }
         .webmaster-sim-btn.active {
             background: #7B52C5;
             border-color: #ffffff;
+            color: #ffffff;
             font-weight: bold;
         }
 
@@ -267,6 +270,18 @@
         <div class="nav-links">
             <a href="{{ url_for('stats.dashboard') }}" class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}active{% endif %}">{{ t('nav.dashboard', 'Dashboard') }}</a>
             
+            <a href="{{ url_for('planner.planner') }}" class="{% if request.endpoint == 'planner.planner' %}active{% endif %}">{{ t('nav.planner', 'Planner') }}</a>
+
+            {% if has_tier('admin') %}
+                <a href="{{ url_for('match_center.match_center') }}" class="{% if request.endpoint == 'match_center.match_center' %}active{% endif %}">{{ t('nav.match_center', 'Match Center') }}</a>
+            {% else %}
+                <a href="{{ url_for('auth.login', next=url_for('match_center.match_center')) if not has_tier('user') else '#' }}" class="nav-locked" title="{{ t('nav.locked_match_center_title', 'Match Center — Administrator access required for match recording and matchmaking.') }}">
+                    {{ t('nav.match_center', 'Match Center') }} <span class="nav-lock-icon">🔒</span>
+                </a>
+            {% endif %}
+
+            <a href="{{ url_for('stats.match_history') }}" class="{% if request.endpoint == 'stats.match_history' %}active{% endif %}">{{ t('nav.match_history', 'Match History') }}</a>
+
             {% if has_tier('user') %}
                 <a href="{{ url_for('stats.stats') }}" class="{% if request.endpoint == 'stats.stats' %}active{% endif %}">{{ t('nav.stats', 'Stats') }}</a>
             {% else %}
@@ -275,8 +290,9 @@
                 </a>
             {% endif %}
 
-            <a href="{{ url_for('planner.planner') }}" class="{% if request.endpoint == 'planner.planner' %}active{% endif %}">{{ t('nav.planner', 'Planner') }}</a>
-            <a href="{{ url_for('stats.match_history') }}" class="{% if request.endpoint == 'stats.match_history' %}active{% endif %}">{{ t('nav.match_history', 'Match History') }}</a>
+            {% if has_tier('glicko_user') %}
+                <a href="{{ url_for('stats.model_analysis') }}" class="{% if request.endpoint == 'stats.model_analysis' %}active{% endif %}">{{ t('nav.model_analysis', 'Model Analysis') }}</a>
+            {% endif %}
 
             {% if has_tier('user') %}
                 <a href="{{ url_for('gallery.gallery') }}" class="{% if request.endpoint == 'gallery.gallery' %}active{% endif %}">{{ t('nav.gallery', 'Gallery') }}</a>
@@ -284,18 +300,6 @@
                 <a href="{{ url_for('auth.login', next=url_for('gallery.gallery')) }}" class="nav-locked" title="{{ t('nav.locked_gallery_title', 'Gallery — Register and get approved by the webmaster to access the gallery.') }}">
                     {{ t('nav.gallery', 'Gallery') }} <span class="nav-lock-icon">🔒</span>
                 </a>
-            {% endif %}
-
-            {% if has_tier('admin') %}
-                <a href="{{ url_for('match_center.match_center') }}" class="{% if request.endpoint == 'match_center.match_center' %}active{% endif %}">{{ t('nav.match_center', 'Match Center') }}</a>
-            {% else %}
-                <a href="{{ url_for('auth.login', next=url_for('match_center.match_center')) if not current_user else '#' }}" class="nav-locked" title="{{ t('nav.locked_match_center_title', 'Match Center — Administrator access required for match recording and matchmaking.') }}">
-                    {{ t('nav.match_center', 'Match Center') }} <span class="nav-lock-icon">🔒</span>
-                </a>
-            {% endif %}
-
-            {% if has_tier('glicko_user') %}
-                <a href="{{ url_for('stats.model_analysis') }}" class="{% if request.endpoint == 'stats.model_analysis' %}active{% endif %}">{{ t('nav.model_analysis', 'Model Analysis') }}</a>
             {% endif %}
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -323,15 +327,15 @@
                         <div class="profile-dropdown-user">
                             <strong>{{ current_user["username"] }}</strong>
                             <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">
-                                {{ current_user.get('role', 'user') | title }}
+                                {{ (simulated_tier | replace('_', ' ') | title) if simulated_tier else (current_user.get('role', 'user') | title) }}
                                 {% if not current_user.get('is_approved') and current_user.get('role') == 'user' %}
                                     · <span style="color: #ffc107;">{{ t('nav.pending_approval', 'Pending Approval') }}</span>
-                                {% elif current_user.get('psychology_test_passed') %}
+                                {% elif current_user.get('psychology_test_passed') and (has_tier('glicko_user') if simulated_tier else True) %}
                                     · {{ t('nav.glicko_active', 'Glicko Active') }}
                                 {% endif %}
                             </div>
                         </div>
-                        {% if current_user.role == 'webmaster' %}
+                        {% if has_tier('webmaster') %}
                             <a href="{{ url_for('auth.admin_users') }}" style="color: #80deea; font-weight: 600;">{{ t('nav.user_management', '👥 User Management') }}</a>
                         {% endif %}
                         {% if current_user.get('player_id') %}
@@ -408,7 +412,10 @@
 window.RB48_USER = {
     id: {{ current_user.id }},
     username: {{ current_user.username | tojson }},
-    role: {{ current_user.role | tojson }},
+    role: {{ (effective_tier.name.lower() if simulated_tier else current_user.role) | tojson }},
+    actual_role: {{ current_user.role | tojson }},
+    effective_tier: {{ effective_tier.name.lower() | tojson }},
+    simulated_tier: {{ simulated_tier | tojson }},
     attendance_name: {{ (current_user.attendance_name or current_user.username) | tojson }},
     noise_display_mode: {{ (current_user.noise_display_mode or "smart") | tojson }}
 };

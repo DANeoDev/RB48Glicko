@@ -8,7 +8,7 @@ from scripts.gallery.gallery_service import (
     save_gallery_images,
     update_gallery_image_date,
 )
-from web.services.security import Tier, get_current_user, require_tier
+from web.services.security import Tier, get_current_user, has_tier, require_tier
 from web.services.translations import t
 
 gallery_bp = Blueprint("gallery", __name__)
@@ -28,7 +28,7 @@ def gallery():
 
     user = get_current_user()
     viewer_user_id = user["id"] if user else None
-    is_wm = bool(user and user.get("role") == "webmaster")
+    is_wm = has_tier(Tier.WEBMASTER)
 
     images = get_gallery_images(
         sort_by=sort_mode,
@@ -89,7 +89,7 @@ def update_date():
         return redirect(url_for("gallery.gallery", sort=sort_mode))
 
     user = get_current_user()
-    is_wm = bool(user and user.get("role") == "webmaster")
+    is_wm = has_tier(Tier.WEBMASTER)
     meta = get_image_metadata(filename)
     is_owner = bool(meta and user and meta.get("uploader_user_id") == user["id"])
 
@@ -118,7 +118,7 @@ def delete_image():
         return redirect(url_for("gallery.gallery", sort=sort_mode))
 
     user = get_current_user()
-    is_wm = bool(user and user.get("role") == "webmaster")
+    is_wm = has_tier(Tier.WEBMASTER)
     meta = get_image_metadata(filename)
     is_owner = bool(meta and user and meta.get("uploader_user_id") == user["id"])
 

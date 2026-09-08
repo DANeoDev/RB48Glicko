@@ -255,6 +255,55 @@ class AccessTiersTest(unittest.TestCase):
         # Confirm user is permanently gone from DB
         self.assertIsNone(get_user(target_user["id"]))
 
+    def test_webmaster_view_simulation_ui_mismatches_fixed(self):
+        """Verify that simulating 'user' hides webmaster tools (like planner clear dates, user management, and player switcher)."""
+        from scripts.planner.database import create_event, get_planner_connection
+        p_conn = get_planner_connection()
+        try:
+            create_event(p_conn, "2026-12-15 20:00", "box")
+        finally:
+            p_conn.close()
+
+        webmaster = self.create_test_user(role="webmaster", verified=True)
+
+        # 1. Actual Webmaster View: Clear Dates button & modal, User Management, and Player Switcher are visible
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = webmaster["id"]
+            sess.pop("simulated_tier", None)
+
+        resp_wm = self.client.get("/planner")
+        self.assertEqual(resp_wm.status_code, 200)
+        html_wm = resp_wm.data.decode("utf-8")
+        self.assertIn("open-clear-all-modal-btn", html_wm)
+        self.assertIn("clear-all-modal", html_wm)
+        self.assertIn("admin/users", html_wm)
+        self.assertIn('role: "webmaster"', html_wm)
+
+        # 2. Simulated User View: Clear Dates button & modal and User Management MUST BE HIDDEN
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = webmaster["id"]
+            sess["simulated_tier"] = "user"
+
+        resp_user_sim = self.client.get("/planner")
+        self.assertEqual(resp_user_sim.status_code, 200)
+        html_user_sim = resp_user_sim.data.decode("utf-8")
+        self.assertNotIn("open-clear-all-modal-btn", html_user_sim)
+        self.assertNotIn("clear-all-modal", html_user_sim)
+        self.assertNotIn("admin/users", html_user_sim)
+        self.assertIn('role: "user"', html_user_sim)
+
+        # 3. Simulated Visitor View: Clear Dates button & modal and User Management MUST BE HIDDEN
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = webmaster["id"]
+            sess["simulated_tier"] = "visitor"
+
+        resp_vis_sim = self.client.get("/planner")
+        self.assertEqual(resp_vis_sim.status_code, 200)
+        html_vis_sim = resp_vis_sim.data.decode("utf-8")
+        self.assertNotIn("open-clear-all-modal-btn", html_vis_sim)
+        self.assertNotIn("clear-all-modal", html_vis_sim)
+        self.assertNotIn("admin/users", html_vis_sim)
+
 
 if __name__ == "__main__":
     unittest.main()
