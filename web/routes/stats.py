@@ -17,23 +17,19 @@ from scripts.accounts.database import (
 )
 from scripts.analysis.achievements import get_player_achievements
 from scripts.analysis.history_snapshots import (
-    compute_historical_snapshots,
     get_matchday_metadata_map,
 )
 from scripts.analysis.model_analysis import analyze_model
-from scripts.analysis.streaks import get_dashboard_streaks
 from scripts.analysis.synergies import get_community_synergies
 from scripts.database.database import get_connection
 from scripts.database.db_matches import get_player_stats
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_player_rating_history, get_ratings
 from scripts.frontend.view_models import (
-    build_leaderboard,
     build_match_history,
-    compute_leaderboard_deltas,
 )
 from scripts.glicko.glicko2 import BOX, HF, TOTAL
-from web.services.cache import get_cached_stats_data
+from web.services.cache import get_cached_stats_data, get_cached_match_history
 from web.services.security import (
     Tier,
     get_current_user,
@@ -229,88 +225,10 @@ def player_profile(player_id):
 
 @stats_bp.route("/matches")
 def match_history():
-    connection = get_connection()
-    try:
-        players = get_players(connection)
-        matches = build_match_history(connection, players)
-        metadata_map = get_matchday_metadata_map(connection)
-    finally:
-        connection.close()
-
-    # Enrich each match with metadata
-    for m in matches:
-        meta = metadata_map.get(m["date"], {})
-        m["date_formatted"] = meta.get("date_formatted", m["date"])
-        m["matchday_number"] = meta.get("matchday_number", 1)
-        m["season"] = meta.get("season", 2026)
-        m["matchday_label"] = meta.get("label", f"{meta.get('matchday_number', 1)}. Spieltag")
-        m["month_key"] = meta.get("month_key", m["date"][:7])
-        m["month_label"] = meta.get("month_label", m["date"][:7])
-        m["month_vertical"] = meta.get("month_vertical", m["date"][:7])
-
-    # Reverse matches so newest matches are first
-    matches.reverse()
-
-    # Group matches by month, preserving reverse chronological order of months
-    months_dict = {}
-    for m in matches:
-        mkey = m["month_key"]
-        if mkey not in months_dict:
-            months_dict[mkey] = {
-                "month_key": mkey,
-                "month_label": m["month_label"],
-                "month_vertical": m["month_vertical"],
-                "matches": [],
-            }
-        months_dict[mkey]["matches"].append(m)
-
-    months_grouped = list(months_dict.values())
-
-    # Build timeline items (newest at top of the scrollbar)
-    distinct_dates_seen = set()
-    timeline_matchdays = []
-    for m in matches:
-        d = m["date"]
-        if d not in distinct_dates_seen:
-            distinct_dates_seen.add(d)
-            meta = metadata_map.get(d, {})
-            day_matches = [x for x in matches if x["date"] == d]
-            pitches = sorted(list(set(x["pitch"].upper() for x in day_matches)))
-            timeline_matchdays.append({
-                "id": f"d-{d}",
-                "date": d,
-                "date_formatted": meta.get("date_formatted", d),
-                "season": meta.get("season", 2026),
-                "matchday_number": meta.get("matchday_number", 1),
-                "label": meta.get("label", f"{meta.get('matchday_number', 1)}. Spieltag"),
-                "short_label": meta.get("short_label", f"{meta.get('matchday_number', 1)}. Spieltag"),
-                "month_key": meta.get("month_key", d[:7]),
-                "month_label": meta.get("month_label", d[:7]),
-                "matches_count": len(day_matches),
-                "pitch_types": pitches,
-            })
-
-    timeline_months = []
-    for mg in months_grouped:
-        m_matches = mg["matches"]
-        pitches = sorted(list(set(x["pitch"].upper() for x in m_matches)))
-        timeline_months.append({
-            "id": f"m-{mg['month_key']}",
-            "month_key": mg["month_key"],
-            "month_label": mg["month_label"],
-            "month_vertical": mg["month_vertical"],
-            "date": m_matches[0]["date"],
-            "date_formatted": m_matches[0]["date_formatted"],
-            "label": mg["month_label"],
-            "short_label": mg["month_label"],
-            "matches_count": len(m_matches),
-            "pitch_types": pitches,
-        })
-
-    timeline_data = {
-        "matchdays": timeline_matchdays,
-        "months": timeline_months,
-    }
+    cached = get_cached_match_history()
+    matches = cached["matches"]
+    months_grouped = cached["months_grouped"]
+    timeline_data = cached["timeline_data"]
 
     acc_conn = get_accounts_connection()
     try:
@@ -324,6 +242,7 @@ def match_history():
         months_grouped=months_grouped,
         timeline_data=timeline_data,
         opted_out_player_ids=opted_out_player_ids,
+        is_webmaster=has_tier(Tier.WEBMASTER),
     )
 
 

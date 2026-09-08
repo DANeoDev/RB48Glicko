@@ -1,7 +1,7 @@
 """Historical leaderboard snapshots and matchday metadata generator for time-scrollbar."""
 
 from datetime import datetime
-from scripts.database.db_matches import get_matches, get_match_teams, get_all_match_teams
+from scripts.database.db_matches import get_matches, get_all_match_teams
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_calibrations
 from scripts.glicko.glicko2 import Glicko2, TOTAL, BOX, HF
