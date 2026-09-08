@@ -406,6 +406,8 @@ TRANSLATIONS_DE = {
     "match_center.main_pos_title": "Hauptposition",
     "match_center.generate_teams_btn": "Teams berechnen",
     "match_center.suggested_title": "Vorgeschlagene Teams",
+    "match_center.reroll_btn": "Neu auswürfeln",
+    "match_center.reroll_title": "Alternative faire Teams generieren",
     "match_center.rating_diff": "Rating-Differenz:",
     "match_center.pos_balance": "Positionsbalance-Bewertung:",
     "match_center.use_teams_btn": "↓ Diese Teams in Spiel-Erfassung übernehmen",

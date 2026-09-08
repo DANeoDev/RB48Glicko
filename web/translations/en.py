@@ -389,6 +389,8 @@ TRANSLATIONS_EN = {
     "match_center.main_pos_title": "Main Position",
     "match_center.generate_teams_btn": "Generate teams",
     "match_center.suggested_title": "Suggested teams",
+    "match_center.reroll_btn": "Reroll",
+    "match_center.reroll_title": "Generate alternative fair teams",
     "match_center.rating_diff": "Rating difference:",
     "match_center.pos_balance": "Positional balance evaluation:",
     "match_center.use_teams_btn": "↓ Use these teams in Match Entry",
