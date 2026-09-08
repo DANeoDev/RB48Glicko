@@ -1,7 +1,7 @@
 """Historical leaderboard snapshots and matchday metadata generator for time-scrollbar."""
 
 from datetime import datetime
-from scripts.database.db_matches import get_matches, get_match_teams
+from scripts.database.db_matches import get_matches, get_all_match_teams
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_calibrations
 from scripts.glicko.glicko2 import Glicko2, TOTAL, BOX, HF
@@ -26,12 +26,13 @@ GERMAN_MONTHS_SHORT = {
 }
 
 
-def get_matchday_metadata_map(connection):
+def get_matchday_metadata_map(connection, matches=None):
     """
     Return a mapping from match date (YYYY-MM-DD) to rich matchday metadata.
     Matchday number resets per calendar year (season).
     """
-    matches = get_matches(connection)
+    if matches is None:
+        matches = get_matches(connection)
     sessions = group_matches_by_date(matches)
     sorted_dates = sorted(sessions.keys())
 
@@ -76,11 +77,12 @@ def compute_historical_snapshots(connection):
     matches = get_matches(connection)
     players = get_players(connection)
     calibrations = get_calibrations(connection)
-    metadata_map = get_matchday_metadata_map(connection)
+    metadata_map = get_matchday_metadata_map(connection, matches=matches)
     sessions = group_matches_by_date(matches)
     sorted_dates = sorted(sessions.keys())
+    match_teams_map = get_all_match_teams(connection)
 
-    prepared = prepare_glicko_table(connection, matches, calibrations)
+    prepared = prepare_glicko_table(connection, matches, calibrations, match_teams_map=match_teams_map)
     ratings = glicko_table_to_ratings(prepared)
     engine = Glicko2()
 
@@ -102,7 +104,7 @@ def compute_historical_snapshots(connection):
         for match in session_matches:
             match_id = match["match_id"]
             pitch_type = match["pitch"].lower()
-            team_a, team_b = get_match_teams(connection, match_id)
+            team_a, team_b = match_teams_map.get(match_id, ([], []))
             ga = match["goals_a"]
             gb = match["goals_b"]
 
@@ -149,7 +151,7 @@ def compute_historical_snapshots(connection):
                         cumulative_stats[pid][pitch_type]["draws"] += 1
 
         # 2. Update Glicko ratings for this session
-        update_session(connection, session_matches, ratings, engine)
+        update_session(connection, session_matches, ratings, engine, match_teams_map=match_teams_map)
         current_ratings_dict = ratings_to_glicko_table(ratings)
 
         # 3. Assemble leaderboard snapshot

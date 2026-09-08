@@ -5,8 +5,13 @@ except ImportError:
     request = None
 
 from datetime import datetime, timedelta
-from scripts.database.db_matches import get_matches, get_match_players, get_match_teams
-from scripts.database.db_ratings import get_match_ratings
+from scripts.database.db_matches import (
+    get_matches,
+    get_match_teams,
+    get_all_match_players,
+    get_all_match_teams,
+)
+from scripts.database.db_ratings import get_match_ratings, get_all_match_ratings
 from scripts.glicko.glicko2 import (
     Glicko2,
     Rating,
@@ -21,12 +26,12 @@ from scripts.glicko.glicko2 import (
 
 def _collect_player_match_events(connection, sorted_matches: list[dict], players: dict) -> dict[int, dict[str, list[dict]]]:
     """Collect and cache match outcome events and prior ratings per player and pitch type."""
-    match_data_cache = {}
-    for m in sorted_matches:
-        mid = m["match_id"]
-        mr = get_match_ratings(connection, mid)
-        mps = get_match_players(connection, mid)
-        match_data_cache[mid] = (mr, mps)
+    all_mr = get_all_match_ratings(connection)
+    all_mps = get_all_match_players(connection)
+    match_data_cache = {
+        m["match_id"]: (all_mr.get(m["match_id"], {}), all_mps.get(m["match_id"], []))
+        for m in sorted_matches
+    }
 
     player_events: dict[int, dict[str, list[dict]]] = {pid: {TOTAL: [], BOX: [], HF: []} for pid in players}
     for m in sorted_matches:
@@ -361,6 +366,8 @@ def build_match_history(
         requested = request.args.get("rating_type", "").lower()
         rating_type = {"total": TOTAL, "box": BOX, "hf": HF}.get(requested, rating_type)
     matches = get_matches(connection)
+    all_teams = get_all_match_teams(connection) if connection is not None else {}
+    all_ratings = get_all_match_ratings(connection) if connection is not None else {}
     history = []
 
     for match_id, match in matches.items():
@@ -369,13 +376,17 @@ def build_match_history(
         if rating_type == HF and match["pitch"].lower() != "hf":
             continue
 
-        team_a, team_b = get_match_teams(connection, match_id)
+        if match_id in all_teams:
+            team_a, team_b = all_teams[match_id]
+        else:
+            team_a, team_b = get_match_teams(connection, match_id)
+
         if player_id is not None and player_id not in team_a and player_id not in team_b:
             continue
 
         external_a = match["players_a"] - len(team_a)
         external_b = match["players_b"] - len(team_b)
-        match_ratings = get_match_ratings(connection, match_id)
+        match_ratings = all_ratings.get(match_id) if match_id in all_ratings else get_match_ratings(connection, match_id)
         details = calculate_match_details(match, team_a, team_b, match_ratings, rating_type, player_id=player_id)
 
         def player_entry(pid):

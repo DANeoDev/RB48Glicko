@@ -91,11 +91,40 @@ def get_match_players(connection, match_id):
     return [{"player_id": row["player_id"], "team": row["team"]} for row in cursor]
 
 
+def get_all_match_players(connection):
+    """Return a mapping of match_id -> list of {'player_id': ..., 'team': ...} for all matches."""
+    cursor = connection.execute(
+        """
+        SELECT match_id, player_id, team
+        FROM match_players
+        ORDER BY match_id
+        """
+    )
+    all_players = {}
+    for row in cursor:
+        mid = row["match_id"]
+        if mid not in all_players:
+            all_players[mid] = []
+        all_players[mid].append({"player_id": row["player_id"], "team": row["team"]})
+    return all_players
+
+
 def get_match_teams(connection, match_id):
     players = get_match_players(connection, match_id)
     team_a = [p["player_id"] for p in players if p["team"] == "a"]
     team_b = [p["player_id"] for p in players if p["team"] == "b"]
     return team_a, team_b
+
+
+def get_all_match_teams(connection):
+    """Return a mapping of match_id -> (team_a, team_b) for all matches in a single query."""
+    all_players = get_all_match_players(connection)
+    teams = {}
+    for match_id, players in all_players.items():
+        team_a = [p["player_id"] for p in players if p["team"] == "a"]
+        team_b = [p["player_id"] for p in players if p["team"] == "b"]
+        teams[match_id] = (team_a, team_b)
+    return teams
 
 
 def get_player_stats(connection):
