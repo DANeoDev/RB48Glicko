@@ -902,4 +902,13 @@ TRANSLATIONS_DE = {
     "match_center.game_label": "Spiel {number}",
     "match_center.remove_game": "Entfernen",
     "match_center.goals_label": "Tore",
+
+    # =========================================================================
+    # Match History Deletion
+    # =========================================================================
+    "matches.delete": "Löschen",
+    "matches.delete_match_title": "Match löschen & Glicko neu berechnen",
+    "matches.delete_confirm_title": "Match wirklich löschen?",
+    "matches.delete_confirm_desc": "Möchtest du dieses Match wirklich unwiderruflich aus der Datenbank und der Matchdatei entfernen? Alle Glicko-Ratings werden anschließend ab Saisonbeginn vollständig neu berechnet.",
+    "matches.delete_btn": "Unwiderruflich löschen",
 }

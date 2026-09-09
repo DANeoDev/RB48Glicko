@@ -1045,9 +1045,12 @@
             }
         });
 
-        // Intercept matchForm submit to open batchModal
-        matchForm.addEventListener('submit', (e) => {
-            e.preventDefault();
+        // Intercept matchForm submit / button click to open batchModal
+        function handleOpenBatch(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
 
             const teamAInputs = document.querySelectorAll('#list-a input[name="team_a"]');
             const teamBInputs = document.querySelectorAll('#list-b input[name="team_b"]');
@@ -1091,7 +1094,11 @@
             if (batchModal) {
                 batchModal.style.display = 'flex';
             }
-        });
+        }
+
+        const openBatchBtn = document.getElementById('btn-open-batch-modal');
+        openBatchBtn?.addEventListener('click', handleOpenBatch);
+        matchForm.addEventListener('submit', handleOpenBatch);
     }
 
 

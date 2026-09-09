@@ -248,6 +248,46 @@ def match_history():
     )
 
 
+@stats_bp.route("/matches/delete", methods=["POST"])
+@require_tier(Tier.ADMIN)
+def delete_match_endpoint():
+    match_id = None
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+        match_id = data.get("match_id")
+    if not match_id:
+        match_id = request.form.get("match_id")
+
+    is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json
+
+    if not match_id:
+        if is_xhr:
+            return jsonify({"success": False, "error": "Match ID is required."}), 400
+        flash("Match ID is required.", "error")
+        return redirect(url_for("stats.match_history"))
+
+    from scripts.matches.match_entry import delete_match
+    from web.services.cache import invalidate_stats_cache
+
+    connection = get_connection()
+    try:
+        delete_match(connection, match_id)
+        invalidate_stats_cache()
+    except (ValueError, Exception) as exc:
+        if is_xhr:
+            return jsonify({"success": False, "error": str(exc)}), 400
+        flash(str(exc), "error")
+        return redirect(url_for("stats.match_history"))
+    finally:
+        connection.close()
+
+    success_msg = f"Match '{match_id}' wurde erfolgreich gelöscht und alle Glicko-Ratings neu berechnet."
+    if is_xhr:
+        return jsonify({"success": True, "message": success_msg, "deleted_match_id": match_id})
+    flash(success_msg, "success")
+    return redirect(url_for("stats.match_history"))
+
+
 @stats_bp.route("/model-analysis")
 @require_tier(Tier.GLICKO_USER)
 def model_analysis():

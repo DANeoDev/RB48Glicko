@@ -16,6 +16,26 @@
 .rating-selector a.active { background:var(--accent); color:#ffffff; border-color:var(--accent); }
 .rating-selector a:hover { background:var(--accent-hover); color:#ffffff; }
 .rating-selector-help { cursor:help; color:var(--text-muted); font-size:11px; }
+.match-delete-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 100, 100, 0.25);
+    color: #ff8888;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.match-delete-btn:hover {
+    background: rgba(255, 80, 80, 0.2);
+    border-color: rgba(255, 100, 100, 0.5);
+    color: #ffaaaa;
+    transform: translateY(-1px);
+}
 </style>
 {% endblock %}
 
@@ -80,9 +100,22 @@
             {% set prev_date = namespace(val=None) %}
             {% for match in month_group.matches %}
             <div class="match" {% if match.date != prev_date.val %}id="d-{{ match.date }}" data-match-date="{{ match.date }}"{% set prev_date.val = match.date %}{% endif %}>
-                <div class="match-header">
-                    <span>{{ match["match_id"] }} — {{ match["pitch"] | upper }}</span>
-                    <span style="font-size: 11px; opacity: 0.8; font-weight: normal; margin-left: 8px;">{{ match.get("date_formatted", match["date"]) }} · {{ match.get("short_label", "") }}</span>
+                <div class="match-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span>{{ match["match_id"] }} — {{ match["pitch"] | upper }}</span>
+                        <span style="font-size: 11px; opacity: 0.8; font-weight: normal; margin-left: 8px;">{{ match.get("date_formatted", match["date"]) }} · {{ match.get("short_label", "") }}</span>
+                    </div>
+                    {% if has_tier('admin') %}
+                        <button
+                            type="button"
+                            class="match-delete-btn"
+                            data-match-id="{{ match['match_id'] }}"
+                            title="{{ t('matches.delete_match_title', 'Match löschen & Glicko neu berechnen') }}"
+                            onclick="event.stopPropagation(); window.confirmDeleteMatch && window.confirmDeleteMatch('{{ match['match_id'] }}');"
+                        >
+                            🗑️ {{ t('matches.delete', 'Löschen') }}
+                        </button>
+                    {% endif %}
                 </div>
                 <div class="match-info">
                     <div class="team team-a">
@@ -171,6 +204,26 @@
 </div>
 {% endfor %}
 </div>
+
+{% if has_tier('admin') %}
+<div class="modal-bg" id="delete-match-modal" style="display: none;">
+    <div class="modal" style="max-width: 480px;">
+        <h3 style="color: #ff8888; display: flex; align-items: center; gap: 8px; margin-top: 0;">
+            <span>⚠️</span> {{ t('matches.delete_confirm_title', 'Match wirklich löschen?') }}
+        </h3>
+        <p class="muted" id="delete-match-desc" style="font-size: 14px; line-height: 1.5; margin: 12px 0;">
+            {{ t('matches.delete_confirm_desc', 'Möchtest du dieses Match wirklich unwiderruflich aus der Datenbank und der Matchdatei entfernen? Alle Glicko-Ratings werden anschließend ab Saisonbeginn vollständig neu berechnet.') }}
+        </p>
+        <div id="delete-match-error" style="display: none; color: #ff8888; background: rgba(255, 100, 100, 0.1); border: 1px solid rgba(255, 100, 100, 0.3); padding: 8px 12px; border-radius: var(--radius); margin-bottom: 12px; font-size: 13px;"></div>
+        <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="secondary" id="btn-cancel-delete">{{ t('common.cancel', 'Abbrechen') }}</button>
+            <button type="button" class="primary" id="btn-confirm-delete" style="background: #d32f2f; border-color: #d32f2f; color: #ffffff;">
+                {{ t('matches.delete_btn', 'Unwiderruflich löschen') }}
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -185,5 +238,80 @@ window.timeScrollbar = new RB48TimeScrollbar({
     pageType: 'matches',
     data: timelineData
 });
+
+{% if has_tier('admin') %}
+(function() {
+    let pendingMatchId = null;
+    const modal = document.getElementById('delete-match-modal');
+    const cancelBtn = document.getElementById('btn-cancel-delete');
+    const confirmBtn = document.getElementById('btn-confirm-delete');
+    const errorBox = document.getElementById('delete-match-error');
+
+    window.confirmDeleteMatch = function(matchId) {
+        pendingMatchId = matchId;
+        const desc = document.getElementById('delete-match-desc');
+        if (desc) {
+            desc.textContent = `Möchtest du das Match "${matchId}" wirklich unwiderruflich entfernen? Alle Glicko-Ratings ab Saisonbeginn werden anschließend vollständig neu berechnet.`;
+        }
+        if (errorBox) {
+            errorBox.style.display = 'none';
+            errorBox.textContent = '';
+        }
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    };
+
+    cancelBtn?.addEventListener('click', () => {
+        if (modal) modal.style.display = 'none';
+        pendingMatchId = null;
+    });
+
+    modal?.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+            pendingMatchId = null;
+        }
+    });
+
+    confirmBtn?.addEventListener('click', async () => {
+        if (!pendingMatchId) return;
+        confirmBtn.disabled = true;
+        const originalText = confirmBtn.textContent;
+        confirmBtn.textContent = 'Lösche & berechne neu...';
+
+        try {
+            const resp = await fetch('/matches/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ match_id: pendingMatchId })
+            });
+            const data = await resp.json();
+            if (resp.ok && data.success) {
+                window.location.reload();
+            } else {
+                if (errorBox) {
+                    errorBox.textContent = data.error || 'Fehler beim Löschen des Spiels.';
+                    errorBox.style.display = 'block';
+                } else {
+                    alert(data.error || 'Fehler beim Löschen.');
+                }
+            }
+        } catch (err) {
+            console.error('Delete error:', err);
+            if (errorBox) {
+                errorBox.textContent = 'Netzwerkfehler beim Löschen.';
+                errorBox.style.display = 'block';
+            }
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = originalText;
+        }
+    });
+})();
+{% endif %}
 </script>
 {% endblock %}

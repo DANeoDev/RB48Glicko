@@ -3,7 +3,7 @@
 {% block title %}{{ t('match_center.title', 'Match Center') }} · RB48{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='match_center.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='match_center.css', v='20260909_batch') }}">
 {% endblock %}
 
 {% block content %}
@@ -35,5 +35,5 @@
         confirmBatch: {{ t('match_center.batch_confirm_btn', 'Eingabe bestätigen') | tojson }}
     };
 </script>
-<script src="{{ url_for('static', filename='match_center.js') }}"></script>
+<script src="{{ url_for('static', filename='match_center.js', v='20260909_batch') }}"></script>
 {% endblock %}

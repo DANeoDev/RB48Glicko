@@ -239,6 +239,66 @@ class RouteTests(unittest.TestCase):
         raw_text = raw_resp.get_data(as_text=True)
         self.assertIn("perceived strength", raw_text)
 
+    def test_delete_match_endpoint_requires_admin_and_works(self):
+        import json
+        from scripts.database.database import get_connection
+        from scripts.database.db_players import get_players
+        from scripts.matches.match_entry import add_match
+
+        conn = get_connection()
+        try:
+            players = get_players(conn)
+            pids = list(players.keys())[:2]
+            # Add a temporary test match
+            match_id = add_match(
+                conn,
+                "2026-12-01",
+                "box",
+                [pids[0]],
+                [pids[1]],
+                10,
+                8,
+            )
+        finally:
+            conn.close()
+
+        # 1. Unauthenticated or regular user cannot delete
+        user_id = self.create_user_session(role="user")
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        res_forbidden = self.client.post(
+            "/matches/delete",
+            data=json.dumps({"match_id": match_id}),
+            content_type="application/json",
+            headers={"X-Requested-With": "XMLHttpRequest"}
+        )
+        self.assertEqual(res_forbidden.status_code, 302)
+
+        # 2. Admin can delete
+        admin_id = self.create_user_session(role="admin")
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = admin_id
+
+        res_ok = self.client.post(
+            "/matches/delete",
+            data=json.dumps({"match_id": match_id}),
+            content_type="application/json",
+            headers={"X-Requested-With": "XMLHttpRequest"}
+        )
+        self.assertEqual(res_ok.status_code, 200)
+        data = res_ok.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertEqual(data.get("deleted_match_id"), match_id)
+
+        # Verify match no longer exists in DB
+        conn = get_connection()
+        try:
+            row = conn.execute("SELECT 1 FROM matches WHERE match_id = ?", (match_id,)).fetchone()
+            self.assertIsNone(row)
+        finally:
+            conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()

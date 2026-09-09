@@ -273,3 +273,48 @@ def import_uploaded_matches(connection, file_bytes):
         )
         imported.append(parsed["match_id"])
     return imported, process_new_matches(connection) if imported else 0
+
+
+def delete_match(connection, match_id):
+    """
+    Delete a match from SQLite and the matches CSV file, then recalculate all Glicko ratings.
+    Returns True on success.
+    """
+    row = connection.execute("SELECT date FROM matches WHERE match_id = ?", (match_id,)).fetchone()
+    if not row:
+        raise ValueError(f"Match '{match_id}' not found.")
+    match_date = row["date"]
+
+    # 1. Delete from SQLite (child tables first to satisfy foreign key constraints)
+    connection.execute("BEGIN")
+    try:
+        connection.execute("DELETE FROM match_ratings WHERE match_id = ?", (match_id,))
+        connection.execute("DELETE FROM match_players WHERE match_id = ?", (match_id,))
+        connection.execute("DELETE FROM matches WHERE match_id = ?", (match_id,))
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+
+    # 2. Delete from matches CSV file
+    csv_file = MATCHES_DIR / f"{match_date}.csv"
+    if csv_file.exists():
+        with csv_file.open("r", encoding="utf-8-sig", newline="") as f:
+            reader = list(csv.reader(f))
+        if reader:
+            header = reader[0]
+            remaining_rows = [r for r in reader[1:] if r and r[0].strip() != match_id]
+            if not remaining_rows:
+                try:
+                    csv_file.unlink()
+                except OSError:
+                    pass
+            else:
+                with csv_file.open("w", encoding="utf-8", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(header)
+                    writer.writerows(remaining_rows)
+
+    # 3. Recalculate Glicko ratings from scratch
+    process_new_matches(connection)
+    return True
