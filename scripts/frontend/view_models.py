@@ -7,7 +7,6 @@ except ImportError:
 from datetime import datetime, timedelta
 from scripts.database.db_matches import (
     get_matches,
-    get_match_players,
     get_match_teams,
     get_all_match_players,
     get_all_match_teams,

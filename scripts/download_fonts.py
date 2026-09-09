@@ -1,6 +1,5 @@
 """Download Google Fonts locally for offline and GDPR-compliant self-hosting."""
 
-import os
 from pathlib import Path
 import re
 import urllib.request

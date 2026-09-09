@@ -321,7 +321,7 @@ def toggle_approval(user_id):
                 "status_changed",
                 user_id,
                 user["username"],
-                f"Mitgliedschaft freigegeben",
+                "Mitgliedschaft freigegeben",
             )
             flash(f"Account '{user['username']}' has been approved.", "success")
         else:
@@ -331,7 +331,7 @@ def toggle_approval(user_id):
                 "status_changed",
                 user_id,
                 user["username"],
-                f"Mitgliedschaft widerrufen",
+                "Mitgliedschaft widerrufen",
             )
             flash(f"Approval for '{user['username']}' has been revoked.", "warning")
         return redirect(url_for("auth.admin_users"))
@@ -358,7 +358,7 @@ def handle_player_link(user_id):
                 "player_link_changed",
                 user_id,
                 user["username"],
-                f"Spielerprofil-Verknüpfung bestätigt",
+                "Spielerprofil-Verknüpfung bestätigt",
             )
             flash(f"Approved player profile connection for '{user['username']}'.", "success")
         elif action == "unlink":
@@ -368,7 +368,7 @@ def handle_player_link(user_id):
                 "player_link_changed",
                 user_id,
                 user["username"],
-                f"Spielerprofil-Verknüpfung getrennt",
+                "Spielerprofil-Verknüpfung getrennt",
             )
             flash(f"Unlinked player profile connection for '{user['username']}'.", "info")
         else:
@@ -378,7 +378,7 @@ def handle_player_link(user_id):
                 "player_link_changed",
                 user_id,
                 user["username"],
-                f"Spielerprofil-Anfrage abgelehnt",
+                "Spielerprofil-Anfrage abgelehnt",
             )
             flash(f"Rejected player link request for '{user['username']}'.", "info")
         return redirect(url_for("auth.admin_users"))
@@ -416,7 +416,7 @@ def assign_player_link(user_id):
                 "player_link_changed",
                 user_id,
                 user["username"],
-                f"Spielerprofil-Verknüpfung entfernt",
+                "Spielerprofil-Verknüpfung entfernt",
             )
             flash(f"Unlinked player profile for '{user['username']}'.", "info")
         return redirect(url_for("auth.admin_users"))

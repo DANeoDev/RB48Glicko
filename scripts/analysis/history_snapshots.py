@@ -14,8 +14,6 @@ from scripts.glicko.glicko2_calculator import (
 )
 from scripts.frontend.view_models import (
     _collect_player_match_events,
-    _compute_single_game_delta,
-    _compute_period_delta,
 )
 
 GERMAN_MONTHS = {

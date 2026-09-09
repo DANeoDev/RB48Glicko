@@ -26,7 +26,6 @@ from scripts.planner.database import (
     get_event_by_id,
     get_planner_connection,
     get_planner_events_for_import,
-    get_upcoming_events,
 )
 from web.routes.planner import resolve_active_roster_player_ids
 from web.services.cache import invalidate_stats_cache
