@@ -266,6 +266,32 @@ def glicko_explainer():
     return render_template("glickofaq.html")
 
 
+@stats_bp.route("/model-documentation")
+def model_documentation():
+    """Detailed technical and conceptual documentation of the team-based Glicko-2 model."""
+    from pathlib import Path
+    from scripts.docs.generate_model_docs import markdown_to_html, update_docs_file
+    docs_file = Path(__file__).resolve().parent.parent.parent / "docs" / "GLICKO2_TEAM_MODEL.md"
+    if not docs_file.exists():
+        update_docs_file()
+    md_content = docs_file.read_text(encoding="utf-8")
+    content_html = markdown_to_html(md_content)
+    return render_template("model_docs.html", content_html=content_html)
+
+
+@stats_bp.route("/model-documentation/raw")
+def model_documentation_raw():
+    """Serve the raw markdown file of the model documentation."""
+    from pathlib import Path
+    from flask import Response
+    docs_file = Path(__file__).resolve().parent.parent.parent / "docs" / "GLICKO2_TEAM_MODEL.md"
+    if not docs_file.exists():
+        from scripts.docs.generate_model_docs import update_docs_file
+        update_docs_file()
+    content = docs_file.read_text(encoding="utf-8")
+    return Response(content, mimetype="text/markdown; charset=utf-8")
+
+
 @stats_bp.route("/about")
 def about():
     """About RB 48 Köln e.V. history, formats, and community philosophy."""

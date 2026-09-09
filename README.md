@@ -57,7 +57,11 @@ A full-stack sports analytics platform and Bayesian rating engine tailored for r
 ---
 
 ### 1. 🧠 Custom Multi-Player Bayesian Rating Engine (Glicko-2)
+> 📖 **Comprehensive Model Documentation:** See [GLICKO2_TEAM_MODEL.md](docs/GLICKO2_TEAM_MODEL.md) for a complete derivation of the numbers, team pooling mathematics, session batching, and Bayesian clarity dampening.
+
 * **Team-Level Uncertainty Aggregation:** Adapts classical 1v1 Glicko-2 to team sports by calculating team ratings as the arithmetic mean of players and team uncertainty (**Rating Deviation / RD**) via **quadratic mean pooling**—ensuring high-uncertainty players proportionally widen the team's confidence interval.
+* **Bayesian Teammate Clarity Dampening ($w_{\text{team}}$):** Decouples individual RD from team RD; gracefully dampens information noise when playing with uncalibrated teammates without collapsing veteran certainty.
+* **Session (Same-Day) Batching:** Aggregates all fixtures played on the same calendar date into a single rating period, guaranteeing complete chronological order invariance.
 * **Multi-Track Rating Systems:** Tracks separate skill profiles for different pitch dynamics:
   * `TOTAL` (Unified overall rating across all formats)
   * `BOX` (Indoor enclosed pitch, high-scoring small-sided games)

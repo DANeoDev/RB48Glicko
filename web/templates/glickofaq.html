@@ -193,6 +193,12 @@
                     <strong>{{ t('faq.golden_rule_title', 'Dabei gilt:') }}</strong> {{ t('faq.golden_rule_text', 'Das mathematische Modell dient einzig dem Zweck, spannende und ausgeglichene Spiele zu ermöglichen und eine gewisse Nerd-Leidenschaft für Zahlen zu befriedigen. Ratings spiegeln vergangene Teamergebnisse wider – sie definieren niemals den persönlichen Wert oder Charakter eines Spielers.') }}
                 </p>
             </div>
+            <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(123, 82, 197, 0.25); display: flex; justify-content: flex-end;">
+                <a href="{{ url_for('stats.model_documentation') }}" style="color: #80deea; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; font-size: 14.5px; transition: color 0.15s ease;" onmouseover="this.style.color='#b2ebf2'" onmouseout="this.style.color='#80deea'">
+                    <span style="font-size: 16px;">📖</span>
+                    <span>{{ t('faq.link_model_docs', 'Hier findest du eine detaillierte Dokumentation der RB48Glicko Implementation →') }}</span>
+                </a>
+            </div>
         </div>
 
         {% if has_tier('glicko_user') %}

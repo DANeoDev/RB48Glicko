@@ -449,6 +449,11 @@ TRANSLATIONS_DE = {
     "faq.webmaster_project_p2": "Auf Basis historischer Teamkonstellationen und Spielergebnisse können mithilfe dieser Analyse faire Teams im Matchmaker erstellt werden.",
     "faq.golden_rule_title": "Dabei gilt:",
     "faq.golden_rule_text": "Das mathematische Modell dient einzig dem Zweck, spannende und ausgeglichene Spiele zu ermöglichen und eine gewisse Nerd-Leidenschaft für Zahlen zu befriedigen. Ratings spiegeln vergangene Teamergebnisse wider – sie definieren niemals den persönlichen Wert oder Charakter eines Spielers.",
+    "faq.link_model_docs": "Hier findest du eine detaillierte Dokumentation der RB48Glicko Implementation →",
+    "faq.model_docs_title": "Modelldokumentation (Glicko-2)",
+    "faq.model_docs_heading": "Das RB48 Teambasierte Glicko-2 Modell",
+    "faq.model_docs_subtitle": "Technische & Konzeptionelle Dokumentation des mathematischen Bewertungsmodells",
+    "faq.model_docs_back": "← Zurück zur FAQ",
     # =========================================================================
     "faq.title": "Häufig gestellte Fragen & Modell-Leitfaden",
     "faq.subtitle": "Alles Wissenswerte über RB48-Spieltage, das Matchmaking und die Leistungsstatistiken.",

@@ -55,6 +55,8 @@ class RouteTests(unittest.TestCase):
             "/matches",
             "/glickofaq",
             "/about",
+            "/model-documentation",
+            "/model-documentation/raw",
             "/login",
             "/register",
             "/resend-verification",
@@ -203,6 +205,39 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(data.get("alias"), unique_name)
         self.assertEqual(data.get("target_team"), "a")
         self.assertIn("player_id", data)
+
+    def test_glickofaq_contains_model_documentation_link(self):
+        resp = self.client.get("/glickofaq")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("/model-documentation", html)
+        self.assertIn("webmaster-project", html)
+        self.assertIn("Hier findest du eine detaillierte Dokumentation der RB48Glicko Implementation", html)
+
+    def test_model_documentation_renders_dynamically_from_markdown(self):
+        resp = self.client.get("/model-documentation")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("perceived strength", html)
+        self.assertIn("doc-container", html)
+        self.assertIn("1. Introduction: Why Glicko-2 for Recreational Football?", html)
+        self.assertIn("katex.min.css", html)
+        self.assertIn("katex.min.js", html)
+        self.assertIn("auto-render.min.js", html)
+
+        # Verify static KaTeX assets are successfully served locally
+        resp_css = self.client.get("/static/vendor/katex/katex.min.css")
+        self.assertEqual(resp_css.status_code, 200)
+        resp_css.close()
+        resp_js = self.client.get("/static/vendor/katex/katex.min.js")
+        self.assertEqual(resp_js.status_code, 200)
+        resp_js.close()
+
+        raw_resp = self.client.get("/model-documentation/raw")
+        self.assertEqual(raw_resp.status_code, 200)
+        self.assertIn("text/markdown", raw_resp.content_type)
+        raw_text = raw_resp.get_data(as_text=True)
+        self.assertIn("perceived strength", raw_text)
 
 
 if __name__ == "__main__":
