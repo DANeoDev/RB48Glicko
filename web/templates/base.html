@@ -313,14 +313,15 @@
                     <span id="nav-noise-mode-label">{{ t('nav.noise_collapsed', 'Collapsed') }}</span>
                 </button>
             {% endif %}
+            {% set has_profile_notification = (unseen_achievements_count > 0) or (has_tier('webmaster') and unseen_webmaster_notifications_count > 0) %}
             <div class="profile-menu">
-                <button type="button" class="profile-button {% if unseen_achievements_count > 0 %}glowing-profile-btn{% endif %}" aria-label="{{ t('nav.account', 'Account') }}" title="{{ t('nav.account', 'Account') }}" style="position: relative;">
+                <button type="button" class="profile-button {% if has_profile_notification %}glowing-profile-btn{% endif %}" aria-label="{{ t('nav.account', 'Account') }}" title="{{ t('nav.account', 'Account') }}" style="position: relative;">
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                         <circle cx="12" cy="8" r="3.5"></circle>
                         <path d="M5 20c.7-3.3 3.2-5.2 7-5.2s6.3 1.9 7 5.2"></path>
                     </svg>
-                    {% if unseen_achievements_count > 0 %}
-                        <span class="profile-notification-dot" title="{{ t('achievements.new_notification', 'Neue Auszeichnungen!') }}"></span>
+                    {% if has_profile_notification %}
+                        <span class="profile-notification-dot" title="{% if unseen_webmaster_notifications_count > 0 %}{{ t('nav.webmaster_new_notifications', 'Neue Webmaster-Benachrichtigungen!') }}{% else %}{{ t('achievements.new_notification', 'Neue Auszeichnungen!') }}{% endif %}"></span>
                     {% endif %}
                 </button>
                 <div class="profile-dropdown">
@@ -337,7 +338,12 @@
                             </div>
                         </div>
                         {% if has_tier('webmaster') %}
-                            <a href="{{ url_for('auth.admin_users') }}" style="color: #80deea; font-weight: 600;">{{ t('nav.user_management', '👥 User Management') }}</a>
+                            <a href="{{ url_for('auth.admin_users') }}" class="{% if unseen_webmaster_notifications_count > 0 %}glowing-nav-achievement{% endif %}" style="color: #80deea; font-weight: 600; display: flex; align-items: center; justify-content: space-between;">
+                                <span>{{ t('nav.user_management', '👥 User Management') }}</span>
+                                {% if unseen_webmaster_notifications_count > 0 %}
+                                    <span class="nav-achievement-pill" style="background: #80deea; color: #140b28;">{{ unseen_webmaster_notifications_count }} {{ t('achievements.badge_new', 'NEU') }}</span>
+                                {% endif %}
+                            </a>
                         {% endif %}
                         {% if current_user.get('player_id') %}
                             <a href="{{ url_for('stats.player_profile', player_id=current_user['player_id']) }}">📊 {{ t('nav.my_stats', 'Meine Statistiken') }}</a>

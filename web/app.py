@@ -51,6 +51,18 @@ def create_app():
             except Exception:
                 unseen_achievements_count = 0
 
+        unseen_webmaster_notifications_count = 0
+        if user and user.get("role") == "webmaster":
+            try:
+                from scripts.accounts.database import get_accounts_connection, get_unseen_webmaster_notifications_count
+                acc_conn = get_accounts_connection()
+                try:
+                    unseen_webmaster_notifications_count = get_unseen_webmaster_notifications_count(acc_conn, user["id"])
+                finally:
+                    acc_conn.close()
+            except Exception:
+                unseen_webmaster_notifications_count = 0
+
         return {
             "current_user": user,
             "effective_tier": get_effective_tier(),
@@ -65,6 +77,7 @@ def create_app():
             "get_current_lang": get_current_lang,
             "format_date_localized": format_date_localized,
             "unseen_achievements_count": unseen_achievements_count,
+            "unseen_webmaster_notifications_count": unseen_webmaster_notifications_count,
         }
 
     register_routes(app)

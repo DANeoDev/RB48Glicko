@@ -19,10 +19,14 @@ from scripts.accounts.database import (
     backup_and_delete_user,
     get_accounts_connection,
     get_all_users,
+    get_unseen_webmaster_notifications_count,
     get_user_authored_noise_bubbles,
     get_user_by_email,
     get_user_by_id,
+    get_webmaster_notifications,
     link_user_to_player,
+    mark_webmaster_notifications_seen,
+    record_webmaster_notification,
     reject_player_link,
     request_player_link,
     set_user_access_level,
@@ -234,6 +238,7 @@ def switch_view():
 @require_webmaster
 def admin_users():
     """User management dashboard to review and approve registrations and player links."""
+    curr_user = get_current_user()
     connection = get_accounts_connection()
     main_conn = get_main_connection()
     try:
@@ -241,10 +246,32 @@ def admin_users():
         for u in users:
             u["actual_tier"] = get_actual_tier(u).name.lower()
         players = get_players(main_conn)
-        return render_template("admin_users.html", users=users, players=players)
+        notifications = get_webmaster_notifications(connection, curr_user["id"], limit=40)
+        unseen_notifications_count = get_unseen_webmaster_notifications_count(connection, curr_user["id"])
+        return render_template(
+            "admin_users.html",
+            users=users,
+            players=players,
+            notifications=notifications,
+            unseen_notifications_count=unseen_notifications_count,
+        )
     finally:
         connection.close()
         main_conn.close()
+
+
+@auth_bp.route("/admin/notifications/mark-read", methods=["POST"])
+@require_webmaster
+def mark_notifications_read():
+    """Mark all unread webmaster notifications as read."""
+    curr_user = get_current_user()
+    connection = get_accounts_connection()
+    try:
+        mark_webmaster_notifications_seen(connection, curr_user["id"])
+        flash("Alle Benachrichtigungen wurden als gelesen markiert.", "success")
+    finally:
+        connection.close()
+    return redirect(url_for("auth.admin_users"))
 
 
 @auth_bp.route("/admin/users/<int:user_id>/approval", methods=["POST"])
@@ -261,9 +288,23 @@ def toggle_approval(user_id):
 
         if action == "approve":
             approve_user(connection, user_id, approved=True)
+            record_webmaster_notification(
+                connection,
+                "status_changed",
+                user_id,
+                user["username"],
+                f"Mitgliedschaft freigegeben",
+            )
             flash(f"Account '{user['username']}' has been approved.", "success")
         else:
             approve_user(connection, user_id, approved=False)
+            record_webmaster_notification(
+                connection,
+                "status_changed",
+                user_id,
+                user["username"],
+                f"Mitgliedschaft widerrufen",
+            )
             flash(f"Approval for '{user['username']}' has been revoked.", "warning")
         return redirect(url_for("auth.admin_users"))
     finally:
@@ -284,12 +325,33 @@ def handle_player_link(user_id):
 
         if action == "approve":
             approve_player_link(connection, user_id)
+            record_webmaster_notification(
+                connection,
+                "player_link_changed",
+                user_id,
+                user["username"],
+                f"Spielerprofil-Verknüpfung bestätigt",
+            )
             flash(f"Approved player profile connection for '{user['username']}'.", "success")
         elif action == "unlink":
             unlink_player(connection, user_id)
+            record_webmaster_notification(
+                connection,
+                "player_link_changed",
+                user_id,
+                user["username"],
+                f"Spielerprofil-Verknüpfung getrennt",
+            )
             flash(f"Unlinked player profile connection for '{user['username']}'.", "info")
         else:
             reject_player_link(connection, user_id)
+            record_webmaster_notification(
+                connection,
+                "player_link_changed",
+                user_id,
+                user["username"],
+                f"Spielerprofil-Anfrage abgelehnt",
+            )
             flash(f"Rejected player link request for '{user['username']}'.", "info")
         return redirect(url_for("auth.admin_users"))
     finally:
@@ -311,9 +373,23 @@ def assign_player_link(user_id):
 
         if player_id:
             link_user_to_player(connection, user_id, player_id)
+            record_webmaster_notification(
+                connection,
+                "player_link_changed",
+                user_id,
+                user["username"],
+                f"Spieler #{player_id} zugewiesen",
+            )
             flash(f"Linked '{user['username']}' to player profile #{player_id}.", "success")
         else:
             unlink_player(connection, user_id)
+            record_webmaster_notification(
+                connection,
+                "player_link_changed",
+                user_id,
+                user["username"],
+                f"Spielerprofil-Verknüpfung entfernt",
+            )
             flash(f"Unlinked player profile for '{user['username']}'.", "info")
         return redirect(url_for("auth.admin_users"))
     finally:
@@ -343,6 +419,13 @@ def update_access_level(user_id):
             return redirect(url_for("auth.admin_users"))
 
         set_user_access_level(connection, user_id, new_tier)
+        record_webmaster_notification(
+            connection,
+            "status_changed",
+            user_id,
+            user["username"],
+            f"Zugriffslevel geändert auf {new_tier.replace('_', ' ').title()}",
+        )
         flash(f"Access level for '{user['username']}' changed to {new_tier.replace('_', ' ').title()}.", "success")
         return redirect(url_for("auth.admin_users"))
     finally:
@@ -394,6 +477,10 @@ def update_profile():
 
     conn = get_accounts_connection()
     try:
+        old_opt_out = int(user.get("glicko_opt_out") or 0)
+        old_attendance_name = user.get("attendance_name") or user["username"]
+        current_linked_id = user.get("player_id")
+
         update_user_profile(
             conn,
             user["id"],
@@ -402,15 +489,45 @@ def update_profile():
             glicko_opt_out=glicko_opt_out,
         )
 
-        # Handle player profile connection logic
-        current_linked_id = user.get("player_id")
+        if glicko_opt_out != old_opt_out:
+            record_webmaster_notification(
+                conn,
+                "opt_out_changed",
+                user["id"],
+                user["username"],
+                f"Glicko-Opt-Out {'aktiviert' if glicko_opt_out else 'deaktiviert'}",
+            )
 
+        if attendance_name and attendance_name != old_attendance_name:
+            record_webmaster_notification(
+                conn,
+                "profile_updated",
+                user["id"],
+                user["username"],
+                f"Planer-Name geändert: '{attendance_name}'",
+            )
+
+        # Handle player profile connection logic
         if player_id != current_linked_id:
             if user.get("role") == "webmaster":
                 link_user_to_player(conn, user["id"], player_id)
+                record_webmaster_notification(
+                    conn,
+                    "player_link_changed",
+                    user["id"],
+                    user["username"],
+                    f"Spieler #{player_id} zugewiesen" if player_id else "Spieler-Verknüpfung getrennt",
+                )
                 flash("Profile settings and player connection updated!", "success")
             else:
                 request_player_link(conn, user["id"], player_id)
+                record_webmaster_notification(
+                    conn,
+                    "player_link_requested",
+                    user["id"],
+                    user["username"],
+                    f"Spieler-Verknüpfung #{player_id} angefragt" if player_id else "Spieler-Verknüpfung getrennt",
+                )
                 if player_id:
                     flash("Profile saved! Your player connection request has been sent for Webmaster approval.", "info")
                 else:

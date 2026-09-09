@@ -13,6 +13,62 @@
             <a href="{{ url_for('stats.home') }}" class="secondary" style="padding: 8px 16px; text-decoration: none;">← {{ t('nav.dashboard', 'Dashboard') }}</a>
         </div>
 
+        <!-- Webmaster Notifications & Activity Feed -->
+        <div style="background: rgba(123, 82, 197, 0.12); border: 1px solid rgba(123, 82, 197, 0.35); border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 16px;">🔔</span>
+                    <strong style="color: #ffffff; font-size: 14px;">{{ t('auth.notifications_title', 'Aktivitäten & Benachrichtigungen') }}</strong>
+                    {% if unseen_notifications_count > 0 %}
+                        <span style="background: #80deea; color: #140b28; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 10px;">{{ unseen_notifications_count }} {{ t('achievements.badge_new', 'NEU') }}</span>
+                    {% endif %}
+                </div>
+                {% if notifications %}
+                    <form method="post" action="{{ url_for('auth.mark_notifications_read') }}" style="margin: 0;">
+                        <button type="submit" class="secondary" style="font-size: 11.5px; padding: 4px 10px; cursor: pointer;">
+                            ✓ {{ t('auth.mark_all_read', 'Alle als gelesen markieren') }}
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+
+            {% if notifications %}
+                <div style="display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; padding-right: 4px;">
+                    {% for n in notifications %}
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: {% if not n.is_seen %}rgba(128, 222, 234, 0.1){% else %}rgba(255, 255, 255, 0.03){% endif %}; border: 1px solid {% if not n.is_seen %}rgba(128, 222, 234, 0.35){% else %}rgba(255, 255, 255, 0.08){% endif %}; border-radius: 6px; padding: 8px 12px; font-size: 12.5px; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                {% if n.event_type == 'user_registered' %}
+                                    <span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px;">👤 {{ t('auth.event_registered', 'Registrierung') }}</span>
+                                {% elif n.event_type == 'opt_out_changed' %}
+                                    <span style="background: rgba(255, 193, 7, 0.25); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.5); font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px;">🔒 Opt-Out</span>
+                                {% elif n.event_type == 'status_changed' %}
+                                    <span style="background: rgba(128, 222, 234, 0.25); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.5); font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px;">⚡ {{ t('auth.event_status', 'Status') }}</span>
+                                {% elif n.event_type == 'player_link_requested' or n.event_type == 'player_link_changed' %}
+                                    <span style="background: rgba(123, 82, 197, 0.35); color: #c9c2d8; border: 1px solid rgba(123, 82, 197, 0.6); font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px;">🔗 {{ t('auth.event_link', 'Verknüpfung') }}</span>
+                                {% elif n.event_type == 'psychology_passed' %}
+                                    <span style="background: rgba(128, 222, 234, 0.25); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.5); font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px;">🧠 Glicko-Test</span>
+                                {% else %}
+                                    <span style="background: rgba(255, 255, 255, 0.1); color: #ffffff; font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px;">📝 Info</span>
+                                {% endif %}
+                                <strong style="color: #ffffff;">{{ n.username }}</strong>
+                                <span style="color: var(--text-muted);">{{ n.details }}</span>
+                            </div>
+                            <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap;">
+                                {{ n.created_at | replace('T', ' ') | truncate(16, True, '') }}
+                                {% if not n.is_seen %}
+                                    <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #80deea; margin-left: 6px;" title="Ungelesen"></span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div style="font-size: 12px; color: var(--text-muted); font-style: italic;">
+                    {{ t('auth.no_notifications', 'Noch keine administrativen Aktivitäten verzeichnet.') }}
+                </div>
+            {% endif %}
+        </div>
+
         {% if users %}
             <div style="overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
