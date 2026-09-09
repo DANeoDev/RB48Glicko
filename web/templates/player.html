@@ -6,7 +6,7 @@
 
 {% block head %}
 {% if show_player_glicko %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='chart.js') }}"></script>
 {% endif %}
 <link rel="stylesheet" href="{{ url_for('static', filename='player.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='time_scrollbar.css', v='20260908_1') }}">
