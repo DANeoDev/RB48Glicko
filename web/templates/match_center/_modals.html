@@ -97,6 +97,32 @@
 
             </div>
 
+        <div id="team-add-choice" style="display: none;">
+
+            <p>
+                {{ t('match_center.team_add_choice_prompt', 'Möchtest du einen neuen Spieler in der Datenbank anlegen oder einen externen Gastspieler (+1) hinzufügen?') }}
+            </p>
+
+            <div class="modal-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
+
+                <button
+                    class="primary"
+                    id="choice-create-player-btn"
+                    type="button"
+                >
+                    👤 {{ t('match_center.choice_new_player', 'Neuen Spieler erstellen') }}
+                </button>
+
+                <button
+                    class="secondary"
+                    id="choice-external-player-btn"
+                    type="button"
+                >
+                    ➕ {{ t('match_center.choice_external_player', 'Externen Spieler hinzufügen (+1)') }}
+                </button>
+
+            </div>
+
         </div>
 
 

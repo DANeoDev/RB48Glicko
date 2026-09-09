@@ -302,6 +302,15 @@
                                         {{ t('match_center.add_player_btn', 'Add player') }}
                                     </button>
 
+                                    <button
+                                        type="button"
+                                        class="secondary ignore-btn"
+                                        data-name="{{ u.name | e }}"
+                                        title="{{ t('match_center.ignore_player_tooltip', 'Ignore this name and treat as external guest player (+1)') }}"
+                                    >
+                                        🚫 {{ t('match_center.ignore_player_btn', 'Spieler ignorieren') }}
+                                    </button>
+
                                 </div>
 
                             {% endfor %}

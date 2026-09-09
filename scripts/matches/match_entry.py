@@ -5,7 +5,7 @@ from pathlib import Path
 
 from scripts.database.db_matches import create_match, add_match_player, get_matches, get_match_teams, match_exists
 from scripts.database.db_ratings import get_ratings, get_processed_match_ids, get_calibrations, set_calibration
-from scripts.database.db_players import get_alias_lookup, get_ignored_aliases, get_next_player_id, create_player, add_alias, add_position
+from scripts.database.db_players import get_alias_lookup, get_ignored_aliases, add_ignored_alias, get_next_player_id, create_player, add_alias, add_position
 from scripts.glicko.glicko2 import Glicko2, DEFAULT_RATING, DEFAULT_RD, DEFAULT_SIGMA
 from scripts.glicko.glicko2_calculator import (
     glicko_table_to_ratings,
@@ -33,6 +33,17 @@ CERTAINTY_LEVELS = {
     "high": (120.0, "Very certain (120 RD)"),
     "extremely_certain": (80.0, "Extremely certain (80 RD)"),
 }
+
+
+def ensure_external_player_aliases(connection, count=1):
+    """Ensure standard external player aliases exist in the ignored_aliases table."""
+    existing = {a.casefold() for a in get_ignored_aliases(connection)}
+    for i in range(1, count + 1):
+        alias = f"Externer Spieler {i}"
+        if alias.casefold() not in existing:
+            add_ignored_alias(connection, alias)
+            existing.add(alias.casefold())
+    connection.commit()
 
 
 def _percentile(values, percentile):
@@ -107,7 +118,7 @@ def next_match_id(connection, match_date):
     return f"{match_date}-{highest + 1}"
 
 
-def _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_b_ids, goals_a, goals_b):
+def _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_b_ids, goals_a, goals_b, players_a_count=None, players_b_count=None):
     """Write the match to the matches folder. This folder is the match source of truth."""
     aliases = {row["player_id"]: row["alias"] for row in connection.execute("SELECT alias, player_id FROM aliases")}
     MATCHES_DIR.mkdir(parents=True, exist_ok=True)
@@ -119,6 +130,13 @@ def _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_
     if match_id in existing_ids:
         return
     write_header = not csv_file.exists() or csv_file.stat().st_size == 0
+
+    ext_a = (players_a_count - len(team_a_ids)) if (players_a_count and players_a_count > len(team_a_ids)) else 0
+    ext_b = (players_b_count - len(team_b_ids)) if (players_b_count and players_b_count > len(team_b_ids)) else 0
+
+    team_a_names = [aliases[p] for p in team_a_ids] + [f"Externer Spieler {i+1}" for i in range(ext_a)]
+    team_b_names = [aliases[p] for p in team_b_ids] + [f"Externer Spieler {ext_a + i + 1}" for i in range(ext_b)]
+
     with csv_file.open("a", encoding="utf-8", newline="") as file:
         writer = csv.writer(file)
         if write_header:
@@ -126,8 +144,8 @@ def _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_
         writer.writerow([
             match_id,
             pitch,
-            ",".join(aliases[p] for p in team_a_ids),
-            ",".join(aliases[p] for p in team_b_ids),
+            ",".join(team_a_names),
+            ",".join(team_b_names),
             goals_a,
             goals_b,
         ])
@@ -141,7 +159,12 @@ def add_match(connection, match_date, pitch, team_a_ids, team_b_ids, goals_a, go
     players_a_count = len(team_a_ids) if players_a_count is None else players_a_count
     players_b_count = len(team_b_ids) if players_b_count is None else players_b_count
 
-    _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_b_ids, goals_a, goals_b)
+    ext_a = players_a_count - len(team_a_ids)
+    ext_b = players_b_count - len(team_b_ids)
+    if ext_a > 0 or ext_b > 0:
+        ensure_external_player_aliases(connection, ext_a + ext_b)
+
+    _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_b_ids, goals_a, goals_b, players_a_count, players_b_count)
 
     connection.execute("BEGIN")
     try:

@@ -144,16 +144,19 @@ def normalize_player_name(name):
     return re.sub(r"\s+", " ", name).strip()
 
 
-def resolve_player_names(parsed_names, players):
+def resolve_player_names(parsed_names, players, ignored_aliases=None):
     lookup = {}
     for player_id, player in players.items():
         for alias in player.get("aliases", []):
             lookup.setdefault(alias.strip().casefold(), []).append(player_id)
+    ignored_set = {normalize_player_name(a).casefold() for a in (ignored_aliases or set())}
     verified_ids, conflicts, unmatched = [], [], []
     for raw_name in parsed_names:
         verified = bool(re.match(r"^\s*\[M\](?:\s|$)", raw_name, flags=re.IGNORECASE))
         name = normalize_player_name(raw_name)
         if not name:
+            continue
+        if name.casefold() in ignored_set:
             continue
         candidates = lookup.get(name.casefold(), [])
         if verified and candidates:

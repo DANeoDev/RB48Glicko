@@ -32,12 +32,69 @@
     }
 
 
+    function getExternalCount(team) {
+        const input = document.getElementById(`external-${team}`);
+        return input ? (parseInt(input.value, 10) || 0) : 0;
+    }
+
+
+    function setExternalCount(team, count) {
+        const input = document.getElementById(`external-${team}`);
+        if (input) {
+            input.value = Math.max(0, count);
+        }
+    }
+
+
     function updateCount(team) {
         const element = document.getElementById(`count-${team}`);
 
         if (element) {
-            element.textContent = `(${selectedIds(team).length})`;
+            const total = selectedIds(team).length + getExternalCount(team);
+            element.textContent = `(${total})`;
         }
+    }
+
+
+    function wireRemoveExternal(button) {
+        button.addEventListener('click', () => {
+            const row = button.closest('.selected-player');
+            const teamBox = button.closest('.team-box');
+            const team = row?.dataset.team || (teamBox?.querySelector('.player-search')?.id?.replace('search-', '') || 'a');
+            row?.remove();
+            setExternalCount(team, getExternalCount(team) - 1);
+            updateCount(team);
+        });
+    }
+
+
+    function addExternalPlayer(team) {
+        const list = document.getElementById(`list-${team}`);
+        if (!list) return;
+
+        setExternalCount(team, getExternalCount(team) + 1);
+
+        const row = document.createElement('div');
+        row.className = 'selected-player external-player-item';
+        row.dataset.team = team;
+
+        const name = document.createElement('span');
+        name.className = 'selected-player-name';
+        name.style.fontStyle = 'italic';
+        name.style.color = 'var(--text-muted)';
+        name.textContent = `👤 ${window.matchCenterTranslations?.externalPlayer || 'Externer Spieler (+1)'}`;
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'remove-player remove-external';
+        remove.textContent = '×';
+
+        wireRemoveExternal(remove);
+
+        row.append(name, remove);
+        list.appendChild(row);
+
+        updateCount(team);
     }
 
 
@@ -185,25 +242,22 @@
     // Remove initially rendered players
     // ------------------------------------------------------------
 
-        document.querySelectorAll('.remove-player').forEach(button => {
+        document.querySelectorAll('.remove-player:not(.remove-external)').forEach(button => {
+            button.addEventListener('click', () => {
+                const row = button.closest('.selected-player');
+                const teamBox = button.closest('.team-box');
+                const team = teamBox
+                    ?.querySelector('.player-search')
+                    ?.id
+                    ?.replace('search-', '') || 'a';
 
-        button.addEventListener('click', () => {
-
-            const row = button.closest('.selected-player');
-
-            const teamBox = button.closest('.team-box');
-
-            const team = teamBox
-                ?.querySelector('.player-search')
-                ?.id
-                ?.replace('search-', '') || 'a';
-
-
-            row?.remove();
-
-            updateCount(team);
+                row?.remove();
+                updateCount(team);
+            });
         });
 
+        document.querySelectorAll('.remove-external').forEach(button => {
+            wireRemoveExternal(button);
         });
     }
 
@@ -370,6 +424,9 @@
         const titleEl = document.getElementById('add-modal-title');
         const detectedRow = document.getElementById('add-detected-row');
         const choiceDiv = document.getElementById('choice');
+        const teamChoiceDiv = document.getElementById('team-add-choice');
+        const choiceCreateBtn = document.getElementById('choice-create-player-btn');
+        const choiceExternalBtn = document.getElementById('choice-external-player-btn');
         const aliasForm = document.getElementById('alias-form');
         const newForm = document.getElementById('new-form');
         const newAliasInput = document.getElementById('new-alias');
@@ -403,12 +460,13 @@
             addTargetTeam = null;
             addPlayerName = name;
             clearErrors();
-            if (titleEl) titleEl.textContent = 'Add player';
+            if (titleEl) titleEl.textContent = window.matchCenterTranslations?.addPlayer || 'Add player';
             if (detectedRow) {
                 detectedRow.style.display = 'block';
                 const nameEl = document.getElementById('add-name');
                 if (nameEl) nameEl.textContent = name;
             }
+            if (teamChoiceDiv) teamChoiceDiv.style.display = 'none';
             if (choiceDiv) choiceDiv.style.display = 'block';
             if (aliasForm) aliasForm.style.display = 'none';
             if (newForm) newForm.style.display = 'none';
@@ -423,30 +481,54 @@
 
             const teamLabel = team === 'a' ? 'Team A' : team === 'b' ? 'Team B' : '';
             if (titleEl) {
-                titleEl.textContent = teamLabel ? `Add new player (${teamLabel})` : 'Add new player';
+                titleEl.textContent = teamLabel ? `${window.matchCenterTranslations?.addPlayer || 'Add player'} (${teamLabel})` : (window.matchCenterTranslations?.addPlayer || 'Add player');
             }
             if (detectedRow) {
                 detectedRow.style.display = 'none';
             }
             if (choiceDiv) choiceDiv.style.display = 'none';
             if (aliasForm) aliasForm.style.display = 'none';
+            if (newForm) newForm.style.display = 'none';
+            if (teamChoiceDiv) teamChoiceDiv.style.display = 'block';
+
+            addModal.style.display = 'flex';
+        };
+
+        choiceCreateBtn?.addEventListener('click', () => {
+            if (teamChoiceDiv) teamChoiceDiv.style.display = 'none';
             if (newForm) newForm.style.display = 'block';
 
-            // Prefill with search input value if user already typed something
-            const searchInput = document.getElementById(`search-${team}`);
+            const searchInput = document.getElementById(`search-${addTargetTeam}`);
             const query = searchInput ? searchInput.value.trim() : '';
             if (newAliasInput) {
                 newAliasInput.value = query;
             }
-
-            addModal.style.display = 'flex';
             setTimeout(() => {
                 newAliasInput?.focus();
             }, 50);
-        };
+        });
+
+        choiceExternalBtn?.addEventListener('click', () => {
+            if (addTargetTeam) {
+                addExternalPlayer(addTargetTeam);
+            }
+            addModal.style.display = 'none';
+            clearErrors();
+        });
 
         document.querySelectorAll('.add-btn').forEach(button => {
             button.addEventListener('click', () => openAdd(button.dataset.name));
+        });
+
+        document.querySelectorAll('.ignore-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                if (!mcForm) return;
+                mcForm.append(
+                    hidden('action', 'ignore_parser_player'),
+                    hidden('target_alias', button.dataset.name)
+                );
+                mcForm.submit();
+            });
         });
 
         document.getElementById('add-cancel')?.addEventListener('click', () => {
@@ -612,9 +694,11 @@
                         }
 
                         list.innerHTML = '';
+                        setExternalCount(teamKey, 0);
                         team.forEach(pid => {
                             addTeamPlayer(teamKey, pid);
                         });
+                        updateCount(teamKey);
                     });
 
                 document
@@ -659,8 +743,10 @@
 
             const teamAInputs = document.querySelectorAll('#list-a input[name="team_a"]');
             const teamBInputs = document.querySelectorAll('#list-b input[name="team_b"]');
+            const extA = getExternalCount('a');
+            const extB = getExternalCount('b');
 
-            if (teamAInputs.length === 0 && teamBInputs.length === 0) {
+            if ((teamAInputs.length + extA === 0) || (teamBInputs.length + extB === 0)) {
                 alert('Both teams need at least one player.');
                 return;
             }

@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, request, jsonify
 from scripts.accounts.database import get_accounts_connection
 from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_ratings
-from scripts.database.db_players import get_players, get_alias_lookup, add_alias
+from scripts.database.db_players import get_players, get_alias_lookup, add_alias, get_ignored_aliases, add_ignored_alias
 from scripts.matches.match_entry import (
     add_match,
     next_match_id,
@@ -47,12 +47,30 @@ def _alias_candidates(players):
     return lookup
 
 
-def _build_parse_result(parsed, players):
+def _build_parse_result(parsed, players, ignored_aliases=None):
+    ignored_set = {normalize_player_name(a).casefold() for a in (ignored_aliases or set())}
     parsed_names = parsed.get("players", [])
-    verified_ids, conflicts, unmatched = resolve_player_names(parsed_names, players)
+    verified_ids, conflicts, unmatched = resolve_player_names(parsed_names, players, ignored_aliases=ignored_aliases)
     lookup = _alias_candidates(players)
-    team_a_ids = [ids[0] for raw in parsed.get("team_a", []) if len(ids := lookup.get(normalize_player_name(raw).casefold(), [])) == 1]
-    team_b_ids = [ids[0] for raw in parsed.get("team_b", []) if len(ids := lookup.get(normalize_player_name(raw).casefold(), [])) == 1]
+
+    team_a_ids = []
+    external_a = 0
+    for raw in parsed.get("team_a", []):
+        norm = normalize_player_name(raw).casefold()
+        if len(ids := lookup.get(norm, [])) == 1:
+            team_a_ids.append(ids[0])
+        elif norm in ignored_set:
+            external_a += 1
+
+    team_b_ids = []
+    external_b = 0
+    for raw in parsed.get("team_b", []):
+        norm = normalize_player_name(raw).casefold()
+        if len(ids := lookup.get(norm, [])) == 1:
+            team_b_ids.append(ids[0])
+        elif norm in ignored_set:
+            external_b += 1
+
     return {
         "kind": parsed.get("kind", "unknown"),
         "match_date": parsed.get("match_date"),
@@ -61,6 +79,8 @@ def _build_parse_result(parsed, players):
         "team_b": parsed.get("team_b", []),
         "team_a_ids": team_a_ids,
         "team_b_ids": team_b_ids,
+        "external_a": external_a,
+        "external_b": external_b,
         "goals_a": parsed.get("goals_a"),
         "goals_b": parsed.get("goals_b"),
         "verified_ids": verified_ids,
@@ -69,7 +89,7 @@ def _build_parse_result(parsed, players):
     }
 
 
-def _rebuild_parser_result(form, players, files=None):
+def _rebuild_parser_result(form, players, files=None, ignored_aliases=None):
     def integer_or_none(value):
         try:
             return int(value) if value not in (None, "") else None
@@ -85,7 +105,7 @@ def _rebuild_parser_result(form, players, files=None):
             if not upload or not upload.filename:
                 raise MatchParserError("Please paste a WhatsApp message or choose/paste an image first.")
             parsed = parse_match_image(upload.read(), upload.mimetype)
-        return _build_parse_result(parsed, players)
+        return _build_parse_result(parsed, players, ignored_aliases=ignored_aliases)
 
     return _build_parse_result({
         "kind": form.get("parsed_kind", "unknown"),
@@ -95,7 +115,7 @@ def _rebuild_parser_result(form, players, files=None):
         "team_b": [x for x in form.get("parsed_team_b", "").split("||") if x],
         "goals_a": integer_or_none(form.get("parsed_goals_a")),
         "goals_b": integer_or_none(form.get("parsed_goals_b")),
-    }, players)
+    }, players, ignored_aliases=ignored_aliases)
 
 
 def _remove_resolved_name(parse_result, name):
@@ -115,7 +135,7 @@ def _get_prefilled_team_ids(form, team_name, players):
 # Modular Action Handlers for match_center
 # -----------------------------------------------------------------------------
 
-def _handle_parse_action(form, files, players):
+def _handle_parse_action(form, files, players, connection):
     """Handle match message or match sheet image parsing via Gemini."""
     try:
         action = form.get("action")
@@ -126,17 +146,19 @@ def _handle_parse_action(form, files, players):
             if not upload or not upload.filename:
                 raise MatchParserError("Please paste a WhatsApp message or choose/paste an image first.")
             parsed = parse_match_image(upload.read(), upload.mimetype)
-        parse_result = _build_parse_result(parsed, players)
+        ignored_aliases = get_ignored_aliases(connection)
+        parse_result = _build_parse_result(parsed, players, ignored_aliases=ignored_aliases)
         selected_ids = parse_result["verified_ids"]
         parser_success = "This looks like an already played match. Review the imported facts, or check the same players for fairer possible teams." if parse_result["kind"] == "match" else None
         return parse_result, selected_ids, parser_success, None
     except MatchParserError as exc:
-        empty_res = _EmptyParseResult(kind="", match_date=None, players=[], team_a=[], team_b=[], team_a_ids=[], team_b_ids=[], goals_a=None, goals_b=None, verified_ids=[], conflicts=[], unmatched=[])
+        empty_res = _EmptyParseResult(kind="", match_date=None, players=[], team_a=[], team_b=[], team_a_ids=[], team_b_ids=[], external_a=0, external_b=0, goals_a=None, goals_b=None, verified_ids=[], conflicts=[], unmatched=[])
         return empty_res, [], None, str(exc)
 
 
-def _handle_resolve_conflicts(form, players):
-    parse_result = _rebuild_parser_result(form, players)
+def _handle_resolve_conflicts(form, players, connection):
+    ignored_aliases = get_ignored_aliases(connection)
+    parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
     selected_ids = list(parse_result["verified_ids"])
     lookup = _alias_candidates(players)
     remaining = []
@@ -156,7 +178,8 @@ def _handle_resolve_conflicts(form, players):
 
 
 def _handle_add_parser_alias(form, connection, players, selected_ids):
-    parse_result = _rebuild_parser_result(form, players)
+    ignored_aliases = get_ignored_aliases(connection)
+    parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
     alias = normalize_player_name(form.get("new_alias", ""))
     try:
         player_id = int(form.get("target_player_id", ""))
@@ -172,7 +195,8 @@ def _handle_add_parser_alias(form, connection, players, selected_ids):
         invalidate_stats_cache()
         players = get_players(connection)
         selected_ids = list(dict.fromkeys(selected_ids + [player_id]))
-        parse_result = _rebuild_parser_result(form, players)
+        ignored_aliases = get_ignored_aliases(connection)
+        parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
         _remove_resolved_name(parse_result, alias)
         return players, selected_ids, parse_result, f"Added '{alias}' as an alias and selected the player.", None
     except (ValueError, TypeError) as exc:
@@ -197,11 +221,30 @@ def _handle_create_parser_player(form, connection, players, selected_ids):
         invalidate_stats_cache()
         players = get_players(connection)
         selected_ids = list(dict.fromkeys(selected_ids + [created_id]))
-        parse_result = _rebuild_parser_result(form, players)
+        ignored_aliases = get_ignored_aliases(connection)
+        parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
         _remove_resolved_name(parse_result, alias)
         return players, selected_ids, parse_result, f"Created {alias} and selected them.", None
     except ValueError as exc:
-        parse_result = _rebuild_parser_result(form, players)
+        ignored_aliases = get_ignored_aliases(connection)
+        parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
+        return players, selected_ids, parse_result, None, str(exc)
+
+
+def _handle_ignore_parser_player(form, connection, players, selected_ids):
+    alias = normalize_player_name(form.get("target_alias") or form.get("new_alias") or "")
+    try:
+        if not alias:
+            raise ValueError("Alias cannot be empty.")
+        add_ignored_alias(connection, alias)
+        connection.commit()
+        ignored_aliases = get_ignored_aliases(connection)
+        parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
+        _remove_resolved_name(parse_result, alias)
+        return players, selected_ids, parse_result, f"Ignored '{alias}'. This tag will count as an external guest player in matches.", None
+    except ValueError as exc:
+        ignored_aliases = get_ignored_aliases(connection)
+        parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
         return players, selected_ids, parse_result, None, str(exc)
 
 
@@ -340,7 +383,7 @@ def match_center():
 
         result = None
         seed = None
-        parse_result = _EmptyParseResult(kind="", match_date=None, players=[], team_a=[], team_b=[], team_a_ids=[], team_b_ids=[], goals_a=None, goals_b=None, verified_ids=[], conflicts=[], unmatched=[])
+        parse_result = _EmptyParseResult(kind="", match_date=None, players=[], team_a=[], team_b=[], team_a_ids=[], team_b_ids=[], external_a=0, external_b=0, goals_a=None, goals_b=None, verified_ids=[], conflicts=[], unmatched=[])
         parse_error = None
         parser_success = None
         success = None
@@ -352,16 +395,19 @@ def match_center():
 
         if request.method == "POST":
             if action in ("parse_image", "parse_source"):
-                parse_result, selected_ids, parser_success, parse_error = _handle_parse_action(request.form, request.files, players)
+                parse_result, selected_ids, parser_success, parse_error = _handle_parse_action(request.form, request.files, players, connection)
 
             elif action == "resolve_conflicts":
-                parse_result, selected_ids, parser_success = _handle_resolve_conflicts(request.form, players)
+                parse_result, selected_ids, parser_success = _handle_resolve_conflicts(request.form, players, connection)
 
             elif action == "add_parser_alias":
                 players, selected_ids, parse_result, parser_success, parse_error = _handle_add_parser_alias(request.form, connection, players, selected_ids)
 
             elif action == "create_parser_player":
                 players, selected_ids, parse_result, parser_success, parse_error = _handle_create_parser_player(request.form, connection, players, selected_ids)
+
+            elif action == "ignore_parser_player":
+                players, selected_ids, parse_result, parser_success, parse_error = _handle_ignore_parser_player(request.form, connection, players, selected_ids)
 
             elif action == "import_planner":
                 selected_ids, imported_planner_date, imported_planner_pitch, parser_success = _handle_import_planner(request.form, connection, selected_ids)
@@ -394,11 +440,18 @@ def match_center():
 
         team_a = _get_prefilled_team_ids(request.form, "team_a", players) if request.method == "POST" and action in ("save", "create_player") else []
         team_b = _get_prefilled_team_ids(request.form, "team_b", players) if request.method == "POST" and action in ("save", "create_player") else []
+        try:
+            external_a = int(request.form.get("external_a", "0") or 0) if request.method == "POST" and action in ("save", "create_player") else 0
+            external_b = int(request.form.get("external_b", "0") or 0) if request.method == "POST" and action in ("save", "create_player") else 0
+        except (ValueError, TypeError):
+            external_a, external_b = 0, 0
         goals_a = request.form.get("goals_a", "0") if request.method == "POST" else "0"
         goals_b = request.form.get("goals_b", "0") if request.method == "POST" else "0"
         if parse_result and parse_result.get("kind") == "match" and not team_a and not team_b:
             team_a = parse_result.get("team_a_ids", [])
             team_b = parse_result.get("team_b_ids", [])
+            external_a = parse_result.get("external_a", 0)
+            external_b = parse_result.get("external_b", 0)
             goals_a = parse_result.get("goals_a") if parse_result.get("goals_a") is not None else 0
             goals_b = parse_result.get("goals_b") if parse_result.get("goals_b") is not None else 0
 
@@ -431,6 +484,8 @@ def match_center():
             next_match_id=next_id,
             team_a=team_a,
             team_b=team_b,
+            external_a=external_a,
+            external_b=external_b,
             goals_a=goals_a,
             goals_b=goals_b,
             success=success,

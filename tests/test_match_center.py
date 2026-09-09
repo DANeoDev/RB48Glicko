@@ -301,8 +301,109 @@ class MatchCenterFrontendTests(unittest.TestCase):
                 self.assertIn(b"Daniel", response.data)
                 self.assertIn(b"Dennis", response.data)
 
+    def test_match_center_ignore_parser_player_action(self):
+        from scripts.database.database import get_connection
+        from scripts.database.db_players import get_ignored_aliases
+
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
+            response = client.post("/match-center", data={
+                "action": "ignore_parser_player",
+                "target_alias": "UnknownGuestX",
+                "parsed_kind": "match",
+                "parsed_player": ["Daniel", "UnknownGuestX"],
+                "parsed_team_a": "Daniel",
+                "parsed_team_b": "UnknownGuestX",
+                "parsed_goals_a": "5",
+                "parsed_goals_b": "3",
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"Ignored", response.data)
+
+        conn = get_connection()
+        try:
+            ignored = get_ignored_aliases(conn)
+            self.assertIn("unknownguestx", {a.casefold() for a in ignored})
+        finally:
+            conn.close()
+
+    def test_match_center_parse_match_with_ignored_player_counts_external(self):
+        from unittest.mock import patch
+        from scripts.database.database import get_connection
+        from scripts.database.db_players import add_ignored_alias
+
+        conn = get_connection()
+        try:
+            add_ignored_alias(conn, "GuestExternal")
+            conn.commit()
+        finally:
+            conn.close()
+
+        with patch("web.routes.match_center.parse_match_text") as mock_parse:
+            mock_parse.return_value = {
+                "kind": "match",
+                "match_date": "2026-10-22",
+                "players": ["Daniel", "GuestExternal", "Dennis"],
+                "team_a": ["Daniel", "GuestExternal"],
+                "team_b": ["Dennis"],
+                "goals_a": 7,
+                "goals_b": 6,
+            }
+            with self.app.test_client() as client:
+                with client.session_transaction() as sess:
+                    sess["user_id"] = self.admin_id
+
+                response = client.post("/match-center", data={
+                    "action": "parse_source",
+                    "match_text": "Team A vs Team B match",
+                })
+                self.assertEqual(response.status_code, 200)
+                # GuestExternal should not be unmatched because it is ignored
+                self.assertNotIn(b"GuestExternal", response.data.split(b"New / Unrecognized Players")[-1] if b"New / Unrecognized Players" in response.data else b"")
+                # Hidden external input should have value 1
+                self.assertIn(b'id="external-a"\n                value="1"', response.data)
+
+    def test_match_center_save_match_with_external_players(self):
+        from scripts.database.database import get_connection
+        from scripts.database.db_players import get_ignored_aliases, get_players
+
+        conn = get_connection()
+        try:
+            players = get_players(conn)
+            pids = list(players.keys())[:2]
+        finally:
+            conn.close()
+
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
+            response = client.post("/match-center", data={
+                "action": "save",
+                "date": "2026-10-23",
+                "pitch": "box",
+                "team_a": [str(pids[0])],
+                "team_b": [str(pids[1])],
+                "external_a": "1",
+                "external_b": "0",
+                "goals_a": "10",
+                "goals_b": "8",
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"Saved", response.data)
+
+        conn = get_connection()
+        try:
+            ignored = get_ignored_aliases(conn)
+            self.assertIn("externer spieler 1", {a.casefold() for a in ignored})
+        finally:
+            conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

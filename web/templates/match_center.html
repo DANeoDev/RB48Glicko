@@ -25,6 +25,10 @@
 
 <script>
     window.matchCenterPlayers = {{ players | tojson }};
+    window.matchCenterTranslations = {
+        addPlayer: {{ t('match_center.modal_add_player', 'Spieler anlegen') | tojson }},
+        externalPlayer: {{ t('match_center.external_player_label', 'Externer Spieler (+1)') | tojson }}
+    };
 </script>
 <script src="{{ url_for('static', filename='match_center.js') }}"></script>
 {% endblock %}

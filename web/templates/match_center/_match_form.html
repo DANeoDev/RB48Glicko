@@ -50,6 +50,20 @@
                 value="save"
             >
 
+            <input
+                type="hidden"
+                name="external_a"
+                id="external-a"
+                value="{{ external_a or 0 }}"
+            >
+
+            <input
+                type="hidden"
+                name="external_b"
+                id="external-b"
+                value="{{ external_b or 0 }}"
+            >
+
 
             <div class="entry-grid">
 
@@ -149,9 +163,9 @@
                             <span id="count-{{ team }}">
                                 (
                                 {% if team == 'a' %}
-                                    {{ team_a | length }}
+                                    {{ (team_a | length) + (external_a or 0) }}
                                 {% else %}
-                                    {{ team_b | length }}
+                                    {{ (team_b | length) + (external_b or 0) }}
                                 {% endif %}
                                 )
                             </span>
@@ -217,6 +231,26 @@
                                 </div>
 
                             {% endfor %}
+
+                            {% set ext_count = external_a if team == 'a' else external_b %}
+                            {% if ext_count and ext_count > 0 %}
+                                {% for idx in range(ext_count) %}
+                                    <div class="selected-player external-player-item" data-team="{{ team }}">
+
+                                        <span class="selected-player-name" style="font-style: italic; color: var(--text-muted);">
+                                            👤 {{ t('match_center.external_player_label', 'Externer Spieler (+1)') }}
+                                        </span>
+
+                                        <button
+                                            class="remove-player remove-external"
+                                            type="button"
+                                        >
+                                            ×
+                                        </button>
+
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
 
                         </div>
 
