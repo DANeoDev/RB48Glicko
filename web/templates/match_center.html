@@ -3,7 +3,7 @@
 {% block title %}{{ t('match_center.title', 'Match Center') }} · RB48{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='match_center.css', v='20260909_batch') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='match_center.css', v='20260909_scroll') }}">
 {% endblock %}
 
 {% block content %}
@@ -21,6 +21,29 @@
     {% include "match_center/_match_form.html" %}
 </div>
 
+{% if result and request.method == 'POST' and request.form.get('action') in ['generate', 'reroll'] %}
+<script>
+    if (!sessionStorage.getItem('rb48ScrollTarget')) {
+        sessionStorage.setItem('rb48ScrollTarget', '#suggested-teams');
+        sessionStorage.setItem('rb48ScrollPath', window.location.pathname);
+    }
+</script>
+{% elif request.method == 'POST' and request.form.get('action') in ['import_planner', 'resolve_conflicts'] %}
+<script>
+    if (!sessionStorage.getItem('rb48ScrollTarget')) {
+        sessionStorage.setItem('rb48ScrollTarget', '#matchmaker-details');
+        sessionStorage.setItem('rb48ScrollPath', window.location.pathname);
+    }
+</script>
+{% elif request.method == 'POST' and request.form.get('action') == 'parse_source' %}
+<script>
+    if (!sessionStorage.getItem('rb48ScrollTarget')) {
+        sessionStorage.setItem('rb48ScrollTarget', '#parser-details');
+        sessionStorage.setItem('rb48ScrollPath', window.location.pathname);
+    }
+</script>
+{% endif %}
+
 {% include "match_center/_modals.html" %}
 
 <script>
@@ -35,5 +58,5 @@
         confirmBatch: {{ t('match_center.batch_confirm_btn', 'Eingabe bestätigen') | tojson }}
     };
 </script>
-<script src="{{ url_for('static', filename='match_center.js', v='20260909_batch') }}"></script>
+<script src="{{ url_for('static', filename='match_center.js', v='20260909_scroll') }}"></script>
 {% endblock %}

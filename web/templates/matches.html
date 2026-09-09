@@ -36,6 +36,44 @@
     color: #ffaaaa;
     transform: translateY(-1px);
 }
+.delete-match-modal-bg {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(10, 5, 22, 0.85) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+    display: none;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 100000 !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+}
+.delete-match-modal-bg.active {
+    display: flex !important;
+}
+.delete-match-modal-card {
+    background: var(--bg-surface, #1e1338) !important;
+    border: 1px solid #7B52C5 !important;
+    border-radius: var(--radius, 12px) !important;
+    padding: 24px !important;
+    width: 100% !important;
+    max-width: 480px !important;
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.9) !important;
+    position: relative !important;
+    color: var(--text-main, #ffffff) !important;
+    box-sizing: border-box !important;
+    animation: matchModalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+@keyframes matchModalPop {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
 </style>
 {% endblock %}
 
@@ -206,8 +244,8 @@
 </div>
 
 {% if has_tier('admin') %}
-<div class="modal-bg" id="delete-match-modal" style="display: none;">
-    <div class="modal" style="max-width: 480px;">
+<div class="delete-match-modal-bg modal-bg" id="delete-match-modal" style="display: none;">
+    <div class="delete-match-modal-card modal">
         <h3 style="color: #ff8888; display: flex; align-items: center; gap: 8px; margin-top: 0;">
             <span>⚠️</span> {{ t('matches.delete_confirm_title', 'Match wirklich löschen?') }}
         </h3>
@@ -227,19 +265,8 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='time_scrollbar.js', v='20260908_1') }}"></script>
-<script>
-document.querySelectorAll(".match").forEach(match => {
-    match.addEventListener("click", () => match.classList.toggle("expanded"));
-});
-
-const timelineData = {{ timeline_data | tojson }};
-window.timeScrollbar = new RB48TimeScrollbar({
-    pageType: 'matches',
-    data: timelineData
-});
-
 {% if has_tier('admin') %}
+<script>
 (function() {
     let pendingMatchId = null;
     const modal = document.getElementById('delete-match-modal');
@@ -247,7 +274,7 @@ window.timeScrollbar = new RB48TimeScrollbar({
     const confirmBtn = document.getElementById('btn-confirm-delete');
     const errorBox = document.getElementById('delete-match-error');
 
-    window.confirmDeleteMatch = function(matchId) {
+    function openModal(matchId) {
         pendingMatchId = matchId;
         const desc = document.getElementById('delete-match-desc');
         if (desc) {
@@ -258,27 +285,53 @@ window.timeScrollbar = new RB48TimeScrollbar({
             errorBox.textContent = '';
         }
         if (modal) {
+            modal.classList.add('active');
             modal.style.display = 'flex';
+        } else if (confirm(`Möchtest du das Match "${matchId}" wirklich unwiderruflich entfernen? Alle Glicko-Ratings ab Saisonbeginn werden anschließend vollständig neu berechnet.`)) {
+            executeDelete(matchId);
         }
-    };
+    }
 
-    cancelBtn?.addEventListener('click', () => {
-        if (modal) modal.style.display = 'none';
+    function closeModal() {
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
         pendingMatchId = null;
+    }
+
+    window.confirmDeleteMatch = openModal;
+
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.match-delete-btn');
+        if (!btn) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const matchId = btn.getAttribute('data-match-id');
+        if (matchId) {
+            openModal(matchId);
+        }
     });
+
+    cancelBtn?.addEventListener('click', closeModal);
 
     modal?.addEventListener('click', (e) => {
         if (e.target === modal) {
-            modal.style.display = 'none';
-            pendingMatchId = null;
+            closeModal();
         }
     });
 
-    confirmBtn?.addEventListener('click', async () => {
-        if (!pendingMatchId) return;
-        confirmBtn.disabled = true;
-        const originalText = confirmBtn.textContent;
-        confirmBtn.textContent = 'Lösche & berechne neu...';
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    async function executeDelete(matchId) {
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Lösche & berechne neu...';
+        }
 
         try {
             const resp = await fetch('/matches/delete', {
@@ -287,10 +340,12 @@ window.timeScrollbar = new RB48TimeScrollbar({
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: JSON.stringify({ match_id: pendingMatchId })
+                body: JSON.stringify({ match_id: matchId })
             });
             const data = await resp.json();
             if (resp.ok && data.success) {
+                sessionStorage.setItem("rb48ScrollPosition", String(window.scrollY));
+                sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
                 window.location.reload();
             } else {
                 if (errorBox) {
@@ -305,13 +360,36 @@ window.timeScrollbar = new RB48TimeScrollbar({
             if (errorBox) {
                 errorBox.textContent = 'Netzwerkfehler beim Löschen.';
                 errorBox.style.display = 'block';
+            } else {
+                alert('Netzwerkfehler beim Löschen.');
             }
         } finally {
-            confirmBtn.disabled = false;
-            confirmBtn.textContent = originalText;
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = '{{ t('matches.delete_btn', 'Unwiderruflich löschen') }}';
+            }
+        }
+    }
+
+    confirmBtn?.addEventListener('click', () => {
+        if (pendingMatchId) {
+            executeDelete(pendingMatchId);
         }
     });
 })();
+</script>
 {% endif %}
+
+<script src="{{ url_for('static', filename='time_scrollbar.js', v='20260908_1') }}"></script>
+<script>
+document.querySelectorAll(".match").forEach(match => {
+    match.addEventListener("click", () => match.classList.toggle("expanded"));
+});
+
+const timelineData = {{ timeline_data | tojson }};
+window.timeScrollbar = new RB48TimeScrollbar({
+    pageType: 'matches',
+    data: timelineData
+});
 </script>
 {% endblock %}

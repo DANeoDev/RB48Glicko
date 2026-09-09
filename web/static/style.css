@@ -637,6 +637,37 @@ a:hover { color: var(--accent-hover); }
 /* =========================================================================
    Universal Modal & Backdrop Styles (Shared across all pages)
    ========================================================================= */
+.modal-bg {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100vw; height: 100vh;
+    background: rgba(10, 5, 22, 0.85);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    z-index: 10000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.modal-bg.active, .modal-bg.open {
+    display: flex !important;
+}
+
+.modal {
+    background: var(--bg-surface, #1e1338);
+    border: 1px solid #7B52C5;
+    border-radius: var(--radius, 12px);
+    padding: 24px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.9);
+    position: relative;
+    color: var(--text-main, #ffffff);
+    box-sizing: border-box;
+}
+
 .corr-modal-backdrop, .global-search-backdrop {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;

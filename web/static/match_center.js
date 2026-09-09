@@ -523,6 +523,9 @@
         document.querySelectorAll('.ignore-btn').forEach(button => {
             button.addEventListener('click', () => {
                 if (!mcForm) return;
+                sessionStorage.setItem("rb48ScrollPosition", String(window.scrollY));
+                sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
+                sessionStorage.removeItem("rb48ScrollTarget");
                 mcForm.append(
                     hidden('action', 'ignore_parser_player'),
                     hidden('target_alias', button.dataset.name)
@@ -567,6 +570,9 @@
 
         document.getElementById('alias-submit')?.addEventListener('click', () => {
             if (!mcForm) return;
+            sessionStorage.setItem("rb48ScrollPosition", String(window.scrollY));
+            sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
+            sessionStorage.removeItem("rb48ScrollTarget");
             mcForm.append(
                 hidden('action', 'add_parser_alias'),
                 hidden('new_alias', addPlayerName),
@@ -649,6 +655,9 @@
                 }
             } else if (mcForm) {
                 // Parser flow
+                sessionStorage.setItem("rb48ScrollPosition", String(window.scrollY));
+                sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
+                sessionStorage.removeItem("rb48ScrollTarget");
                 mcForm.append(
                     hidden('action', 'create_parser_player'),
                     hidden('new_alias', alias),
