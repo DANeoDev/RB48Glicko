@@ -402,6 +402,82 @@ class MatchCenterFrontendTests(unittest.TestCase):
             conn.close()
 
 
+    def test_match_center_save_batch_matches(self):
+        import json
+        from scripts.database.database import get_connection
+        from scripts.database.db_players import get_players
+
+        conn = get_connection()
+        try:
+            players = get_players(conn)
+            pids = list(players.keys())[:4]
+        finally:
+            conn.close()
+
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
+            payload = {
+                "action": "save_batch",
+                "date": "2026-11-15",
+                "matches": [
+                    {
+                        "pitch": "box",
+                        "team_a": [pids[0], pids[1]],
+                        "team_b": [pids[2], pids[3]],
+                        "external_a": 0,
+                        "external_b": 0,
+                        "goals_a": 10,
+                        "goals_b": 7,
+                    },
+                    {
+                        "pitch": "box",
+                        "team_a": [pids[2], pids[3]],
+                        "team_b": [pids[0], pids[1]],
+                        "external_a": 0,
+                        "external_b": 0,
+                        "goals_a": 9,
+                        "goals_b": 10,
+                    }
+                ]
+            }
+
+            response = client.post(
+                "/match-center",
+                data=json.dumps(payload),
+                content_type="application/json",
+                headers={"X-Requested-With": "XMLHttpRequest"}
+            )
+            self.assertEqual(response.status_code, 200)
+            data = response.get_json()
+            self.assertTrue(data.get("success"))
+            self.assertEqual(len(data.get("match_ids", [])), 2)
+            self.assertEqual(data.get("next_match_id"), "2026-11-15-3")
+
+        # Verify DB records
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT match_id, date, goals_a, goals_b FROM matches WHERE date = '2026-11-15' ORDER BY match_id")
+            rows = cursor.fetchall()
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0][0], "2026-11-15-1")
+            self.assertEqual(rows[0][2], 10)
+            self.assertEqual(rows[0][3], 7)
+            self.assertEqual(rows[1][0], "2026-11-15-2")
+            self.assertEqual(rows[1][2], 9)
+            self.assertEqual(rows[1][3], 10)
+
+            # Both matches have match_ratings written
+            cursor.execute("SELECT COUNT(*) FROM match_ratings WHERE match_id = '2026-11-15-1'")
+            self.assertGreater(cursor.fetchone()[0], 0)
+            cursor.execute("SELECT COUNT(*) FROM match_ratings WHERE match_id = '2026-11-15-2'")
+            self.assertGreater(cursor.fetchone()[0], 0)
+        finally:
+            conn.close()
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -14,6 +14,9 @@ from scripts.glicko.glicko2_calculator import (
     write_match_ratings,
     write_glicko,
     initialize_player_ratings,
+    clear_ratings,
+    prepare_glicko_table,
+    calculate_glicko,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -181,24 +184,16 @@ def add_match(connection, match_date, pitch, team_a_ids, team_b_ids, goals_a, go
 
 
 def process_new_matches(connection):
-    calibrations = get_calibrations(connection)
     matches = get_matches(connection)
     processed_ids = get_processed_match_ids(connection)
     new_matches = sorted([m for m in matches.values() if m["match_id"] not in processed_ids], key=lambda m: m["match_id"])
     if not new_matches:
         return 0
-    ratings = get_ratings(connection)
-    if not ratings:
-        raise RuntimeError("No current ratings found. Run the full Glicko calculation first.")
-    rating_objects = glicko_table_to_ratings(ratings)
-    engine = Glicko2()
-    for match in new_matches:
-        team_a, team_b = get_match_teams(connection, match["match_id"])
-        for player_id in team_a + team_b:
-            initialize_player_ratings(player_id, rating_objects, calibrations)
-        write_match_ratings(connection, match["match_id"], ratings_to_glicko_table(rating_objects))
-        update_match(connection, match, rating_objects, engine)
-    write_glicko(connection, ratings_to_glicko_table(rating_objects))
+    calibrations = get_calibrations(connection)
+    clear_ratings(connection)
+    prepared_glicko = prepare_glicko_table(connection, matches, calibrations)
+    glickos = calculate_glicko(connection, matches, prepared_glicko)
+    write_glicko(connection, glickos)
     return len(new_matches)
 
 

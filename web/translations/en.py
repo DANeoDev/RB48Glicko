@@ -868,4 +868,16 @@ TRANSLATIONS_EN = {
     "timeline.matches_count": "{count} matches",
     "timeline.single_match": "1 match",
     "timeline.month_endstand": "Month-end standing",
+
+    # =========================================================================
+    # Match Center Batch Save Modal
+    # =========================================================================
+    "match_center.batch_modal_title": "Record matches for this evening",
+    "match_center.batch_modal_desc": "Confirm the result or enter additional matches for this matchday. All matches of the evening are calculated together as a single cohesive Glicko session.",
+    "match_center.batch_add_game": "+ Add another match for this evening",
+    "match_center.batch_confirm_btn": "Confirm entry",
+    "match_center.swap_sides": "Swap sides",
+    "match_center.game_label": "Match {number}",
+    "match_center.remove_game": "Remove",
+    "match_center.goals_label": "Goals",
 }

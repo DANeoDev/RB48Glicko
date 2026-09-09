@@ -1,3 +1,4 @@
+import json
 from datetime import date
 from flask import Blueprint, render_template, request, jsonify
 
@@ -316,37 +317,102 @@ def _handle_create_player(form, is_xhr, connection, players, selected_ids):
         return players, selected_ids, None, err, None, None
 
 
-def _handle_save_match(form, is_xhr, connection, players):
-    match_date = form.get("date", date.today().isoformat())
-    pitch = form.get("pitch", "box")
-    goals_a = form.get("goals_a", "0")
-    goals_b = form.get("goals_b", "0")
-    team_a = _get_prefilled_team_ids(form, "team_a", players)
-    team_b = _get_prefilled_team_ids(form, "team_b", players)
+def _handle_save_match(data, is_xhr, connection, players):
     try:
-        external_a = int(form.get("external_a", "0") or 0)
-        external_b = int(form.get("external_b", "0") or 0)
-        if external_a < 0 or external_b < 0:
-            raise ValueError("External player counts cannot be negative.")
-        if (not team_a and external_a == 0) or (not team_b and external_b == 0):
-            raise ValueError("Both teams need at least one player.")
-        if len(team_a) != len(set(team_a)) or len(team_b) != len(set(team_b)):
-            raise ValueError("A player cannot appear more than once on the same team.")
-        if set(team_a) & set(team_b):
-            raise ValueError("A player cannot be on both teams.")
-        goals_a_int, goals_b_int = int(goals_a), int(goals_b)
-        if goals_a_int < 0 or goals_b_int < 0:
-            raise ValueError("Goals cannot be negative.")
-        date.fromisoformat(match_date)
-        match_id = add_match(connection, match_date, pitch, team_a, team_b, goals_a_int, goals_b_int, len(team_a) + external_a, len(team_b) + external_b)
+        matches_list = None
+        if hasattr(data, "get"):
+            matches_json = data.get("matches_json")
+            if matches_json:
+                matches_list = json.loads(matches_json)
+            elif data.get("matches"):
+                matches_list = data.get("matches")
+
+        if not matches_list:
+            matches_list = [{
+                "date": data.get("date", date.today().isoformat()),
+                "pitch": data.get("pitch", "box"),
+                "team_a": _get_prefilled_team_ids(data, "team_a", players) if hasattr(data, "getlist") else [int(p) for p in data.get("team_a", []) if str(p).isdigit() and int(p) in players],
+                "team_b": _get_prefilled_team_ids(data, "team_b", players) if hasattr(data, "getlist") else [int(p) for p in data.get("team_b", []) if str(p).isdigit() and int(p) in players],
+                "external_a": int(data.get("external_a", "0") or 0),
+                "external_b": int(data.get("external_b", "0") or 0),
+                "goals_a": int(data.get("goals_a", "0") or 0),
+                "goals_b": int(data.get("goals_b", "0") or 0),
+            }]
+
+        parsed_matches = []
+        for idx, m in enumerate(matches_list, start=1):
+            m_date = m.get("date") or (data.get("date") if hasattr(data, "get") else None) or date.today().isoformat()
+            m_pitch = m.get("pitch") or (data.get("pitch") if hasattr(data, "get") else None) or "box"
+            if m_pitch not in ("box", "hf"):
+                raise ValueError(f"Spiel {idx}: Ungültiges Platzformat '{m_pitch}'.")
+            date.fromisoformat(m_date)
+
+            raw_team_a = m.get("team_a", [])
+            raw_team_b = m.get("team_b", [])
+            if isinstance(raw_team_a, str):
+                raw_team_a = [p.strip() for p in raw_team_a.split(",") if p.strip()]
+            if isinstance(raw_team_b, str):
+                raw_team_b = [p.strip() for p in raw_team_b.split(",") if p.strip()]
+
+            m_team_a = [int(p) for p in raw_team_a if str(p).isdigit() and int(p) in players]
+            m_team_b = [int(p) for p in raw_team_b if str(p).isdigit() and int(p) in players]
+            m_ext_a = int(m.get("external_a", 0) or 0)
+            m_ext_b = int(m.get("external_b", 0) or 0)
+
+            if m_ext_a < 0 or m_ext_b < 0:
+                raise ValueError(f"Spiel {idx}: Externe Spieleranzahl darf nicht negativ sein.")
+            if (not m_team_a and m_ext_a == 0) or (not m_team_b and m_ext_b == 0):
+                raise ValueError(f"Spiel {idx}: Beide Teams benötigen mindestens einen Spieler.")
+            if len(m_team_a) != len(set(m_team_a)) or len(m_team_b) != len(set(m_team_b)):
+                raise ValueError(f"Spiel {idx}: Ein Spieler darf nicht mehrfach im selben Team vorkommen.")
+            if set(m_team_a) & set(m_team_b):
+                raise ValueError(f"Spiel {idx}: Ein Spieler darf nicht in beiden Teams gleichzeitig spielen.")
+
+            goals_a_int = int(m.get("goals_a", 0))
+            goals_b_int = int(m.get("goals_b", 0))
+            if goals_a_int < 0 or goals_b_int < 0:
+                raise ValueError(f"Spiel {idx}: Tore dürfen nicht negativ sein.")
+
+            parsed_matches.append({
+                "date": m_date,
+                "pitch": m_pitch,
+                "team_a": m_team_a,
+                "team_b": m_team_b,
+                "external_a": m_ext_a,
+                "external_b": m_ext_b,
+                "goals_a": goals_a_int,
+                "goals_b": goals_b_int,
+            })
+
+        created_match_ids = []
+        for m in parsed_matches:
+            match_id = add_match(
+                connection,
+                m["date"],
+                m["pitch"],
+                m["team_a"],
+                m["team_b"],
+                m["goals_a"],
+                m["goals_b"],
+                len(m["team_a"]) + m["external_a"],
+                len(m["team_b"]) + m["external_b"],
+            )
+            created_match_ids.append(match_id)
+
         processed = process_new_matches(connection)
         invalidate_stats_cache()
-        success = f"Saved {match_id} and updated Glicko ({processed} match processed)."
+
+        if len(created_match_ids) == 1:
+            success = f"Saved: {created_match_ids[0]} and Glicko ratings updated ({processed} match calculated)."
+        else:
+            success = f"Saved: {len(created_match_ids)} matches ({', '.join(created_match_ids)}) and Glicko ratings updated for this evening."
+
         if is_xhr:
-            next_id = next_match_id(connection, match_date)
+            next_id = next_match_id(connection, parsed_matches[-1]["date"])
             return success, None, jsonify({
                 "success": True,
-                "match_id": match_id,
+                "match_id": created_match_ids[0],
+                "match_ids": created_match_ids,
                 "message": success,
                 "next_match_id": next_id,
             })
@@ -389,9 +455,10 @@ def match_center():
         success = None
         error = None
         calibration_message = None
-        action = request.form.get("action") if request.method == "POST" else None
+        req_data = (request.get_json(silent=True) or {}) if request.is_json else request.form
+        action = req_data.get("action") if request.method == "POST" else None
         imported_planner_date = None
-        is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json
 
         if request.method == "POST":
             if action in ("parse_image", "parse_source"):
@@ -421,8 +488,8 @@ def match_center():
                 if xhr_resp:
                     return xhr_resp
 
-            elif action == "save":
-                success, error, xhr_resp = _handle_save_match(request.form, is_xhr, connection, players)
+            elif action in ("save", "save_batch"):
+                success, error, xhr_resp = _handle_save_match(req_data, is_xhr, connection, players)
                 if xhr_resp:
                     return xhr_resp
 

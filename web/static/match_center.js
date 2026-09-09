@@ -718,11 +718,21 @@
     // ------------------------------------------------------------
     // Save Match & Update Glicko (Modal without page jumping)
     // ------------------------------------------------------------
+    // Match Save & Evening Batch Modal
+    // ------------------------------------------------------------
     function initMatchSaveForm() {
         const matchForm = document.getElementById('match-form');
         const saveModal = document.getElementById('match-saved-modal');
         const saveMsg = document.getElementById('saved-modal-message');
         const saveDoneBtn = document.getElementById('saved-modal-done');
+
+        const batchModal = document.getElementById('batch-save-modal');
+        const batchContainer = document.getElementById('batch-matches-container');
+        const batchAddBtn = document.getElementById('batch-add-match-btn');
+        const batchCancelBtn = document.getElementById('batch-cancel-btn');
+        const batchConfirmBtn = document.getElementById('batch-confirm-btn');
+        const batchDateBadge = document.getElementById('batch-modal-date-badge');
+        const batchError = document.getElementById('batch-modal-error');
 
         if (!matchForm || !saveModal) {
             return;
@@ -738,7 +748,305 @@
             }
         });
 
-        matchForm.addEventListener('submit', async (e) => {
+        let currentBatchMatches = [];
+        let currentBatchDate = '';
+
+        function renderBatchModal() {
+            if (!batchContainer) return;
+            batchContainer.innerHTML = '';
+            if (batchError) {
+                batchError.style.display = 'none';
+                batchError.textContent = '';
+            }
+
+            const trans = window.matchCenterTranslations || {};
+            const swapText = trans.swapSides || 'Tauschen';
+            const removeText = trans.removeGame || 'Entfernen';
+            const gameTpl = trans.gameLabel || 'Spiel {number}';
+
+            currentBatchMatches.forEach((m, idx) => {
+                const card = document.createElement('div');
+                card.className = 'batch-match-card';
+
+                // Header
+                const header = document.createElement('div');
+                header.className = 'batch-match-header';
+
+                const title = document.createElement('div');
+                title.className = 'batch-match-title';
+                const gameNum = gameTpl.replace('{number}', idx + 1);
+                const pitchLabel = m.pitch === 'hf' ? 'Halbfeld (HF)' : 'Soccerbox (BOX)';
+                title.innerHTML = `<span>⚽ ${gameNum}</span> <span class="muted" style="font-size: 12px; font-weight: normal; background: rgba(255, 255, 255, 0.05); padding: 2px 6px; border-radius: 4px;">${pitchLabel}</span>`;
+
+                const actions = document.createElement('div');
+                actions.className = 'batch-match-actions';
+
+                // Swap sides button
+                const swapBtn = document.createElement('button');
+                swapBtn.type = 'button';
+                swapBtn.className = 'batch-btn-sm';
+                swapBtn.innerHTML = `⇄ ${swapText}`;
+                swapBtn.title = 'Seiten tauschen (Team A ⇄ Team B)';
+                swapBtn.addEventListener('click', () => {
+                    const tempTeam = m.team_a;
+                    m.team_a = m.team_b;
+                    m.team_b = tempTeam;
+
+                    const tempExt = m.external_a;
+                    m.external_a = m.external_b;
+                    m.external_b = tempExt;
+
+                    const tempGoals = m.goals_a;
+                    m.goals_a = m.goals_b;
+                    m.goals_b = tempGoals;
+
+                    renderBatchModal();
+                });
+                actions.appendChild(swapBtn);
+
+                // Remove button (only if more than 1 match)
+                if (currentBatchMatches.length > 1) {
+                    const removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.className = 'batch-btn-sm batch-btn-remove';
+                    removeBtn.innerHTML = `✕ ${removeText}`;
+                    removeBtn.title = 'Dieses Spiel entfernen';
+                    removeBtn.addEventListener('click', () => {
+                        currentBatchMatches.splice(idx, 1);
+                        renderBatchModal();
+                    });
+                    actions.appendChild(removeBtn);
+                }
+
+                header.appendChild(title);
+                header.appendChild(actions);
+                card.appendChild(header);
+
+                // Body
+                const body = document.createElement('div');
+                body.className = 'batch-match-body';
+
+                // Team A box
+                const teamABox = document.createElement('div');
+                teamABox.className = 'batch-team-box team-a';
+                const teamAName = document.createElement('div');
+                teamAName.className = 'batch-team-name';
+                teamAName.textContent = 'Team A';
+                const teamAChips = document.createElement('div');
+                teamAChips.className = 'batch-players-chips';
+
+                m.team_a.forEach(pid => {
+                    const chip = document.createElement('span');
+                    chip.className = 'batch-chip';
+                    chip.textContent = playerAlias(pid);
+                    teamAChips.appendChild(chip);
+                });
+                for (let i = 0; i < (m.external_a || 0); i++) {
+                    const chip = document.createElement('span');
+                    chip.className = 'batch-chip batch-chip-ext';
+                    chip.textContent = '👤 +1';
+                    teamAChips.appendChild(chip);
+                }
+                teamABox.appendChild(teamAName);
+                teamABox.appendChild(teamAChips);
+
+                // Score section
+                const scoreSec = document.createElement('div');
+                scoreSec.className = 'batch-score-section';
+
+                const scoreInputs = document.createElement('div');
+                scoreInputs.className = 'batch-score-inputs';
+
+                const inputA = document.createElement('input');
+                inputA.type = 'number';
+                inputA.min = '0';
+                inputA.className = 'batch-score-input';
+                inputA.value = m.goals_a !== undefined ? m.goals_a : 0;
+                inputA.addEventListener('input', (e) => {
+                    m.goals_a = parseInt(e.target.value, 10) || 0;
+                });
+
+                const divider = document.createElement('span');
+                divider.className = 'batch-score-divider';
+                divider.textContent = ':';
+
+                const inputB = document.createElement('input');
+                inputB.type = 'number';
+                inputB.min = '0';
+                inputB.className = 'batch-score-input';
+                inputB.value = m.goals_b !== undefined ? m.goals_b : 0;
+                inputB.addEventListener('input', (e) => {
+                    m.goals_b = parseInt(e.target.value, 10) || 0;
+                });
+
+                scoreInputs.appendChild(inputA);
+                scoreInputs.appendChild(divider);
+                scoreInputs.appendChild(inputB);
+
+                const scoreLabel = document.createElement('div');
+                scoreLabel.className = 'muted';
+                scoreLabel.style.fontSize = '11px';
+                scoreLabel.textContent = trans.goalsLabel || 'Tore';
+
+                scoreSec.appendChild(scoreInputs);
+                scoreSec.appendChild(scoreLabel);
+
+                // Team B box
+                const teamBBox = document.createElement('div');
+                teamBBox.className = 'batch-team-box team-b';
+                const teamBName = document.createElement('div');
+                teamBName.className = 'batch-team-name';
+                teamBName.textContent = 'Team B';
+                const teamBChips = document.createElement('div');
+                teamBChips.className = 'batch-players-chips';
+
+                m.team_b.forEach(pid => {
+                    const chip = document.createElement('span');
+                    chip.className = 'batch-chip';
+                    chip.textContent = playerAlias(pid);
+                    teamBChips.appendChild(chip);
+                });
+                for (let i = 0; i < (m.external_b || 0); i++) {
+                    const chip = document.createElement('span');
+                    chip.className = 'batch-chip batch-chip-ext';
+                    chip.textContent = '👤 +1';
+                    teamBChips.appendChild(chip);
+                }
+                teamBBox.appendChild(teamBName);
+                teamBBox.appendChild(teamBChips);
+
+                body.appendChild(teamABox);
+                body.appendChild(scoreSec);
+                body.appendChild(teamBBox);
+
+                card.appendChild(body);
+                batchContainer.appendChild(card);
+            });
+        }
+
+        // Add another match for this evening
+        batchAddBtn?.addEventListener('click', () => {
+            if (currentBatchMatches.length === 0) return;
+            const baseMatch = currentBatchMatches[0];
+            currentBatchMatches.push({
+                pitch: baseMatch.pitch,
+                team_a: [...baseMatch.team_a],
+                team_b: [...baseMatch.team_b],
+                external_a: baseMatch.external_a,
+                external_b: baseMatch.external_b,
+                goals_a: 0,
+                goals_b: 0,
+            });
+            renderBatchModal();
+            setTimeout(() => {
+                if (batchContainer) {
+                    batchContainer.scrollTop = batchContainer.scrollHeight;
+                }
+            }, 50);
+        });
+
+        // Cancel button
+        batchCancelBtn?.addEventListener('click', () => {
+            if (batchModal) {
+                batchModal.style.display = 'none';
+            }
+        });
+
+        // Close on background click
+        batchModal?.addEventListener('click', (e) => {
+            if (e.target === batchModal) {
+                batchModal.style.display = 'none';
+            }
+        });
+
+        // Confirm batch save
+        batchConfirmBtn?.addEventListener('click', async () => {
+            if (currentBatchMatches.length === 0) return;
+
+            // Validate all matches
+            for (let i = 0; i < currentBatchMatches.length; i++) {
+                const m = currentBatchMatches[i];
+                if ((m.team_a.length + (m.external_a || 0) === 0) || (m.team_b.length + (m.external_b || 0) === 0)) {
+                    if (batchError) {
+                        batchError.textContent = `Spiel ${i + 1}: Beide Teams benötigen mindestens einen Spieler.`;
+                        batchError.style.display = 'block';
+                    }
+                    return;
+                }
+                if (isNaN(m.goals_a) || m.goals_a < 0 || isNaN(m.goals_b) || m.goals_b < 0) {
+                    if (batchError) {
+                        batchError.textContent = `Spiel ${i + 1}: Bitte gültige Torergebnisse (≥ 0) eingeben.`;
+                        batchError.style.display = 'block';
+                    }
+                    return;
+                }
+            }
+
+            const origConfirmText = batchConfirmBtn.textContent;
+            batchConfirmBtn.disabled = true;
+            batchConfirmBtn.textContent = 'Speichern...';
+            if (batchError) batchError.style.display = 'none';
+
+            try {
+                const payload = {
+                    action: 'save_batch',
+                    date: currentBatchDate,
+                    matches: currentBatchMatches.map(m => ({
+                        date: currentBatchDate,
+                        pitch: m.pitch,
+                        team_a: m.team_a,
+                        team_b: m.team_b,
+                        external_a: m.external_a || 0,
+                        external_b: m.external_b || 0,
+                        goals_a: m.goals_a,
+                        goals_b: m.goals_b,
+                    }))
+                };
+
+                const response = await fetch('/match-center', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    if (batchModal) batchModal.style.display = 'none';
+                    if (saveMsg) {
+                        saveMsg.textContent = data.message || `Match saved successfully and Glicko ratings updated!`;
+                    }
+                    saveModal.style.display = 'flex';
+
+                    // Update next match ID badge if present
+                    const nextBadge = document.querySelector('#enter-match strong');
+                    if (nextBadge && data.next_match_id) {
+                        nextBadge.textContent = data.next_match_id;
+                    }
+                } else {
+                    if (batchError) {
+                        batchError.textContent = data.error || 'Fehler beim Speichern der Spiele.';
+                        batchError.style.display = 'block';
+                    } else {
+                        alert(data.error || 'Fehler beim Speichern der Spiele.');
+                    }
+                }
+            } catch (err) {
+                console.error('Error saving batch matches:', err);
+                if (batchError) {
+                    batchError.textContent = 'Netzwerkfehler beim Speichern.';
+                    batchError.style.display = 'block';
+                }
+            } finally {
+                batchConfirmBtn.disabled = false;
+                batchConfirmBtn.textContent = origConfirmText;
+            }
+        });
+
+        // Intercept matchForm submit to open batchModal
+        matchForm.addEventListener('submit', (e) => {
             e.preventDefault();
 
             const teamAInputs = document.querySelectorAll('#list-a input[name="team_a"]');
@@ -751,45 +1059,37 @@
                 return;
             }
 
-            const formData = new FormData(matchForm);
-            formData.set('action', 'save');
-
-            const submitBtn = matchForm.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.disabled = true;
+            const dateInput = document.getElementById('match-date');
+            currentBatchDate = dateInput?.value || new Date().toISOString().slice(0, 10);
+            if (batchDateBadge) {
+                batchDateBadge.textContent = `📅 ${currentBatchDate}`;
             }
 
-            try {
-                const response = await fetch('/match-center', {
-                    method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: formData
-                });
+            const pitchSelect = document.getElementById('pitch');
+            const pitchVal = pitchSelect?.value || 'box';
 
-                const data = await response.json();
-                if (response.ok && data.success) {
-                    if (saveMsg) {
-                        saveMsg.textContent = data.message || `Match ${data.match_id} saved successfully and Glicko ratings updated!`;
-                    }
-                    saveModal.style.display = 'flex';
+            const scoreAInput = document.getElementById('score-a');
+            const scoreBInput = document.getElementById('score-b');
+            const goalsAVal = parseInt(scoreAInput?.value, 10) || 0;
+            const goalsBVal = parseInt(scoreBInput?.value, 10) || 0;
 
-                    // Update next match ID badge if present
-                    const nextBadge = document.querySelector('#enter-match strong');
-                    if (nextBadge && data.next_match_id) {
-                        nextBadge.textContent = data.next_match_id;
-                    }
-                } else {
-                    alert(data.error || 'Failed to save match.');
-                }
-            } catch (err) {
-                console.error('Error saving match:', err);
-                matchForm.submit();
-            } finally {
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                }
+            const teamAIds = Array.from(teamAInputs).map(inp => parseInt(inp.value, 10)).filter(Boolean);
+            const teamBIds = Array.from(teamBInputs).map(inp => parseInt(inp.value, 10)).filter(Boolean);
+
+            currentBatchMatches = [{
+                pitch: pitchVal,
+                team_a: teamAIds,
+                team_b: teamBIds,
+                external_a: extA,
+                external_b: extB,
+                goals_a: goalsAVal,
+                goals_b: goalsBVal,
+            }];
+
+            renderBatchModal();
+
+            if (batchModal) {
+                batchModal.style.display = 'flex';
             }
         });
     }

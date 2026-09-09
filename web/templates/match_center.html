@@ -27,7 +27,12 @@
     window.matchCenterPlayers = {{ players | tojson }};
     window.matchCenterTranslations = {
         addPlayer: {{ t('match_center.modal_add_player', 'Spieler anlegen') | tojson }},
-        externalPlayer: {{ t('match_center.external_player_label', 'Externer Spieler (+1)') | tojson }}
+        externalPlayer: {{ t('match_center.external_player_label', 'Externer Spieler (+1)') | tojson }},
+        gameLabel: {{ t('match_center.game_label', 'Spiel {number}') | tojson }},
+        swapSides: {{ t('match_center.swap_sides', 'Tauschen') | tojson }},
+        removeGame: {{ t('match_center.remove_game', 'Entfernen') | tojson }},
+        goalsLabel: {{ t('match_center.goals_label', 'Tore') | tojson }},
+        confirmBatch: {{ t('match_center.batch_confirm_btn', 'Eingabe bestätigen') | tojson }}
     };
 </script>
 <script src="{{ url_for('static', filename='match_center.js') }}"></script>
