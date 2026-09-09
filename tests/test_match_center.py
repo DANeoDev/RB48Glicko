@@ -277,7 +277,32 @@ class MatchCenterFrontendTests(unittest.TestCase):
             self.assertIn(b"Kader erfolgreich importiert", response.data)
             self.assertIn(b'value="2026-10-21"', response.data)
 
+    def test_match_center_parse_source_match_renders_prefilled_teams(self):
+        from unittest.mock import patch
+        with patch("web.routes.match_center.parse_match_text") as mock_parse:
+            mock_parse.return_value = {
+                "kind": "match",
+                "match_date": "2026-10-21",
+                "players": ["Daniel", "Dennis"],
+                "team_a": ["Daniel"],
+                "team_b": ["Dennis"],
+                "goals_a": 10,
+                "goals_b": 5,
+            }
+            with self.app.test_client() as client:
+                with client.session_transaction() as sess:
+                    sess["user_id"] = self.admin_id
+
+                response = client.post("/match-center", data={
+                    "action": "parse_source",
+                    "match_text": "Team A vs Team B",
+                })
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(b"Daniel", response.data)
+                self.assertIn(b"Dennis", response.data)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

@@ -198,7 +198,7 @@
                                 <div class="selected-player">
 
                                     <span class="selected-player-name">
-                                        {{ player_names[pid] }}
+                                        {{ player_names.get(pid, player_names.get(pid|int, ('Player ' ~ pid))) if player_names else ('Player ' ~ pid) }}
                                     </span>
 
                                     <button

@@ -402,7 +402,11 @@ def match_center():
             goals_a = parse_result.get("goals_a") if parse_result.get("goals_a") is not None else 0
             goals_b = parse_result.get("goals_b") if parse_result.get("goals_b") is not None else 0
 
-        player_names = {pid: (data["aliases"][0] if data["aliases"] else f"Player {pid}") for pid, data in players.items()}
+        player_names = {}
+        for pid, data in players.items():
+            pname = data["aliases"][0] if data["aliases"] else f"Player {pid}"
+            player_names[pid] = pname
+            player_names[str(pid)] = pname
         player_search_data = [{"id": pid, "name": player_names[pid], "positions": data.get("positions", [])} for pid, data in players.items()]
 
         p_conn = get_planner_connection()
@@ -416,6 +420,7 @@ def match_center():
         return render_template(
             "match_center.html",
             players=players,
+            player_names=player_names,
             ratings=ratings,
             selected_ids=selected_ids,
             result=result,
