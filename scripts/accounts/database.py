@@ -1085,3 +1085,23 @@ def mark_webmaster_notifications_seen(
     connection.commit()
 
 
+def delete_webmaster_notification(connection, notification_id: int) -> bool:
+    """
+    Delete a single webmaster notification record.
+    """
+    connection.execute("DELETE FROM webmaster_seen_notifications WHERE notification_id = ?", (notification_id,))
+    cursor = connection.execute("DELETE FROM webmaster_notifications WHERE id = ?", (notification_id,))
+    connection.commit()
+    return cursor.rowcount > 0
+
+
+def clear_all_webmaster_notifications(connection):
+    """
+    Delete all webmaster notification records.
+    """
+    connection.execute("DELETE FROM webmaster_seen_notifications")
+    connection.execute("DELETE FROM webmaster_notifications")
+    connection.commit()
+
+
+

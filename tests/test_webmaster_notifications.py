@@ -129,6 +129,51 @@ class WebmasterNotificationsTest(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_delete_single_notification_route(self):
+        webmaster = self.create_user(role="webmaster")
+        user = self.create_user(role="user")
+
+        conn = get_accounts_connection()
+        try:
+            notifs = get_webmaster_notifications(conn, webmaster["id"])
+            self.assertTrue(len(notifs) >= 2)
+            target_id = notifs[0]["id"]
+        finally:
+            conn.close()
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = webmaster["id"]
+
+        resp = self.client.post(f"/admin/notifications/{target_id}/delete", follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+
+        conn = get_accounts_connection()
+        try:
+            notifs_after = get_webmaster_notifications(conn, webmaster["id"])
+            remaining_ids = [n["id"] for n in notifs_after]
+            self.assertNotIn(target_id, remaining_ids)
+        finally:
+            conn.close()
+
+    def test_clear_all_notifications_route(self):
+        webmaster = self.create_user(role="webmaster")
+        user = self.create_user(role="user")
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = webmaster["id"]
+
+        resp = self.client.post("/admin/notifications/clear-all", follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+
+        conn = get_accounts_connection()
+        try:
+            notifs_after = get_webmaster_notifications(conn, webmaster["id"])
+            self.assertEqual(len(notifs_after), 0)
+            unseen = get_unseen_webmaster_notifications_count(conn, webmaster["id"])
+            self.assertEqual(unseen, 0)
+        finally:
+            conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()

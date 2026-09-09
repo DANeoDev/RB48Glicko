@@ -24,11 +24,18 @@
                     {% endif %}
                 </div>
                 {% if notifications %}
-                    <form method="post" action="{{ url_for('auth.mark_notifications_read') }}" style="margin: 0;">
-                        <button type="submit" class="secondary" style="font-size: 11.5px; padding: 4px 10px; cursor: pointer;">
-                            ✓ {{ t('auth.mark_all_read', 'Alle als gelesen markieren') }}
-                        </button>
-                    </form>
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <form method="post" action="{{ url_for('auth.mark_notifications_read') }}" style="margin: 0;">
+                            <button type="submit" class="secondary" style="font-size: 11.5px; padding: 4px 10px; cursor: pointer;">
+                                ✓ {{ t('auth.mark_all_read', 'Alle als gelesen markieren') }}
+                            </button>
+                        </form>
+                        <form method="post" action="{{ url_for('auth.clear_all_notifications_route') }}" onsubmit="return confirm('{{ t('auth.confirm_clear_notifications', 'Möchtest du wirklich alle Benachrichtigungen unwiderruflich löschen?') }}');" style="margin: 0;">
+                            <button type="submit" class="secondary" style="font-size: 11.5px; padding: 4px 10px; color: #ff8888; cursor: pointer;" title="{{ t('auth.clear_all_notifications', 'Alle löschen') }}">
+                                🗑️ {{ t('auth.clear_all_notifications', 'Alle löschen') }}
+                            </button>
+                        </form>
+                    </div>
                 {% endif %}
             </div>
 
@@ -53,11 +60,18 @@
                                 <strong style="color: #ffffff;">{{ n.username }}</strong>
                                 <span style="color: var(--text-muted);">{{ n.details }}</span>
                             </div>
-                            <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap;">
-                                {{ n.created_at | replace('T', ' ') | truncate(16, True, '') }}
-                                {% if not n.is_seen %}
-                                    <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #80deea; margin-left: 6px;" title="Ungelesen"></span>
-                                {% endif %}
+                            <div style="display: flex; align-items: center; gap: 10px; white-space: nowrap;">
+                                <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center;">
+                                    {{ n.created_at | replace('T', ' ') | truncate(16, True, '') }}
+                                    {% if not n.is_seen %}
+                                        <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #80deea; margin-left: 6px;" title="Ungelesen"></span>
+                                    {% endif %}
+                                </div>
+                                <form method="post" action="{{ url_for('auth.delete_notification_route', notification_id=n.id) }}" style="margin: 0;">
+                                    <button type="submit" class="secondary" style="background: transparent; border: none; padding: 2px 6px; font-size: 13px; cursor: pointer; color: var(--text-muted); line-height: 1; transition: color 0.15s ease;" title="{{ t('auth.delete_notification', 'Eintrag löschen') }}" onmouseover="this.style.color='#ff8888'" onmouseout="this.style.color='var(--text-muted)'">
+                                        ✕
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     {% endfor %}

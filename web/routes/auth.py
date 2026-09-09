@@ -17,6 +17,8 @@ from scripts.accounts.database import (
     approve_player_link,
     approve_user,
     backup_and_delete_user,
+    clear_all_webmaster_notifications,
+    delete_webmaster_notification,
     get_accounts_connection,
     get_all_users,
     get_unseen_webmaster_notifications_count,
@@ -269,6 +271,32 @@ def mark_notifications_read():
     try:
         mark_webmaster_notifications_seen(connection, curr_user["id"])
         flash("Alle Benachrichtigungen wurden als gelesen markiert.", "success")
+    finally:
+        connection.close()
+    return redirect(url_for("auth.admin_users"))
+
+
+@auth_bp.route("/admin/notifications/<int:notification_id>/delete", methods=["POST"])
+@require_webmaster
+def delete_notification_route(notification_id):
+    """Delete a single webmaster notification."""
+    connection = get_accounts_connection()
+    try:
+        delete_webmaster_notification(connection, notification_id)
+        flash("Benachrichtigung gelöscht.", "info")
+    finally:
+        connection.close()
+    return redirect(url_for("auth.admin_users"))
+
+
+@auth_bp.route("/admin/notifications/clear-all", methods=["POST"])
+@require_webmaster
+def clear_all_notifications_route():
+    """Delete all webmaster notifications."""
+    connection = get_accounts_connection()
+    try:
+        clear_all_webmaster_notifications(connection)
+        flash("Alle Benachrichtigungen wurden gelöscht.", "info")
     finally:
         connection.close()
     return redirect(url_for("auth.admin_users"))
