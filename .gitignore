@@ -23,3 +23,6 @@ TO-DOs.md
 .ruff_cache/
 .coverage
 htmlcov/
+
+# Mac
+.DS_Store
