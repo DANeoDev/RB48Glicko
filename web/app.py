@@ -1,13 +1,19 @@
 import os
+import sys
 from pathlib import Path
-from flask import Flask, session
-from web.routes import register_routes
-from web.services.translations import (
+
+PROJECT_ROOT = str(Path(__file__).resolve().parents[1])
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from flask import Flask, session  # noqa: E402
+from web.routes import register_routes  # noqa: E402
+from web.services.translations import (  # noqa: E402
     format_date_localized,
     get_current_lang,
     t,
 )
-from web.services.security import (
+from web.services.security import (  # noqa: E402
     Tier,
     get_actual_tier,
     get_current_user,
