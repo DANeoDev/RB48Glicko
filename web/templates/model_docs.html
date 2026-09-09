@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}RB48 — {{ t('faq.model_docs_title', 'Model Documentation') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/katex/katex.min.css') }}" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';">
+<style>
+/* Documentation container and typography */
+.doc-container {
+    max-width: 960px;
+    margin: 30px auto 60px;
+    padding: 0 16px;
+}
+.doc-header {
+    margin-bottom: 24px;
+}
+.doc-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #80deea;
+    text-decoration: none;
+    font-size: 14.5px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    transition: color 0.15s ease;
+}
+.doc-back-link:hover {
+    color: #b2ebf2;
+}
+.doc-toc-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 28px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+.doc-toc-card h3 {
+    margin: 0 0 12px;
+    color: #80deea;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+}
+.doc-toc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 24px;
+}
+@media (max-width: 768px) {
+    .doc-toc-grid {
+        grid-template-columns: 1fr;
+    }
+}
+.doc-toc-link {
+    color: #ded6ed;
+    text-decoration: none;
+    font-size: 14px;
+    line-height: 1.5;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+.doc-toc-link:hover {
+    color: #80deea;
+    transform: translateX(3px);
+}
+.doc-section {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    scroll-margin-top: 80px;
+}
+@media (max-width: 768px) {
+    .doc-section {
+        padding: 20px 18px;
+    }
+}
+.doc-section h2 {
+    margin: 0 0 18px;
+    color: #ffffff;
+    font-size: 22px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 12px;
+}
+.doc-section h3 {
+    margin: 22px 0 10px;
+    color: #80deea;
+    font-size: 17.5px;
+}
+.doc-section h4 {
+    margin: 16px 0 8px;
+    color: #ffffff;
+    font-size: 15.5px;
+}
+.doc-section p {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.72;
+    color: #ded6ed;
+    margin: 0 0 14px;
+}
+.doc-section ul {
+    margin: 0 0 16px 20px;
+    padding: 0;
+}
+.doc-section li {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14.5px;
+    line-height: 1.68;
+    color: #ded6ed;
+    margin-bottom: 6px;
+}
+.doc-formula-box {
+    background: rgba(0,0,0,0.38);
+    border: 1px solid rgba(128, 222, 234, 0.25);
+    border-left: 3px solid #80deea;
+    border-radius: 6px;
+    padding: 14px 20px;
+    color: #80deea;
+    font-size: 15px;
+    margin: 16px 0;
+    overflow-x: auto;
+}
+.doc-formula-box .katex-display {
+    margin: 4px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.doc-formula-box .katex {
+    color: #80deea;
+    font-size: 1.15em;
+}
+.doc-container .katex {
+    text-rendering: auto;
+}
+.doc-ascii-diagram {
+    background: #110924;
+    border: 1px solid rgba(123, 82, 197, 0.35);
+    border-radius: 8px;
+    padding: 16px 20px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    color: #ded6ed;
+    font-size: 12.5px;
+    line-height: 1.4;
+    overflow-x: auto;
+    margin: 16px 0;
+}
+.doc-pill {
+    background: rgba(123, 82, 197, 0.25);
+    border: 1px solid rgba(123, 82, 197, 0.4);
+    color: #e0dcf0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 13.5px;
+}
+.doc-callout {
+    background: rgba(123, 82, 197, 0.12);
+    border-left: 3px solid #7B52C5;
+    padding: 14px 18px;
+    border-radius: 4px;
+    margin: 16px 0;
+}
+.doc-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 14px;
+}
+.doc-table th {
+    background: rgba(123, 82, 197, 0.25);
+    color: #ffffff;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 2px solid rgba(255,255,255,0.1);
+}
+.doc-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    color: #ded6ed;
+}
+.doc-table tr:hover {
+    background: rgba(255,255,255,0.02);
+}
+.doc-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 20px;
+}
+.doc-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.06);
+    color: #ded6ed;
+    text-decoration: none;
+    border: 1px solid rgba(255,255,255,0.12);
+    transition: all 0.15s ease;
+}
+.doc-action-btn:hover {
+    background: rgba(123, 82, 197, 0.25);
+    border-color: #7B52C5;
+    color: #ffffff;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="doc-container">
+    <div class="doc-header">
+        <a href="{{ url_for('stats.glicko_explainer') }}#webmaster-project" class="doc-back-link">
+            {{ t('faq.model_docs_back', '← Zurück zur FAQ') }}
+        </a>
+        <h1 style="margin: 6px 0 8px; color: #ffffff; font-size: 28px;">
+            {{ t('faq.model_docs_heading', 'The RB48 Team-Based Glicko-2 Engine') }}
+        </h1>
+        <p class="muted" style="margin: 0; font-size: 15px;">
+            {{ t('faq.model_docs_subtitle', 'Technical & Conceptual Mathematical Architecture') }}
+        </p>
+        <div class="doc-actions">
+            <a href="{{ url_for('stats.model_documentation_raw') }}" target="_blank" class="doc-action-btn">
+                📄 Raw Markdown (.md)
+            </a>
+            <a href="{{ url_for('stats.glicko_explainer') }}#faq-glicko" class="doc-action-btn">
+                ❓ FAQ & Leitfaden
+            </a>
+        </div>
+    </div>
+
+    <!-- Dynamic Content Rendered Directly From docs/GLICKO2_TEAM_MODEL.md -->
+    {% if content_html %}
+        {{ content_html | safe }}
+    {% else %}
+        {% include "model_docs_content.html" %}
+    {% endif %}
+</div>
+
+<!-- KaTeX math rendering (locally vendored with CDN fallback) -->
+<script defer src="{{ url_for('static', filename='vendor/katex/katex.min.js') }}" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';"></script>
+<script defer src="{{ url_for('static', filename='vendor/katex/contrib/auto-render.min.js') }}" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js';" onload="initDocMath();"></script>
+<script>
+function initDocMath() {
+    if (typeof renderMathInElement === "function") {
+        var docElem = document.querySelector(".doc-container");
+        if (docElem) {
+            renderMathInElement(docElem, {
+                delimiters: [
+                    { left: "$$", right: "$$", display: true },
+                    { left: "\\[", right: "\\]", display: true },
+                    { left: "\\(", right: "\\)", display: false }
+                ],
+                ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code"],
+                throwOnError: false
+            });
+        }
+    }
+}
+document.addEventListener("DOMContentLoaded", initDocMath);
+</script>
+{% endblock %}

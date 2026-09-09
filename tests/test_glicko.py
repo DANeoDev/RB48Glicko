@@ -415,6 +415,24 @@ class TeamRatingCalculatorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             calibration_values(None, "average", "invalid_certainty")
 
+    def test_docs_contain_active_glicko_constants(self):
+        from scripts.docs.generate_model_docs import update_docs_file, DOCS_FILE, HTML_DOCS_FILE
+        from scripts.glicko.glicko2 import INACTIVITY_RD_TICK, IGNORED_RD, DEFAULT_RD, DEFAULT_RATING
+
+        update_docs_file()
+        content = DOCS_FILE.read_text(encoding="utf-8")
+        html_content = HTML_DOCS_FILE.read_text(encoding="utf-8")
+
+        self.assertIn(str(INACTIVITY_RD_TICK), content)
+        self.assertIn(str(IGNORED_RD), content)
+        self.assertIn(str(int(DEFAULT_RATING)), content)
+        self.assertIn(str(DEFAULT_RD), content)
+
+        self.assertIn(str(INACTIVITY_RD_TICK), html_content)
+        self.assertIn(str(IGNORED_RD), html_content)
+        self.assertIn(str(int(DEFAULT_RATING)), html_content)
+        self.assertIn(str(DEFAULT_RD), html_content)
+
 
 if __name__ == "__main__":
     unittest.main()

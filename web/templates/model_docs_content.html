@@ -1,0 +1,405 @@
+<div class="doc-callout" style="border-left: 4px solid #7B52C5; background: rgba(123, 82, 197, 0.12); margin-bottom: 24px;"><p style="margin: 0; font-size: 14.5px; color: #ded6ed;">🔄 <strong>Dynamic Documentation Notice:</strong> All values, formulas, and parameters in this document are automatically derived from the active system constants in <a href="../scripts/glicko/glicko2.py"><span class="doc-pill">scripts/glicko/glicko2.py</span></a> and <a href="../scripts/matches/match_entry.py"><span class="doc-pill">scripts/matches/match_entry.py</span></a>.</p></div>
+<div class="doc-toc-card"><h3>📑 Inhaltsverzeichnis / Table of Contents</h3><div class="doc-toc-grid">
+        <a href="#1-introduction-why-glicko-2-for-recreational-football" class="doc-toc-link"><span>&bull;</span> <span>Introduction: Why Glicko-2 for Recreational Football?</span></a>
+        <a href="#2-what-are-the-numbers-the-core-parameters" class="doc-toc-link"><span>&bull;</span> <span>What Are the Numbers? (The Core Parameters)</span></a>
+        <a href="#rating-r--mu-expected-skill" class="doc-toc-link"><span>&bull;</span> <span>Rating (\(r\) / \(\mu\)): Expected Skill</span></a>
+        <a href="#rating-deviation-rd--phi-uncertainty" class="doc-toc-link"><span>&bull;</span> <span>Rating Deviation (\(\text{RD}\) / \(\phi\)): Uncertainty</span></a>
+        <a href="#volatility-sigma-erratic-performance-vs-consistency" class="doc-toc-link"><span>&bull;</span> <span>Volatility (\(\sigma\)): Erratic Performance vs. Consistency</span></a>
+        <a href="#conservative-rating-c-the-leaderboard-standard" class="doc-toc-link"><span>&bull;</span> <span>Conservative Rating (\(C\)): The Leaderboard Standard</span></a>
+        <a href="#3-what-are-the-numbers-good-for" class="doc-toc-link"><span>&bull;</span> <span>What Are the Numbers Good For?</span></a>
+        <a href="#4-the-rb48-team-dilemma--the-sieve-philosophy" class="doc-toc-link"><span>&bull;</span> <span>The RB48 Team Dilemma & The "Sieve" Philosophy</span></a>
+        <a href="#5-how-the-numbers-are-derived-mathematical-architecture" class="doc-toc-link"><span>&bull;</span> <span>How the Numbers Are Derived: Mathematical Architecture</span></a>
+        <a href="#step-0-scale-conversion" class="doc-toc-link"><span>&bull;</span> <span>Scale Conversion (Standard to Glicko-2)</span></a>
+        <a href="#step-1-team-uncertainty--quadratic-mean-pooling" class="doc-toc-link"><span>&bull;</span> <span>Step 1: Team Uncertainty & Quadratic Mean Pooling</span></a>
+        <a href="#step-2-expected-win-probabilities--opponent-impact" class="doc-toc-link"><span>&bull;</span> <span>Step 2: Expected Win Probabilities & Opponent Impact</span></a>
+        <a href="#step-3-bayesian-teammate-clarity-dampening-w_textteam" class="doc-toc-link"><span>&bull;</span> <span>Step 3: Bayesian Teammate Clarity Dampening (\(w_{\text{team}}\))</span></a>
+        <a href="#step-4-session-same-day-batching" class="doc-toc-link"><span>&bull;</span> <span>Step 4: Session (Same-Day) Batching</span></a>
+        <a href="#step-5-updating-volatility-sigma-via-the-illinois-method" class="doc-toc-link"><span>&bull;</span> <span>Step 5: Updating Volatility (\(\sigma\)) via the Illinois Method</span></a>
+        <a href="#step-6-final-rating--rd-update" class="doc-toc-link"><span>&bull;</span> <span>Step 6: Final Rating & RD Update</span></a>
+        <a href="#step-7-inactivity-decay" class="doc-toc-link"><span>&bull;</span> <span>Step 7: Inactivity Decay</span></a>
+        <a href="#6-special-features-of-rb48" class="doc-toc-link"><span>&bull;</span> <span>Special Features of RB48</span></a>
+        <a href="#multi-track-engine-total-box-hf" class="doc-toc-link"><span>&bull;</span> <span>Multi-Track Engine (TOTAL, BOX, HF)</span></a>
+        <a href="#anonymous--ignored-guest-players-ignored_rd--480" class="doc-toc-link"><span>&bull;</span> <span>Anonymous / Ignored Guest Players (\(\text{IGNORED\_RD} = 480\))</span></a>
+        <a href="#new-player-entry-certainty-calibration-5-step-prior" class="doc-toc-link"><span>&bull;</span> <span>New Player Entry Certainty Calibration (5-Step Prior)</span></a>
+        <a href="#order-invariance-proof" class="doc-toc-link"><span>&bull;</span> <span>Order Invariance Proof</span></a>
+        <a href="#7-glossary--reference-formulas" class="doc-toc-link"><span>&bull;</span> <span>Glossary & Reference Formulas</span></a>
+</div></div>
+<section id="1-introduction-why-glicko-2-for-recreational-football" class="doc-section">
+<h2>1. Introduction: Why Glicko-2 for Recreational Football?</h2>
+<p>In recreational sports, measuring individual skill is notoriously difficult:</p>
+<ul>
+<li><strong>Raw Win Rate is Deceptive:</strong> Win Rate is a decent measure of a players success over time, but it loses crucial information about the games difficulty. Two players of similair strength might have different winrates due to different <strong>perceived strength</strong> which resulted in a bias in matchmaking. Glicko2 offers a more sophisticated measure of how successfull a player has been.</li>
+<li><strong>The Elo Problem:</strong> The classical Elo system (used in chess) tracks a single number. If an established player stops playing for 9 months, Elo assumes their skill is frozen with 100% confidence. Furthermore, if a brand-new player wins their first game, Elo updates their rating with the exact same rigid step size as a veteran with 200 games.</li>
+</ul>
+<p>To solve this, <strong>Professor Mark Glickman</strong> invented <strong>Glicko</strong> (1995) and <strong>Glicko-2</strong> (2001). Glicko treats a player's skill not as a fixed number, but as a <strong>probability distribution</strong> (a Bell curve).</p>
+<p>The RB48 engine takes Glickman's mathematical foundation—originally designed for 1-on-1 games like chess—and expands it into a <strong>full Bayesian team rating engine</strong> specifically tailored for multi-player recreational football (5v5 / 6v6).</p>
+</section>
+<section id="2-what-are-the-numbers-the-core-parameters" class="doc-section">
+<h2>2. What Are the Numbers? (The Core Parameters)</h2>
+<p>Every player in the RB48 database has three fundamental numbers per track:</p>
+<pre class="doc-ascii-diagram">                  Player Skill Distribution
+                            μ (Rating)
+                               │
+                       ┌───────┴───────┐
+                      ╱        │        ╲
+                     ╱         │         ╲
+                    ╱          │          ╲
+                   ╱           │           ╲
+     ─────────────┴────────────┼────────────┴─────────────
+                  ◄────────────┼────────────►
+                      -2·RD          +2·RD
+                     (95% Confidence Interval)</pre>
+<h3 id="rating-r-mu-expected-skill">Rating (\(r\) / \(\mu\)): Expected Skill</h3>
+<ul>
+<li><strong>Default:</strong> <span class="doc-pill">1500</span></li>
+<li><strong>What it represents:</strong> The center of the player's skill distribution.</li>
+</ul>
+<h3 id="rating-deviation-textrd-phi-uncertainty">Rating Deviation (\(\text{RD}\) / \(\phi\)): Uncertainty</h3>
+<ul>
+<li><strong>Default:</strong> <span class="doc-pill">348</span> (uncalibrated newcomer) down to <span class="doc-pill">~ 50.0 - 70.0</span> (established veteran).</li>
+<li><strong>What it represents:</strong> The standard deviation (spread) of the skill curve.</li>
+<li><strong>Mathematical meaning:</strong> There is a <strong>95% probability</strong> that the player's true skill lies within:</li>
+</ul>
+<div class="doc-formula-box">$$\left[ \text{Rating} - 2 \cdot \text{RD}, \quad \text{Rating} + 2 \cdot \text{RD} \right]$$</div>
+<ul>
+<li>A newcomer with \(r = 1500, \text{RD} = 348\) has a 95% confidence interval of \([804, 2196]\) (the system knows almost nothing).</li>
+<li>A veteran with \(r = 1600, \text{RD} = 60\) has an interval of \([1480, 1720]\) (the system is confident).</li>
+<li><strong>Analogy:</strong> The stiffness of the anchor. A high RD makes the player's rating responsive like a feather in a breeze. A low RD acts like a 10-ton ship anchor embedded in rock.</li>
+</ul>
+<h3 id="volatility-sigma-erratic-performance-vs-consistency">Volatility (\(\sigma\)): Erratic Performance vs. Consistency</h3>
+<ul>
+<li><strong>Default:</strong> <span class="doc-pill">0.03</span> (with \(\tau = 1\)).</li>
+<li><strong>What it represents:</strong> How erratically a player's skill is expected to fluctuate over time.</li>
+<li><strong>Why it matters:</strong> It acts as an <strong>automatic circuit breaker</strong>. If a veteran with \(\text{RD} = 60\) suddenly starts beating top-tier squads or losing to rookies, their volatility \(\sigma\) will spike. In Glicko-2, higher volatility <strong>forces RD to expand</strong>, allowing the player to quickly move to a new rating tier rather than being permanently trapped by a small RD.</li>
+</ul>
+<h3 id="conservative-rating-c-the-leaderboard-standard">Conservative Rating (\(C\)): The Leaderboard Standard</h3>
+<ul>
+<li><strong>Formula:</strong></li>
+</ul>
+<div class="doc-formula-box">$$C = \text{Rating} - 3 \cdot \text{RD}$$</div>
+<ul>
+<li><strong>What it represents:</strong> The statistical <strong>99.7% lower bound</strong> of the player's ability.</li>
+<li><strong>Why we use it for the Leaderboard:</strong></li>
+</ul>
+<p>If a new player joins, wins their first two games, and jumps to \(r = 1780\) with \(\text{RD} = 270\), their Conservative Rating is only:</p>
+<div class="doc-formula-box">$$C = 1780 - 3(270) = 970$$</div>
+<p>They cannot claim the #1 spot on the leaderboard by being lucky. To climb the leaderboard, <strong>you must prove consistency over time to shrink your RD</strong>.</p>
+</section>
+<section id="3-what-are-the-numbers-good-for" class="doc-section">
+<h2>3. What Are the Numbers Good For?</h2>
+<div style="overflow-x: auto;"><table class="doc-table">
+<thead><tr>
+<th style="text-align: left;">Application</th>
+<th style="text-align: left;">How the numbers are used</th>
+</tr></thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Match Outcome Prediction</strong></td>
+<td style="text-align: left;">Using team ratings and opponent RD, the engine computes the exact win probability \(E \in (0, 1)\).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Combinatorial Matchmaker</strong></td>
+<td style="text-align: left;">Evaluates all \(\binom{N}{N/2}\) combinations of available players to generate teams as close to a 50/50 win probability as possible, balanced by positions.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Individual Skill Attribution</strong></td>
+<td style="text-align: left;">Separates a player's genuine contribution from their teammates' quality over time.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Fair Inactivity Management</strong></td>
+<td style="text-align: left;">Automatically expands uncertainty (\(\text{RD}\) by <span class="doc-pill">+0.218034</span> per date) when players miss games, without artificially altering their rating.</td>
+</tr>
+</tbody></table></div>
+</section>
+<section id="4-the-rb48-team-dilemma-the-sieve-philosophy" class="doc-section">
+<h2>4. The RB48 Team Dilemma & The "Sieve" Philosophy</h2>
+<p>A common misconception in team rating models is to break down a 6v6 match into 36 individual 1v1 duels:</p>
+<div class="doc-callout"><p style="margin:0;"><em>"If player A is on Team 1 and player B is on Team 2, treat it as player A playing against player B."</em></p></div>
+<p><strong>This approach is fundamentally flawed in team sports.</strong></p>
+<p>In football, an individual with a rating of 2000 playing with five complete beginners (rating 100) will lose against a balanced team of 1400s almost every single time. An individual 1v1 decomposition would falsely penalize the 2000 player as having lost 1v1 duels against 1400 players.</p>
+<h3 id="the-sieve-philosophy">The "Sieve" Philosophy:</h3>
+<ol>
+<li><strong>The Game is Played by Teams:</strong> The contest is evaluated exclusively at the <strong>team level</strong> (Team A vs. Team B).</li>
+<li><strong>Personal Information Emerges Over Time:</strong> In any single match, the team outcome is a noisy signal of an individual's skill. But over 10, 20, or 50 games, players are reshuffled into different squads, playing with and against different teammates.</li>
+<li>Like shaking gravel through a sieve, the shared team noise gradually falls away, leaving behind each player's true individual skill level.</li>
+</ol>
+</section>
+<section id="5-how-the-numbers-are-derived-mathematical-architecture" class="doc-section">
+<h2>5. How the Numbers Are Derived: Mathematical Architecture</h2>
+<p>Here is the exact step-by-step pipeline executed when a matchday session is processed:</p>
+<pre class="doc-ascii-diagram"> ┌────────────────────────┐       ┌────────────────────────┐
+ │   Team A Composition   │       │   Team B Composition   │
+ │   {r_i, RD_i, σ_i}     │       │   {r_j, RD_j, σ_j}     │
+ └───────────┬────────────┘       └───────────┬────────────┘
+             │                                │
+             ▼                                ▼
+ ┌────────────────────────┐       ┌────────────────────────┐
+ │      Team A Rating     │       │      Team B Rating     │
+ │  r_A = mean(r_i)       │       │  r_B = mean(r_j)       │
+ │  RD_A = quad_mean(RD)  │       │  RD_B = quad_mean(RD)  │
+ └───────────┬────────────┘       └───────────┬────────────┘
+             │                                │
+             └────────────────┬───────────────┘
+                              │
+                              ▼
+ ┌─────────────────────────────────────────────────────────┐
+ │               Expected Outcome Calculation              │
+ │          E = expected_score(r_A, r_B, RD_B)             │
+ └────────────────────────────┬────────────────────────────┘
+                              │
+                              ▼
+ ┌─────────────────────────────────────────────────────────┐
+ │       Teammate Clarity Dampening (Bayesian Weight)      │
+ │          w_team = g(phi_teammates)                      │
+ └────────────────────────────┬────────────────────────────┘
+                              │
+                              ▼
+ ┌─────────────────────────────────────────────────────────┐
+ │               Session Batch Accumulation                │
+ │       Precision = Σ w_m · g_opp² · E · (1 - E)          │
+ │       Surprise  = Σ w_m · g_opp  · (score - E)          │
+ └────────────────────────────┬────────────────────────────┘
+                              │
+                              ▼
+ ┌─────────────────────────────────────────────────────────┐
+ │           Illinois Secant Root Finding for σ'           │
+ └────────────────────────────┬────────────────────────────┘
+                              │
+                              ▼
+ ┌─────────────────────────────────────────────────────────┐
+ │            Joint Rating & RD Update (New r, RD)         │
+ └─────────────────────────────────────────────────────────┘</pre>
+<h3 id="step-0-scale-conversion">Step 0: Scale Conversion</h3>
+<p>Glicko-2 converts traditional ratings into an internal scale (\(\mu, \phi\)) centered at \(0.0\) using the scaling constant:</p>
+<div class="doc-formula-box">$$c = \frac{400}{\ln(10)} \approx 173.7178$$</div>
+<div class="doc-formula-box">$$\mu = \frac{r - 1500}{173.7178}, \qquad \phi = \frac{\text{RD}}{173.7178}$$</div>
+<h3 id="step-1-team-uncertainty-quadratic-mean-pooling">Step 1: Team Uncertainty & Quadratic Mean Pooling</h3>
+<p>For a team of \(N\) players, where \(M\) players are anonymous guests:</p>
+<ol>
+<li><strong>Team Rating (\(r_{\text{team}}\)):</strong> The simple arithmetic mean of the known active players:</li>
+</ol>
+<div class="doc-formula-box">$$r_{\text{team}} = \frac{1}{K} \sum_{i=1}^K r_i$$</div>
+<ol>
+<li><strong>Team Uncertainty (\(\text{RD}_{\text{team}}\)):</strong> Calculated via <strong>quadratic mean (root-mean-square) pooling</strong>:</li>
+</ol>
+<div class="doc-formula-box">$$\text{RD}_{\text{team}} = \sqrt{\frac{\sum_{i=1}^K \text{RD}_i^2 + M \cdot 480^2}{N}}$$</div>
+<h4>Why Quadratic Mean?</h4>
+<p>In probability theory, independent variances add linearly (\(\text{Var}_{\text{sum}} = \sum \sigma_i^2\)). If you have five seasoned veterans with \(\text{RD} = 60\) and one wild newcomer with \(\text{RD} = 348\):</p>
+<ul>
+<li>Arithmetic mean: \(\frac{5 \times 60 + 348}{6} = 108.0\)</li>
+<li>Quadratic mean: \(\sqrt{\frac{5 \times 60^2 + 348^2}{6}} = 152.3\)</li>
+</ul>
+<p>The quadratic mean correctly reflects that <strong>a single unknown wildcard makes the entire team's performance significantly more volatile and harder to predict</strong>.</p>
+<h3 id="step-2-expected-win-probabilities-opponent-impact">Step 2: Expected Win Probabilities & Opponent Impact</h3>
+<p>Glicko defines an impact function \(g(\phi)\) that shrinks the weight of an outcome if the opponent's skill is uncertain:</p>
+<div class="doc-formula-box">$$g(\phi_{\text{opp}}) = \frac{1}{\sqrt{1 + \frac{3 \phi_{\text{opp}}^2}{\pi^2}}}$$</div>
+<p>The expected score \(E\) (win probability for Team A) is:</p>
+<div class="doc-formula-box">$$E = \frac{1}{1 + \exp\left( -g(\phi_{\text{opp}}) \cdot (\mu_{\text{own}} - \mu_{\text{opp}}) \right)}$$</div>
+<ul>
+<li>If the opponent team has \(\text{RD} \to 0\), \(g(\phi) \to 1.0\), and the win curve has full steepness.</li>
+<li>If the opponent team is highly uncalibrated (\(\text{RD} \to \infty\)), \(g(\phi) \to 0\), and \(E \to 0.50\) (the match approaches a coin toss in information content).</li>
+</ul>
+<h3 id="step-3-bayesian-teammate-clarity-dampening-wtextteam">Step 3: Bayesian Teammate Clarity Dampening (\(w_{\text{team}}\))</h3>
+<p>A central innovation of the RB48 model is <strong>decoupling personal RD from team RD</strong>.</p>
+<p>In older, naive implementations, an individual's rating update used a combined virtual RD:</p>
+<div class="doc-formula-box">$$\text{virtual\_RD} = \sqrt{\frac{\text{RD}_{\text{player}}^2 + \text{RD}_{\text{team}}^2}{2}}$$</div>
+<p>This had a disastrous flaw: if an established veteran with \(\text{RD} = 60\) played on a team with five rookies (\(\text{RD} = 348\)), the veteran's virtual RD was inflated to \(\approx 250\), causing their rating to swing wildly by 60–80 points from a single casual match!</p>
+<h4>The TrueSkill-Inspired Bayesian Solution:</h4>
+<p>We keep the player's personal uncertainty (\(\phi_{\text{player}}\)) intact. Instead, we calculate the root-mean-square RD of the player's <strong>teammates</strong>:</p>
+<div class="doc-formula-box">$$\text{RD}_{\text{teammates}} = \sqrt{\frac{\sum_{j \neq i} \text{RD}_j^2 + M \cdot 480^2}{N - 1}}$$</div>
+<p>We then apply Glicko's native information clarity function to teammates:</p>
+<div class="doc-formula-box">$$w_{\text{team}} = g(\phi_{\text{teammates}}) = \frac{1}{\sqrt{1 + \frac{3 \phi_{\text{teammates}}^2}{\pi^2}}}$$</div>
+<ul>
+<li><strong>Playing with Veterans (\(\text{RD}_{\text{teammates}} \approx 60\)):</strong></li>
+</ul>
+<div class="doc-formula-box">$$w_{\text{team}} \approx 0.98$$</div>
+<p>The team outcome is crystal clear. The individual receives <strong>98%</strong> of the full update.</p>
+<ul>
+<li><strong>Playing with Rookies (\(\text{RD}_{\text{teammates}} \approx 330\)):</strong></li>
+</ul>
+<div class="doc-formula-box">$$w_{\text{team}} \approx 0.69$$</div>
+<p>Because teammates are unknown wildcards, the match contains high observational noise. Both rating change and RD reduction are <strong>gracefully dampened by ~31%</strong>.</p>
+<h3 id="step-4-session-same-day-batching">Step 4: Session (Same-Day) Batching</h3>
+<p>In RB48, players typically play 2 (sometimes 3) games in a single evening session.</p>
+<h4>The Problem with Match-by-Match Sequential Updating:</h4>
+<p>If Game 1 is processed immediately before Game 2:</p>
+<ol>
+<li><strong>Order Dependence:</strong> A player winning Game 1 and losing Game 2 gets a different rating than if they lost Game 1 and won Game 2!</li>
+<li><strong>Cold-Start Tracksetter Bias:</strong> For new players, Game 1 caused a massive shift from 1500 to 1690. When Game 2 began, the model falsely believed the player was an established 1690 player, distorting the expectations for Game 2.</li>
+</ol>
+<h4>The Session Batching Formula:</h4>
+<p>All matches played on the same calendar date are batched into a single rating period. For each match \(m \in \text{Session}\), we compute:</p>
+<div class="doc-formula-box">$$\text{match\_precision}_m = g(\phi_{\text{opp}, m})^2 \cdot E_m \cdot (1 - E_m)$$</div>
+<div class="doc-formula-box">$$\text{match\_difference}_m = g(\phi_{\text{opp}, m}) \cdot (s_m - E_m)$$</div>
+<p>We accumulate effective precision and surprise across all games of the evening, weighted by teammate clarity \(w_{\text{team}, m}\):</p>
+<div class="doc-formula-box">$$I = \text{total\_effective\_precision} = \sum_{m} w_{\text{team}, m} \cdot \text{match\_precision}_m$$</div>
+<div class="doc-formula-box">$$\Delta = \text{total\_effective\_difference} = \sum_{m} w_{\text{team}, m} \cdot \text{match\_difference}_m$$</div>
+<p>The estimated session variance is \(v = \frac{1}{I}\), and the normalized performance difference is \(\frac{\Delta}{I}\).</p>
+<h3 id="step-5-updating-volatility-sigma-via-the-illinois-method">Step 5: Updating Volatility (\(\sigma\)) via the Illinois Method</h3>
+<p>Glicko-2 updates volatility \(\sigma\) by finding the root of an objective function \(f(x)\):</p>
+<div class="doc-formula-box">$$f(x) = \frac{e^x (\Delta^2 / I^2 - \phi^2 - v - e^x)}{2 (\phi^2 + v + e^x)^2} - \frac{x - \ln(\sigma^2)}{\tau^2}$$</div>
+<p>where \(\tau = 1\) governs the system volatility limit.</p>
+<p>The engine solves \(f(x) = 0\) using the <strong>Illinois algorithm</strong> (an improved false-position root-finding technique with bracket halving) down to a convergence tolerance of \(\epsilon = 1e-06\). The new volatility is:</p>
+<div class="doc-formula-box">$$\sigma' = e^{A / 2}$$</div>
+<h3 id="step-6-final-rating-rd-update">Step 6: Final Rating & RD Update</h3>
+<ol>
+<li><strong>Pre-Rating Uncertainty Expansion:</strong></li>
+</ol>
+<div class="doc-formula-box">$$\phi^* = \sqrt{\phi^2 + (\sigma')^2}$$</div>
+<ol>
+<li><strong>Posterior Uncertainty Update:</strong></li>
+</ol>
+<div class="doc-formula-box">$$\phi' = \frac{1}{\sqrt{\frac{1}{(\phi^*)^2} + I}}$$</div>
+<ol>
+<li><strong>Posterior Skill Mean Update:</strong></li>
+</ol>
+<div class="doc-formula-box">$$\mu' = \mu + (\phi')^2 \cdot \Delta$$</div>
+<ol>
+<li><strong>Scale Conversion Back to Traditional Scale:</strong></li>
+</ol>
+<div class="doc-formula-box">$$r' = \mu' \cdot 173.7178 + 1500$$</div>
+<div class="doc-formula-box">$$\text{RD}' = \phi' \cdot 173.7178$$</div>
+<h3 id="step-7-inactivity-decay">Step 7: Inactivity Decay</h3>
+<p>When a player does not participate on a matchday date, their skill uncertainty naturally increases (their form becomes less certain).</p>
+<p>The RB48 engine applies an <strong>inactivity RD tick once per matchday date</strong>:</p>
+<div class="doc-formula-box">$$\text{RD}_{\text{new}} = \text{RD}_{\text{old}} + 0.2180339$$</div>
+<p>Over months of absence, an inactive player's RD slowly creeps upward back toward <span class="doc-pill">348</span>, reflecting growing uncertainty without arbitrarily lowering their rating.</p>
+</section>
+<section id="6-special-features-of-rb48" class="doc-section">
+<h2>6. Special Features of RB48</h2>
+<h3 id="multi-track-engine-total-box-hf">Multi-Track Engine (TOTAL, BOX, HF)</h3>
+<p>Recreational football dynamics change radically depending on the pitch:</p>
+<ul>
+<li><strong><span class="doc-pill">BOX</span> (Indoor enclosed pitch):</strong> Small-sided (4v4 / 5v5), high goal count, rapid wall rebounds, favours quick footwork and high-tempo endurance.</li>
+<li><strong><span class="doc-pill">HF</span> (Half-pitch outdoor):</strong> 6v6 / 7v7, larger spatial tactics, crossing, longer sprints, off-ball positioning.</li>
+<li><strong><span class="doc-pill">TOTAL</span>:</strong> The unified multi-format composite skill rating.</li>
+</ul>
+<p>The engine maintains three independent rating triples \((r, \text{RD}, \sigma)\) for each player. Matches played on a <span class="doc-pill">box</span> pitch update both <span class="doc-pill">BOX</span> and <span class="doc-pill">TOTAL</span>, while <span class="doc-pill">hf</span> fixtures update <span class="doc-pill">HF</span> and <span class="doc-pill">TOTAL</span>.</p>
+<h3 id="anonymous-ignored-guest-players-textignoredrd-480">Anonymous / Ignored Guest Players (\(\text{IGNORED\_RD} = 480\))</h3>
+<p>Often, recreational groups invite a guest or substitute player who is not registered in the league.</p>
+<ul>
+<li>In RB48, external players are assigned:</li>
+</ul>
+<div class="doc-formula-box">$$\text{IGNORED\_RD} = 480$$</div>
+<ul>
+<li><strong>Why 480?</strong></li>
+</ul>
+<p>In Glicko's scaled units, \(\phi = 480 / 173.7178 \approx 2.763\).</p>
+<p>The clarity factor for an external player is:</p>
+<div class="doc-formula-box">$$g(2.763) = \frac{1}{\sqrt{1 + \frac{3(2.763^2)}{\pi^2}}} \approx 0.55$$</div>
+<p>This ensures that guest players absorb noise and widen team variance without artificially inflating or collapsing the ratings of permanent league members.</p>
+<h3 id="new-player-entry-certainty-calibration-5-step-prior">New Player Entry Certainty Calibration (5-Step Prior)</h3>
+<p>When onboarding a newcomer, the match organizer is prompted with:</p>
+<div class="doc-callout"><p style="margin:0;"><em>"How certain are you about the strength of this player?"</em></p></div>
+<div style="overflow-x: auto;"><table class="doc-table">
+<thead><tr>
+<th style="text-align: left;">Level</th>
+<th style="text-align: center;">Initial RD</th>
+<th style="text-align: center;">95% Confidence Interval</th>
+<th style="text-align: center;">Typical Single-Game Delta</th>
+<th style="text-align: left;">Practical Usage</th>
+</tr></thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Uncertain (standard — 350 RD)</strong></td>
+<td style="text-align: center;"><strong><span class="doc-pill">348</span></strong></td>
+<td style="text-align: center;">± 700 pts</td>
+<td style="text-align: center;">± 80 to ± 180 pts</td>
+<td style="text-align: left;">Complete unknown; never seen them play.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Somewhat uncertain (250 RD)</strong></td>
+<td style="text-align: center;"><strong><span class="doc-pill">250</span></strong></td>
+<td style="text-align: center;">± 500 pts</td>
+<td style="text-align: center;">± 45 to ± 90 pts</td>
+<td style="text-align: left;">Heard about them, or seen 1 casual match.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Moderately certain (180 RD)</strong></td>
+<td style="text-align: center;"><strong><span class="doc-pill">180</span></strong></td>
+<td style="text-align: center;">± 360 pts</td>
+<td style="text-align: center;">± 25 to ± 50 pts</td>
+<td style="text-align: left;">Played with them a few times before.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Very certain (120 RD)</strong></td>
+<td style="text-align: center;"><strong><span class="doc-pill">120</span></strong></td>
+<td style="text-align: center;">± 240 pts</td>
+<td style="text-align: center;">± 15 to ± 30 pts</td>
+<td style="text-align: left;">Known player with established baseline.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Extremely certain (80 RD)</strong></td>
+<td style="text-align: center;"><strong><span class="doc-pill">80</span></strong></td>
+<td style="text-align: center;">± 160 pts</td>
+<td style="text-align: center;">± 8 to ± 15 pts</td>
+<td style="text-align: left;">Fully verified veteran entering a new track.</td>
+</tr>
+</tbody></table></div>
+<p>This transforms new player creation from an arbitrary default into a <strong>true Bayesian prior</strong>.</p>
+<h3 id="order-invariance-proof">Order Invariance Proof</h3>
+<p>Because session updates compute total precision \(I = \sum w_m I_m\) and total difference \(\Delta = \sum w_m \Delta_m\) by summing over games, addition is commutative:</p>
+<div class="doc-formula-box">$$I_1 + I_2 = I_2 + I_1 \qquad \text{and} \qquad \Delta_1 + \Delta_2 = \Delta_2 + \Delta_1$$</div>
+<p>Swapping the chronological order of two matches on the same date produces the <strong>identical final rating and RD down to 9 decimal places</strong>.</p>
+</section>
+<section id="7-glossary-reference-formulas" class="doc-section">
+<h2>7. Glossary & Reference Formulas</h2>
+<div style="overflow-x: auto;"><table class="doc-table">
+<thead><tr>
+<th style="text-align: left;">Term</th>
+<th style="text-align: center;">Symbol</th>
+<th style="text-align: left;">Meaning / Current Active Value</th>
+</tr></thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Rating</strong></td>
+<td style="text-align: center;">\(r, \mu\)</td>
+<td style="text-align: left;">Center of estimated skill distribution (default <span class="doc-pill">1500</span>).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Rating Deviation</strong></td>
+<td style="text-align: center;">\(\text{RD}, \phi\)</td>
+<td style="text-align: left;">Uncertainty / standard deviation of skill distribution (default <span class="doc-pill">348</span>).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Volatility</strong></td>
+<td style="text-align: center;">\(\sigma\)</td>
+<td style="text-align: left;">Consistency parameter measuring degree of erratic performance (default <span class="doc-pill">0.03</span>).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Conservative Rating</strong></td>
+<td style="text-align: center;">\(C\)</td>
+<td style="text-align: left;">\(r - 3\text{RD}\). Lower bound for leaderboard ranking.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Scaling Constant</strong></td>
+<td style="text-align: center;">\(c\)</td>
+<td style="text-align: left;"><span class="doc-pill">173.7178</span>. Converts between 1500-scale and Glicko-2 \(\mu\)-scale.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Opponent Impact</strong></td>
+<td style="text-align: center;">\(g(\phi)\)</td>
+<td style="text-align: left;">\(\left(1 + \frac{3\phi^2}{\pi^2}\right)^{-1/2}\). Dampens weight of uncertain opponents.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Teammate Clarity</strong></td>
+<td style="text-align: center;">\(w_{\text{team}}\)</td>
+<td style="text-align: left;">\(g(\phi_{\text{teammates}})\). Dampens weight when playing with uncalibrated teammates.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>System Constant</strong></td>
+<td style="text-align: center;">\(\tau\)</td>
+<td style="text-align: left;"><span class="doc-pill">1</span>. Constrains volatility changes over time.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Inactivity Tick</strong></td>
+<td style="text-align: center;">—</td>
+<td style="text-align: left;"><span class="doc-pill">+0.2180339</span> RD per missed matchday date.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Guest RD</strong></td>
+<td style="text-align: center;">\(\text{IGNORED\_RD}\)</td>
+<td style="text-align: left;"><span class="doc-pill">480</span>. Assigned to unregistered external players.</td>
+</tr>
+</tbody></table></div>
+</section>

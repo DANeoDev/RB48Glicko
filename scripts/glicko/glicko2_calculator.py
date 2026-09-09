@@ -386,6 +386,11 @@ def main():
         glickos = calculate_glicko(connection, matches, prepared_glicko, debug_player)
         print(f"Calculated ratings for {len(glickos)} players")
         write_glicko(connection, glickos)
+        try:
+            from scripts.docs.generate_model_docs import update_docs_file
+            update_docs_file()
+        except Exception:
+            pass
     finally:
         connection.close()
 
