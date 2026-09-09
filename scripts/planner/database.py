@@ -244,6 +244,31 @@ def get_event_by_id(connection, event_id):
     ).fetchone()
 
 
+def get_planner_events_for_import(connection, limit=30):
+    """Retrieve recent and upcoming events with attendee counts for match center import."""
+    return connection.execute(
+        """
+        SELECT
+            e.id,
+            e.event_date,
+            e.pitch,
+            e.max_players,
+            e.title,
+            e.location,
+            e.status,
+            e.created_at,
+            COUNT(CASE WHEN a.status = 'attending' THEN 1 END) as attendee_count
+        FROM events e
+        LEFT JOIN attendees a ON e.id = a.event_id
+        GROUP BY e.id
+        ORDER BY e.event_date DESC, e.id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+
+
+
 def delete_event(connection, event_id):
     """Delete an event and its attendees."""
     connection.execute("DELETE FROM events WHERE id = ?", (event_id,))
