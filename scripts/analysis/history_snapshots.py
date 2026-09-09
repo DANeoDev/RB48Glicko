@@ -1,6 +1,6 @@
 """Historical leaderboard snapshots and matchday metadata generator for time-scrollbar."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from scripts.database.db_matches import get_matches, get_all_match_teams
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_calibrations
@@ -11,6 +11,9 @@ from scripts.glicko.glicko2_calculator import (
     ratings_to_glicko_table,
     group_matches_by_date,
     update_session,
+)
+from scripts.frontend.view_models import (
+    _collect_player_match_events,
 )
 
 GERMAN_MONTHS = {
@@ -69,6 +72,76 @@ def get_matchday_metadata_map(connection, matches=None):
     return metadata_map
 
 
+def _compute_snapshot_deltas(
+    evts_up_to_date: list[dict],
+    date_str: str,
+    cutoff_month: str,
+    cutoff_quarter: str,
+    cutoff_year: str,
+    pkey: str,
+    curr_r: float,
+    curr_rd: float,
+    curr_c: float,
+) -> dict:
+    """
+    Compute accurate backward-looking deltas for a historical snapshot date:
+    - 'game': Delta for the session matches played on date_str (or 0 if player didn't play that session).
+    - 'month': Delta across matches in the 30 days leading up to date_str.
+    - 'quarter': Delta across matches in the 90 days leading up to date_str.
+    - 'year': Delta across matches in the 365 days leading up to date_str.
+    """
+    def _calc_subset_delta(subset_evts: list[dict]) -> dict:
+        if not subset_evts:
+            return {
+                "conservative": 0.0,
+                "rating": 0.0,
+                "rd": 0.0,
+                "games": 0,
+                "wins": 0,
+                "losses": 0,
+                "win_percent": 0.0,
+            }
+        g = len(subset_evts)
+        w = sum(1 for e in subset_evts if e.get("is_win"))
+        losses = sum(1 for e in subset_evts if e.get("is_loss"))
+        wp = round((w / g * 100.0), 1) if g > 0 else 0.0
+
+        first_e = subset_evts[0]
+        first_b_r = first_e["rating_before_total"] if pkey == TOTAL else first_e["rating_before_pitch"]
+        first_b_rd = first_e["rd_before_total"] if pkey == TOTAL else first_e["rd_before_pitch"]
+        if first_b_r is not None and first_b_rd is not None:
+            first_b_c = first_b_r - 3.0 * first_b_rd
+            delta_r = curr_r - first_b_r
+            delta_rd = curr_rd - first_b_rd
+            delta_c = curr_c - first_b_c
+        else:
+            delta_r = 0.0
+            delta_rd = 0.0
+            delta_c = 0.0
+
+        return {
+            "conservative": delta_c,
+            "rating": delta_r,
+            "rd": delta_rd,
+            "games": g,
+            "wins": w,
+            "losses": losses,
+            "win_percent": wp,
+        }
+
+    session_evts = [e for e in evts_up_to_date if e["date"] == date_str]
+    month_evts = [e for e in evts_up_to_date if e["date"] >= cutoff_month]
+    quarter_evts = [e for e in evts_up_to_date if e["date"] >= cutoff_quarter]
+    year_evts = [e for e in evts_up_to_date if e["date"] >= cutoff_year]
+
+    return {
+        "game": _calc_subset_delta(session_evts),
+        "month": _calc_subset_delta(month_evts),
+        "quarter": _calc_subset_delta(quarter_evts),
+        "year": _calc_subset_delta(year_evts),
+    }
+
+
 def compute_historical_snapshots(connection):
     """
     Compute chronological rating and stats snapshots after each matchday (session),
@@ -86,6 +159,9 @@ def compute_historical_snapshots(connection):
     ratings = glicko_table_to_ratings(prepared)
     engine = Glicko2()
 
+    sorted_matches_all = sorted(matches.values(), key=lambda m: (m["date"], m["match_id"]))
+    player_events = _collect_player_match_events(connection, sorted_matches_all, players)
+
     # Cumulative stats tracking per player and pitch
     cumulative_stats = {}
     for pid in players:
@@ -99,6 +175,10 @@ def compute_historical_snapshots(connection):
 
     for date_str in sorted_dates:
         session_matches = sessions[date_str]
+        dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+        cutoff_month = (dt - timedelta(days=30)).strftime("%Y-%m-%d")
+        cutoff_quarter = (dt - timedelta(days=90)).strftime("%Y-%m-%d")
+        cutoff_year = (dt - timedelta(days=365)).strftime("%Y-%m-%d")
 
         # 1. Update cumulative match stats with this session's matches
         for match in session_matches:
@@ -154,7 +234,7 @@ def compute_historical_snapshots(connection):
         update_session(connection, session_matches, ratings, engine, match_teams_map=match_teams_map)
         current_ratings_dict = ratings_to_glicko_table(ratings)
 
-        # 3. Assemble leaderboard snapshot
+        # 3. Assemble leaderboard snapshot with historical deltas
         leaderboard = []
         for pid, pdata in players.items():
             r_data = current_ratings_dict.get(pid, {})
@@ -176,6 +256,21 @@ def compute_historical_snapshots(connection):
                 losses = s_item["losses"]
                 wp = round((w / g * 100.0), 1) if g > 0 else 0.0
 
+                all_p_evts = player_events.get(pid, {}).get(pkey, [])
+                evts_up_to_date = [e for e in all_p_evts if e["date"] <= date_str]
+
+                deltas = _compute_snapshot_deltas(
+                    evts_up_to_date,
+                    date_str,
+                    cutoff_month,
+                    cutoff_quarter,
+                    cutoff_year,
+                    pkey,
+                    r_val,
+                    rd_val,
+                    c_val,
+                )
+
                 player_entry[pkey] = {
                     "rating": round(r_val, 1),
                     "rd": round(rd_val, 1),
@@ -184,6 +279,7 @@ def compute_historical_snapshots(connection):
                     "wins": w,
                     "losses": losses,
                     "win_percent": wp,
+                    "deltas": deltas,
                 }
 
             leaderboard.append(player_entry)

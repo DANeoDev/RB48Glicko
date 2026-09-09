@@ -109,7 +109,7 @@
 
                             {% if has_tier('admin') %}
                                 <div style="display: flex; gap: 8px; align-items: center;">
-                                    <a href="{{ url_for('match_center.match_center', players=event.matched_player_ids_str, pitch=event.pitch_lower) if event.matched_player_ids_str else url_for('match_center.match_center', pitch=event.pitch_lower) }}" class="secondary" style="font-size: 12px; padding: 6px 12px; text-decoration: none;" title="Transfer attending lineup directly to Match Center">
+                                    <a href="{{ url_for('match_center.match_center', players=event.matched_player_ids_str, pitch=event.pitch_lower, date=event.event_date[:10]) if event.matched_player_ids_str else url_for('match_center.match_center', pitch=event.pitch_lower, date=event.event_date[:10]) }}" class="secondary" style="font-size: 12px; padding: 6px 12px; text-decoration: none;" title="Transfer attending lineup directly to Match Center">
                                         {{ t('nav.match_center', 'Match Center') }} →
                                     </a>
                                     <form method="post" action="{{ url_for('planner.delete_event_route', event_id=event.id) }}" onsubmit="return confirm('Are you sure you want to cancel and delete this matchday event?');" style="margin: 0;">

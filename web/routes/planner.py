@@ -61,20 +61,26 @@ def resolve_active_roster_player_ids(active_roster, alias_lookup, acc_conn):
 
     for a in active_roster:
         pid = None
-        if a["user_id"]:
-            u = get_user_by_id(acc_conn, a["user_id"])
-            if u and u["player_id"]:
-                pid = u["player_id"]
+        user_id = a["user_id"] if hasattr(a, "__getitem__") and "user_id" in a.keys() else getattr(a, "user_id", None)
+        if user_id:
+            u = get_user_by_id(acc_conn, user_id)
+            if u:
+                u_pid = u["player_id"] if hasattr(u, "__getitem__") and "player_id" in u.keys() else getattr(u, "player_id", None)
+                if u_pid:
+                    pid = u_pid
 
         if not pid:
-            raw_name = a["name"].split("(")[0].strip()
-            norm = normalize_player_name(raw_name).casefold()
-            pid = norm_lookup.get(norm)
+            name_val = a["name"] if hasattr(a, "__getitem__") and "name" in a.keys() else getattr(a, "name", "")
+            raw_name = (name_val or "").split("(")[0].strip()
+            if raw_name:
+                norm = normalize_player_name(raw_name).casefold()
+                pid = norm_lookup.get(norm)
 
         if pid and pid not in resolved_ids:
             resolved_ids.append(pid)
 
     return resolved_ids
+
 
 
 def format_event_view_data(event, current_user, attendees, alias_lookup=None, acc_conn=None):

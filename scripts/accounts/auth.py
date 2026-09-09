@@ -12,6 +12,7 @@ from scripts.accounts.database import (
     get_user_by_id,
     get_user_by_login,
     mark_email_verified,
+    record_webmaster_notification,
     set_psychology_test_status,
     username_or_email_exists,
 )
@@ -71,6 +72,13 @@ def pass_psychology_test(user_id):
             return False
         test_date = datetime.now(timezone.utc).isoformat(timespec="seconds")
         set_psychology_test_status(connection, user_id, passed=True, test_date=test_date)
+        record_webmaster_notification(
+            connection,
+            "psychology_passed",
+            user_id,
+            user["username"],
+            f"{user['username']} hat den Glicko-Eignungstest bestanden",
+        )
         return True
     finally:
         connection.close()
@@ -109,6 +117,13 @@ def register_user(username, email, password, role="user"):
             generate_password_hash(password),
             datetime.now(timezone.utc).isoformat(timespec="seconds"),
             role=role,
+        )
+        record_webmaster_notification(
+            connection,
+            "user_registered",
+            user_id,
+            username,
+            f"Neuer Benutzer registriert: {username} ({email})",
         )
         return user_id, None
     finally:

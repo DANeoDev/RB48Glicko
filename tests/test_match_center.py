@@ -20,11 +20,13 @@ class MatchCenterFrontendTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.test_accounts_db = Path(self.temp_dir.name) / "test_accounts.db"
         self.test_rb48_db = Path(self.temp_dir.name) / "test_rb48.db"
+        self.test_planner_db = Path(self.temp_dir.name) / "test_planner.db"
         prod_rb48 = Path(__file__).resolve().parents[1] / "data" / "rb48.db"
         if prod_rb48.exists():
             shutil.copy2(prod_rb48, self.test_rb48_db)
         os.environ["RB48_ACCOUNTS_DATABASE_FILE"] = str(self.test_accounts_db)
         os.environ["RB48_DATABASE_FILE"] = str(self.test_rb48_db)
+        os.environ["RB48_PLANNER_DATABASE_FILE"] = str(self.test_planner_db)
 
         self.app = app
         unique_name = f"mc_admin_{int(time.time() * 1000000)}"
@@ -39,6 +41,7 @@ class MatchCenterFrontendTests(unittest.TestCase):
     def tearDown(self):
         os.environ.pop("RB48_ACCOUNTS_DATABASE_FILE", None)
         os.environ.pop("RB48_DATABASE_FILE", None)
+        os.environ.pop("RB48_PLANNER_DATABASE_FILE", None)
         self.temp_dir.cleanup()
 
     def test_match_center_uses_one_frontend_implementation(self):
@@ -234,6 +237,47 @@ class MatchCenterFrontendTests(unittest.TestCase):
         # High RD player 1 should gain more rating than low RD player 2 on the same winning team
         self.assertGreater(details_p1["player_delta"], details_p2["player_delta"])
 
+    def test_match_center_get_with_players_and_date_and_pitch(self):
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
+            response = client.get("/match-center?players=1,2,3&pitch=hf&date=2026-10-15")
+            self.assertEqual(response.status_code, 200)
+            # Check that date is prefilled
+            self.assertIn(b'value="2026-10-15"', response.data)
+            # Check that selected players checkboxes are checked
+            self.assertIn(b'value="1"\n                                checked', response.data)
+            self.assertIn(b'value="2"\n                                checked', response.data)
+            self.assertIn(b'value="3"\n                                checked', response.data)
+
+    def test_match_center_import_planner_action(self):
+        from scripts.planner.database import get_planner_connection, create_event, set_user_rsvp, add_guest_rsvp
+
+        p_conn = get_planner_connection()
+        try:
+            event_id = create_event(p_conn, "2026-10-21 20:00", "box", title="Wednesday Box Match")
+            # Add user RSVP
+            set_user_rsvp(p_conn, event_id, self.admin_id, "AdminUser", "attending")
+            # Add guest RSVP with a known player name (e.g., Daniel)
+            add_guest_rsvp(p_conn, event_id, "Daniel", self.admin_id, 1)
+        finally:
+            p_conn.close()
+
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
+            # Post action import_planner
+            response = client.post("/match-center", data={
+                "action": "import_planner",
+                "planner_event_id": str(event_id),
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"Kader erfolgreich importiert", response.data)
+            self.assertIn(b'value="2026-10-21"', response.data)
+
 
 if __name__ == "__main__":
     unittest.main()
+

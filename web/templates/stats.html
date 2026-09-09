@@ -3,7 +3,7 @@
 {% block title %}RB48 — {{ t('stats.title', 'Stats') }}{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='time_scrollbar.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='time_scrollbar.css', v='20260908_1') }}">
 {% endblock %}
 
 {% block content %}
@@ -11,8 +11,8 @@
 <!-- Left Time-Rail Navigation -->
 <div class="time-rail-wrapper" id="time-rail-container">
     <div class="time-rail-header">
-        <div class="time-rail-title-btn" id="time-rail-title-badge" title="{{ t('timeline.rating_history_title', 'Rating-Geschichte (Zeitreise)') }}">
-            {{ t('timeline.rating_history', 'Rating<br>Geschichte') | safe }}
+        <div class="time-rail-title-btn" id="time-rail-title-badge" title="{{ t('timeline.rating_history_title', 'Statistik-Historie (Zeitreise)') }}">
+            {{ t('timeline.rating_history', 'Statistik<br>Historie') | safe }}
         </div>
         <button type="button" class="time-mode-toggle-btn" id="time-mode-toggle-btn" title="{{ t('timeline.mode_toggle_title', 'Modus wechseln: Spieltage oder Monate scrollen') }}">
             <span id="time-mode-icon">⚡</span>
@@ -715,7 +715,11 @@ window.switchStreakTab = switchStreakTab;
 syncDeltaRowAttributesAndCells();
 selectPitch("total");
 
-// Expose helper functions for Time-Scrollbar
+// Expose helper functions and variables for Time-Scrollbar
+window.optedOutPlayerIds = {{ opted_out_player_ids | list | tojson }};
+window.isWebmaster = {{ 'true' if has_tier('webmaster') else 'false' }};
+window.syncDeltaRowAttributesAndCells = syncDeltaRowAttributesAndCells;
+window.updateColumnVisibility = updateColumnVisibility;
 window.getCurrentPitch = function() {
     return currentPitch;
 };
@@ -727,7 +731,7 @@ window.applyTableFilters = function() {
 <script id="historical-snapshots-data" type="application/json">
 {{ historical_snapshots | tojson }}
 </script>
-<script src="{{ url_for('static', filename='time_scrollbar.js') }}"></script>
+<script src="{{ url_for('static', filename='time_scrollbar.js', v='20260908_1') }}"></script>
 <script>
 (function() {
     const historicalDataEl = document.getElementById('historical-snapshots-data');

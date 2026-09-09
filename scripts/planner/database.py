@@ -11,14 +11,20 @@ def get_planner_db_file():
     return Path(override) if override else PROJECT_ROOT / "data" / "planner.db"
 
 
+_INITIALIZED_PLANNER_DBS = set()
+
+
 def get_planner_connection():
     """Return a connection to the planner database with foreign keys enabled."""
-    db_file = get_planner_db_file()
+    db_file = get_planner_db_file().resolve()
     db_file.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(db_file)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
-    create_planner_tables(connection)
+    connection.execute("PRAGMA busy_timeout = 5000")
+    if db_file not in _INITIALIZED_PLANNER_DBS:
+        create_planner_tables(connection)
+        _INITIALIZED_PLANNER_DBS.add(db_file)
     return connection
 
 
@@ -236,6 +242,31 @@ def get_event_by_id(connection, event_id):
         """,
         (event_id,),
     ).fetchone()
+
+
+def get_planner_events_for_import(connection, limit=30):
+    """Retrieve recent and upcoming events with attendee counts for match center import."""
+    return connection.execute(
+        """
+        SELECT
+            e.id,
+            e.event_date,
+            e.pitch,
+            e.max_players,
+            e.title,
+            e.location,
+            e.status,
+            e.created_at,
+            COUNT(CASE WHEN a.status = 'attending' THEN 1 END) as attendee_count
+        FROM events e
+        LEFT JOIN attendees a ON e.id = a.event_id
+        GROUP BY e.id
+        ORDER BY e.event_date DESC, e.id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+
 
 
 def delete_event(connection, event_id):

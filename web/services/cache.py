@@ -12,7 +12,7 @@ from scripts.frontend.view_models import build_leaderboard, compute_leaderboard_
 
 _cache_lock = threading.Lock()
 _stats_cache = None
-_match_history_cache = None
+_match_history_cache = {}
 
 
 def get_cached_stats_data(connection=None):
@@ -56,14 +56,15 @@ def get_cached_stats_data(connection=None):
                 connection.close()
 
 
-def get_cached_match_history(connection=None):
+def get_cached_match_history(rating_type="total", connection=None):
     """
-    Return cached computations for the global match history page.
+    Return cached computations for the global match history page for a given rating_type.
     """
     global _match_history_cache
+    rating_type_key = str(rating_type).lower()
     with _cache_lock:
-        if _match_history_cache is not None:
-            return _match_history_cache
+        if rating_type_key in _match_history_cache:
+            return _match_history_cache[rating_type_key]
 
         close_conn = False
         if connection is None:
@@ -72,8 +73,8 @@ def get_cached_match_history(connection=None):
 
         try:
             players = get_players(connection)
-            matches = build_match_history(connection, players)
-            metadata_map = get_matchday_metadata_map(connection)
+            matches = build_match_history(connection, players, rating_type=rating_type)
+            metadata_map = get_matchday_metadata_map(connection, matches=matches)
 
             for m in matches:
                 meta = metadata_map.get(m["date"], {})
@@ -81,6 +82,7 @@ def get_cached_match_history(connection=None):
                 m["matchday_number"] = meta.get("matchday_number", 1)
                 m["season"] = meta.get("season", 2026)
                 m["matchday_label"] = meta.get("label", f"{meta.get('matchday_number', 1)}. Spieltag")
+                m["short_label"] = meta.get("short_label", f"{meta.get('matchday_number', 1)}. Spieltag")
                 m["month_key"] = meta.get("month_key", m["date"][:7])
                 m["month_label"] = meta.get("month_label", m["date"][:7])
                 m["month_vertical"] = meta.get("month_vertical", m["date"][:7])
@@ -141,7 +143,7 @@ def get_cached_match_history(connection=None):
                     "pitch_types": pitches,
                 })
 
-            _match_history_cache = {
+            result = {
                 "matches": matches,
                 "months_grouped": months_grouped,
                 "timeline_data": {
@@ -149,7 +151,8 @@ def get_cached_match_history(connection=None):
                     "months": timeline_months,
                 },
             }
-            return _match_history_cache
+            _match_history_cache[rating_type_key] = result
+            return result
         finally:
             if close_conn:
                 connection.close()
@@ -160,4 +163,4 @@ def invalidate_stats_cache():
     global _stats_cache, _match_history_cache
     with _cache_lock:
         _stats_cache = None
-        _match_history_cache = None
+        _match_history_cache = {}

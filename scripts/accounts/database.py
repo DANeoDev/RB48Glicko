@@ -11,14 +11,20 @@ def get_accounts_db_file():
     return Path(override) if override else PROJECT_ROOT / "data" / "accounts.db"
 
 
+_INITIALIZED_ACCOUNT_DBS = set()
+
+
 def get_accounts_connection():
     """Return a connection to the separate account database with foreign keys enabled."""
-    db_file = get_accounts_db_file()
+    db_file = get_accounts_db_file().resolve()
     db_file.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(db_file)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
-    create_account_tables(connection)
+    connection.execute("PRAGMA busy_timeout = 5000")
+    if db_file not in _INITIALIZED_ACCOUNT_DBS:
+        create_account_tables(connection)
+        _INITIALIZED_ACCOUNT_DBS.add(db_file)
     return connection
 
 
@@ -109,6 +115,27 @@ def create_account_tables(connection):
             achievement_key TEXT NOT NULL,
             unlocked_at TEXT NOT NULL,
             PRIMARY KEY (player_id, achievement_key)
+        )
+    """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS webmaster_notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT NOT NULL,
+            user_id INTEGER,
+            username TEXT NOT NULL,
+            details TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+    """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS webmaster_seen_notifications (
+            webmaster_user_id INTEGER NOT NULL,
+            notification_id INTEGER NOT NULL,
+            seen_at TEXT NOT NULL,
+            PRIMARY KEY (webmaster_user_id, notification_id),
+            FOREIGN KEY (webmaster_user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (notification_id) REFERENCES webmaster_notifications(id) ON DELETE CASCADE
         )
     """)
 
@@ -954,4 +981,127 @@ def has_player_unlocked_achievement(connection, player_id: int, achievement_key:
         WHERE player_id = ? AND achievement_key = ?
     """, (player_id, str(achievement_key))).fetchone()
     return row is not None
+
+
+def record_webmaster_notification(
+    connection,
+    event_type: str,
+    user_id: int | None,
+    username: str,
+    details: str,
+) -> int:
+    """
+    Record an administrative event for Webmaster visibility.
+    event_type: 'user_registered', 'opt_out_changed', 'status_changed', 'player_link_requested', etc.
+    """
+    now_iso = datetime.now().isoformat()
+    cursor = connection.execute("""
+        INSERT INTO webmaster_notifications (event_type, user_id, username, details, created_at)
+        VALUES (?, ?, ?, ?, ?)
+    """, (event_type, user_id, username, details, now_iso))
+    connection.commit()
+    return cursor.lastrowid
+
+
+def get_webmaster_notifications(
+    connection,
+    webmaster_user_id: int | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    """
+    Retrieve chronological recent webmaster notifications with seen flag for a webmaster user.
+    """
+    if webmaster_user_id is not None:
+        rows = connection.execute("""
+            SELECT
+                n.id,
+                n.event_type,
+                n.user_id,
+                n.username,
+                n.details,
+                n.created_at,
+                CASE WHEN s.seen_at IS NOT NULL THEN 1 ELSE 0 END AS is_seen
+            FROM webmaster_notifications n
+            LEFT JOIN webmaster_seen_notifications s
+                ON n.id = s.notification_id AND s.webmaster_user_id = ?
+            ORDER BY n.id DESC
+            LIMIT ?
+        """, (webmaster_user_id, limit)).fetchall()
+    else:
+        rows = connection.execute("""
+            SELECT
+                id,
+                event_type,
+                user_id,
+                username,
+                details,
+                created_at,
+                0 AS is_seen
+            FROM webmaster_notifications
+            ORDER BY id DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+
+    return [dict(r) for r in rows]
+
+
+def get_unseen_webmaster_notifications_count(connection, webmaster_user_id: int) -> int:
+    """
+    Count unseen webmaster notifications for a specific webmaster account.
+    """
+    row = connection.execute("""
+        SELECT COUNT(*) AS unseen_count
+        FROM webmaster_notifications n
+        LEFT JOIN webmaster_seen_notifications s
+            ON n.id = s.notification_id AND s.webmaster_user_id = ?
+        WHERE s.seen_at IS NULL
+    """, (webmaster_user_id,)).fetchone()
+    return int(row["unseen_count"]) if row else 0
+
+
+def mark_webmaster_notifications_seen(
+    connection,
+    webmaster_user_id: int,
+    notification_ids: list[int] | None = None,
+):
+    """
+    Mark specific or all webmaster notifications as seen by a webmaster user.
+    """
+    now_iso = datetime.now().isoformat()
+    if notification_ids is None:
+        # Mark all currently unread notifications as seen
+        connection.execute("""
+            INSERT OR IGNORE INTO webmaster_seen_notifications (webmaster_user_id, notification_id, seen_at)
+            SELECT ?, id, ?
+            FROM webmaster_notifications
+        """, (webmaster_user_id, now_iso))
+    else:
+        if not notification_ids:
+            return
+        connection.executemany("""
+            INSERT OR IGNORE INTO webmaster_seen_notifications (webmaster_user_id, notification_id, seen_at)
+            VALUES (?, ?, ?)
+        """, [(webmaster_user_id, nid, now_iso) for nid in notification_ids])
+    connection.commit()
+
+
+def delete_webmaster_notification(connection, notification_id: int) -> bool:
+    """
+    Delete a single webmaster notification record.
+    """
+    connection.execute("DELETE FROM webmaster_seen_notifications WHERE notification_id = ?", (notification_id,))
+    cursor = connection.execute("DELETE FROM webmaster_notifications WHERE id = ?", (notification_id,))
+    connection.commit()
+    return cursor.rowcount > 0
+
+
+def clear_all_webmaster_notifications(connection):
+    """
+    Delete all webmaster notification records.
+    """
+    connection.execute("DELETE FROM webmaster_seen_notifications")
+    connection.execute("DELETE FROM webmaster_notifications")
+    connection.commit()
+
+
 

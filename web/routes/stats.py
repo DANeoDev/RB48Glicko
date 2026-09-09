@@ -225,7 +225,9 @@ def player_profile(player_id):
 
 @stats_bp.route("/matches")
 def match_history():
-    cached = get_cached_match_history()
+    selected_rating_type = request.args.get("rating_type", "total").lower()
+    selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
+    cached = get_cached_match_history(rating_type=selected_rating_type)
     matches = cached["matches"]
     months_grouped = cached["months_grouped"]
     timeline_data = cached["timeline_data"]

@@ -84,7 +84,7 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(resp_stats.status_code, 200)
         stats_html = resp_stats.get_data(as_text=True)
         self.assertIn("time-rail-title-badge", stats_html)
-        self.assertIn("Rating<br>Geschichte", stats_html)
+        self.assertIn("Statistik<br>Historie", stats_html)
 
         # Check matches timeline top scroll button
         resp_matches = self.client.get("/matches")

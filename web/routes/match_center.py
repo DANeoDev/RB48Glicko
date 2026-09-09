@@ -25,7 +25,7 @@ from scripts.planner.database import (
     get_event_attendees,
     get_event_by_id,
     get_planner_connection,
-    get_upcoming_events,
+    get_planner_events_for_import,
 )
 from web.routes.planner import resolve_active_roster_player_ids
 from web.services.cache import invalidate_stats_cache
@@ -208,21 +208,25 @@ def _handle_create_parser_player(form, connection, players, selected_ids):
 def _handle_import_planner(form, connection, selected_ids):
     planner_event_id = form.get("planner_event_id", type=int)
     if not planner_event_id:
-        return selected_ids, None, None
+        return selected_ids, None, None, None
 
     p_conn = get_planner_connection()
     a_conn = get_accounts_connection()
     try:
-        ev = get_event_by_id(p_conn, planner_event_id)
-        attendees = get_event_attendees(p_conn, planner_event_id)
+        ev_row = get_event_by_id(p_conn, planner_event_id)
+        if not ev_row:
+            return selected_ids, None, None, None
+        ev = dict(ev_row)
+        attendees = [dict(a) for a in get_event_attendees(p_conn, planner_event_id)]
         alias_lookup = get_alias_lookup(connection)
-        active_roster = [a for a in attendees if a["status"] == "attending"][:ev["max_players"]] if ev else []
+        active_roster = [a for a in attendees if a.get("status") == "attending"][:ev.get("max_players", 12)]
         imported_ids = resolve_active_roster_player_ids(active_roster, alias_lookup, a_conn)
         new_selected = list(dict.fromkeys(selected_ids + imported_ids))
-        imported_date = ev["event_date"].split("T")[0].split(" ")[0] if ev and ev.get("event_date") else None
-        title = ev.get("title") or "Spieltag" if ev else "Spieltag"
+        imported_date = ev["event_date"].split("T")[0].split(" ")[0] if ev.get("event_date") else None
+        imported_pitch = ev.get("pitch", "").lower() if ev.get("pitch") else None
+        title = ev.get("title") or "Spieltag"
         msg = f"Kader erfolgreich importiert ({len(imported_ids)} Spieler aus Event '{title}')."
-        return new_selected, imported_date, msg
+        return new_selected, imported_date, imported_pitch, msg
     finally:
         p_conn.close()
         a_conn.close()
@@ -360,7 +364,11 @@ def match_center():
                 players, selected_ids, parse_result, parser_success, parse_error = _handle_create_parser_player(request.form, connection, players, selected_ids)
 
             elif action == "import_planner":
-                selected_ids, imported_planner_date, parser_success = _handle_import_planner(request.form, connection, selected_ids)
+                selected_ids, imported_planner_date, imported_planner_pitch, parser_success = _handle_import_planner(request.form, connection, selected_ids)
+                if imported_planner_pitch and imported_planner_pitch in ("box", "hf"):
+                    pitch = imported_planner_pitch
+                    if mode != "total":
+                        rating_type = pitch
 
             elif action == "create_player":
                 players, selected_ids, success, error, calibration_message, xhr_resp = _handle_create_player(request.form, is_xhr, connection, players, selected_ids)
@@ -379,9 +387,6 @@ def match_center():
                     seed = None
                 if len(selected_ids) >= 2:
                     result = generate_match(selected_ids, players, ratings, rating_type, seed=seed)
-
-        elif request.method == "GET":
-            selected_ids = [int(pid) for pid in request.args.getlist("players") if pid.isdigit() and int(pid) in players]
 
         match_date = imported_planner_date or request.form.get("date", request.args.get("date", request.form.get("parsed_match_date", date.today().isoformat())))
         if parse_result and parse_result.get("match_date"):
@@ -402,7 +407,7 @@ def match_center():
 
         p_conn = get_planner_connection()
         try:
-            planner_events = get_upcoming_events(p_conn)
+            planner_events = get_planner_events_for_import(p_conn)
         finally:
             p_conn.close()
 

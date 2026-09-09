@@ -5,7 +5,7 @@
 {% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='time_scrollbar.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='time_scrollbar.css', v='20260908_1') }}">
 <style>
 .match-entry-controls { display:flex; flex-direction:column; align-items:center; gap:12px; margin:18px 0 26px; }
 .match-entry-button { display:inline-block; padding:11px 22px; border-radius:var(--radius); background:var(--accent-dark); color:var(--text-main); border:1px solid var(--accent-dark); font-weight:700; text-decoration:none; }
@@ -174,7 +174,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='time_scrollbar.js') }}"></script>
+<script src="{{ url_for('static', filename='time_scrollbar.js', v='20260908_1') }}"></script>
 <script>
 document.querySelectorAll(".match").forEach(match => {
     match.addEventListener("click", () => match.classList.toggle("expanded"));

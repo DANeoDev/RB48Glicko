@@ -622,8 +622,15 @@
 
             const currentPitch = (window.getCurrentPitch && window.getCurrentPitch()) || 'total';
             const sortedLeaderboard = [...item.leaderboard];
+            const optedOutIds = window.optedOutPlayerIds || [];
+            const isWebmaster = window.isWebmaster || false;
+            const hasGlickoCols = document.querySelector('th[data-base-column="rating"]') !== null;
 
             sortedLeaderboard.sort((a, b) => {
+                const isOptA = optedOutIds.includes(a.player_id) && !isWebmaster;
+                const isOptB = optedOutIds.includes(b.player_id) && !isWebmaster;
+                if (isOptA !== isOptB) return isOptA ? 1 : -1;
+
                 const aVal = (a[currentPitch] && a[currentPitch].conservative) !== undefined ? a[currentPitch].conservative : -9999;
                 const bVal = (b[currentPitch] && b[currentPitch].conservative) !== undefined ? b[currentPitch].conservative : -9999;
                 return bVal - aVal;
@@ -631,58 +638,94 @@
 
             this.tableBody.innerHTML = '';
             sortedLeaderboard.forEach((player, rank) => {
-                const pTotal = player.total || {};
-                const curP = player[currentPitch] || pTotal;
-
+                const isOptedOut = optedOutIds.includes(player.player_id) && !isWebmaster;
                 const tr = document.createElement('tr');
                 tr.setAttribute('data-player-id', player.player_id);
+                tr.setAttribute('data-opted-out', isOptedOut ? 'true' : 'false');
 
                 for (const p of ['total', 'box', 'hf']) {
                     const pData = player[p] || {};
-                    tr.setAttribute(`data-${p}-conservative`, pData.conservative || 0);
-                    tr.setAttribute(`data-${p}-rating`, pData.rating || 0);
-                    tr.setAttribute(`data-${p}-rd`, pData.rd || 0);
+                    tr.setAttribute(`data-${p}-conservative`, isOptedOut ? 0 : (pData.conservative || 0));
+                    tr.setAttribute(`data-${p}-rating`, isOptedOut ? 0 : (pData.rating || 0));
+                    tr.setAttribute(`data-${p}-rd`, isOptedOut ? 999 : (pData.rd || 0));
                     tr.setAttribute(`data-${p}-games`, pData.games || 0);
                     tr.setAttribute(`data-${p}-wins`, pData.wins || 0);
                     tr.setAttribute(`data-${p}-losses`, pData.losses || 0);
                     tr.setAttribute(`data-${p}-win-percent`, pData.win_percent || 0);
+
+                    const deltas = pData.deltas || {};
+                    for (const interval of ['game', 'month', 'quarter', 'year']) {
+                        const dInt = deltas[interval] || {};
+                        tr.setAttribute(`data-${p}-delta-${interval}-conservative`, isOptedOut ? 0 : (dInt.conservative || 0));
+                        tr.setAttribute(`data-${p}-delta-${interval}-rating`, isOptedOut ? 0 : (dInt.rating || 0));
+                        tr.setAttribute(`data-${p}-delta-${interval}-rd`, isOptedOut ? 0 : (dInt.rd || 0));
+                        tr.setAttribute(`data-${p}-delta-${interval}-games`, dInt.games || 0);
+                        tr.setAttribute(`data-${p}-delta-${interval}-wins`, dInt.wins || 0);
+                        tr.setAttribute(`data-${p}-delta-${interval}-losses`, dInt.losses || 0);
+                        tr.setAttribute(`data-${p}-delta-${interval}-win-percent`, dInt.win_percent || 0);
+                    }
                 }
 
-                const hasGlickoCols = document.querySelector('th[data-base-column="rating"]') !== null;
-
-                let glickoCells = '';
-                if (hasGlickoCols) {
-                    glickoCells = `
-                        <td data-column="total-conservative">${curP.conservative ? curP.conservative.toFixed(1) : '—'}</td>
-                        <td data-column="total-delta-conservative" class="delta-col delta-conservative-col" style="display:none;">—</td>
-                        <td data-column="total-rating">${curP.rating ? Math.round(curP.rating) : '—'}</td>
-                        <td data-column="total-delta-rating" class="delta-col delta-rating-col" style="display:none;">—</td>
-                        <td data-column="total-rd">${curP.rd ? curP.rd.toFixed(1) : '—'}</td>
-                        <td data-column="total-delta-rd" class="delta-col delta-rd-col" style="display:none;">—</td>
+                let pitchCells = '';
+                for (const p of ['total', 'box', 'hf']) {
+                    const pData = player[p] || {};
+                    if (hasGlickoCols) {
+                        if (isOptedOut) {
+                            pitchCells += `
+                                <td data-pitch-cell="${p}" style="color: var(--text-muted);">—</td>
+                                <td data-pitch-cell="${p}" class="delta-col delta-conservative-col" data-delta-type="conservative" style="color: var(--text-muted);">—</td>
+                                <td data-pitch-cell="${p}" style="color: var(--text-muted);">—</td>
+                                <td data-pitch-cell="${p}" class="delta-col delta-rating-col" data-delta-type="rating" style="color: var(--text-muted);">—</td>
+                                <td data-pitch-cell="${p}" style="color: var(--text-muted);">—</td>
+                                <td data-pitch-cell="${p}" class="delta-col delta-rd-col" data-delta-type="rd" style="color: var(--text-muted);">—</td>
+                            `;
+                        } else {
+                            pitchCells += `
+                                <td data-pitch-cell="${p}">${pData.conservative !== undefined ? Math.round(pData.conservative) : '—'}</td>
+                                <td data-pitch-cell="${p}" class="delta-col delta-conservative-col" data-delta-type="conservative"></td>
+                                <td data-pitch-cell="${p}">${pData.rating !== undefined ? Math.round(pData.rating) : '—'}</td>
+                                <td data-pitch-cell="${p}" class="delta-col delta-rating-col" data-delta-type="rating"></td>
+                                <td data-pitch-cell="${p}">${pData.rd !== undefined ? pData.rd.toFixed(1) : '—'}</td>
+                                <td data-pitch-cell="${p}" class="delta-col delta-rd-col" data-delta-type="rd"></td>
+                            `;
+                        }
+                    }
+                    pitchCells += `
+                        <td data-pitch-cell="${p}">${pData.games || 0}</td>
+                        <td data-pitch-cell="${p}" class="delta-col delta-games-col" data-delta-type="games" style="display: none;"></td>
+                        <td data-pitch-cell="${p}">${pData.wins || 0}</td>
+                        <td data-pitch-cell="${p}" class="delta-col delta-wins-col" data-delta-type="wins" style="display: none;"></td>
+                        <td data-pitch-cell="${p}">${pData.losses || 0}</td>
+                        <td data-pitch-cell="${p}" class="delta-col delta-losses-col" data-delta-type="losses" style="display: none;"></td>
+                        <td data-pitch-cell="${p}">${pData.win_percent !== undefined ? pData.win_percent.toFixed(1) + '%' : '0.0%'}</td>
+                        <td data-pitch-cell="${p}" class="delta-col delta-win-percent-col" data-delta-type="win-percent" style="display: none;"></td>
                     `;
                 }
 
+                const optOutBadge = (isWebmaster && optedOutIds.includes(player.player_id))
+                    ? '<span style="font-size: 10px; opacity: 0.7; color: #ffc107;" title="Glicko-2 Opt-out aktiv">🔒 Opt-out</span>'
+                    : '';
+
                 tr.innerHTML = `
-                    <td class="order-col" data-column="order">${rank + 1}</td>
-                    <td class="player-col" data-column="player">
-                        <a href="/player/${player.player_id}" style="color: inherit; text-decoration: none; font-weight: 700;">${player.alias}</a>
+                    <td>${isOptedOut ? '—' : rank + 1}</td>
+                    <td>
+                        <a href="/player/${player.player_id}">${player.alias}</a>
+                        ${optOutBadge}
                     </td>
-                    ${glickoCells}
-                    <td data-column="total-games">${curP.games || 0}</td>
-                    <td data-column="total-delta-games" class="delta-col delta-games-col" style="display:none;">—</td>
-                    <td data-column="total-wins">${curP.wins || 0}</td>
-                    <td data-column="total-delta-wins" class="delta-col delta-wins-col" style="display:none;">—</td>
-                    <td data-column="total-losses">${curP.losses || 0}</td>
-                    <td data-column="total-delta-losses" class="delta-col delta-losses-col" style="display:none;">—</td>
-                    <td data-column="total-win-percent">${curP.win_percent !== undefined ? curP.win_percent.toFixed(1) + '%' : '0.0%'}</td>
-                    <td data-column="total-delta-win-percent" class="delta-col delta-win-percent-col" style="display:none;">—</td>
+                    ${pitchCells}
                 `;
 
                 this.tableBody.appendChild(tr);
             });
 
+            if (window.syncDeltaRowAttributesAndCells) {
+                window.syncDeltaRowAttributesAndCells();
+            }
             if (window.applyTableFilters) {
                 window.applyTableFilters();
+            }
+            if (window.updateColumnVisibility) {
+                window.updateColumnVisibility();
             }
         }
 
@@ -703,8 +746,14 @@
                 this.tableBody.appendChild(item.rowElement.cloneNode(true));
             });
 
+            if (window.syncDeltaRowAttributesAndCells) {
+                window.syncDeltaRowAttributesAndCells();
+            }
             if (window.applyTableFilters) {
                 window.applyTableFilters();
+            }
+            if (window.updateColumnVisibility) {
+                window.updateColumnVisibility();
             }
         }
     }
