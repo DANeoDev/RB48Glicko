@@ -212,6 +212,18 @@ python web/app.py
 ```
 The application will be accessible at `http://127.0.0.1:5000`.
 
+
+## 6. Setup on first run
+Initialize the database
+```bash
+python -m scripts.database.database
+```
+
+Initialize glicko
+```bash
+python -m scripts.glicko.glicko2_calculator
+```
+
 ---
 
 ## 🧪 Testing & Reliability
