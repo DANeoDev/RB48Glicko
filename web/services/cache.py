@@ -105,6 +105,9 @@ def get_cached_whr_stats_data(connection=None):
                 "whr_models": whr_models,
             }
             return _whr_stats_cache
+        except (ImportError, ModuleNotFoundError):
+            # Fallback gracefully to base Glicko-2 stats if numpy/WHR dependencies are missing
+            return get_cached_stats_data(connection)
         finally:
             if close_conn:
                 connection.close()
@@ -246,6 +249,9 @@ def get_cached_whr_match_history(rating_type="total", connection=None):
             result = _format_match_history_timeline(matches, metadata_map)
             _whr_match_history_cache[rating_type_key] = result
             return result
+        except (ImportError, ModuleNotFoundError):
+            # Fallback gracefully to base Glicko-2 match history if numpy/WHR dependencies are missing
+            return get_cached_match_history(connection=connection, rating_type=rating_type)
         finally:
             if close_conn:
                 connection.close()

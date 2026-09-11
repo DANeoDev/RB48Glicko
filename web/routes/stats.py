@@ -63,7 +63,15 @@ def dashboard():
 def stats():
     active_model = session.get("active_model", "glicko") if has_tier(Tier.GLICKO_USER) else "glicko"
     if active_model == "whr":
-        cached = get_cached_whr_stats_data()
+        try:
+            cached = get_cached_whr_stats_data()
+            if not cached.get("whr_models"):
+                active_model = "glicko"
+                session["active_model"] = "glicko"
+        except (ImportError, ModuleNotFoundError):
+            active_model = "glicko"
+            session["active_model"] = "glicko"
+            cached = get_cached_stats_data()
     else:
         cached = get_cached_stats_data()
 
@@ -240,7 +248,12 @@ def match_history():
     selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
     active_model = session.get("active_model", "glicko") if has_tier(Tier.GLICKO_USER) else "glicko"
     if active_model == "whr":
-        cached = get_cached_whr_match_history(rating_type=selected_rating_type)
+        try:
+            cached = get_cached_whr_match_history(rating_type=selected_rating_type)
+        except (ImportError, ModuleNotFoundError):
+            active_model = "glicko"
+            session["active_model"] = "glicko"
+            cached = get_cached_match_history(rating_type=selected_rating_type)
     else:
         cached = get_cached_match_history(rating_type=selected_rating_type)
     matches = cached["matches"]
@@ -360,30 +373,40 @@ def model_analysis():
     try:
         if mode == "whr":
             whr_pitch = pitch if pitch != "total" else "total"
-            analysis = analyze_whr_model(connection, mode="whr", pitch=whr_pitch)
-            # Companion comparison series: Glicko for the matching pitch
-            if whr_pitch == "total":
-                comparison = analyze_model(connection, mode=TOTAL)
-            elif whr_pitch == "box":
-                comparison = analyze_model(connection, mode="pitch", pitch=BOX)
-            else:
-                comparison = analyze_model(connection, mode="pitch", pitch=HF)
-            active_model_name = "WHR"
-            comparison_model_name = "Glicko-2"
+            try:
+                analysis = analyze_whr_model(connection, mode="whr", pitch=whr_pitch)
+                # Companion comparison series: Glicko for the matching pitch
+                if whr_pitch == "total":
+                    comparison = analyze_model(connection, mode=TOTAL)
+                elif whr_pitch == "box":
+                    comparison = analyze_model(connection, mode="pitch", pitch=BOX)
+                else:
+                    comparison = analyze_model(connection, mode="pitch", pitch=HF)
+                active_model_name = "WHR"
+                comparison_model_name = "Glicko-2"
+            except (ImportError, ModuleNotFoundError):
+                flash("Das WHR-Modell benötigt das Paket 'numpy', welches auf dem Server noch nicht installiert ist (pip install numpy).", "warning")
+                return redirect(url_for("stats.model_analysis", mode="total"))
         elif mode == "pitch":
             pitch_choice = request.args.get("pitch", "box").lower()
             pitch_choice = "box" if pitch_choice not in ("box", "hf") else pitch_choice
             pitch = pitch_choice
             pitch_const = BOX if pitch_choice == "box" else HF
             analysis = analyze_model(connection, mode="pitch", pitch=pitch_const)
-            comparison = analyze_whr_model(connection, mode="whr", pitch=pitch_choice)
+            try:
+                comparison = analyze_whr_model(connection, mode="whr", pitch=pitch_choice)
+            except (ImportError, ModuleNotFoundError):
+                comparison = None
             active_model_name = "Glicko-2"
-            comparison_model_name = "WHR"
+            comparison_model_name = "WHR" if comparison else None
         else:
             analysis = analyze_model(connection, mode=TOTAL)
-            comparison = analyze_whr_model(connection, mode="whr", pitch="total")
+            try:
+                comparison = analyze_whr_model(connection, mode="whr", pitch="total")
+            except (ImportError, ModuleNotFoundError):
+                comparison = None
             active_model_name = "Glicko-2"
-            comparison_model_name = "WHR"
+            comparison_model_name = "WHR" if comparison else None
 
         if comparison and "goal_diff_min" in analysis and "goal_diff_min" in comparison:
             y_min = min(analysis["goal_diff_min"], comparison["goal_diff_min"])
@@ -413,7 +436,12 @@ def model_analysis():
 @require_tier(Tier.GLICKO_USER)
 def rating_comparison():
     """Dedicated player-by-player rating comparison table between Glicko-2 and WHR."""
-    from scripts.analysis.whr import compute_whr_ratings
+    try:
+        from scripts.analysis.whr import compute_whr_ratings
+    except (ImportError, ModuleNotFoundError):
+        flash("Der Modellvergleich benötigt das Python-Paket 'numpy', welches auf dem Server noch nicht installiert ist (pip install numpy).", "warning")
+        return redirect(url_for("stats.model_analysis"))
+
     pitch = request.args.get("pitch", "total").lower()
     pitch = pitch if pitch in ("total", "box", "hf") else "total"
     pitch_const = BOX if pitch == "box" else (HF if pitch == "hf" else TOTAL)
@@ -656,6 +684,14 @@ def set_model():
     model = request.args.get("model", "glicko").lower()
     if model not in ("glicko", "whr"):
         model = "glicko"
+
+    if model == "whr":
+        try:
+            import numpy  # noqa: F401
+            from scripts.analysis.whr import get_whr_models  # noqa: F401
+        except (ImportError, ModuleNotFoundError):
+            flash("Das Whole-History Rating (WHR) Modell benötigt das Python-Paket 'numpy', welches auf dem Server noch nicht installiert ist (pip install numpy).", "warning")
+            model = "glicko"
 
     if has_tier(Tier.GLICKO_USER):
         session["active_model"] = model
