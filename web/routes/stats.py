@@ -364,21 +364,36 @@ def recalculate_glicko_endpoint():
 @require_tier(Tier.GLICKO_USER)
 def model_analysis():
     active_model = session.get("active_model", "glicko") if has_tier(Tier.GLICKO_USER) else "glicko"
-    default_mode = "whr" if active_model == "whr" else "total"
-    mode = request.args.get("mode", default_mode)
-    mode = mode if mode in ("total", "pitch", "whr") else default_mode
-    pitch = request.args.get("pitch", "total").lower()
-    pitch = pitch if pitch in ("total", "box", "hf") else "total"
+    req_model = request.args.get("model", "").lower()
+    req_mode = request.args.get("mode", "").lower()
+
+    if req_model in ("glicko", "whr"):
+        selected_model = req_model
+    elif req_mode == "whr":
+        selected_model = "whr"
+    elif req_mode in ("total", "pitch"):
+        selected_model = "glicko"
+    else:
+        selected_model = "whr" if active_model == "whr" else "glicko"
+
+    pitch = request.args.get("pitch", "").lower()
+    if pitch not in ("total", "box", "hf"):
+        if req_mode == "pitch":
+            pitch = "box"
+        else:
+            pitch = "total"
+
+    mode = "whr" if selected_model == "whr" else ("total" if pitch == "total" else "pitch")
+
     connection = get_connection()
     try:
-        if mode == "whr":
-            whr_pitch = pitch if pitch != "total" else "total"
+        if selected_model == "whr":
             try:
-                analysis = analyze_whr_model(connection, mode="whr", pitch=whr_pitch)
+                analysis = analyze_whr_model(connection, mode="whr", pitch=pitch)
                 # Companion comparison series: Glicko for the matching pitch
-                if whr_pitch == "total":
+                if pitch == "total":
                     comparison = analyze_model(connection, mode=TOTAL)
-                elif whr_pitch == "box":
+                elif pitch == "box":
                     comparison = analyze_model(connection, mode="pitch", pitch=BOX)
                 else:
                     comparison = analyze_model(connection, mode="pitch", pitch=HF)
@@ -386,23 +401,17 @@ def model_analysis():
                 comparison_model_name = "Glicko-2"
             except (ImportError, ModuleNotFoundError):
                 flash("Das WHR-Modell benötigt das Paket 'numpy', welches auf dem Server noch nicht installiert ist (pip install numpy).", "warning")
-                return redirect(url_for("stats.model_analysis", mode="total"))
-        elif mode == "pitch":
-            pitch_choice = request.args.get("pitch", "box").lower()
-            pitch_choice = "box" if pitch_choice not in ("box", "hf") else pitch_choice
-            pitch = pitch_choice
-            pitch_const = BOX if pitch_choice == "box" else HF
-            analysis = analyze_model(connection, mode="pitch", pitch=pitch_const)
-            try:
-                comparison = analyze_whr_model(connection, mode="whr", pitch=pitch_choice)
-            except (ImportError, ModuleNotFoundError):
-                comparison = None
-            active_model_name = "Glicko-2"
-            comparison_model_name = "WHR" if comparison else None
+                return redirect(url_for("stats.model_analysis", model="glicko", pitch=pitch))
         else:
-            analysis = analyze_model(connection, mode=TOTAL)
+            if pitch == "total":
+                analysis = analyze_model(connection, mode=TOTAL)
+            elif pitch == "box":
+                analysis = analyze_model(connection, mode="pitch", pitch=BOX)
+            else:
+                analysis = analyze_model(connection, mode="pitch", pitch=HF)
+
             try:
-                comparison = analyze_whr_model(connection, mode="whr", pitch="total")
+                comparison = analyze_whr_model(connection, mode="whr", pitch=pitch)
             except (ImportError, ModuleNotFoundError):
                 comparison = None
             active_model_name = "Glicko-2"
@@ -411,7 +420,7 @@ def model_analysis():
         if comparison and "goal_diff_min" in analysis and "goal_diff_min" in comparison:
             y_min = min(analysis["goal_diff_min"], comparison["goal_diff_min"])
             y_max = max(analysis["goal_diff_max"], comparison["goal_diff_max"])
-            is_box_or_total = (mode == "total" or pitch in ("total", "box"))
+            is_box_or_total = (pitch in ("total", "box"))
             step = 2 if is_box_or_total else (1 if (y_max - y_min) <= 8 else 2)
             unified_ticks = list(range(y_min, y_max + 1, step))
             analysis["goal_diff_min"] = y_min
@@ -422,6 +431,7 @@ def model_analysis():
             "model_analysis.html",
             analysis=analysis,
             comparison=comparison,
+            model=selected_model,
             mode=mode,
             pitch=pitch,
             active_model_name=active_model_name,

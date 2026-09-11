@@ -356,48 +356,42 @@
 </style>
 {% endblock %}
 {% block content %}
-<div class="model-analysis-page {% if mode == 'whr' %}mode-whr{% endif %}">
+<div class="model-analysis-page {% if model == 'whr' %}mode-whr{% endif %}">
     <h1>{{ t('model_analysis.title', 'Model Analysis') }}</h1>
-    <p class="page-intro">{{ t('model_analysis.intro', 'How well do the pre-match Glicko ratings predict the actual result and the closeness of the resulting game? Only information available before each match is used.') }}</p>
+    <p class="page-intro">{{ t('model_analysis.intro', 'How well do the pre-match ratings predict the actual result and the closeness of the resulting game? Only information available before each match is used.') }}</p>
 
     <div class="analysis-switch">
-        <a href="{{ url_for('stats.model_analysis', mode='total') }}" class="analysis-switch-button {% if mode=='total' %}active{% endif %}">{{ t('model_analysis.switch_total', 'Total rating') }}</a>
-        <a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='box') }}" class="analysis-switch-button {% if mode=='pitch' %}active{% endif %}">{{ t('model_analysis.switch_pitch', 'Pitch-specific rating') }}</a>
-        <a href="{{ url_for('stats.model_analysis', mode='whr', pitch='total') }}" class="analysis-switch-button {% if mode=='whr' %}active{% endif %}">{{ t('model_analysis.switch_whr', 'WHR Glättung (Hindsight)') }}</a>
+        <a href="{{ url_for('stats.model_analysis', model='glicko', pitch=pitch) }}" class="analysis-switch-button {% if model=='glicko' %}active{% endif %}">{{ t('model_analysis.switch_glicko', 'Glicko-2') }}</a>
+        <a href="{{ url_for('stats.model_analysis', model='whr', pitch=pitch) }}" class="analysis-switch-button {% if model=='whr' %}active{% endif %}">{{ t('model_analysis.switch_whr', 'WHR') }}</a>
     </div>
 
-    {% if mode=='pitch' %}
     <div class="pitch-switch">
-        <a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='box') }}" class="pitch-switch-button {% if pitch=='box' %}active{% endif %}">BOX</a>
-        <a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='hf') }}" class="pitch-switch-button {% if pitch=='hf' %}active{% endif %}">HF</a>
+        <a href="{{ url_for('stats.model_analysis', model=model, pitch='total') }}" class="pitch-switch-button {% if pitch=='total' %}active{% endif %}">TOTAL</a>
+        <a href="{{ url_for('stats.model_analysis', model=model, pitch='box') }}" class="pitch-switch-button {% if pitch=='box' %}active{% endif %}">BOX</a>
+        <a href="{{ url_for('stats.model_analysis', model=model, pitch='hf') }}" class="pitch-switch-button {% if pitch=='hf' %}active{% endif %}">HF</a>
     </div>
-    {% endif %}
-
-    {% if mode=='whr' %}
-    <div class="pitch-switch">
-        <a href="{{ url_for('stats.model_analysis', mode='whr', pitch='total') }}" class="pitch-switch-button {% if pitch=='total' %}active{% endif %}">TOTAL</a>
-        <a href="{{ url_for('stats.model_analysis', mode='whr', pitch='box') }}" class="pitch-switch-button {% if pitch=='box' %}active{% endif %}">BOX</a>
-        <a href="{{ url_for('stats.model_analysis', mode='whr', pitch='hf') }}" class="pitch-switch-button {% if pitch=='hf' %}active{% endif %}">HF</a>
-    </div>
-    {% endif %}
 
     <section class="analysis-card">
         <h2>
-            {% if mode=='total' %}
-                {{ t('model_analysis.card_total_title', 'Modell: Gesamtratings (TOTAL)') }}
-            {% elif mode=='pitch' %}
-                {{ t('model_analysis.card_pitch_title', 'Modell: {pitch}-Ratings', pitch=('BOX' if pitch=='box' else 'HF')) }}
-            {% else %}
+            {% if model=='whr' %}
                 {{ t('model_analysis.card_whr_title', 'Modell: Whole-History Rating ({pitch})', pitch=pitch|upper) }}
+            {% elif pitch=='total' %}
+                {{ t('model_analysis.card_total_title', 'Modell: Glicko-2 (TOTAL)') }}
+            {% else %}
+                {{ t('model_analysis.card_pitch_title', 'Modell: Glicko-2 ({pitch})', pitch=pitch|upper) }}
             {% endif %}
         </h2>
         <p class="analysis-description">
-            {% if mode=='total' %}
+            {% if model=='whr' %}
+                {% if pitch=='total' %}
+                    {{ t('model_analysis.desc_whr_total', 'Alle Spiele der Historie werden auf Basis der retrospektiv geglätteten WHR-Ratings zum jeweiligen Spielzeitpunkt ausgewertet. Jedes Spiel wird auf den vom WHR-Modell errechneten Favoriten ausgerichtet.') }}
+                {% else %}
+                    {{ t('model_analysis.desc_whr_pitch', 'Es werden ausschließlich {pitch_label}-Spiele auf Basis der retrospektiv geglätteten platzspezifischen WHR-Ratings ausgewertet. Jedes Spiel wird auf den vom WHR-Modell errechneten Favoriten ausgerichtet.', pitch_label=(t('model_analysis.box_label', 'Box') if pitch=='box' else t('model_analysis.hf_label', 'half-field'))) }}
+                {% endif %}
+            {% elif pitch=='total' %}
                 {{ t('model_analysis.desc_total', 'Every match is predicted from the players\' TOTAL ratings immediately before that match. Every match is oriented toward the model\'s predicted favourite, so every prediction above 50% has the same interpretation.') }}
-            {% elif mode=='pitch' %}
-                {{ t('model_analysis.desc_pitch', 'Only {pitch_label} matches are analysed, using the corresponding pitch-specific ratings immediately before each match. Every match is oriented toward the model\'s predicted favourite, so every prediction above 50% has the same interpretation.', pitch_label=(t('model_analysis.box_label', 'Box') if pitch=='box' else t('model_analysis.hf_label', 'half-field'))) }}
             {% else %}
-                {{ t('model_analysis.desc_whr', 'Alle Spiele der Historie werden auf Basis der retrospektiv geglätteten WHR-Ratings zum jeweiligen Spielzeitpunkt ausgewertet. Jedes Spiel wird auf den vom WHR-Modell errechneten Favoriten ausgerichtet.') }}
+                {{ t('model_analysis.desc_pitch', 'Only {pitch_label} matches are analysed, using the corresponding pitch-specific ratings immediately before each match. Every match is oriented toward the model\'s predicted favourite, so every prediction above 50% has the same interpretation.', pitch_label=(t('model_analysis.box_label', 'Box') if pitch=='box' else t('model_analysis.hf_label', 'half-field'))) }}
             {% endif %}
         </p>
 
@@ -425,7 +419,7 @@
         </div>
 
         <div class="analysis-note">
-            {% if mode=='whr' %}
+            {% if model=='whr' %}
                 {{ t('model_analysis.note_whr', 'WHR nutzt den gesamten Spielverlauf retrospektiv („Hindsight“): Zufallssiege werden abgedämpft und frühe Siege gegen spätere Leistungsträger aufgewertet. Spiele mit exakter 50:50-Vorhersage werden ausgenommen.') }}
             {% else %}
                 {{ t('model_analysis.note_50', 'Matches with an exactly 50% prediction are excluded because there is no meaningful predicted favourite. A draw remains a 50% actual result for the probability metrics. Our standard matchdays take place on Wednesdays.') }}
@@ -657,7 +651,7 @@
                     {% set x=graph_left+((bucket.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}
                     {% set y=graph_bottom-((bucket.avg_goal_diff-y_min)/(y_max-y_min))*(graph_bottom-graph_top) %}
                     <circle class="goal-diff-point primary-series" cx="{{x}}" cy="{{y}}" r="6">
-                        <title>{{ active_model_name }} ({{bucket.label}}): {{'%+.1f'|format(bucket.avg_goal_diff)}} ({{bucket.count}} {{ t('model_analysis.th_games', 'Games') }}){% if mode=='total' %} · {{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results') }}{% endif %}</title>
+                        <title>{{ active_model_name }} ({{bucket.label}}): {{'%+.1f'|format(bucket.avg_goal_diff)}} ({{bucket.count}} {{ t('model_analysis.th_games', 'Games') }}){% if pitch=='total' %} · {{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results') }}{% endif %}</title>
                     </circle>
                 {% endfor %}
 
@@ -708,7 +702,7 @@
                         <th>{{ t('model_analysis.th_bucket', 'Favourite probability') }}</th>
                         <th>{{ t('model_analysis.th_games', 'Games') }}</th>
                         <th>{{ t('model_analysis.th_predicted', 'Predicted') }}</th>
-                        <th title="{% if mode=='total' %}{{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results (winner scaled to 10 goals)') }}{% else %}{{ t('model_analysis.goal_diff_hover_actual', 'Actual average goal difference of the favourite') }}{% endif %}">{{ t('model_analysis.th_avg_goal_diff', 'Avg goal diff') }}</th>
+                        <th title="{% if pitch=='total' %}{{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results (winner scaled to 10 goals)') }}{% else %}{{ t('model_analysis.goal_diff_hover_actual', 'Actual average goal difference of the favourite') }}{% endif %}">{{ t('model_analysis.th_avg_goal_diff', 'Avg goal diff') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -717,7 +711,7 @@
                         <td>{{bucket.label}}</td>
                         <td>{{bucket.count}}</td>
                         <td>{{'%.1f%%'|format(bucket.predicted*100)}}</td>
-                        <td class="percentile-cell" title="{{'%+.1f'|format(bucket.avg_goal_diff)}} {% if mode=='total' %}({{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results') }}){% else %}({{ t('model_analysis.goal_diff_hover_actual', 'Actual average goal difference of the favourite') }}){% endif %}">{{'%+.1f'|format(bucket.avg_goal_diff)}}</td>
+                        <td class="percentile-cell" title="{{'%+.1f'|format(bucket.avg_goal_diff)}} {% if pitch=='total' %}({{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results') }}){% else %}({{ t('model_analysis.goal_diff_hover_actual', 'Actual average goal difference of the favourite') }}){% endif %}">{{'%+.1f'|format(bucket.avg_goal_diff)}}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

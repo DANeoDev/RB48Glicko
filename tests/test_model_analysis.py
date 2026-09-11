@@ -269,6 +269,41 @@ class TestModelAnalysis(unittest.TestCase):
             self.assertEqual(resp_box.status_code, 200)
             self.assertIn("BOX", resp_box.get_data(as_text=True))
 
+    def test_navigation_structure_and_pitch_switching(self):
+        user_id = self.create_user_session(role="user", verified=True, approved=True, psychology_passed=True)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        # 1. Default page should show Glicko-2 active, TOTAL active
+        resp = self.client.get("/model-analysis")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("analysis-switch", html)
+        self.assertIn("pitch-switch", html)
+        self.assertIn("Glicko-2", html)
+        self.assertIn("WHR", html)
+        self.assertIn("TOTAL", html)
+        self.assertIn("BOX", html)
+        self.assertIn("HF", html)
+
+        # 2. Glicko BOX
+        resp_g_box = self.client.get("/model-analysis?model=glicko&pitch=box")
+        self.assertEqual(resp_g_box.status_code, 200)
+        html_g_box = resp_g_box.get_data(as_text=True)
+        self.assertIn("Modell: Glicko-2 (BOX)", html_g_box)
+
+        # 3. WHR TOTAL
+        resp_whr_total = self.client.get("/model-analysis?model=whr&pitch=total")
+        self.assertEqual(resp_whr_total.status_code, 200)
+        html_whr_total = resp_whr_total.get_data(as_text=True)
+        self.assertIn("Modell: Whole-History Rating (TOTAL)", html_whr_total)
+
+        # 4. WHR HF
+        resp_whr_hf = self.client.get("/model-analysis?model=whr&pitch=hf")
+        self.assertEqual(resp_whr_hf.status_code, 200)
+        html_whr_hf = resp_whr_hf.get_data(as_text=True)
+        self.assertIn("Modell: Whole-History Rating (HF)", html_whr_hf)
+
 
 if __name__ == "__main__":
     unittest.main()

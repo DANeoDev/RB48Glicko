@@ -238,7 +238,7 @@
 {% endblock %}
 {% block content %}
 <div class="rating-comparison-page">
-    <a href="{{ url_for('stats.model_analysis', mode='whr', pitch=pitch) }}" class="back-link">
+    <a href="{{ url_for('stats.model_analysis', model='whr', pitch=pitch) }}" class="back-link">
         {{ t('rating_comparison.back_to_analysis', '← Zurück zur Modellanalyse') }}
     </a>
     <h1>{{ t('rating_comparison.title', 'Modellvergleich: Glicko-2 vs. WHR') }}</h1>
@@ -347,7 +347,7 @@
         </div>
 
         <div class="footer-links-bar">
-            <a href="{{ url_for('stats.model_analysis', mode='whr', pitch=pitch) }}" class="back-link">
+            <a href="{{ url_for('stats.model_analysis', model='whr', pitch=pitch) }}" class="back-link">
                 {{ t('rating_comparison.back_to_analysis', '← Zurück zur Modellanalyse') }}
             </a>
             <a href="{{ url_for('stats.whr_documentation') }}" class="back-link" style="color: #00acc1;">
