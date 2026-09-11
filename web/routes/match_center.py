@@ -1,6 +1,6 @@
 import json
 from datetime import date
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, session
 
 from scripts.accounts.database import get_accounts_connection
 from scripts.database.database import get_connection
@@ -442,6 +442,10 @@ def match_center():
         pitch = pitch if pitch in ("box", "hf") else "box"
         rating_type = "total" if mode == "total" else pitch
 
+        engine = request.form.get("engine", request.args.get("engine", session.get("active_model", "glicko"))).lower()
+        if engine not in ("glicko", "whr"):
+            engine = "glicko"
+
         raw_players = request.form.getlist("players") or request.args.getlist("players")
         if len(raw_players) == 1 and "," in raw_players[0]:
             raw_players = [p.strip() for p in raw_players[0].split(",") if p.strip()]
@@ -499,7 +503,12 @@ def match_center():
                 except ValueError:
                     seed = None
                 if len(selected_ids) >= 2:
-                    result = generate_match(selected_ids, players, ratings, rating_type, seed=seed)
+                    if engine == "whr":
+                        from scripts.analysis.whr import get_whr_ratings_dict
+                        ratings_to_use = get_whr_ratings_dict(connection)
+                    else:
+                        ratings_to_use = ratings
+                    result = generate_match(selected_ids, players, ratings_to_use, rating_type, seed=seed)
 
         match_date = imported_planner_date or request.form.get("date", request.args.get("date", request.form.get("parsed_match_date", date.today().isoformat())))
         if parse_result and parse_result.get("match_date"):
@@ -565,6 +574,7 @@ def match_center():
             certainty_levels=CERTAINTY_LEVELS,
             player_search_data=player_search_data,
             planner_events=planner_events,
+            active_engine=engine,
         )
     finally:
         connection.close()

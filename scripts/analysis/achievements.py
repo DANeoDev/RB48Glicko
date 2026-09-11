@@ -1,6 +1,6 @@
 """Analysis module for computing player achievements and milestones."""
 
-from datetime import datetime
+from datetime import date, datetime
 from scripts.database.database import get_connection
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_player_rating_history
@@ -242,54 +242,175 @@ def _eval_weisse_wand(active_matches: list) -> dict:
     }
 
 
-def _eval_highest_rank(connection, player_id: int, active_matches: list, user_has_glicko_tier: bool):
+def _eval_highest_rank(connection, player_id: int, active_matches: list, user_has_glicko_tier: bool, reference_date=None, historical_snapshots=None):
     if not user_has_glicko_tier:
         return None
 
-    if len(active_matches) == 0:
-        rank_unlocked = False
-        rank_tier = "locked"
-        best_rank = 999
-        days_at_rank_1 = 0
+    if historical_snapshots is None:
+        from scripts.analysis.history_snapshots import compute_historical_snapshots
+        historical_snapshots = compute_historical_snapshots(connection)
+
+    matchdays = sorted(historical_snapshots.get("matchdays", []), key=lambda s: s["date"])
+
+    if not matchdays:
+        return {
+            "id": "highest_rank",
+            "icon": "👑",
+            "title_key": "achievements.highest_rank_title",
+            "tier": "locked",
+            "unlocked": False,
+            "progress_text": "Noch kein Periodensieg",
+            "description_key": "achievements.highest_rank_desc",
+            "detail_text": "Beende einen abgeschlossenen Monat, ein Quartal, Halbjahr oder Jahr auf Platz #1.",
+            "hover_text": "Beende einen Zeitraum auf Platz #1: Monat (Bronze), Quartal (Silber), Halbjahr (Gold) oder Jahr (Platin).",
+            "period_pills": [],
+            "won_periods": {"years": [], "half_years": [], "quarters": [], "months": []},
+        }
+
+    ref_dt = reference_date.date() if isinstance(reference_date, datetime) else (reference_date if isinstance(reference_date, date) else datetime.now().date())
+    ref_year = ref_dt.year
+    ref_month = ref_dt.month
+    ref_quarter = (ref_month - 1) // 3 + 1
+    ref_half = 1 if ref_month <= 6 else 2
+
+    all_history_months = sorted(list(set(s["date"][:7] for s in matchdays)))
+    first_history_month = all_history_months[0] if all_history_months else None
+
+    months_map = {}
+    quarters_map = {}
+    half_years_map = {}
+    years_map = {}
+
+    for snap in matchdays:
+        d_str = snap["date"]
+        try:
+            d_obj = datetime.strptime(d_str, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        y = d_obj.year
+        m = d_obj.month
+        ym = f"{y:04d}-{m:02d}"
+        q = (m - 1) // 3 + 1
+        h = 1 if m <= 6 else 2
+
+        months_map.setdefault(ym, []).append(snap)
+        quarters_map.setdefault((y, q), []).append(snap)
+        half_years_map.setdefault((y, h), []).append(snap)
+        years_map.setdefault(y, []).append(snap)
+
+    def get_period_winner(snaps_list):
+        if not snaps_list:
+            return None
+        last_snap = snaps_list[-1]
+        lb = last_snap.get("leaderboard", [])
+        for p in lb:
+            if p.get("total", {}).get("games", 0) > 0:
+                return p["player_id"]
+        return None
+
+    won_months = []
+    for ym in sorted(months_map.keys()):
+        if ym == first_history_month:
+            continue
+        y_part, m_part = map(int, ym.split("-"))
+        if (y_part > ref_year) or (y_part == ref_year and m_part >= ref_month):
+            continue
+        if get_period_winner(months_map[ym]) == player_id:
+            m_name = MONTH_NAMES_DE.get(m_part, str(m_part))
+            won_months.append(f"{m_name} {y_part}")
+
+    won_quarters = []
+    for (y_part, q_part) in sorted(quarters_map.keys()):
+        if (y_part > ref_year) or (y_part == ref_year and q_part >= ref_quarter):
+            continue
+        if get_period_winner(quarters_map[(y_part, q_part)]) == player_id:
+            won_quarters.append(f"Q{q_part} {y_part}")
+
+    won_half_years = []
+    for (y_part, h_part) in sorted(half_years_map.keys()):
+        if (y_part > ref_year) or (y_part == ref_year and h_part >= ref_half):
+            continue
+        if get_period_winner(half_years_map[(y_part, h_part)]) == player_id:
+            won_half_years.append(f"H{h_part} {y_part}")
+
+    won_years = []
+    for y_part in sorted(years_map.keys()):
+        if y_part >= ref_year:
+            continue
+        if get_period_winner(years_map[y_part]) == player_id:
+            won_years.append(str(y_part))
+
+    if len(won_years) > 0:
+        tier = "platin"
+        unlocked = True
+    elif len(won_half_years) > 0:
+        tier = "gold"
+        unlocked = True
+    elif len(won_quarters) > 0:
+        tier = "silver"
+        unlocked = True
+    elif len(won_months) > 0:
+        tier = "bronze"
+        unlocked = True
     else:
-        all_hist = connection.execute("""
-            SELECT mr.player_id, mr.rating, m.date
-            FROM match_ratings mr
-            JOIN matches m ON m.match_id = mr.match_id
-            WHERE mr.rating_type = 'total'
-            ORDER BY m.date ASC
-        """).fetchall()
+        tier = "locked"
+        unlocked = False
 
-        active_dates = set(m["date"] for m in active_matches)
-        date_groups = {}
-        for r in all_hist:
-            date_groups.setdefault(r["date"], []).append((r["player_id"], r["rating"]))
+    if unlocked:
+        parts = []
+        if won_years:
+            parts.append(f"{len(won_years)}× Jahr")
+        if won_half_years:
+            parts.append(f"{len(won_half_years)}× Halbjahr")
+        if won_quarters:
+            parts.append(f"{len(won_quarters)}× Quartal")
+        if won_months:
+            parts.append(f"{len(won_months)}× Monat")
+        progress_text = " · ".join(parts)
+        detail_text = f"Platz #1 Endplatzierungen: {progress_text}"
 
-        best_rank = 999
-        days_at_rank_1 = 0
-        for d, p_list in date_groups.items():
-            if d not in active_dates:
-                continue
-            p_list.sort(key=lambda x: -x[1])
-            for rank_idx, (pid, _) in enumerate(p_list, 1):
-                if pid == player_id:
-                    if rank_idx < best_rank:
-                        best_rank = rank_idx
-                    if rank_idx == 1:
-                        days_at_rank_1 += 1
+        hover_lines = ["Platz #1 Endplatzierungen:"]
+        if won_years:
+            hover_lines.append(f"• Jahre: {', '.join(won_years)}")
+        if won_half_years:
+            hover_lines.append(f"• Halbjahre: {', '.join(won_half_years)}")
+        if won_quarters:
+            hover_lines.append(f"• Quartale: {', '.join(won_quarters)}")
+        if won_months:
+            hover_lines.append(f"• Monate: {', '.join(won_months)}")
+        hover_text = "\n".join(hover_lines)
+    else:
+        progress_text = "Noch kein Periodensieg"
+        detail_text = "Beende einen abgeschlossenen Monat, ein Quartal, Halbjahr oder Jahr auf Platz #1."
+        hover_text = "Beende einen Zeitraum auf Platz #1: Monat (Bronze), Quartal (Silber), Halbjahr (Gold) oder Jahr (Platin)."
 
-        rank_unlocked = best_rank <= 3
-        rank_tier = "gold" if best_rank == 1 else ("silver" if best_rank == 2 else ("bronze" if best_rank == 3 else "locked"))
+    period_pills = []
+    for y in won_years:
+        period_pills.append(f"🏆 {y}")
+    for h in won_half_years:
+        period_pills.append(f"🥇 {h}")
+    for q in won_quarters:
+        period_pills.append(f"🥈 {q}")
+    for m in won_months:
+        period_pills.append(f"🥉 {m}")
 
     return {
         "id": "highest_rank",
         "icon": "👑",
         "title_key": "achievements.highest_rank_title",
-        "tier": rank_tier,
-        "unlocked": rank_unlocked,
-        "progress_text": f"Beste Platzierung: #{best_rank}" if best_rank <= 50 else "Noch nicht Top 3",
+        "tier": tier,
+        "unlocked": unlocked,
+        "progress_text": progress_text,
         "description_key": "achievements.highest_rank_desc",
-        "detail_text": f"Platz #{best_rank} erreicht ({days_at_rank_1} Spieltage auf Platz 1)" if rank_unlocked else f"Beste Platzierung: #{best_rank}"
+        "detail_text": detail_text,
+        "hover_text": hover_text,
+        "period_pills": period_pills,
+        "won_periods": {
+            "years": won_years,
+            "half_years": won_half_years,
+            "quarters": won_quarters,
+            "months": won_months,
+        }
     }
 
 
@@ -806,7 +927,7 @@ def _eval_comeback_king(connection, player_id: int, active_matches: list, user_h
         }
 
 
-def get_player_achievements(connection, player_id, user_has_glicko_tier=True, accounts_connection=None, reference_date=None):
+def get_player_achievements(connection, player_id, user_has_glicko_tier=True, accounts_connection=None, reference_date=None, historical_snapshots=None):
     """Compute and return all unlocked and locked achievements for a player."""
     players = get_players(connection)
     if player_id not in players:
@@ -829,7 +950,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         _eval_weisse_wand(active_matches),
     ]
 
-    rank_ach = _eval_highest_rank(connection, player_id, active_matches, user_has_glicko_tier)
+    rank_ach = _eval_highest_rank(connection, player_id, active_matches, user_has_glicko_tier, reference_date=reference_date, historical_snapshots=historical_snapshots)
     if rank_ach is not None:
         achievements.append(rank_ach)
 

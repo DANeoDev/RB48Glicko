@@ -55,8 +55,14 @@
         swapSides: {{ t('match_center.swap_sides', 'Tauschen') | tojson }},
         removeGame: {{ t('match_center.remove_game', 'Entfernen') | tojson }},
         goalsLabel: {{ t('match_center.goals_label', 'Tore') | tojson }},
-        confirmBatch: {{ t('match_center.batch_confirm_btn', 'Eingabe bestätigen') | tojson }}
+        confirmBatch: {{ t('match_center.batch_confirm_btn', 'Eingabe bestätigen') | tojson }},
+        customizeTeams: {{ t('match_center.customize_teams', 'Anpassen') | tojson }},
+        doneEditing: {{ t('match_center.done_editing', 'Fertig') | tojson }},
+        searchPlayer: {{ t('match_center.search_player_placeholder', 'Spieler suchen...') | tojson }},
+        addGuest: {{ t('match_center.add_guest_btn', '+1 Gastspieler') | tojson }},
+        addNewPlayer: {{ t('match_center.add_new_player_btn', '+ Neuer Spieler') | tojson }},
+        noPlayerFound: {{ t('match_center.no_player_found', 'Kein Spieler gefunden') | tojson }}
     };
 </script>
-<script src="{{ url_for('static', filename='match_center.js', v='20260909_scroll') }}"></script>
+<script src="{{ url_for('static', filename='match_center.js', v='20260910_edit') }}"></script>
 {% endblock %}

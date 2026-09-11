@@ -14,6 +14,7 @@ from scripts.analysis.model_analysis import (
     _goal_diff_distribution,
     _lowess,
     analyze_model,
+    analyze_whr_model,
 )
 from scripts.database.database import get_connection
 from scripts.glicko.glicko2 import BOX, HF, TOTAL
@@ -195,6 +196,78 @@ class TestModelAnalysis(unittest.TestCase):
         self.assertIn("5.0%", html)
         self.assertIn("0.6931", html)
         self.assertIn("0.5000", html)
+
+    def test_analyze_whr_model(self):
+        conn = get_connection()
+        try:
+            res = analyze_whr_model(conn, mode="whr", pitch="total")
+            self.assertEqual(res["mode"], "whr")
+            self.assertGreater(res["games"], 0)
+            self.assertIn("ece", res)
+            self.assertIn("log_loss", res)
+            self.assertIn("mean_absolute_error", res)
+            self.assertIn("accuracy", res)
+            self.assertIn("calibration", res)
+            self.assertIn("lowess", res)
+            self.assertIn("goal_diff_lowess", res)
+            self.assertIn("goal_diff_min", res)
+            self.assertIn("goal_diff_max", res)
+            self.assertIn("goal_diff_ticks", res)
+        finally:
+            conn.close()
+
+    def test_whr_model_analysis_page_structure_and_overlay(self):
+        user_id = self.create_user_session(role="user", verified=True, approved=True, psychology_passed=True)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        resp = self.client.get("/model-analysis?mode=whr&pitch=total")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+
+        # 5 KPI cards present
+        self.assertIn("Kalibrierungsfehler", html)
+        self.assertIn("Log-Loss", html)
+        self.assertIn("Mittlerer absoluter Fehler", html)
+        self.assertIn("Favoritensiege", html)
+        self.assertIn("Analysierte Spiele", html)
+
+        # Explainer accordion present
+        self.assertIn("metric-explainer-details", html)
+
+        # Graph comparison overlay switch button present
+        self.assertIn("btn-graph-toggle", html)
+        self.assertIn("Vergleichsmodell einblenden", html)
+
+        # Overlay series present in SVG
+        self.assertIn("comparison-series", html)
+        self.assertIn("primary-series", html)
+
+        # Link to dedicated rating comparison page present
+        self.assertIn("/rating-comparison", html)
+
+    def test_rating_comparison_page(self):
+        user_id = self.create_user_session(role="user", verified=True, approved=True, psychology_passed=True)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        for url in ("/rating-comparison", "/model-comparison"):
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, 200)
+            html = resp.get_data(as_text=True)
+
+            self.assertIn("Modellvergleich: Glicko-2 vs. WHR", html)
+            self.assertIn("Verglichene Spieler", html)
+            self.assertIn("Größtes WHR-Plus", html)
+            self.assertIn("Größtes WHR-Minus", html)
+            self.assertIn("Ø Absolute Abweichung", html)
+            self.assertIn("comparison-table", html)
+            self.assertIn("comparison-player-search", html)
+
+            # Test pitch filter
+            resp_box = self.client.get(f"{url}?pitch=box")
+            self.assertEqual(resp_box.status_code, 200)
+            self.assertIn("BOX", resp_box.get_data(as_text=True))
 
 
 if __name__ == "__main__":

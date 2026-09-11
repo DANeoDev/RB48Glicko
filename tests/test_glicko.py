@@ -326,8 +326,9 @@ class TeamRatingCalculatorTests(unittest.TestCase):
 
         # Player 1 won Game 1 and lost Game 2 against roughly equal teams -> rating stays close to 1500
         self.assertAlmostEqual(ratings[1][TOTAL].rating, 1500.0, delta=20.0)
-        # But RD dropped significantly from 2 games!
-        self.assertLess(ratings[1][TOTAL].rd, 280.0)
+        # But RD dropped significantly from 2 games (under 1/sqrt(N) team dilution)!
+        self.assertLess(ratings[1][TOTAL].rd, 300.0)
+        self.assertGreater(ratings[1][TOTAL].rd, 270.0)
 
         # Inactive Player 5 gained inactivity RD tick exactly ONCE (not twice)
         from scripts.glicko.glicko2 import INACTIVITY_RD_TICK

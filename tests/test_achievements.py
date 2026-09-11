@@ -421,6 +421,67 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         unseen_after = get_user_unseen_achievements_count(101, 1, accounts_connection=self.acc_conn, primary_connection=self.conn)
         self.assertEqual(unseen_after, 0)
 
+    def test_podium_highest_rank_periods(self):
+        # 1. First month 2025-01 (should be skipped as first history month)
+        self.add_match("2025-01-10", [1], [2], 5, 0)
+        ach_jan = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn, reference_date=datetime(2025, 2, 1))
+        rank_jan = [a for a in ach_jan if a["id"] == "highest_rank"][0]
+        self.assertFalse(rank_jan["unlocked"])
+        self.assertEqual(rank_jan["tier"], "locked")
+
+        # 2. February 2025: Player 1 wins
+        self.add_match("2025-02-15", [1], [2], 5, 0)
+        # Evaluated on 2025-03-01 -> February 2025 is completed, Q1 is not
+        ach_feb = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn, reference_date=datetime(2025, 3, 1))
+        rank_feb = [a for a in ach_feb if a["id"] == "highest_rank"][0]
+        self.assertTrue(rank_feb["unlocked"])
+        self.assertEqual(rank_feb["tier"], "bronze")
+        self.assertEqual(rank_feb["progress_text"], "1× Monat")
+        self.assertIn("🥉 Februar 2025", rank_feb["period_pills"])
+        self.assertEqual(rank_feb["won_periods"]["months"], ["Februar 2025"])
+        self.assertEqual(rank_feb["won_periods"]["quarters"], [])
+
+        # Losing player has locked tier
+        rank_p2 = [a for a in get_player_achievements(self.conn, 2, accounts_connection=self.acc_conn, reference_date=datetime(2025, 3, 1)) if a["id"] == "highest_rank"][0]
+        self.assertFalse(rank_p2["unlocked"])
+        self.assertEqual(rank_p2["tier"], "locked")
+
+        # 3. March 2025: Player 1 wins again
+        self.add_match("2025-03-20", [1], [2], 5, 0)
+        # On 2025-03-25: Q1 and March are still ongoing!
+        ach_mid_march = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn, reference_date=datetime(2025, 3, 25))
+        rank_mid_march = [a for a in ach_mid_march if a["id"] == "highest_rank"][0]
+        self.assertEqual(rank_mid_march["tier"], "bronze")
+        self.assertEqual(rank_mid_march["won_periods"]["quarters"], [])
+
+        # On 2025-04-01: Q1 and March are completed -> Silver!
+        ach_q1 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn, reference_date=datetime(2025, 4, 1))
+        rank_q1 = [a for a in ach_q1 if a["id"] == "highest_rank"][0]
+        self.assertTrue(rank_q1["unlocked"])
+        self.assertEqual(rank_q1["tier"], "silver")
+        self.assertIn("1× Quartal", rank_q1["progress_text"])
+        self.assertIn("2× Monat", rank_q1["progress_text"])
+        self.assertEqual(rank_q1["won_periods"]["quarters"], ["Q1 2025"])
+        self.assertEqual(rank_q1["won_periods"]["months"], ["Februar 2025", "März 2025"])
+        self.assertIn("🥈 Q1 2025", rank_q1["period_pills"])
+        self.assertIn("🥉 Februar 2025", rank_q1["period_pills"])
+        self.assertIn("• Quartale: Q1 2025", rank_q1["hover_text"])
+
+        # 4. Half-year: On 2025-07-01 -> H1 is completed -> Gold!
+        ach_h1 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn, reference_date=datetime(2025, 7, 1))
+        rank_h1 = [a for a in ach_h1 if a["id"] == "highest_rank"][0]
+        self.assertEqual(rank_h1["tier"], "gold")
+        self.assertIn("H1 2025", rank_h1["won_periods"]["half_years"])
+        self.assertIn("🥇 H1 2025", rank_h1["period_pills"])
+
+        # 5. Full year: On 2026-01-01 -> Year 2025 is completed -> Platin!
+        ach_year = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn, reference_date=datetime(2026, 1, 1))
+        rank_year = [a for a in ach_year if a["id"] == "highest_rank"][0]
+        self.assertEqual(rank_year["tier"], "platin")
+        self.assertIn("2025", rank_year["won_periods"]["years"])
+        self.assertIn("🏆 2025", rank_year["period_pills"])
+
+
 
 import os
 import tempfile

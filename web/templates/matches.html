@@ -112,10 +112,29 @@
             <a data-preserve-scroll class="{% if selected_rating_type == 'hf' %}active{% endif %}" href="{{ url_for('stats.match_history', rating_type='hf') }}" title="Show HF match history.">HF</a>
         </div>
     </div>
-    {% if has_tier('admin') %}
-        <a class="match-entry-button" href="{{ url_for('match_center.match_center') }}">{{ t('matches.enter_match', '＋ Enter Match') }}</a>
-    {% endif %}
+    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
+        {% if has_tier('admin') %}
+            <a class="match-entry-button" href="{{ url_for('match_center.match_center') }}">{{ t('matches.enter_match', '＋ Enter Match') }}</a>
+        {% endif %}
+    </div>
 </div>
+
+{% if active_model == 'whr' %}
+<div class="whr-mode-banner" style="max-width: 700px; margin: 0 auto 20px; background: rgba(0, 131, 143, 0.15); border: 1px solid rgba(0, 151, 167, 0.4); border-left: 4px solid #00acc1; border-radius: var(--radius); padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 20px;">🔮</span>
+        <div>
+            <strong style="color: #e0f7fa; font-size: 14px;">{{ t('matches.whr_banner_title', 'WHR Hindsight-Modus aktiv') }}</strong>
+            <div style="color: #b2ebf2; font-size: 12px; margin-top: 2px;">
+                {{ t('matches.whr_banner_desc', 'Team-Ratings, Unsicherheiten (RD) und Siegchancen basieren auf der retrospektiv geglätteten Gesamthistorie.') }}
+            </div>
+        </div>
+    </div>
+    <span style="font-size: 11.5px; background: rgba(0, 131, 143, 0.3); color: #80deea; padding: 3px 8px; border-radius: 12px; font-weight: 600;">
+        {{ t('matches.whr_badge', 'WHR Retrospektiv') }}
+    </span>
+</div>
+{% endif %}
 
 <div class="match-history">
 {% for month_group in months_grouped %}
@@ -141,6 +160,9 @@
                 <div class="match-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <span>{{ match["match_id"] }} — {{ match["pitch"] | upper }}</span>
+                        {% if active_model == 'whr' %}
+                            <span style="font-size: 10px; background: rgba(0, 131, 143, 0.35); color: #80deea; border: 1px solid rgba(0, 151, 167, 0.5); padding: 1px 5px; border-radius: 4px; margin-left: 6px; font-weight: 700;">WHR</span>
+                        {% endif %}
                         <span style="font-size: 11px; opacity: 0.8; font-weight: normal; margin-left: 8px;">{{ match.get("date_formatted", match["date"]) }} · {{ match.get("short_label", "") }}</span>
                     </div>
                     {% if has_tier('admin') %}
@@ -250,7 +272,7 @@
             <span>⚠️</span> {{ t('matches.delete_confirm_title', 'Match wirklich löschen?') }}
         </h3>
         <p class="muted" id="delete-match-desc" style="font-size: 14px; line-height: 1.5; margin: 12px 0;">
-            {{ t('matches.delete_confirm_desc', 'Möchtest du dieses Match wirklich unwiderruflich aus der Datenbank und der Matchdatei entfernen? Alle Glicko-Ratings werden anschließend ab Saisonbeginn vollständig neu berechnet.') }}
+            {{ t('matches.delete_confirm_desc', 'Möchtest du dieses Match wirklich unwiderruflich aus der Datenbank und der Matchdatei entfernen? Vor dem Löschen wird automatisch ein CSV-Backup des Spieltags unter data/backups/matches/ gespeichert. Alle Glicko-Ratings werden anschließend ab Saisonbeginn vollständig neu berechnet.') }}
         </p>
         <div id="delete-match-error" style="display: none; color: #ff8888; background: rgba(255, 100, 100, 0.1); border: 1px solid rgba(255, 100, 100, 0.3); padding: 8px 12px; border-radius: var(--radius); margin-bottom: 12px; font-size: 13px;"></div>
         <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
@@ -262,6 +284,7 @@
     </div>
 </div>
 {% endif %}
+
 {% endblock %}
 
 {% block scripts %}
@@ -379,6 +402,8 @@
 })();
 </script>
 {% endif %}
+
+
 
 <script src="{{ url_for('static', filename='time_scrollbar.js', v='20260908_1') }}"></script>
 <script>

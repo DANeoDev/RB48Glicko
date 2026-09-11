@@ -8,6 +8,8 @@ import unittest
 
 from scripts.accounts.auth import register_user
 from scripts.accounts.database import get_accounts_connection, mark_email_verified, update_user_role
+from scripts.database.database import get_connection
+from scripts.database.db_players import get_players
 from scripts.glicko.glicko2 import TOTAL
 from scripts.matches.match_entry import create_new_player
 from scripts.matchmaking.match_parser import normalize_player_name, resolve_player_names
@@ -476,6 +478,53 @@ class MatchCenterFrontendTests(unittest.TestCase):
             self.assertGreater(cursor.fetchone()[0], 0)
         finally:
             conn.close()
+
+    def test_matchmaker_generation_with_whr_engine(self):
+        """Test that matchmaker balances teams using WHR ratings."""
+        from scripts.analysis.whr import get_whr_ratings_dict
+        from scripts.database.db_players import get_players
+
+        conn = get_connection()
+        try:
+            players = get_players(conn)
+            whr_ratings = get_whr_ratings_dict(conn)
+            selected_ids = list(players.keys())[:8]
+            result = generate_match(selected_ids, players, whr_ratings, TOTAL, seed=42)
+            self.assertIsNotNone(result)
+            self.assertEqual(len(result["team_a"]) + len(result["team_b"]), len(selected_ids))
+            self.assertIn("rating_difference", result)
+            self.assertIn("position_penalty", result)
+            self.assertGreater(result["rating_a"].rating, 500)
+            self.assertGreater(result["rating_b"].rating, 500)
+        finally:
+            conn.close()
+
+    def test_match_center_route_with_whr_engine(self):
+        """Test POST /match-center generating teams with engine=whr."""
+        conn = get_connection()
+        try:
+            players = get_players(conn)
+            selected_ids = list(players.keys())[:6]
+        finally:
+            conn.close()
+
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
+            response = client.post(
+                "/match-center",
+                data={
+                    "action": "generate",
+                    "engine": "whr",
+                    "mode": "total",
+                    "players": [str(pid) for pid in selected_ids],
+                }
+            )
+            self.assertEqual(response.status_code, 200)
+            html = response.get_data(as_text=True)
+            self.assertIn("suggested-teams", html)
+            self.assertIn("WHR Engine", html)
 
 
 if __name__ == "__main__":

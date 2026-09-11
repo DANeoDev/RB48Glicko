@@ -434,6 +434,7 @@
 
         let addPlayerName = '';
         let addTargetTeam = null;
+        let addBatchContext = null;
 
         if (!addModal) {
             return;
@@ -458,6 +459,7 @@
         // Called from parser (unmatched player name)
         function openAdd(name) {
             addTargetTeam = null;
+            addBatchContext = null;
             addPlayerName = name;
             clearErrors();
             if (titleEl) titleEl.textContent = window.matchCenterTranslations?.addPlayer || 'Add player';
@@ -473,9 +475,10 @@
             addModal.style.display = 'flex';
         }
 
-        // Called from "+ Add new player" button on Team A / Team B
-        window.openPlayerModal = function (team) {
+        // Called from "+ Add new player" button on Team A / Team B or from Batch Modal
+        window.openPlayerModal = function (team, batchContext = null) {
             addTargetTeam = team;
+            addBatchContext = batchContext;
             addPlayerName = '';
             clearErrors();
 
@@ -498,8 +501,13 @@
             if (teamChoiceDiv) teamChoiceDiv.style.display = 'none';
             if (newForm) newForm.style.display = 'block';
 
-            const searchInput = document.getElementById(`search-${addTargetTeam}`);
-            const query = searchInput ? searchInput.value.trim() : '';
+            let query = '';
+            if (addBatchContext && addBatchContext.currentSearchQuery) {
+                query = addBatchContext.currentSearchQuery;
+            } else if (addTargetTeam) {
+                const searchInput = document.getElementById(`search-${addTargetTeam}`);
+                query = searchInput ? searchInput.value.trim() : '';
+            }
             if (newAliasInput) {
                 newAliasInput.value = query;
             }
@@ -509,7 +517,17 @@
         });
 
         choiceExternalBtn?.addEventListener('click', () => {
-            if (addTargetTeam) {
+            if (addBatchContext) {
+                const m = addBatchContext.match;
+                const t = addBatchContext.team;
+                if (m && t) {
+                    m['external_' + t] = (m['external_' + t] || 0) + 1;
+                }
+                if (typeof addBatchContext.onComplete === 'function') {
+                    addBatchContext.onComplete();
+                }
+                addBatchContext = null;
+            } else if (addTargetTeam) {
                 addExternalPlayer(addTargetTeam);
             }
             addModal.style.display = 'none';
@@ -536,12 +554,14 @@
 
         document.getElementById('add-cancel')?.addEventListener('click', () => {
             addModal.style.display = 'none';
+            addBatchContext = null;
             clearErrors();
         });
 
         addModal.addEventListener('click', (e) => {
             if (e.target === addModal) {
                 addModal.style.display = 'none';
+                addBatchContext = null;
                 clearErrors();
             }
         });
@@ -636,11 +656,26 @@
                             main_position: data.main_position || mainPos || null
                         };
 
-                        addTeamPlayer(addTargetTeam, pid);
+                        if (addBatchContext) {
+                            const m = addBatchContext.match;
+                            const t = addBatchContext.team;
+                            if (m && t) {
+                                const pidNum = parseInt(pid, 10) || pid;
+                                if (!m['team_' + t].map(String).includes(String(pidNum))) {
+                                    m['team_' + t].push(pidNum);
+                                }
+                            }
+                            if (typeof addBatchContext.onComplete === 'function') {
+                                addBatchContext.onComplete();
+                            }
+                            addBatchContext = null;
+                        } else {
+                            addTeamPlayer(addTargetTeam, pid);
 
-                        // Clear search input if it had the alias
-                        const searchInput = document.getElementById(`search-${addTargetTeam}`);
-                        if (searchInput) searchInput.value = '';
+                            // Clear search input if it had the alias
+                            const searchInput = document.getElementById(`search-${addTargetTeam}`);
+                            if (searchInput) searchInput.value = '';
+                        }
 
                         addModal.style.display = 'none';
                         clearErrors();
@@ -769,7 +804,8 @@
             }
 
             const trans = window.matchCenterTranslations || {};
-            const swapText = trans.swapSides || 'Tauschen';
+            const customizeText = trans.customizeTeams || 'Anpassen';
+            const doneText = trans.doneEditing || 'Fertig';
             const removeText = trans.removeGame || 'Entfernen';
             const gameTpl = trans.gameLabel || 'Spiel {number}';
 
@@ -790,28 +826,17 @@
                 const actions = document.createElement('div');
                 actions.className = 'batch-match-actions';
 
-                // Swap sides button
-                const swapBtn = document.createElement('button');
-                swapBtn.type = 'button';
-                swapBtn.className = 'batch-btn-sm';
-                swapBtn.innerHTML = `⇄ ${swapText}`;
-                swapBtn.title = 'Seiten tauschen (Team A ⇄ Team B)';
-                swapBtn.addEventListener('click', () => {
-                    const tempTeam = m.team_a;
-                    m.team_a = m.team_b;
-                    m.team_b = tempTeam;
-
-                    const tempExt = m.external_a;
-                    m.external_a = m.external_b;
-                    m.external_b = tempExt;
-
-                    const tempGoals = m.goals_a;
-                    m.goals_a = m.goals_b;
-                    m.goals_b = tempGoals;
-
+                // Customize / Anpassen button
+                const editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'batch-btn-sm' + (m.isEditing ? ' batch-btn-active' : '');
+                editBtn.innerHTML = m.isEditing ? `✓ ${doneText}` : `✏️ ${customizeText}`;
+                editBtn.title = m.isEditing ? 'Bearbeitung abschließen' : 'Teams anpassen';
+                editBtn.addEventListener('click', () => {
+                    m.isEditing = !m.isEditing;
                     renderBatchModal();
                 });
-                actions.appendChild(swapBtn);
+                actions.appendChild(editBtn);
 
                 // Remove button (only if more than 1 match)
                 if (currentBatchMatches.length > 1) {
@@ -835,29 +860,184 @@
                 const body = document.createElement('div');
                 body.className = 'batch-match-body';
 
-                // Team A box
-                const teamABox = document.createElement('div');
-                teamABox.className = 'batch-team-box team-a';
-                const teamAName = document.createElement('div');
-                teamAName.className = 'batch-team-name';
-                teamAName.textContent = 'Team A';
-                const teamAChips = document.createElement('div');
-                teamAChips.className = 'batch-players-chips';
+                function renderTeamBox(teamKey) {
+                    const box = document.createElement('div');
+                    box.className = `batch-team-box team-${teamKey}`;
 
-                m.team_a.forEach(pid => {
-                    const chip = document.createElement('span');
-                    chip.className = 'batch-chip';
-                    chip.textContent = playerAlias(pid);
-                    teamAChips.appendChild(chip);
-                });
-                for (let i = 0; i < (m.external_a || 0); i++) {
-                    const chip = document.createElement('span');
-                    chip.className = 'batch-chip batch-chip-ext';
-                    chip.textContent = '👤 +1';
-                    teamAChips.appendChild(chip);
+                    const teamName = document.createElement('div');
+                    teamName.className = 'batch-team-name';
+                    const count = (m['team_' + teamKey] ? m['team_' + teamKey].length : 0) + (m['external_' + teamKey] || 0);
+                    teamName.textContent = `${teamKey === 'a' ? 'Team A' : 'Team B'} (${count})`;
+
+                    const chips = document.createElement('div');
+                    chips.className = 'batch-players-chips';
+
+                    (m['team_' + teamKey] || []).forEach(pid => {
+                        const chip = document.createElement('span');
+                        chip.className = 'batch-chip' + (m.isEditing ? ' batch-chip-removable' : '');
+                        chip.textContent = playerAlias(pid);
+
+                        if (m.isEditing) {
+                            const removeBtn = document.createElement('button');
+                            removeBtn.type = 'button';
+                            removeBtn.className = 'batch-chip-remove';
+                            removeBtn.textContent = '×';
+                            removeBtn.title = 'Entfernen';
+                            removeBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                m['team_' + teamKey] = m['team_' + teamKey].filter(id => String(id) !== String(pid));
+                                renderBatchModal();
+                            });
+                            chip.appendChild(removeBtn);
+                        }
+                        chips.appendChild(chip);
+                    });
+
+                    for (let i = 0; i < (m['external_' + teamKey] || 0); i++) {
+                        const chip = document.createElement('span');
+                        chip.className = 'batch-chip batch-chip-ext' + (m.isEditing ? ' batch-chip-removable' : '');
+                        chip.textContent = '👤 +1';
+
+                        if (m.isEditing) {
+                            const removeBtn = document.createElement('button');
+                            removeBtn.type = 'button';
+                            removeBtn.className = 'batch-chip-remove';
+                            removeBtn.textContent = '×';
+                            removeBtn.title = 'Entfernen';
+                            removeBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                m['external_' + teamKey] = Math.max(0, (m['external_' + teamKey] || 0) - 1);
+                                renderBatchModal();
+                            });
+                            chip.appendChild(removeBtn);
+                        }
+                        chips.appendChild(chip);
+                    }
+
+                    box.appendChild(teamName);
+                    box.appendChild(chips);
+
+                    if (m.isEditing) {
+                        const editor = document.createElement('div');
+                        editor.className = 'batch-team-editor';
+
+                        const searchWrap = document.createElement('div');
+                        searchWrap.className = 'batch-search-wrap';
+
+                        const input = document.createElement('input');
+                        input.type = 'text';
+                        input.className = 'batch-search-input';
+                        input.placeholder = trans.searchPlayer || 'Spieler suchen...';
+                        input.autocomplete = 'off';
+
+                        const dropdown = document.createElement('div');
+                        dropdown.className = 'batch-search-dropdown';
+                        dropdown.style.display = 'none';
+
+                        function filterResults() {
+                            const query = input.value.trim().toLowerCase();
+                            dropdown.innerHTML = '';
+                            if (!query) {
+                                dropdown.style.display = 'none';
+                                return;
+                            }
+
+                            const currentMatchPids = new Set([
+                                ...(m.team_a || []),
+                                ...(m.team_b || [])
+                            ].map(String));
+
+                            const matches = Object.keys(matchPlayers)
+                                .filter(pid => !currentMatchPids.has(String(pid)))
+                                .map(pid => ({
+                                    pid,
+                                    player: playerData(pid)
+                                }))
+                                .filter(({ player }) => {
+                                    const aliases = (player.aliases || []).join(' ').toLowerCase();
+                                    return aliases.includes(query);
+                                });
+
+                            if (matches.length === 0) {
+                                const empty = document.createElement('div');
+                                empty.className = 'batch-search-empty';
+                                empty.textContent = trans.noPlayerFound || 'Kein Spieler gefunden';
+                                dropdown.appendChild(empty);
+                            } else {
+                                matches.slice(0, 15).forEach(({ pid }) => {
+                                    const item = document.createElement('div');
+                                    item.className = 'batch-search-item';
+                                    item.textContent = playerAlias(pid);
+                                    item.addEventListener('click', () => {
+                                        const pidNum = isNaN(parseInt(pid, 10)) ? pid : parseInt(pid, 10);
+                                        m['team_' + teamKey].push(pidNum);
+                                        input.value = '';
+                                        dropdown.style.display = 'none';
+                                        renderBatchModal();
+                                    });
+                                    dropdown.appendChild(item);
+                                });
+                            }
+                            dropdown.style.display = 'block';
+                        }
+
+                        input.addEventListener('input', filterResults);
+                        input.addEventListener('focus', () => {
+                            if (input.value.trim()) filterResults();
+                        });
+
+                        document.addEventListener('click', (e) => {
+                            if (!searchWrap.contains(e.target)) {
+                                dropdown.style.display = 'none';
+                            }
+                        });
+
+                        searchWrap.appendChild(input);
+                        searchWrap.appendChild(dropdown);
+
+                        const actionsDiv = document.createElement('div');
+                        actionsDiv.className = 'batch-editor-actions';
+
+                        const addGuestBtn = document.createElement('button');
+                        addGuestBtn.type = 'button';
+                        addGuestBtn.className = 'batch-btn-xs';
+                        addGuestBtn.innerHTML = `👤 ${trans.addGuest || '+1 Gastspieler'}`;
+                        addGuestBtn.title = 'Einen externen Gastspieler hinzufügen';
+                        addGuestBtn.addEventListener('click', () => {
+                            m['external_' + teamKey] = (m['external_' + teamKey] || 0) + 1;
+                            renderBatchModal();
+                        });
+
+                        const addNewBtn = document.createElement('button');
+                        addNewBtn.type = 'button';
+                        addNewBtn.className = 'batch-btn-xs';
+                        addNewBtn.innerHTML = `➕ ${trans.addNewPlayer || '+ Neuer Spieler'}`;
+                        addNewBtn.title = 'Neuen Spieler anlegen oder externen Spieler auswählen';
+                        addNewBtn.addEventListener('click', () => {
+                            if (typeof window.openPlayerModal === 'function') {
+                                window.openPlayerModal(teamKey, {
+                                    match: m,
+                                    team: teamKey,
+                                    currentSearchQuery: input.value.trim(),
+                                    onComplete: () => {
+                                        renderBatchModal();
+                                    }
+                                });
+                            }
+                        });
+
+                        actionsDiv.appendChild(addGuestBtn);
+                        actionsDiv.appendChild(addNewBtn);
+
+                        editor.appendChild(searchWrap);
+                        editor.appendChild(actionsDiv);
+                        box.appendChild(editor);
+                    }
+
+                    return box;
                 }
-                teamABox.appendChild(teamAName);
-                teamABox.appendChild(teamAChips);
+
+                const teamABox = renderTeamBox('a');
 
                 // Score section
                 const scoreSec = document.createElement('div');
@@ -900,29 +1080,7 @@
                 scoreSec.appendChild(scoreInputs);
                 scoreSec.appendChild(scoreLabel);
 
-                // Team B box
-                const teamBBox = document.createElement('div');
-                teamBBox.className = 'batch-team-box team-b';
-                const teamBName = document.createElement('div');
-                teamBName.className = 'batch-team-name';
-                teamBName.textContent = 'Team B';
-                const teamBChips = document.createElement('div');
-                teamBChips.className = 'batch-players-chips';
-
-                m.team_b.forEach(pid => {
-                    const chip = document.createElement('span');
-                    chip.className = 'batch-chip';
-                    chip.textContent = playerAlias(pid);
-                    teamBChips.appendChild(chip);
-                });
-                for (let i = 0; i < (m.external_b || 0); i++) {
-                    const chip = document.createElement('span');
-                    chip.className = 'batch-chip batch-chip-ext';
-                    chip.textContent = '👤 +1';
-                    teamBChips.appendChild(chip);
-                }
-                teamBBox.appendChild(teamBName);
-                teamBBox.appendChild(teamBChips);
+                const teamBBox = renderTeamBox('b');
 
                 body.appendChild(teamABox);
                 body.appendChild(scoreSec);

@@ -368,6 +368,18 @@
                     {% endif %}
                 </div>
             </div>
+            {% if can_switch_model %}
+                <div class="model-toggle-group" role="group" aria-label="{{ t('nav.model_toggle_aria', 'Rating-Modell auswählen') }}">
+                    <a href="{{ url_for('stats.set_model', model='glicko', next=request.full_path) }}" 
+                       class="model-toggle-btn {% if active_model == 'glicko' %}active{% endif %}" 
+                       data-model="glicko"
+                       title="{{ t('nav.model_glicko_title', 'Glicko-2 Modell (Offizielles Live-Rating)') }}">Glicko-2</a>
+                    <a href="{{ url_for('stats.set_model', model='whr', next=request.full_path) }}" 
+                       class="model-toggle-btn {% if active_model == 'whr' %}active{% endif %}" 
+                       data-model="whr"
+                       title="{{ t('nav.model_whr_title', 'Whole-History Rating (Bayesianische Rückschau)') }}">WHR</a>
+                </div>
+            {% endif %}
             <div class="lang-toggle-group" role="group" aria-label="Language selection">
                 <a href="{{ url_for('auth.set_language', lang='de', next=request.full_path) }}" 
                    class="lang-toggle-btn {% if current_lang == 'de' %}active{% endif %}" 

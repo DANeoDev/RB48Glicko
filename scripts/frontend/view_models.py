@@ -123,6 +123,8 @@ def _compute_period_delta(
     curr_r: float,
     curr_rd: float,
     curr_c: float,
+    baseline_r: float | None = None,
+    baseline_rd: float | None = None,
 ) -> dict:
     """Compute aggregated rating and performance metrics since a cutoff date."""
     p_evts = [e for e in evts if e["date"] >= cutoff_str]
@@ -131,19 +133,22 @@ def _compute_period_delta(
     losses = sum(1 for e in p_evts if e["is_loss"])
     wp = (w / g * 100) if g > 0 else 0.0
 
-    if p_evts:
+    b_r: float | None = None
+    b_rd: float | None = None
+
+    if baseline_r is not None and baseline_rd is not None:
+        b_r = baseline_r
+        b_rd = baseline_rd
+    elif p_evts:
         first_e = p_evts[0]
-        first_b_r = first_e["rating_before_total"] if pitch_const == TOTAL else first_e["rating_before_pitch"]
-        first_b_rd = first_e["rd_before_total"] if pitch_const == TOTAL else first_e["rd_before_pitch"]
-        if first_b_r is not None and first_b_rd is not None:
-            first_b_c = first_b_r - 3 * first_b_rd
-            delta_r = curr_r - first_b_r
-            delta_rd = curr_rd - first_b_rd
-            delta_c = curr_c - first_b_c
-        else:
-            delta_r = 0.0
-            delta_rd = 0.0
-            delta_c = 0.0
+        b_r = first_e["rating_before_total"] if pitch_const == TOTAL else first_e["rating_before_pitch"]
+        b_rd = first_e["rd_before_total"] if pitch_const == TOTAL else first_e["rd_before_pitch"]
+
+    if b_r is not None and b_rd is not None:
+        first_b_c = b_r - 3 * b_rd
+        delta_r = curr_r - b_r
+        delta_rd = curr_rd - b_rd
+        delta_c = curr_c - first_b_c
     else:
         delta_r = 0.0
         delta_rd = 0.0
@@ -170,6 +175,16 @@ def compute_leaderboard_deltas(connection, ratings: dict, players: dict) -> dict
     cutoff_quarter = (today - timedelta(days=90)).strftime("%Y-%m-%d")
     cutoff_year = (today - timedelta(days=365)).strftime("%Y-%m-%d")
 
+    all_mr = get_all_match_ratings(connection)
+    post_m = [m for m in sorted_matches if m["date"] >= cutoff_month]
+    base_mr_m = all_mr.get(post_m[0]["match_id"], {}) if post_m else None
+
+    post_q = [m for m in sorted_matches if m["date"] >= cutoff_quarter]
+    base_mr_q = all_mr.get(post_q[0]["match_id"], {}) if post_q else None
+
+    post_y = [m for m in sorted_matches if m["date"] >= cutoff_year]
+    base_mr_y = all_mr.get(post_y[0]["match_id"], {}) if post_y else None
+
     player_events = _collect_player_match_events(connection, sorted_matches, players)
 
     deltas: dict[int, dict[str, dict]] = {}
@@ -182,11 +197,27 @@ def compute_leaderboard_deltas(connection, ratings: dict, players: dict) -> dict
             curr_rd = p_rating_data.get("rd", 350.0)
             curr_c = curr_r - 3 * curr_rd
 
+            base_p_m = base_mr_m.get(pid, {}).get(pitch_const) if base_mr_m else None
+            base_p_q = base_mr_q.get(pid, {}).get(pitch_const) if base_mr_q else None
+            base_p_y = base_mr_y.get(pid, {}).get(pitch_const) if base_mr_y else None
+
             deltas[pid][pitch_key] = {
                 "game": _compute_single_game_delta(evts, pitch_const, curr_r, curr_rd, curr_c),
-                "month": _compute_period_delta(evts, cutoff_month, pitch_const, curr_r, curr_rd, curr_c),
-                "quarter": _compute_period_delta(evts, cutoff_quarter, pitch_const, curr_r, curr_rd, curr_c),
-                "year": _compute_period_delta(evts, cutoff_year, pitch_const, curr_r, curr_rd, curr_c),
+                "month": _compute_period_delta(
+                    evts, cutoff_month, pitch_const, curr_r, curr_rd, curr_c,
+                    baseline_r=base_p_m.get("rating") if base_p_m else None,
+                    baseline_rd=base_p_m.get("rd") if base_p_m else None,
+                ),
+                "quarter": _compute_period_delta(
+                    evts, cutoff_quarter, pitch_const, curr_r, curr_rd, curr_c,
+                    baseline_r=base_p_q.get("rating") if base_p_q else None,
+                    baseline_rd=base_p_q.get("rd") if base_p_q else None,
+                ),
+                "year": _compute_period_delta(
+                    evts, cutoff_year, pitch_const, curr_r, curr_rd, curr_c,
+                    baseline_r=base_p_y.get("rating") if base_p_y else None,
+                    baseline_rd=base_p_y.get("rd") if base_p_y else None,
+                ),
             }
 
     return deltas
@@ -497,11 +528,15 @@ def build_match_history(
                         if player_id in entry["team_a_ids"]:
                             own_team = Rating(entry["team_a_rating"], entry["team_a_rd"], DEFAULT_SIGMA)
                             opp_team = Rating(entry["team_b_rating"], entry["team_b_rd"], DEFAULT_SIGMA)
-                            session_games.append((own_team, opp_team, entry["team_a_result"], entry["tm_rd_a"]))
+                            raw_size = entry.get("team_a_players", len(entry["team_a_ids"]))
+                            team_size = len(raw_size) if isinstance(raw_size, (list, tuple)) else int(raw_size)
+                            session_games.append((own_team, opp_team, entry["team_a_result"], entry["tm_rd_a"], team_size))
                         elif player_id in entry["team_b_ids"]:
                             own_team = Rating(entry["team_b_rating"], entry["team_b_rd"], DEFAULT_SIGMA)
                             opp_team = Rating(entry["team_a_rating"], entry["team_a_rd"], DEFAULT_SIGMA)
-                            session_games.append((own_team, opp_team, entry["team_b_result"], entry["tm_rd_b"]))
+                            raw_size = entry.get("team_b_players", len(entry["team_b_ids"]))
+                            team_size = len(raw_size) if isinstance(raw_size, (list, tuple)) else int(raw_size)
+                            session_games.append((own_team, opp_team, entry["team_b_result"], entry["tm_rd_b"], team_size))
 
                     if session_games:
                         updated_player = engine.update_player_session(prior, session_games)

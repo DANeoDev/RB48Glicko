@@ -7,8 +7,10 @@ and persists the results into the database.
 
 from datetime import datetime
 import math
+import os
 from pathlib import Path
 import shutil
+import sqlite3
 
 from scripts.database.database import get_connection, get_database_file
 from scripts.database.db_matches import get_matches, get_match_teams
@@ -33,14 +35,22 @@ from scripts.glicko.glicko2 import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
-def backup_database():
+def backup_database(connection=None):
     database_file = get_database_file()
-    backup_folder = database_file.parent / "backups"
-    backup_folder.mkdir(exist_ok=True)
+    override = os.environ.get("RB48_DATABASE_BACKUP_DIR")
+    backup_folder = Path(override) if override else database_file.parent / "backups"
+    backup_folder.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     backup_file = backup_folder / f"rb48_{timestamp}.db"
-    shutil.copy2(database_file, backup_file)
+    if connection is not None:
+        connection.commit()
+        backup_conn = sqlite3.connect(backup_file)
+        connection.backup(backup_conn)
+        backup_conn.close()
+    elif database_file.exists():
+        shutil.copy2(database_file, backup_file)
     print(f"Database backup created: {backup_file}")
+    return backup_file
 
 
 def clear_ratings(connection):
@@ -271,12 +281,14 @@ def update_session(connection, session_matches, ratings, engine, debug_player=No
                 t2_total,
                 res1,
                 calculate_teammates_rd(player_id, team1_ids, team1_total, ratings, TOTAL),
+                team1_total,
             ))
             player_games[player_id].setdefault(pitch_type, []).append((
                 t1_pitch,
                 t2_pitch,
                 res1,
                 calculate_teammates_rd(player_id, team1_ids, team1_total, ratings, pitch_type),
+                team1_total,
             ))
 
         for player_id in team2_ids:
@@ -285,12 +297,14 @@ def update_session(connection, session_matches, ratings, engine, debug_player=No
                 t1_total,
                 res2,
                 calculate_teammates_rd(player_id, team2_ids, team2_total, ratings, TOTAL),
+                team2_total,
             ))
             player_games[player_id].setdefault(pitch_type, []).append((
                 t2_pitch,
                 t1_pitch,
                 res2,
                 calculate_teammates_rd(player_id, team2_ids, team2_total, ratings, pitch_type),
+                team2_total,
             ))
 
     # Apply session batch update for all active players
@@ -371,28 +385,52 @@ def write_glicko(connection, glickos):
     connection.commit()
 
 
-def main():
-    backup_database()
-    connection = get_connection()
+def recalculate_glicko2_ratings(connection=None, create_backup=True, debug_player=None):
+    """
+    Full recalculation of Glicko-2 ratings from scratch across all matches in the database.
+    Optionally creates an archival SQLite database backup first.
+    Returns a dict with execution statistics and backup metadata.
+    """
+    backup_file = None
+    if create_backup:
+        backup_file = backup_database(connection)
+
+    conn = connection or get_connection()
+    should_close = connection is None
     try:
-        matches = get_matches(connection)
-        print(f"Loaded {len(matches)} matches")
-        calibrations = get_calibrations(connection)
-        print(f"Loaded {len(calibrations)} calibrations")
-        clear_ratings(connection)
-        prepared_glicko = prepare_glicko_table(connection, matches, calibrations)
-        print(f"Prepared ratings for {len(prepared_glicko)} players")
-        debug_player = select_debug_player(connection)
-        glickos = calculate_glicko(connection, matches, prepared_glicko, debug_player)
-        print(f"Calculated ratings for {len(glickos)} players")
-        write_glicko(connection, glickos)
+        matches = get_matches(conn)
+        calibrations = get_calibrations(conn)
+        clear_ratings(conn)
+        prepared_glicko = prepare_glicko_table(conn, matches, calibrations)
+        glickos = calculate_glicko(conn, matches, prepared_glicko, debug_player)
+        write_glicko(conn, glickos)
         try:
             from scripts.docs.generate_model_docs import update_docs_file
             update_docs_file()
         except Exception:
             pass
+        return {
+            "success": True,
+            "backup_file": backup_file.name if backup_file else None,
+            "matches_count": len(matches),
+            "players_count": len(glickos),
+        }
+    finally:
+        if should_close:
+            conn.close()
+
+
+def main():
+    connection = get_connection()
+    try:
+        debug_player = select_debug_player(connection)
     finally:
         connection.close()
+    result = recalculate_glicko2_ratings(create_backup=True, debug_player=debug_player)
+    print(f"Loaded {result['matches_count']} matches")
+    print(f"Calculated ratings for {result['players_count']} players")
+    if result.get("backup_file"):
+        print(f"Database backup created: {result['backup_file']}")
 
 
 if __name__ == "__main__":

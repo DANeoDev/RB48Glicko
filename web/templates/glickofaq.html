@@ -93,9 +93,14 @@
         <button type="button" class="faq-tab-btn" onclick="switchFaqTab('members', this)">
             {{ t('faq.tab_members', '👥 Members & Matchdays') }}
         </button>
-        <button type="button" class="faq-tab-btn {% if has_tier('glicko_user') %}active{% endif %}" onclick="switchFaqTab('glicko', this)">
+        <button type="button" class="faq-tab-btn {% if has_tier('glicko_user') and active_model != 'whr' %}active{% endif %}" onclick="switchFaqTab('glicko', this)">
             {{ t('faq.tab_glicko', '📊 Glicko-2 & Model Science') }} {% if not has_tier('glicko_user') %}🔒{% endif %}
         </button>
+        {% if has_tier('glicko_user') %}
+        <button type="button" class="faq-tab-btn {% if active_model == 'whr' %}active{% endif %}" onclick="switchFaqTab('whr', this)" style="border-color: rgba(128, 222, 234, 0.4); color: #80deea;">
+            {{ t('faq.tab_whr', '🔮 WHR: Whole-History Rating') }}
+        </button>
+        {% endif %}
     </div>
 
     <!-- TAB 1: GENERAL & GUEST GUIDE (FOR ALL / VISITORS) -->
@@ -159,6 +164,13 @@
         </div>
 
         <div class="faq-item">
+            <h3>{{ t('faq.q_opt_out', 'Kann ich meine Performance-Analyse und mein Rating verbergen? (Glicko Opt-Out)') }}</h3>
+            <p>
+                {{ t('faq.a_opt_out_members', settings_url=url_for('auth.settings')) | safe }}
+            </p>
+        </div>
+
+        <div class="faq-item">
             <h3>{{ t('faq.q_noise', 'How does the "Make Some Noise" spatial banter feature work?') }}</h3>
             <p>
                 {{ t('faq.a_noise_intro') }}
@@ -173,7 +185,7 @@
     </div>
 
     <!-- TAB 3: GLICKO-2 & MODEL SCIENCE -->
-    <div class="faq-section {% if has_tier('glicko_user') %}active{% endif %}" id="faq-glicko">
+    <div class="faq-section {% if has_tier('glicko_user') and active_model != 'whr' %}active{% endif %}" id="faq-glicko">
         <!-- Webmaster Project Section (Moved from About Us) -->
         <div class="faq-item" id="webmaster-project" style="border-left: 3px solid #7B52C5; background: rgba(123, 82, 197, 0.08);">
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -193,12 +205,37 @@
                     <strong>{{ t('faq.golden_rule_title', 'Dabei gilt:') }}</strong> {{ t('faq.golden_rule_text', 'Das mathematische Modell dient einzig dem Zweck, spannende und ausgeglichene Spiele zu ermöglichen und eine gewisse Nerd-Leidenschaft für Zahlen zu befriedigen. Ratings spiegeln vergangene Teamergebnisse wider – sie definieren niemals den persönlichen Wert oder Charakter eines Spielers.') }}
                 </p>
             </div>
+            <div style="background: rgba(123, 82, 197, 0.12); border-left: 3px solid #80deea; padding: 12px 16px; border-radius: 4px; margin-top: 12px;">
+                <p style="margin: 0; color: #ded6ed; font-size: 14px; line-height: 1.6;">
+                    🛡️ <strong>{{ t('faq.opt_out_note_title', 'Privatsphäre & Opt-Out:') }}</strong>
+                    {{ t('faq.opt_out_note_text', settings_url=url_for('auth.settings')) | safe }}
+                </p>
+            </div>
             <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(123, 82, 197, 0.25); display: flex; justify-content: flex-end;">
                 <a href="{{ url_for('stats.model_documentation') }}" style="color: #80deea; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; font-size: 14.5px; transition: color 0.15s ease;" onmouseover="this.style.color='#b2ebf2'" onmouseout="this.style.color='#80deea'">
                     <span style="font-size: 16px;">📖</span>
                     <span>{{ t('faq.link_model_docs', 'Hier findest du eine detaillierte Dokumentation der RB48Glicko Implementation →') }}</span>
                 </a>
             </div>
+        </div>
+
+        <!-- Opt-Out & Privacy FAQ Item (Visible in ALL views, especially User Ansicht) -->
+        <div class="faq-item" id="faq-opt-out" style="border-left: 3px solid #7B52C5;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span style="font-size: 20px;">🛡️</span>
+                <h3 style="margin: 0; color: #ffffff; font-size: 18px;">
+                    {{ t('faq.q_opt_out', 'Kann ich meine Performance-Analyse und mein Rating verbergen? (Glicko Opt-Out)') }}
+                </h3>
+            </div>
+            <p>
+                {{ t('faq.a_opt_out_p1', 'Ja, absolut. Der Spaß am gemeinsamen Kicken und die ungezwungene Gemeinschaft stehen bei RB48 immer an erster Stelle.') }}
+            </p>
+            <p>
+                {{ t('faq.a_opt_out_p2', settings_url=url_for('auth.settings')) | safe }}
+            </p>
+            <p class="muted" style="font-size: 13.5px; margin: 0;">
+                {{ t('faq.a_opt_out_p3', 'Deine Werte werden im Hintergrund für die faire Teambildung im Matchmaker weiterberechnet, aber auf der Rangliste, in Matchkarten und in Spielerprofilen für andere vollständig ausgeblendet. Du wirst in der Rangliste nach ganz hinten sortiert und dein eigenes Konto wird auf die Standard-Ansicht (ohne Glicko) umgestellt.') }}
+            </p>
         </div>
 
         {% if has_tier('glicko_user') %}
@@ -242,18 +279,92 @@
                 </p>
             </div>
         {% else %}
-            <div class="faq-item" style="border-color: #7B52C5; background: rgba(123, 82, 197, 0.08); text-align: center; padding: 36px 24px;">
-                <div style="font-size: 40px; margin-bottom: 12px;">🔒</div>
-                <h3 style="color: #ffffff; font-size: 20px; margin-bottom: 8px;">{{ t('faq.gated_title', 'Detailed Glicko-2 Analysis is Gated') }}</h3>
-                <p style="max-width: 600px; margin: 0 auto 18px; color: #c9c2d8; font-size: 14px; line-height: 1.6;">
-                    {{ t('faq.gated_desc', 'To protect the recreational culture and intrinsic enjoyment of our matchdays, advanced mathematical rating models, rating deviations (RD), and predictive analytics are unlocked via the I.M.P. Football Personality Assessment.') }}
-                </p>
-                <a href="{{ url_for('auth.glicko_test') }}" class="primary" style="padding: 10px 24px; text-decoration: none; font-weight: 700; font-size: 14px; border-radius: 20px; display: inline-block;">
-                    {{ t('faq.gated_btn', 'Take the Personality Assessment →') }}
-                </a>
-            </div>
+            {% if current_user and current_user.get('glicko_opt_out') %}
+                <div class="faq-item" style="border-color: #7B52C5; background: rgba(123, 82, 197, 0.12); text-align: center; padding: 28px 24px;">
+                    <div style="font-size: 36px; margin-bottom: 8px;">🛡️</div>
+                    <h3 style="color: #ffffff; font-size: 19px; margin-bottom: 8px;">{{ t('auth.glicko_opt_out_badge', '⚠️ Glicko-2 Opt-Out aktiv') }}</h3>
+                    <p style="max-width: 600px; margin: 0 auto 16px; color: #ded6ed; font-size: 14.5px; line-height: 1.6;">
+                        {{ t('auth.glicko_opt_out_banner', 'Deine Glicko-2 Bewertung ist aktuell für andere Benutzer und Admins verborgen. Dein Website-Zugang ist auf Standard-Benutzer (keine Glicko-Einsicht) eingestellt. Du kannst diese Option jederzeit oben in den Profileinstellungen deaktivieren.') }}
+                    </p>
+                    <a href="{{ url_for('auth.settings') }}" class="primary" style="padding: 10px 24px; text-decoration: none; font-weight: 700; font-size: 14px; border-radius: 20px; display: inline-block;">
+                        {{ t('faq.opt_out_settings_btn', 'Zu den Profileinstellungen →') }}
+                    </a>
+                </div>
+            {% else %}
+                <div class="faq-item" style="border-color: #7B52C5; background: rgba(123, 82, 197, 0.08); text-align: center; padding: 36px 24px;">
+                    <div style="font-size: 40px; margin-bottom: 12px;">🔒</div>
+                    <h3 style="color: #ffffff; font-size: 20px; margin-bottom: 8px;">{{ t('faq.gated_title', 'Detailed Glicko-2 Analysis is Gated') }}</h3>
+                    <p style="max-width: 600px; margin: 0 auto 18px; color: #c9c2d8; font-size: 14px; line-height: 1.6;">
+                        {{ t('faq.gated_desc', 'To protect the recreational culture and intrinsic enjoyment of our matchdays, advanced mathematical rating models, rating deviations (RD), and predictive analytics are unlocked via the I.M.P. Football Personality Assessment.') }}
+                    </p>
+                    <a href="{{ url_for('auth.glicko_test') }}" class="primary" style="padding: 10px 24px; text-decoration: none; font-weight: 700; font-size: 14px; border-radius: 20px; display: inline-block;">
+                        {{ t('faq.gated_btn', 'Take the Personality Assessment →') }}
+                    </a>
+                    <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);">
+                        <p style="margin: 0; color: #c9c2d8; font-size: 13.5px;">
+                            {{ t('faq.gated_opt_out_hint', settings_url=url_for('auth.settings')) | safe }}
+                        </p>
+                    </div>
+                </div>
+            {% endif %}
         {% endif %}
     </div>
+
+    <!-- TAB 4: WHOLE-HISTORY RATING (WHR) -->
+    {% if has_tier('glicko_user') %}
+    <div class="faq-section {% if active_model == 'whr' %}active{% endif %}" id="faq-whr">
+        <!-- WHR Banner & Documentation Link -->
+        <div class="faq-item" id="whr-overview" style="border-left: 3px solid #80deea; background: rgba(128, 222, 234, 0.07);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span style="font-size: 20px;">🔮</span>
+                <h3 style="margin: 0; color: #ffffff; font-size: 19px;">
+                    {{ t('faq.whr_banner_title', 'Whole-History Rating (WHR): Global Retrospective Bayesian Model') }}
+                </h3>
+            </div>
+            <p>
+                {{ t('faq.whr_banner_p1') }}
+            </p>
+            <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(128, 222, 234, 0.25); display: flex; justify-content: flex-end;">
+                <a href="{{ url_for('stats.whr_documentation') }}" style="color: #80deea; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; font-size: 14.5px; transition: color 0.15s ease;" onmouseover="this.style.color='#b2ebf2'" onmouseout="this.style.color='#80deea'">
+                    <span style="font-size: 16px;">📖</span>
+                    <span>{{ t('faq.link_whr_docs', 'Hier findest du die vollständige mathematische Dokumentation des WHR-Modells →') }}</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <h3>{{ t('faq.q_whr_what_is', 'Was ist Whole-History Rating (WHR) und wie unterscheidet es sich von Glicko-2?') }}</h3>
+            <p>{{ t('faq.a_whr_what_is_p1') | safe }}</p>
+            <p>{{ t('faq.a_whr_what_is_p2') | safe }}</p>
+        </div>
+
+        <div class="faq-item">
+            <h3>{{ t('faq.q_whr_hindsight', 'Warum verändern sich vergangene WHR-Werte rückwirkend?') }}</h3>
+            <p>{{ t('faq.a_whr_hindsight_p1') | safe }}</p>
+            <p>{{ t('faq.a_whr_hindsight_p2') | safe }}</p>
+        </div>
+
+        <div class="faq-item">
+            <h3>{{ t('faq.q_whr_rd', 'Warum weicht die Rating Deviation (RD) bei WHR von Glicko-2 ab?') }}</h3>
+            <p>{{ t('faq.a_whr_rd_p1') | safe }}</p>
+            <p>{{ t('faq.a_whr_rd_p2') | safe }}</p>
+        </div>
+
+        <div class="faq-item">
+            <h3>{{ t('faq.q_whr_which_better', 'Welches Modell ist das "bessere" oder "wahrhaftigere"?') }}</h3>
+            <p>{{ t('faq.a_whr_which_better_p1') }}</p>
+            <ul style="color: #ded6ed; font-size: 15px; line-height: 1.68; margin: 8px 0 12px;">
+                <li>{{ t('faq.a_whr_which_better_li1') | safe }}</li>
+                <li>{{ t('faq.a_whr_which_better_li2') | safe }}</li>
+            </ul>
+        </div>
+
+        <div class="faq-item">
+            <h3>{{ t('faq.q_whr_matchmaker', 'Wie nutzt der Matchmaker das WHR-Modell?') }}</h3>
+            <p>{{ t('faq.a_whr_matchmaker') }}</p>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <script>
@@ -271,6 +382,22 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.location.hash === '#webmaster-project') {
         switchFaqTab('glicko');
         const target = document.getElementById('webmaster-project');
+        if (target) {
+            setTimeout(() => {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+    } else if (window.location.hash === '#faq-whr' || window.location.hash === '#whr-overview') {
+        switchFaqTab('whr');
+        const target = document.getElementById('whr-overview') || document.getElementById('faq-whr');
+        if (target) {
+            setTimeout(() => {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+    } else if (window.location.hash === '#faq-opt-out' || window.location.hash === '#opt-out' || window.location.hash === '#glicko-opt-out') {
+        switchFaqTab('glicko');
+        const target = document.getElementById('faq-opt-out');
         if (target) {
             setTimeout(() => {
                 target.scrollIntoView({ behavior: 'smooth', block: 'start' });

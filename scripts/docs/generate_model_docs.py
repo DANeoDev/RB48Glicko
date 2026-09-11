@@ -265,27 +265,28 @@ $$E = \\frac{{1}}{{1 + \\exp\\left( -g(\\phi_{{\\text{{opp}}}}) \\cdot (\\mu_{{\
 
 ---
 
-### Step 3: Bayesian Teammate Clarity Dampening (\\(w_{{\\text{{team}}}}\\))
+### Step 3: Bayesian Teammate Clarity & Team Dilution (\\(w_{{\\text{{match}}}} = \\frac{{1}}{{\\sqrt{{N}}}} \\cdot w_{{\\text{{team}}}}\\))
 
-A central innovation of the RB48 model is **decoupling personal RD from team RD**.
+A central innovation of the RB48 model is **decoupling personal RD from team RD** while accounting for team size dilution.
 
 In older, naive implementations, an individual's rating update used a combined virtual RD:
 $$\\text{{virtual\\_RD}} = \\sqrt{{\\frac{{\\text{{RD}}_{{\\text{{player}}}}^2 + \\text{{RD}}_{{\\text{{team}}}}^2}}{{2}}}}$$
 This had a disastrous flaw: if an established veteran with \\(\\text{{RD}} = 60\\) played on a team with five rookies (\\(\\text{{RD}} = {DEFAULT_RD:g}\\)), the veteran's virtual RD was inflated to \\(\\approx 250\\), causing their rating to swing wildly by 60–80 points from a single casual match!
 
-#### The TrueSkill-Inspired Bayesian Solution:
-We keep the player's personal uncertainty (\\(\\phi_{{\\text{{player}}}}\\)) intact. Instead, we calculate the root-mean-square RD of the player's **teammates**:
-$$\\text{{RD}}_{{\\text{{teammates}}}} = \\sqrt{{\\frac{{\\sum_{{j \\neq i}} \\text{{RD}}_j^2 + M \\cdot {IGNORED_RD:g}^2}}{{N - 1}}}}$$
+#### The Bayesian Teammate Clarity & Central Limit Dilution:
+1. **Teammate Clarity (\\(w_{{\\text{{team}}}}\\)):** We calculate the root-mean-square RD of the player's **teammates**:
+   $$\\text{{RD}}_{{\\text{{teammates}}}} = \\sqrt{{\\frac{{\\sum_{{j \\neq i}} \\text{{RD}}_j^2 + M \\cdot {IGNORED_RD:g}^2}}{{N - 1}}}}$$
+   We then apply Glicko's native information clarity function:
+   $$w_{{\\text{{team}}}} = g(\\phi_{{\\text{{teammates}}}}) = \\frac{{1}}{{\\sqrt{{1 + \\frac{{3 \\phi_{{\\text{{teammates}}}}^2}}{{\\pi^2}}}}}}$$
+2. **Team Dilution (\\(\\frac{{1}}{{\\sqrt{{N}}}}\\)):**
+   Under the Central Limit Theorem, the signal-to-noise ratio of an individual's contribution within a team of \\(N\\) players scales with \\(\\frac{{1}}{{\\sqrt{{N}}}}\\).
+   - **1v1 Singles (\\(N=1\\)):** \\(1/\\sqrt{{1}} = 1.0\\) (100% full duel credit)
+   - **5v5 Soccerbox (\\(N=5\\)):** \\(1/\\sqrt{{5}} \\approx 0.447\\) (44.7% credit)
+   - **6v6 Half-Pitch (\\(N=6\\)):** \\(1/\\sqrt{{6}} \\approx 0.408\\) (40.8% credit)
+   - **9v9 Large Match (\\(N=9\\)):** \\(1/\\sqrt{{9}} \\approx 0.333\\) (33.3% credit)
 
-We then apply Glicko's native information clarity function to teammates:
-$$w_{{\\text{{team}}}} = g(\\phi_{{\\text{{teammates}}}}) = \\frac{{1}}{{\\sqrt{{1 + \\frac{{3 \\phi_{{\\text{{teammates}}}}^2}}{{\\pi^2}}}}}}$$
-
-- **Playing with Veterans (\\(\\text{{RD}}_{{\\text{{teammates}}}} \\approx 60\\)):**
-  $$w_{{\\text{{team}}}} \\approx 0.98$$
-  The team outcome is crystal clear. The individual receives **98%** of the full update.
-- **Playing with Rookies (\\(\\text{{RD}}_{{\\text{{teammates}}}} \\approx 330\\)):**
-  $$w_{{\\text{{team}}}} \\approx 0.69$$
-  Because teammates are unknown wildcards, the match contains high observational noise. Both rating change and RD reduction are **gracefully dampened by ~31%**.
+The composite match weighting factor is:
+$$w_{{\\text{{match}}}} = \\frac{{1}}{{\\sqrt{{N}}}} \\cdot w_{{\\text{{team}}}}$$
 
 ---
 
@@ -303,9 +304,9 @@ All matches played on the same calendar date are batched into a single rating pe
 $$\\text{{match\\_precision}}_m = g(\\phi_{{\\text{{opp}}, m}})^2 \\cdot E_m \\cdot (1 - E_m)$$
 $$\\text{{match\\_difference}}_m = g(\\phi_{{\\text{{opp}}, m}}) \\cdot (s_m - E_m)$$
 
-We accumulate effective precision and surprise across all games of the evening, weighted by teammate clarity \\(w_{{\\text{{team}}, m}}\\):
-$$I = \\text{{total\\_effective\\_precision}} = \\sum_{{m}} w_{{\\text{{team}}, m}} \\cdot \\text{{match\\_precision}}_m$$
-$$\\Delta = \\text{{total\\_effective\\_difference}} = \\sum_{{m}} w_{{\\text{{team}}, m}} \\cdot \\text{{match\\_difference}}_m$$
+We accumulate effective precision and surprise across all games of the evening, weighted by teammate clarity and team dilution:
+$$I = \\text{{total\\_effective\\_precision}} = \\sum_{{m}} \\frac{{1}}{{\\sqrt{{N_m}}}} \\cdot w_{{\\text{{team}}, m}} \\cdot \\text{{match\\_precision}}_m$$
+$$\\Delta = \\text{{total\\_effective\\_difference}} = \\sum_{{m}} \\frac{{1}}{{\\sqrt{{N_m}}}} \\cdot w_{{\\text{{team}}, m}} \\cdot \\text{{match\\_difference}}_m$$
 
 The estimated session variance is \\(v = \\frac{{1}}{{I}}\\), and the normalized performance difference is \\(\\frac{{\\Delta}}{{I}}\\).
 
@@ -424,14 +425,23 @@ def markdown_to_html(md: str) -> str:
     blockquote_lines = []
 
     def format_inline(text: str) -> str:
-        # Protect LaTeX math expressions \( ... \) and $$ ... $$ so markdown syntax doesn't corrupt them
+        # Protect LaTeX math expressions \( ... \), \[ ... \], $$ ... $$, and $ ... $ so markdown syntax doesn't corrupt them
         math_placeholders = []
 
         def save_math(m):
             math_placeholders.append(m.group(0))
             return f"__MATH_EXPR_{len(math_placeholders)-1}__"
 
-        text = re.sub(r"\\\(.+?\\\)|\$\$.+?\$\$", save_math, text)
+        def convert_single_dollar_math(m):
+            math_content = m.group(1).strip()
+            math_placeholders.append(f"\\({math_content}\\)")
+            return f"__MATH_EXPR_{len(math_placeholders)-1}__"
+
+        # First protect display and inline LaTeX math \( ... \), \[ ... \], $$ ... $$
+        text = re.sub(r"\\\[.+?\\\]|\\\(.+?\\\)|\$\$.+?\$\$", save_math, text)
+
+        # Protect and normalize single dollar inline math: $expr$ -> \(expr\)
+        text = re.sub(r"(?<![\$\\])\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\$)", convert_single_dollar_math, text)
 
         # Standard inline markdown formatting
         text = re.sub(r"`([^`]+)`", r'<span class="doc-pill">\1</span>', text)
@@ -524,27 +534,64 @@ def markdown_to_html(md: str) -> str:
             continue
 
         # Math display: $$ ... $$
-        if trimmed.startswith("$$") and trimmed.endswith("$$") and len(trimmed) > 4:
+        if trimmed.startswith("$$"):
             close_list()
             close_blockquote()
             close_table()
-            formula = trimmed[2:-2].strip()
-            html_out.append(f'<div class="doc-formula-box">$${formula}$$</div>')
-            i += 1
-            continue
-        elif trimmed == "$$":
-            close_list()
-            close_blockquote()
-            close_table()
-            formula_lines = []
-            i += 1
-            while i < len(lines) and lines[i].strip() != "$$":
-                formula_lines.append(lines[i].strip())
+            if trimmed.endswith("$$") and len(trimmed) > 4:
+                formula = trimmed[2:-2].strip()
+                html_out.append(f'<div class="doc-formula-box">$${formula}$$</div>')
                 i += 1
-            formula_combined = " ".join(formula_lines).strip()
-            html_out.append(f'<div class="doc-formula-box">$${formula_combined}$$</div>')
-            i += 1
-            continue
+                continue
+            else:
+                formula_lines = []
+                first_line = trimmed[2:].strip()
+                if first_line:
+                    formula_lines.append(first_line)
+                i += 1
+                while i < len(lines):
+                    l_trim = lines[i].strip()
+                    if l_trim.endswith("$$"):
+                        last_line = l_trim[:-2].strip()
+                        if last_line:
+                            formula_lines.append(last_line)
+                        i += 1
+                        break
+                    formula_lines.append(lines[i].strip())
+                    i += 1
+                formula_combined = "\n".join(formula_lines).strip()
+                html_out.append(f'<div class="doc-formula-box">$${formula_combined}$$</div>')
+                continue
+
+        # Math display: \[ ... \]
+        if trimmed.startswith("\\["):
+            close_list()
+            close_blockquote()
+            close_table()
+            if trimmed.endswith("\\]") and len(trimmed) > 4:
+                formula = trimmed[2:-2].strip()
+                html_out.append(f'<div class="doc-formula-box">\\[{formula}\\]</div>')
+                i += 1
+                continue
+            else:
+                formula_lines = []
+                first_line = trimmed[2:].strip()
+                if first_line:
+                    formula_lines.append(first_line)
+                i += 1
+                while i < len(lines):
+                    l_trim = lines[i].strip()
+                    if l_trim.endswith("\\]"):
+                        last_line = l_trim[:-2].strip()
+                        if last_line:
+                            formula_lines.append(last_line)
+                        i += 1
+                        break
+                    formula_lines.append(lines[i].strip())
+                    i += 1
+                formula_combined = "\n".join(formula_lines).strip()
+                html_out.append(f'<div class="doc-formula-box">\\[{formula_combined}\\]</div>')
+                continue
 
         # Horizontal rule
         if trimmed in ("---", "___", "***"):

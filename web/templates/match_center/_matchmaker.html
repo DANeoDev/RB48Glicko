@@ -70,7 +70,21 @@
                 </div>
 
 
-                <div class="actions">
+                <div class="actions" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);">{{ t('match_center.engine_label', 'Rating-Engine:') }}</span>
+                        <div class="model-toggle-group" style="padding: 2px;">
+                            <label class="model-toggle-btn engine-opt {% if active_engine == 'glicko' %}active{% endif %}" style="cursor: pointer; margin: 0;">
+                                <input type="radio" name="engine" value="glicko" {% if active_engine == 'glicko' %}checked{% endif %} style="display: none;" onchange="this.closest('.model-toggle-group').querySelectorAll('.engine-opt').forEach(el=>el.classList.remove('active')); this.parentElement.classList.add('active');">
+                                Glicko-2
+                            </label>
+                            <label class="model-toggle-btn engine-opt {% if active_engine == 'whr' %}active{% endif %}" data-model="whr" style="cursor: pointer; margin: 0;">
+                                <input type="radio" name="engine" value="whr" {% if active_engine == 'whr' %}checked{% endif %} style="display: none;" onchange="this.closest('.model-toggle-group').querySelectorAll('.engine-opt').forEach(el=>el.classList.remove('active')); this.parentElement.classList.add('active');">
+                                WHR
+                            </label>
+                        </div>
+                    </div>
 
                     <button
                         class="primary"
