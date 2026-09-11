@@ -368,6 +368,18 @@
                     {% endif %}
                 </div>
             </div>
+            {% if can_switch_model %}
+                <div class="model-toggle-group" role="group" aria-label="{{ t('nav.model_toggle_aria', 'Rating-Modell auswählen') }}">
+                    <a href="{{ url_for('stats.set_model', model='glicko', next=request.full_path) }}" 
+                       class="model-toggle-btn {% if active_model == 'glicko' %}active{% endif %}" 
+                       data-model="glicko"
+                       title="{{ t('nav.model_glicko_title', 'Glicko-2 Modell (Offizielles Live-Rating)') }}">Glicko-2</a>
+                    <a href="{{ url_for('stats.set_model', model='whr', next=request.full_path) }}" 
+                       class="model-toggle-btn {% if active_model == 'whr' %}active{% endif %}" 
+                       data-model="whr"
+                       title="{{ t('nav.model_whr_title', 'Whole-History Rating (Bayesianische Rückschau)') }}">WHR</a>
+                </div>
+            {% endif %}
             <div class="lang-toggle-group" role="group" aria-label="Language selection">
                 <a href="{{ url_for('auth.set_language', lang='de', next=request.full_path) }}" 
                    class="lang-toggle-btn {% if current_lang == 'de' %}active{% endif %}" 
@@ -433,17 +445,112 @@ window.RB48_USER = null;
 <script src="{{ url_for('static', filename='noise.js') }}"></script>
 
 <script>
-document.addEventListener("click", (event) => {
-    const link = event.target.closest("a[data-preserve-scroll]");
-    if (!link) return;
-    sessionStorage.setItem("rb48ScrollPosition", window.scrollY);
-});
-window.addEventListener("load", () => {
-    const position = sessionStorage.getItem("rb48ScrollPosition");
-    if (position === null) return;
-    window.scrollTo(0, Number(position));
-    sessionStorage.removeItem("rb48ScrollPosition");
-});
+// Universal Scroll Restoration & Context-Aware Smooth Scrolling
+(function() {
+    // 1. Monkey-patch HTMLFormElement.prototype.submit to capture programmatic submissions
+    const origSubmit = HTMLFormElement.prototype.submit;
+    HTMLFormElement.prototype.submit = function() {
+        try {
+            const target = this.getAttribute('data-scroll-target');
+            if (target) {
+                sessionStorage.setItem("rb48ScrollTarget", target);
+                sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
+            } else if (!this.hasAttribute('data-no-preserve-scroll')) {
+                sessionStorage.setItem("rb48ScrollPosition", String(window.scrollY));
+                sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
+            }
+        } catch (e) {}
+        return origSubmit.apply(this, arguments);
+    };
+
+    // 2. Capture submit events (from submit buttons or Enter key)
+    document.addEventListener("submit", (event) => {
+        const form = event.target;
+        const submitter = event.submitter;
+        const target = (submitter && submitter.getAttribute('data-scroll-target')) ||
+                       (form && form.getAttribute('data-scroll-target'));
+        const noPreserve = (submitter && submitter.hasAttribute('data-no-preserve-scroll')) ||
+                           (form && form.hasAttribute('data-no-preserve-scroll'));
+
+        if (target) {
+            sessionStorage.setItem("rb48ScrollTarget", target);
+            sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
+        } else if (!noPreserve) {
+            sessionStorage.setItem("rb48ScrollPosition", String(window.scrollY));
+            sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
+        }
+    }, true);
+
+    // 3. Capture clicks on elements specifying data-scroll-target or data-preserve-scroll
+    document.addEventListener("click", (event) => {
+        const targetBtn = event.target.closest("[data-scroll-target]");
+        if (targetBtn) {
+            sessionStorage.setItem("rb48ScrollTarget", targetBtn.getAttribute("data-scroll-target"));
+            sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
+            return;
+        }
+        const preserveEl = event.target.closest("[data-preserve-scroll]");
+        if (preserveEl) {
+            sessionStorage.setItem("rb48ScrollPosition", String(window.scrollY));
+            const dest = preserveEl.pathname || window.location.pathname;
+            sessionStorage.setItem("rb48ScrollPath", dest);
+            return;
+        }
+    });
+
+    // 4. Restore scroll or perform smooth scroll to point of interest
+    let targetSelector = null;
+    let targetScrollY = null;
+
+    function initRestore() {
+        const savedPath = sessionStorage.getItem("rb48ScrollPath");
+        if (savedPath && savedPath !== window.location.pathname) {
+            sessionStorage.removeItem("rb48ScrollPosition");
+            sessionStorage.removeItem("rb48ScrollTarget");
+            sessionStorage.removeItem("rb48ScrollPath");
+            return;
+        }
+        sessionStorage.removeItem("rb48ScrollPath");
+
+        targetSelector = sessionStorage.getItem("rb48ScrollTarget");
+        const pos = sessionStorage.getItem("rb48ScrollPosition");
+        if (pos !== null) {
+            targetScrollY = Number(pos);
+        }
+        sessionStorage.removeItem("rb48ScrollTarget");
+        sessionStorage.removeItem("rb48ScrollPosition");
+
+        applyRestore();
+    }
+
+    function applyRestore() {
+        if (targetSelector) {
+            const el = document.querySelector(targetSelector);
+            if (el) {
+                // Automatically open any collapsed <details> containers enclosing the target
+                let cur = el;
+                while (cur && cur !== document.body) {
+                    if (cur.tagName === "DETAILS" && !cur.open) {
+                        cur.open = true;
+                    }
+                    cur = cur.parentElement;
+                }
+                setTimeout(() => {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 80);
+            }
+        } else if (targetScrollY !== null && !isNaN(targetScrollY)) {
+            window.scrollTo({ top: targetScrollY, behavior: 'instant' });
+        }
+    }
+
+    if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
+    }
+
+    window.addEventListener("DOMContentLoaded", initRestore);
+    window.addEventListener("load", applyRestore);
+})();
 
 // Webmaster simulation bar hide / reopen toggle (matches footer pattern)
 const simBar = document.getElementById("webmaster-sim-bar");

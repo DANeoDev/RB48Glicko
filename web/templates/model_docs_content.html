@@ -199,26 +199,30 @@
 <li>If the opponent team has \(\text{RD} \to 0\), \(g(\phi) \to 1.0\), and the win curve has full steepness.</li>
 <li>If the opponent team is highly uncalibrated (\(\text{RD} \to \infty\)), \(g(\phi) \to 0\), and \(E \to 0.50\) (the match approaches a coin toss in information content).</li>
 </ul>
-<h3 id="step-3-bayesian-teammate-clarity-dampening-wtextteam">Step 3: Bayesian Teammate Clarity Dampening (\(w_{\text{team}}\))</h3>
-<p>A central innovation of the RB48 model is <strong>decoupling personal RD from team RD</strong>.</p>
+<h3 id="step-3-bayesian-teammate-clarity-team-dilution-wtextmatch-frac1sqrtn-cdot-wtextteam">Step 3: Bayesian Teammate Clarity & Team Dilution (\(w_{\text{match}} = \frac{1}{\sqrt{N}} \cdot w_{\text{team}}\))</h3>
+<p>A central innovation of the RB48 model is <strong>decoupling personal RD from team RD</strong> while accounting for team size dilution.</p>
 <p>In older, naive implementations, an individual's rating update used a combined virtual RD:</p>
 <div class="doc-formula-box">$$\text{virtual\_RD} = \sqrt{\frac{\text{RD}_{\text{player}}^2 + \text{RD}_{\text{team}}^2}{2}}$$</div>
 <p>This had a disastrous flaw: if an established veteran with \(\text{RD} = 60\) played on a team with five rookies (\(\text{RD} = 348\)), the veteran's virtual RD was inflated to \(\approx 250\), causing their rating to swing wildly by 60–80 points from a single casual match!</p>
-<h4>The TrueSkill-Inspired Bayesian Solution:</h4>
-<p>We keep the player's personal uncertainty (\(\phi_{\text{player}}\)) intact. Instead, we calculate the root-mean-square RD of the player's <strong>teammates</strong>:</p>
+<h4>The Bayesian Teammate Clarity & Central Limit Dilution:</h4>
+<ol>
+<li><strong>Teammate Clarity (\(w_{\text{team}}\)):</strong> We calculate the root-mean-square RD of the player's <strong>teammates</strong>:</li>
+</ol>
 <div class="doc-formula-box">$$\text{RD}_{\text{teammates}} = \sqrt{\frac{\sum_{j \neq i} \text{RD}_j^2 + M \cdot 480^2}{N - 1}}$$</div>
-<p>We then apply Glicko's native information clarity function to teammates:</p>
+<p>We then apply Glicko's native information clarity function:</p>
 <div class="doc-formula-box">$$w_{\text{team}} = g(\phi_{\text{teammates}}) = \frac{1}{\sqrt{1 + \frac{3 \phi_{\text{teammates}}^2}{\pi^2}}}$$</div>
+<ol>
+<li><strong>Team Dilution (\(\frac{1}{\sqrt{N}}\)):</strong></li>
+</ol>
+<p>Under the Central Limit Theorem, the signal-to-noise ratio of an individual's contribution within a team of \(N\) players scales with \(\frac{1}{\sqrt{N}}\).</p>
 <ul>
-<li><strong>Playing with Veterans (\(\text{RD}_{\text{teammates}} \approx 60\)):</strong></li>
+<li><strong>1v1 Singles (\(N=1\)):</strong> \(1/\sqrt{1} = 1.0\) (100% full duel credit)</li>
+<li><strong>5v5 Soccerbox (\(N=5\)):</strong> \(1/\sqrt{5} \approx 0.447\) (44.7% credit)</li>
+<li><strong>6v6 Half-Pitch (\(N=6\)):</strong> \(1/\sqrt{6} \approx 0.408\) (40.8% credit)</li>
+<li><strong>9v9 Large Match (\(N=9\)):</strong> \(1/\sqrt{9} \approx 0.333\) (33.3% credit)</li>
 </ul>
-<div class="doc-formula-box">$$w_{\text{team}} \approx 0.98$$</div>
-<p>The team outcome is crystal clear. The individual receives <strong>98%</strong> of the full update.</p>
-<ul>
-<li><strong>Playing with Rookies (\(\text{RD}_{\text{teammates}} \approx 330\)):</strong></li>
-</ul>
-<div class="doc-formula-box">$$w_{\text{team}} \approx 0.69$$</div>
-<p>Because teammates are unknown wildcards, the match contains high observational noise. Both rating change and RD reduction are <strong>gracefully dampened by ~31%</strong>.</p>
+<p>The composite match weighting factor is:</p>
+<div class="doc-formula-box">$$w_{\text{match}} = \frac{1}{\sqrt{N}} \cdot w_{\text{team}}$$</div>
 <h3 id="step-4-session-same-day-batching">Step 4: Session (Same-Day) Batching</h3>
 <p>In RB48, players typically play 2 (sometimes 3) games in a single evening session.</p>
 <h4>The Problem with Match-by-Match Sequential Updating:</h4>
@@ -231,9 +235,9 @@
 <p>All matches played on the same calendar date are batched into a single rating period. For each match \(m \in \text{Session}\), we compute:</p>
 <div class="doc-formula-box">$$\text{match\_precision}_m = g(\phi_{\text{opp}, m})^2 \cdot E_m \cdot (1 - E_m)$$</div>
 <div class="doc-formula-box">$$\text{match\_difference}_m = g(\phi_{\text{opp}, m}) \cdot (s_m - E_m)$$</div>
-<p>We accumulate effective precision and surprise across all games of the evening, weighted by teammate clarity \(w_{\text{team}, m}\):</p>
-<div class="doc-formula-box">$$I = \text{total\_effective\_precision} = \sum_{m} w_{\text{team}, m} \cdot \text{match\_precision}_m$$</div>
-<div class="doc-formula-box">$$\Delta = \text{total\_effective\_difference} = \sum_{m} w_{\text{team}, m} \cdot \text{match\_difference}_m$$</div>
+<p>We accumulate effective precision and surprise across all games of the evening, weighted by teammate clarity and team dilution:</p>
+<div class="doc-formula-box">$$I = \text{total\_effective\_precision} = \sum_{m} \frac{1}{\sqrt{N_m}} \cdot w_{\text{team}, m} \cdot \text{match\_precision}_m$$</div>
+<div class="doc-formula-box">$$\Delta = \text{total\_effective\_difference} = \sum_{m} \frac{1}{\sqrt{N_m}} \cdot w_{\text{team}, m} \cdot \text{match\_difference}_m$$</div>
 <p>The estimated session variance is \(v = \frac{1}{I}\), and the normalized performance difference is \(\frac{\Delta}{I}\).</p>
 <h3 id="step-5-updating-volatility-sigma-via-the-illinois-method">Step 5: Updating Volatility (\(\sigma\)) via the Illinois Method</h3>
 <p>Glicko-2 updates volatility \(\sigma\) by finding the root of an objective function \(f(x)\):</p>

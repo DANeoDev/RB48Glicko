@@ -4,6 +4,80 @@
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='time_scrollbar.css', v='20260908_1') }}">
+<style>
+.recalc-glicko-btn {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(123, 82, 197, 0.2);
+    border: 1px solid #7B52C5;
+    color: #d1c4e9;
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    z-index: 10;
+}
+.recalc-glicko-btn:hover {
+    background: rgba(123, 82, 197, 0.4);
+    border-color: #9c27b0;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(123, 82, 197, 0.4);
+}
+@media (max-width: 768px) {
+    .recalc-glicko-btn .btn-text {
+        display: none;
+    }
+    .recalc-glicko-btn {
+        padding: 5px 8px;
+    }
+}
+.recalc-modal-bg {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(10, 5, 22, 0.85) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+    display: none;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 100000 !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+}
+.recalc-modal-bg.active {
+    display: flex !important;
+}
+.recalc-modal-card {
+    background: var(--bg-surface, #1e1338) !important;
+    border: 1px solid #80deea !important;
+    border-radius: var(--radius, 12px) !important;
+    padding: 24px !important;
+    width: 100% !important;
+    max-width: 480px !important;
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.9) !important;
+    position: relative !important;
+    color: var(--text-main, #ffffff) !important;
+    box-sizing: border-box !important;
+    animation: recalcModalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+@keyframes recalcModalPop {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -234,6 +308,11 @@
 
 
 <div class="page-header" style="text-align: center; position: relative; margin-bottom: 24px;">
+    {% if has_tier('webmaster') and active_model != 'whr' %}
+    <button type="button" class="recalc-glicko-btn" id="btn-open-recalc-modal" title="{{ t('matches.recalculate_title', 'Glicko-2 Tabelle neu berechnen (Webmaster)') }}">
+        <span class="btn-icon">🔄</span> <span class="btn-text">{{ t('matches.recalculate_btn', 'Glicko-2 neu berechnen') }}</span>
+    </button>
+    {% endif %}
     <h1>{{ t('stats.main_heading', 'RB 48 Statistiken') }}</h1>
     <a
         href="{{ url_for('stats.glicko_explainer') }}"
@@ -245,6 +324,43 @@
         ?
     </a>
 </div>
+
+{% if has_tier('webmaster') and active_model != 'whr' %}
+<div class="recalc-modal-bg modal-bg" id="recalc-glicko-modal" style="display: none;">
+    <div class="recalc-modal-card modal">
+        <h3 style="color: #80deea; display: flex; align-items: center; gap: 8px; margin-top: 0;">
+            <span>🔄</span> {{ t('matches.recalculate_confirm_title', 'Glicko-2 Tabelle neu berechnen?') }}
+        </h3>
+        <p class="muted" style="font-size: 14px; line-height: 1.5; margin: 12px 0;">
+            {{ t('matches.recalculate_confirm_desc', 'Vor der Neuberechnung wird ein vollständiges SQLite-Datenbankbackup unter data/backups/ archiviert. Anschließend werden alle Matches aus der Datenbank chronologisch von Grund auf neu verarbeitet und alle Caches geleert.') }}
+        </p>
+        <div id="recalc-glicko-error" style="display: none; color: #ff8888; background: rgba(255, 100, 100, 0.1); border: 1px solid rgba(255, 100, 100, 0.3); padding: 8px 12px; border-radius: var(--radius); margin-bottom: 12px; font-size: 13px;"></div>
+        <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="secondary" id="btn-cancel-recalc" style="background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-muted); padding: 8px 16px; border-radius: var(--radius); cursor: pointer;">{{ t('common.cancel', 'Abbrechen') }}</button>
+            <button type="button" class="primary" id="btn-confirm-recalc" style="background: var(--accent); border: 1px solid var(--accent); color: #ffffff; padding: 8px 16px; border-radius: var(--radius); cursor: pointer; font-weight: 600;">
+                {{ t('matches.recalculate_confirm_action', 'Neu berechnen & sichern') }}
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if active_model == 'whr' %}
+<div class="whr-mode-banner" style="max-width: 900px; margin: -8px auto 20px; background: rgba(0, 131, 143, 0.15); border: 1px solid rgba(0, 151, 167, 0.4); border-left: 4px solid #00acc1; border-radius: var(--radius); padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 20px;">🔮</span>
+        <div>
+            <strong style="color: #e0f7fa; font-size: 14px;">{{ t('stats.whr_banner_title', 'Whole-History Rating (WHR) aktiv') }}</strong>
+            <div style="color: #b2ebf2; font-size: 12.5px; margin-top: 2px;">
+                {{ t('stats.whr_banner_desc', 'Diese alternative Rangliste basiert auf der globalen retrospektiven Glättung aller Partien.') }}
+            </div>
+        </div>
+    </div>
+    <a href="{{ url_for('stats.whr_documentation') }}" style="color: #80deea; font-size: 12.5px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: rgba(0, 131, 143, 0.25); border: 1px solid rgba(0, 151, 167, 0.4); border-radius: 14px;">
+        {{ t('stats.whr_banner_link', 'WHR-Modell erklärt →') }}
+    </a>
+</div>
+{% endif %}
 
 <div class="stats-table-header">
     <div class="stats-header-spacer" style="display: flex; gap: 8px; align-items: center;">
@@ -718,6 +834,7 @@ selectPitch("total");
 // Expose helper functions and variables for Time-Scrollbar
 window.optedOutPlayerIds = {{ opted_out_player_ids | list | tojson }};
 window.isWebmaster = {{ 'true' if has_tier('webmaster') else 'false' }};
+window.activeModel = {{ active_model | tojson }};
 window.syncDeltaRowAttributesAndCells = syncDeltaRowAttributesAndCells;
 window.updateColumnVisibility = updateColumnVisibility;
 window.getCurrentPitch = function() {
@@ -748,4 +865,98 @@ window.applyTableFilters = function() {
     }
 })();
 </script>
+
+{% if has_tier('webmaster') and active_model != 'whr' %}
+<script>
+(function() {
+    const openBtn = document.getElementById('btn-open-recalc-modal');
+    const modal = document.getElementById('recalc-glicko-modal');
+    const cancelBtn = document.getElementById('btn-cancel-recalc');
+    const confirmBtn = document.getElementById('btn-confirm-recalc');
+    const errorBox = document.getElementById('recalc-glicko-error');
+
+    function openModal() {
+        if (errorBox) {
+            errorBox.style.display = 'none';
+            errorBox.textContent = '';
+        }
+        if (modal) {
+            modal.classList.add('active');
+            modal.style.display = 'flex';
+        }
+    }
+
+    function closeModal() {
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+    }
+
+    openBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        openModal();
+    });
+
+    cancelBtn?.addEventListener('click', closeModal);
+
+    modal?.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    async function executeRecalculate() {
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = '{{ t('matches.recalculating', 'Berechne neu & erstelle Backup...') }}';
+        }
+
+        try {
+            const resp = await fetch('/admin/recalculate-glicko', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            const data = await resp.json();
+            if (resp.ok && data.success) {
+                sessionStorage.setItem("rb48ScrollPosition", String(window.scrollY));
+                sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
+                window.location.reload();
+            } else {
+                if (errorBox) {
+                    errorBox.textContent = data.error || 'Fehler bei der Neuberechnung.';
+                    errorBox.style.display = 'block';
+                } else {
+                    alert(data.error || 'Fehler bei der Neuberechnung.');
+                }
+            }
+        } catch (err) {
+            console.error('Recalculate error:', err);
+            if (errorBox) {
+                errorBox.textContent = 'Netzwerkfehler bei der Neuberechnung.';
+                errorBox.style.display = 'block';
+            } else {
+                alert('Netzwerkfehler bei der Neuberechnung.');
+            }
+        } finally {
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = '{{ t('matches.recalculate_confirm_action', 'Neu berechnen & sichern') }}';
+            }
+        }
+    }
+
+    confirmBtn?.addEventListener('click', executeRecalculate);
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -8,6 +8,7 @@ aliases, or match history.
 
 from dataclasses import dataclass
 import math
+from typing import Any
 
 
 # ---------------------------------------------------------------------------
@@ -378,6 +379,7 @@ class Glicko2:
         opponent_team: Rating,
         team_rating: Rating,
         teammates_rd: float | None = None,
+        team_size: int = 1,
     ) -> float:
         """
         Calculate updated Rating Deviation (RD) for an individual player in a team match.
@@ -386,13 +388,14 @@ class Glicko2:
         veteran RD when playing with uncertain teammates), this updates RD based on
         the player's personal prior uncertainty and volatility, using Glicko's native
         impact function g(phi_teammates) to gracefully dampen information gain when
-        teammates have high uncertainty.
+        teammates have high uncertainty, scaled by a 1/sqrt(N) team dilution factor.
 
         Parameters:
             player: The player's current Rating object.
             opponent_team: The opposing team's Rating object.
             team_rating: The player's team Rating object (used for expected match outcome).
             teammates_rd: Root-mean-square RD of teammates (None if no teammates / 1v1).
+            team_size: Number of players on the player's team (default 1).
 
         Returns:
             The player's new rating deviation (float).
@@ -414,8 +417,9 @@ class Glicko2:
             * (1.0 - expected)
         )
 
+        team_factor = 1.0 / math.sqrt(max(1, team_size))
         teammate_impact = self.teammate_impact(teammates_rd)
-        effective_precision = teammate_impact * match_precision
+        effective_precision = team_factor * teammate_impact * match_precision
 
         phi_star = math.sqrt(
             player_scaled.phi ** 2
@@ -432,17 +436,17 @@ class Glicko2:
     def update_player_session(
         self,
         player: Rating,
-        games: list[tuple[Rating, Rating, float, float | None]],
+        games: list[Any],
     ) -> Rating:
         """
         Update a player's rating after a session (batch of matches on the same date).
 
         Each entry in `games` is a tuple of:
-            (own_team_rating, opponent_team_rating, actual_score, teammates_rd)
+            (own_team_rating, opponent_team_rating, actual_score, teammates_rd[, team_size])
 
         Pools observational precision and surprise across all matches in the session,
-        applies teammate clarity dampening, computes new volatility sigma, and returns
-        the updated Rating object.
+        applies teammate clarity dampening and 1/sqrt(N) team dilution, computes new
+        volatility sigma, and returns the updated Rating object.
 
         Order of games within the session is mathematically invariant.
         """
@@ -464,7 +468,20 @@ class Glicko2:
         total_effective_precision = 0.0
         total_effective_difference = 0.0
 
-        for own_team, opp_team, score, tm_rd in games:
+        for item in games:
+            if len(item) >= 5:
+                own_team, opp_team, score, tm_rd, raw_size = item[:5]
+                if isinstance(raw_size, (list, tuple)):
+                    team_size = len(raw_size)
+                else:
+                    try:
+                        team_size = int(raw_size)
+                    except (ValueError, TypeError):
+                        team_size = 1
+            else:
+                own_team, opp_team, score, tm_rd = item[:4]
+                team_size = 1
+
             own_scaled = self._scale_down(own_team)
             opp_scaled = self._scale_down(opp_team)
 
@@ -485,7 +502,8 @@ class Glicko2:
                 * (score - expected)
             )
 
-            tm_weight = self.teammate_impact(tm_rd)
+            team_factor = 1.0 / math.sqrt(max(1, team_size))
+            tm_weight = team_factor * self.teammate_impact(tm_rd)
 
             total_effective_precision += tm_weight * match_precision
             total_effective_difference += tm_weight * match_diff

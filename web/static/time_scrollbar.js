@@ -615,7 +615,10 @@
 
             // Show banner
             if (this.banner && this.bannerText) {
-                this.bannerText.innerHTML = `🕒 Historische Ansicht: <span class="accent">${item.label} (${item.date_formatted})</span>`;
+                const isWhr = window.activeModel === 'whr' || document.querySelector('.whr-mode-banner') !== null;
+                const icon = isWhr ? '🔮' : '🕒';
+                const labelPrefix = isWhr ? 'Historische WHR-Ansicht' : 'Historische Ansicht';
+                this.bannerText.innerHTML = `${icon} ${labelPrefix}: <span class="accent">${item.label} (${item.date_formatted})</span>`;
                 this.banner.classList.add('visible');
                 this.alignWithContent();
             }

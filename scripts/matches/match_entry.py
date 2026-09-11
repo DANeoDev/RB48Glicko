@@ -1,11 +1,14 @@
 import csv
+from datetime import datetime
 import io
-import re
+import os
 from pathlib import Path
+import re
+import shutil
 
 from scripts.database.db_matches import create_match, add_match_player, get_matches, get_match_teams, match_exists
 from scripts.database.db_ratings import get_ratings, get_processed_match_ids, get_calibrations, set_calibration
-from scripts.database.db_players import get_alias_lookup, get_ignored_aliases, get_next_player_id, create_player, add_alias, add_position
+from scripts.database.db_players import get_alias_lookup, get_ignored_aliases, add_ignored_alias, get_next_player_id, create_player, add_alias, add_position
 from scripts.glicko.glicko2 import Glicko2, DEFAULT_RATING, DEFAULT_RD, DEFAULT_SIGMA
 from scripts.glicko.glicko2_calculator import (
     glicko_table_to_ratings,
@@ -14,10 +17,28 @@ from scripts.glicko.glicko2_calculator import (
     write_match_ratings,
     write_glicko,
     initialize_player_ratings,
+    clear_ratings,
+    prepare_glicko_table,
+    calculate_glicko,
+    recalculate_glicko2_ratings,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MATCHES_DIR = PROJECT_ROOT / "matches"
+
+
+def get_matches_dir():
+    override = os.environ.get("RB48_MATCHES_DIR")
+    p = Path(override) if override else PROJECT_ROOT / "matches"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def get_match_backup_dir():
+    override = os.environ.get("RB48_MATCH_BACKUP_DIR")
+    p = Path(override) if override else PROJECT_ROOT / "data" / "backups" / "matches"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 CALIBRATION_LEVELS = {
     "extremely_weak": (0.15, "Extremely weak"),
     "weak": (0.35, "Weak"),
@@ -33,6 +54,17 @@ CERTAINTY_LEVELS = {
     "high": (120.0, "Very certain (120 RD)"),
     "extremely_certain": (80.0, "Extremely certain (80 RD)"),
 }
+
+
+def ensure_external_player_aliases(connection, count=1):
+    """Ensure standard external player aliases exist in the ignored_aliases table."""
+    existing = {a.casefold() for a in get_ignored_aliases(connection)}
+    for i in range(1, count + 1):
+        alias = f"Externer Spieler {i}"
+        if alias.casefold() not in existing:
+            add_ignored_alias(connection, alias)
+            existing.add(alias.casefold())
+    connection.commit()
 
 
 def _percentile(values, percentile):
@@ -107,11 +139,11 @@ def next_match_id(connection, match_date):
     return f"{match_date}-{highest + 1}"
 
 
-def _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_b_ids, goals_a, goals_b):
+def _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_b_ids, goals_a, goals_b, players_a_count=None, players_b_count=None):
     """Write the match to the matches folder. This folder is the match source of truth."""
     aliases = {row["player_id"]: row["alias"] for row in connection.execute("SELECT alias, player_id FROM aliases")}
-    MATCHES_DIR.mkdir(parents=True, exist_ok=True)
-    csv_file = MATCHES_DIR / f"{match_date}.csv"
+    matches_dir = get_matches_dir()
+    csv_file = matches_dir / f"{match_date}.csv"
     existing_ids = set()
     if csv_file.exists():
         with csv_file.open("r", encoding="utf-8-sig", newline="") as file:
@@ -119,6 +151,13 @@ def _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_
     if match_id in existing_ids:
         return
     write_header = not csv_file.exists() or csv_file.stat().st_size == 0
+
+    ext_a = (players_a_count - len(team_a_ids)) if (players_a_count and players_a_count > len(team_a_ids)) else 0
+    ext_b = (players_b_count - len(team_b_ids)) if (players_b_count and players_b_count > len(team_b_ids)) else 0
+
+    team_a_names = [aliases[p] for p in team_a_ids] + [f"Externer Spieler {i+1}" for i in range(ext_a)]
+    team_b_names = [aliases[p] for p in team_b_ids] + [f"Externer Spieler {ext_a + i + 1}" for i in range(ext_b)]
+
     with csv_file.open("a", encoding="utf-8", newline="") as file:
         writer = csv.writer(file)
         if write_header:
@@ -126,8 +165,8 @@ def _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_
         writer.writerow([
             match_id,
             pitch,
-            ",".join(aliases[p] for p in team_a_ids),
-            ",".join(aliases[p] for p in team_b_ids),
+            ",".join(team_a_names),
+            ",".join(team_b_names),
             goals_a,
             goals_b,
         ])
@@ -141,7 +180,12 @@ def add_match(connection, match_date, pitch, team_a_ids, team_b_ids, goals_a, go
     players_a_count = len(team_a_ids) if players_a_count is None else players_a_count
     players_b_count = len(team_b_ids) if players_b_count is None else players_b_count
 
-    _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_b_ids, goals_a, goals_b)
+    ext_a = players_a_count - len(team_a_ids)
+    ext_b = players_b_count - len(team_b_ids)
+    if ext_a > 0 or ext_b > 0:
+        ensure_external_player_aliases(connection, ext_a + ext_b)
+
+    _write_match_file(connection, match_id, match_date, pitch, team_a_ids, team_b_ids, goals_a, goals_b, players_a_count, players_b_count)
 
     connection.execute("BEGIN")
     try:
@@ -158,24 +202,16 @@ def add_match(connection, match_date, pitch, team_a_ids, team_b_ids, goals_a, go
 
 
 def process_new_matches(connection):
-    calibrations = get_calibrations(connection)
     matches = get_matches(connection)
     processed_ids = get_processed_match_ids(connection)
     new_matches = sorted([m for m in matches.values() if m["match_id"] not in processed_ids], key=lambda m: m["match_id"])
     if not new_matches:
         return 0
-    ratings = get_ratings(connection)
-    if not ratings:
-        raise RuntimeError("No current ratings found. Run the full Glicko calculation first.")
-    rating_objects = glicko_table_to_ratings(ratings)
-    engine = Glicko2()
-    for match in new_matches:
-        team_a, team_b = get_match_teams(connection, match["match_id"])
-        for player_id in team_a + team_b:
-            initialize_player_ratings(player_id, rating_objects, calibrations)
-        write_match_ratings(connection, match["match_id"], ratings_to_glicko_table(rating_objects))
-        update_match(connection, match, rating_objects, engine)
-    write_glicko(connection, ratings_to_glicko_table(rating_objects))
+    calibrations = get_calibrations(connection)
+    clear_ratings(connection)
+    prepared_glicko = prepare_glicko_table(connection, matches, calibrations)
+    glickos = calculate_glicko(connection, matches, prepared_glicko)
+    write_glicko(connection, glickos)
     return len(new_matches)
 
 
@@ -255,3 +291,110 @@ def import_uploaded_matches(connection, file_bytes):
         )
         imported.append(parsed["match_id"])
     return imported, process_new_matches(connection) if imported else 0
+
+
+def delete_match(connection, match_id):
+    """
+    Delete a match from SQLite and the matches CSV file, then recalculate all Glicko ratings.
+    Creates an archival snapshot of the matchday CSV in data/backups/matches/ before modifying it,
+    and logs the deleted match to data/backups/matches/deleted_matches.csv.
+    Returns a dict with deletion metadata.
+    """
+    row = connection.execute("SELECT date FROM matches WHERE match_id = ?", (match_id,)).fetchone()
+    if not row:
+        raise ValueError(f"Match '{match_id}' not found.")
+    match_date = row["date"]
+
+    # 1. Archive the matchday CSV file before modifying or deleting it
+    matches_dir = get_matches_dir()
+    backup_dir = get_match_backup_dir()
+    csv_file = matches_dir / f"{match_date}.csv"
+    backup_filename = None
+    deleted_rows_info = []
+
+    if csv_file.exists():
+        with csv_file.open("r", encoding="utf-8-sig", newline="") as f:
+            reader = list(csv.reader(f))
+        if reader:
+            header = reader[0]
+            remaining_rows = []
+            for r in reader[1:]:
+                if not r or not any(cell.strip() for cell in r):
+                    continue
+                if r[0].strip() == match_id:
+                    deleted_rows_info.append(r)
+                else:
+                    remaining_rows.append(r)
+
+            # Create timestamped snapshot of the matchday CSV
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_filename = f"{match_date}_{timestamp}_before_{match_id}.csv"
+            backup_path = backup_dir / backup_filename
+            shutil.copy2(csv_file, backup_path)
+
+            # Write deleted match details to the audit log
+            audit_log = backup_dir / "deleted_matches.csv"
+            write_audit_header = not audit_log.exists() or audit_log.stat().st_size == 0
+            with audit_log.open("a", encoding="utf-8", newline="") as af:
+                awriter = csv.writer(af)
+                if write_audit_header:
+                    awriter.writerow([
+                        "deleted_at",
+                        "match_id",
+                        "match_date",
+                        "pitch",
+                        "team_a",
+                        "team_b",
+                        "goals_a",
+                        "goals_b",
+                        "backup_file",
+                    ])
+                for drow in deleted_rows_info:
+                    pitch = drow[1] if len(drow) > 1 else ""
+                    team_a = drow[2] if len(drow) > 2 else ""
+                    team_b = drow[3] if len(drow) > 3 else ""
+                    goals_a = drow[4] if len(drow) > 4 else ""
+                    goals_b = drow[5] if len(drow) > 5 else ""
+                    awriter.writerow([
+                        datetime.now().isoformat(),
+                        match_id,
+                        match_date,
+                        pitch,
+                        team_a,
+                        team_b,
+                        goals_a,
+                        goals_b,
+                        backup_filename,
+                    ])
+
+            # Update or unlink original CSV file
+            if not remaining_rows:
+                try:
+                    csv_file.unlink()
+                except OSError:
+                    pass
+            else:
+                with csv_file.open("w", encoding="utf-8", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(header)
+                    writer.writerows(remaining_rows)
+
+    # 2. Delete from SQLite (child tables first to satisfy foreign key constraints)
+    connection.execute("BEGIN")
+    try:
+        connection.execute("DELETE FROM match_ratings WHERE match_id = ?", (match_id,))
+        connection.execute("DELETE FROM match_players WHERE match_id = ?", (match_id,))
+        connection.execute("DELETE FROM matches WHERE match_id = ?", (match_id,))
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+
+    # 3. Recalculate Glicko ratings from scratch across all remaining matches
+    recalculate_glicko2_ratings(connection=connection, create_backup=False)
+
+    return {
+        "success": True,
+        "match_id": match_id,
+        "backup_file": backup_filename,
+    }

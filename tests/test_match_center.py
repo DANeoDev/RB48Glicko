@@ -8,6 +8,8 @@ import unittest
 
 from scripts.accounts.auth import register_user
 from scripts.accounts.database import get_accounts_connection, mark_email_verified, update_user_role
+from scripts.database.database import get_connection
+from scripts.database.db_players import get_players
 from scripts.glicko.glicko2 import TOTAL
 from scripts.matches.match_entry import create_new_player
 from scripts.matchmaking.match_parser import normalize_player_name, resolve_player_names
@@ -277,7 +279,256 @@ class MatchCenterFrontendTests(unittest.TestCase):
             self.assertIn(b"Kader erfolgreich importiert", response.data)
             self.assertIn(b'value="2026-10-21"', response.data)
 
+    def test_match_center_parse_source_match_renders_prefilled_teams(self):
+        from unittest.mock import patch
+        with patch("web.routes.match_center.parse_match_text") as mock_parse:
+            mock_parse.return_value = {
+                "kind": "match",
+                "match_date": "2026-10-21",
+                "players": ["Daniel", "Dennis"],
+                "team_a": ["Daniel"],
+                "team_b": ["Dennis"],
+                "goals_a": 10,
+                "goals_b": 5,
+            }
+            with self.app.test_client() as client:
+                with client.session_transaction() as sess:
+                    sess["user_id"] = self.admin_id
+
+                response = client.post("/match-center", data={
+                    "action": "parse_source",
+                    "match_text": "Team A vs Team B",
+                })
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(b"Daniel", response.data)
+                self.assertIn(b"Dennis", response.data)
+
+    def test_match_center_ignore_parser_player_action(self):
+        from scripts.database.database import get_connection
+        from scripts.database.db_players import get_ignored_aliases
+
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
+            response = client.post("/match-center", data={
+                "action": "ignore_parser_player",
+                "target_alias": "UnknownGuestX",
+                "parsed_kind": "match",
+                "parsed_player": ["Daniel", "UnknownGuestX"],
+                "parsed_team_a": "Daniel",
+                "parsed_team_b": "UnknownGuestX",
+                "parsed_goals_a": "5",
+                "parsed_goals_b": "3",
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"Ignored", response.data)
+
+        conn = get_connection()
+        try:
+            ignored = get_ignored_aliases(conn)
+            self.assertIn("unknownguestx", {a.casefold() for a in ignored})
+        finally:
+            conn.close()
+
+    def test_match_center_parse_match_with_ignored_player_counts_external(self):
+        from unittest.mock import patch
+        from scripts.database.database import get_connection
+        from scripts.database.db_players import add_ignored_alias
+
+        conn = get_connection()
+        try:
+            add_ignored_alias(conn, "GuestExternal")
+            conn.commit()
+        finally:
+            conn.close()
+
+        with patch("web.routes.match_center.parse_match_text") as mock_parse:
+            mock_parse.return_value = {
+                "kind": "match",
+                "match_date": "2026-10-22",
+                "players": ["Daniel", "GuestExternal", "Dennis"],
+                "team_a": ["Daniel", "GuestExternal"],
+                "team_b": ["Dennis"],
+                "goals_a": 7,
+                "goals_b": 6,
+            }
+            with self.app.test_client() as client:
+                with client.session_transaction() as sess:
+                    sess["user_id"] = self.admin_id
+
+                response = client.post("/match-center", data={
+                    "action": "parse_source",
+                    "match_text": "Team A vs Team B match",
+                })
+                self.assertEqual(response.status_code, 200)
+                # GuestExternal should not be unmatched because it is ignored
+                self.assertNotIn(b"GuestExternal", response.data.split(b"New / Unrecognized Players")[-1] if b"New / Unrecognized Players" in response.data else b"")
+                # Hidden external input should have value 1
+                self.assertIn(b'id="external-a"\n                value="1"', response.data)
+
+    def test_match_center_save_match_with_external_players(self):
+        from scripts.database.database import get_connection
+        from scripts.database.db_players import get_ignored_aliases, get_players
+
+        conn = get_connection()
+        try:
+            players = get_players(conn)
+            pids = list(players.keys())[:2]
+        finally:
+            conn.close()
+
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
+            response = client.post("/match-center", data={
+                "action": "save",
+                "date": "2026-10-23",
+                "pitch": "box",
+                "team_a": [str(pids[0])],
+                "team_b": [str(pids[1])],
+                "external_a": "1",
+                "external_b": "0",
+                "goals_a": "10",
+                "goals_b": "8",
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"Saved", response.data)
+
+        conn = get_connection()
+        try:
+            ignored = get_ignored_aliases(conn)
+            self.assertIn("externer spieler 1", {a.casefold() for a in ignored})
+        finally:
+            conn.close()
+
+
+    def test_match_center_save_batch_matches(self):
+        import json
+        from scripts.database.database import get_connection
+        from scripts.database.db_players import get_players
+
+        conn = get_connection()
+        try:
+            players = get_players(conn)
+            pids = list(players.keys())[:4]
+        finally:
+            conn.close()
+
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
+            payload = {
+                "action": "save_batch",
+                "date": "2026-11-15",
+                "matches": [
+                    {
+                        "pitch": "box",
+                        "team_a": [pids[0], pids[1]],
+                        "team_b": [pids[2], pids[3]],
+                        "external_a": 0,
+                        "external_b": 0,
+                        "goals_a": 10,
+                        "goals_b": 7,
+                    },
+                    {
+                        "pitch": "box",
+                        "team_a": [pids[2], pids[3]],
+                        "team_b": [pids[0], pids[1]],
+                        "external_a": 0,
+                        "external_b": 0,
+                        "goals_a": 9,
+                        "goals_b": 10,
+                    }
+                ]
+            }
+
+            response = client.post(
+                "/match-center",
+                data=json.dumps(payload),
+                content_type="application/json",
+                headers={"X-Requested-With": "XMLHttpRequest"}
+            )
+            self.assertEqual(response.status_code, 200)
+            data = response.get_json()
+            self.assertTrue(data.get("success"))
+            self.assertEqual(len(data.get("match_ids", [])), 2)
+            self.assertEqual(data.get("next_match_id"), "2026-11-15-3")
+
+        # Verify DB records
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT match_id, date, goals_a, goals_b FROM matches WHERE date = '2026-11-15' ORDER BY match_id")
+            rows = cursor.fetchall()
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0][0], "2026-11-15-1")
+            self.assertEqual(rows[0][2], 10)
+            self.assertEqual(rows[0][3], 7)
+            self.assertEqual(rows[1][0], "2026-11-15-2")
+            self.assertEqual(rows[1][2], 9)
+            self.assertEqual(rows[1][3], 10)
+
+            # Both matches have match_ratings written
+            cursor.execute("SELECT COUNT(*) FROM match_ratings WHERE match_id = '2026-11-15-1'")
+            self.assertGreater(cursor.fetchone()[0], 0)
+            cursor.execute("SELECT COUNT(*) FROM match_ratings WHERE match_id = '2026-11-15-2'")
+            self.assertGreater(cursor.fetchone()[0], 0)
+        finally:
+            conn.close()
+
+    def test_matchmaker_generation_with_whr_engine(self):
+        """Test that matchmaker balances teams using WHR ratings."""
+        from scripts.analysis.whr import get_whr_ratings_dict
+        from scripts.database.db_players import get_players
+
+        conn = get_connection()
+        try:
+            players = get_players(conn)
+            whr_ratings = get_whr_ratings_dict(conn)
+            selected_ids = list(players.keys())[:8]
+            result = generate_match(selected_ids, players, whr_ratings, TOTAL, seed=42)
+            self.assertIsNotNone(result)
+            self.assertEqual(len(result["team_a"]) + len(result["team_b"]), len(selected_ids))
+            self.assertIn("rating_difference", result)
+            self.assertIn("position_penalty", result)
+            self.assertGreater(result["rating_a"].rating, 500)
+            self.assertGreater(result["rating_b"].rating, 500)
+        finally:
+            conn.close()
+
+    def test_match_center_route_with_whr_engine(self):
+        """Test POST /match-center generating teams with engine=whr."""
+        conn = get_connection()
+        try:
+            players = get_players(conn)
+            selected_ids = list(players.keys())[:6]
+        finally:
+            conn.close()
+
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
+            response = client.post(
+                "/match-center",
+                data={
+                    "action": "generate",
+                    "engine": "whr",
+                    "mode": "total",
+                    "players": [str(pid) for pid in selected_ids],
+                }
+            )
+            self.assertEqual(response.status_code, 200)
+            html = response.get_data(as_text=True)
+            self.assertIn("suggested-teams", html)
+            self.assertIn("WHR Engine", html)
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
 

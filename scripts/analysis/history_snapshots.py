@@ -82,6 +82,9 @@ def _compute_snapshot_deltas(
     curr_r: float,
     curr_rd: float,
     curr_c: float,
+    base_m: dict | None = None,
+    base_q: dict | None = None,
+    base_y: dict | None = None,
 ) -> dict:
     """
     Compute accurate backward-looking deltas for a historical snapshot date:
@@ -90,30 +93,28 @@ def _compute_snapshot_deltas(
     - 'quarter': Delta across matches in the 90 days leading up to date_str.
     - 'year': Delta across matches in the 365 days leading up to date_str.
     """
-    def _calc_subset_delta(subset_evts: list[dict]) -> dict:
-        if not subset_evts:
-            return {
-                "conservative": 0.0,
-                "rating": 0.0,
-                "rd": 0.0,
-                "games": 0,
-                "wins": 0,
-                "losses": 0,
-                "win_percent": 0.0,
-            }
+    def _calc_subset_delta(subset_evts: list[dict], base_item: dict | None = None) -> dict:
         g = len(subset_evts)
         w = sum(1 for e in subset_evts if e.get("is_win"))
         losses = sum(1 for e in subset_evts if e.get("is_loss"))
         wp = round((w / g * 100.0), 1) if g > 0 else 0.0
 
-        first_e = subset_evts[0]
-        first_b_r = first_e["rating_before_total"] if pkey == TOTAL else first_e["rating_before_pitch"]
-        first_b_rd = first_e["rd_before_total"] if pkey == TOTAL else first_e["rd_before_pitch"]
-        if first_b_r is not None and first_b_rd is not None:
-            first_b_c = first_b_r - 3.0 * first_b_rd
-            delta_r = curr_r - first_b_r
-            delta_rd = curr_rd - first_b_rd
-            delta_c = curr_c - first_b_c
+        b_r: float | None = None
+        b_rd: float | None = None
+
+        if base_item is not None and "rating" in base_item and "rd" in base_item:
+            b_r = base_item["rating"]
+            b_rd = base_item["rd"]
+        elif subset_evts:
+            first_e = subset_evts[0]
+            b_r = first_e["rating_before_total"] if pkey == TOTAL else first_e["rating_before_pitch"]
+            b_rd = first_e["rd_before_total"] if pkey == TOTAL else first_e["rd_before_pitch"]
+
+        if b_r is not None and b_rd is not None:
+            first_b_c = b_r - 3.0 * b_rd
+            delta_r = round(curr_r - b_r, 1)
+            delta_rd = round(curr_rd - b_rd, 1)
+            delta_c = round(curr_c - first_b_c, 1)
         else:
             delta_r = 0.0
             delta_rd = 0.0
@@ -135,10 +136,10 @@ def _compute_snapshot_deltas(
     year_evts = [e for e in evts_up_to_date if e["date"] >= cutoff_year]
 
     return {
-        "game": _calc_subset_delta(session_evts),
-        "month": _calc_subset_delta(month_evts),
-        "quarter": _calc_subset_delta(quarter_evts),
-        "year": _calc_subset_delta(year_evts),
+        "game": _calc_subset_delta(session_evts, base_item=None),
+        "month": _calc_subset_delta(month_evts, base_item=base_m),
+        "quarter": _calc_subset_delta(quarter_evts, base_item=base_q),
+        "year": _calc_subset_delta(year_evts, base_item=base_y),
     }
 
 
@@ -158,6 +159,8 @@ def compute_historical_snapshots(connection):
     prepared = prepare_glicko_table(connection, matches, calibrations, match_teams_map=match_teams_map)
     ratings = glicko_table_to_ratings(prepared)
     engine = Glicko2()
+    initial_ratings_table = ratings_to_glicko_table(ratings)
+    session_end_ratings = {}
 
     sorted_matches_all = sorted(matches.values(), key=lambda m: (m["date"], m["match_id"]))
     player_events = _collect_player_match_events(connection, sorted_matches_all, players)
@@ -233,6 +236,16 @@ def compute_historical_snapshots(connection):
         # 2. Update Glicko ratings for this session
         update_session(connection, session_matches, ratings, engine, match_teams_map=match_teams_map)
         current_ratings_dict = ratings_to_glicko_table(ratings)
+        session_end_ratings[date_str] = current_ratings_dict
+
+        prior_dates_m = [d for d in sorted_dates if d < cutoff_month]
+        base_ratings_m = session_end_ratings[prior_dates_m[-1]] if prior_dates_m else initial_ratings_table
+
+        prior_dates_q = [d for d in sorted_dates if d < cutoff_quarter]
+        base_ratings_q = session_end_ratings[prior_dates_q[-1]] if prior_dates_q else initial_ratings_table
+
+        prior_dates_y = [d for d in sorted_dates if d < cutoff_year]
+        base_ratings_y = session_end_ratings[prior_dates_y[-1]] if prior_dates_y else initial_ratings_table
 
         # 3. Assemble leaderboard snapshot with historical deltas
         leaderboard = []
@@ -259,6 +272,10 @@ def compute_historical_snapshots(connection):
                 all_p_evts = player_events.get(pid, {}).get(pkey, [])
                 evts_up_to_date = [e for e in all_p_evts if e["date"] <= date_str]
 
+                base_m_item = base_ratings_m.get(pid, {}).get(pkey) if base_ratings_m else None
+                base_q_item = base_ratings_q.get(pid, {}).get(pkey) if base_ratings_q else None
+                base_y_item = base_ratings_y.get(pid, {}).get(pkey) if base_ratings_y else None
+
                 deltas = _compute_snapshot_deltas(
                     evts_up_to_date,
                     date_str,
@@ -269,6 +286,9 @@ def compute_historical_snapshots(connection):
                     r_val,
                     rd_val,
                     c_val,
+                    base_m=base_m_item,
+                    base_q=base_q_item,
+                    base_y=base_y_item,
                 )
 
                 player_entry[pkey] = {

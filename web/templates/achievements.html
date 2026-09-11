@@ -200,6 +200,115 @@
     color: #a5d6a7;
     margin-top: 4px;
 }
+.achievements-filter-bar {
+    background: #190f30;
+    border: 1px solid #3c246b;
+    border-radius: 12px;
+    padding: 12px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+.achievements-search-box {
+    position: relative;
+    flex: 1;
+    min-width: 220px;
+    max-width: 400px;
+}
+.achievements-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+.achievements-search-input {
+    width: 100%;
+    padding: 8px 32px 8px 34px;
+    background: #140b28;
+    border: 1px solid #582DA1;
+    border-radius: 8px;
+    color: var(--text-main);
+    font-size: 13.5px;
+    font-family: inherit;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.achievements-search-input:focus {
+    outline: none;
+    border-color: #80deea;
+    box-shadow: 0 0 8px rgba(128, 222, 234, 0.3);
+}
+.achievements-search-clear {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 4px;
+    line-height: 1;
+}
+.achievements-search-clear:hover {
+    color: #ff8888;
+}
+.achievements-filter-pills {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.filter-pill {
+    background: #140b28;
+    border: 1px solid #582DA1;
+    color: #C9C2D8;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.filter-pill:hover {
+    border-color: #80deea;
+    color: #ffffff;
+}
+.filter-pill.active {
+    background: rgba(123, 82, 197, 0.4);
+    border-color: #80deea;
+    color: #80deea;
+    box-shadow: 0 0 8px rgba(128, 222, 234, 0.25);
+}
+.achievements-count-label {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+.webmaster-player-search-input {
+    background: #140b28;
+    border: 1px solid #7B52C5;
+    color: var(--text-main);
+    padding: 7px 10px 7px 28px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 600;
+    width: 145px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.webmaster-player-search-input:focus {
+    outline: none;
+    border-color: #80deea;
+    box-shadow: 0 0 8px rgba(128, 222, 234, 0.3);
+}
 </style>
 {% endblock %}
 
@@ -215,8 +324,17 @@
         </div>
         <div class="achievements-hero-right">
             {% if is_webmaster %}
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <label for="player-switcher" style="font-size: 12px; color: var(--text-muted);">{{ t('achievements.select_player', 'Spielerprofil:') }}</label>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <label for="player-search-input" style="font-size: 12px; color: var(--text-muted);">{{ t('achievements.select_player', 'Spielerprofil:') }}</label>
+                <div style="position: relative; display: inline-flex; align-items: center;">
+                    <span style="position: absolute; left: 9px; font-size: 11px; color: var(--text-muted); pointer-events: none;">🔍</span>
+                    <input type="text" id="player-search-input" class="webmaster-player-search-input" list="players-datalist" placeholder="{{ t('achievements.search_players_placeholder', 'Spieler suchen...') }}" value="{{ player.aliases[0] }}">
+                    <datalist id="players-datalist">
+                        {% for pid, pname in players_map.items() %}
+                            <option value="{{ pname }}"></option>
+                        {% endfor %}
+                    </datalist>
+                </div>
                 <select id="player-switcher" class="achievements-player-select" onchange="location.href='{{ url_for('stats.achievements_overview') }}/' + this.value">
                     {% for pid, pname in players_map.items() %}
                         <option value="{{ pid }}" {% if pid == player_id %}selected{% endif %}>{{ pname }}</option>
@@ -234,9 +352,28 @@
         </div>
     </div>
 
+    <!-- Achievement Search & Status Filter Bar -->
+    <div class="achievements-filter-bar">
+        <div class="achievements-search-box">
+            <span class="achievements-search-icon">🔍</span>
+            <input type="text" id="achievements-search-input" class="achievements-search-input" placeholder="{{ t('achievements.search_placeholder', 'Auszeichnungen durchsuchen...') }}" autocomplete="off">
+            <button type="button" id="achievements-search-clear" class="achievements-search-clear" style="display: none;" title="{{ t('achievements.clear_filter', 'Filter zurücksetzen') }}">✕</button>
+        </div>
+        <div class="achievements-filter-pills">
+            <button type="button" class="filter-pill active" data-filter="all">{{ t('achievements.filter_all', 'Alle') }} ({{ achievements | length }})</button>
+            <button type="button" class="filter-pill" data-filter="unlocked">✓ {{ t('achievements.filter_unlocked', 'Freigeschaltet') }} ({{ unlocked_count }})</button>
+            {% if is_webmaster %}
+                <button type="button" class="filter-pill" data-filter="locked">🔒 {{ t('achievements.filter_locked', 'Gesperrt') }} ({{ total_count - unlocked_count }})</button>
+            {% endif %}
+        </div>
+        <div class="achievements-count-label" id="achievements-counter">
+            {{ t('achievements.showing_count', shown=achievements|length, total=achievements|length) }}
+        </div>
+    </div>
+
     <div class="achievements-grid-full">
         {% for ach in achievements %}
-            <div class="achievement-card-full {% if ach.unlocked %}unlocked tier-{{ ach.tier }}{% else %}locked{% endif %}" title="{{ t(ach.description_key) }}">
+            <div class="achievement-card-full {% if ach.unlocked %}unlocked tier-{{ ach.tier }}{% else %}locked{% endif %}" data-unlocked="{{ 'true' if ach.unlocked else 'false' }}" data-tier="{{ ach.tier }}" title="{% if ach.hover_text %}{{ ach.hover_text }}{% elif ach.description_params %}{{ t(ach.description_key, **ach.description_params) }}{% elif ach.description %}{{ ach.description }}{% else %}{{ t(ach.description_key) }}{% endif %}">
                 <div class="achievement-icon-wrapper">{{ ach.icon }}</div>
                 <div class="achievement-info">
                     <div class="achievement-title-row">
@@ -263,9 +400,130 @@
                     {% if ach.detail_text %}
                         <div class="achievement-detail-label">{{ ach.detail_text }}</div>
                     {% endif %}
+                    {% if ach.period_pills %}
+                        <div class="achievement-pills-row" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px;">
+                            {% for pill in ach.period_pills %}
+                                <span style="font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.16); color: #ffffff; white-space: nowrap;">{{ pill }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         {% endfor %}
     </div>
+
+    <div id="no-achievements-found" style="display: none; text-align: center; padding: 40px 20px; background: #190f30; border: 1px dashed #3c246b; border-radius: 12px; margin-top: 10px;">
+        <span style="font-size: 32px; display: block; margin-bottom: 8px;">🔍</span>
+        <p style="color: var(--text-muted); font-size: 14px; margin: 0 0 10px;">
+            {{ t('achievements.no_matches_found', 'Keine Auszeichnungen für diesen Suchfilter gefunden.') }}
+        </p>
+        <button type="button" class="secondary" id="btn-reset-ach-filter" style="font-size: 12px; padding: 6px 14px; cursor: pointer;">
+            ↺ {{ t('achievements.clear_filter', 'Filter zurücksetzen') }}
+        </button>
+    </div>
 </div>
+
+<script>
+(function() {
+    // 1. Webmaster Player Search Filter
+    const playerSearchInput = document.getElementById('player-search-input');
+    if (playerSearchInput) {
+        const playersMap = {{ players_map | tojson }};
+        const nameToId = {};
+        for (const [id, name] of Object.entries(playersMap)) {
+            nameToId[name.toLowerCase()] = id;
+        }
+
+        const navigateToPlayer = (val) => {
+            const trimmed = (val || '').trim().toLowerCase();
+            if (nameToId[trimmed]) {
+                location.href = '{{ url_for('stats.achievements_overview') }}/' + nameToId[trimmed];
+            }
+        };
+
+        playerSearchInput.addEventListener('change', function() {
+            navigateToPlayer(this.value);
+        });
+        playerSearchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                navigateToPlayer(this.value);
+            }
+        });
+    }
+
+    // 2. Achievement Card Search & Status Filtering
+    const searchInput = document.getElementById('achievements-search-input');
+    const clearBtn = document.getElementById('achievements-search-clear');
+    const filterPills = document.querySelectorAll('.filter-pill');
+    const counterLabel = document.getElementById('achievements-counter');
+    const noMatchesBox = document.getElementById('no-achievements-found');
+    const resetFilterBtn = document.getElementById('btn-reset-ach-filter');
+    const cards = document.querySelectorAll('.achievement-card-full');
+    const totalCards = cards.length;
+    let activeStatus = 'all';
+
+    function applyFilter() {
+        const query = (searchInput?.value || '').trim().toLowerCase();
+        if (clearBtn) {
+            clearBtn.style.display = query ? 'block' : 'none';
+        }
+
+        let shownCount = 0;
+        cards.forEach(card => {
+            const isUnlocked = card.getAttribute('data-unlocked') === 'true';
+            let matchesStatus = true;
+            if (activeStatus === 'unlocked') {
+                matchesStatus = isUnlocked;
+            } else if (activeStatus === 'locked') {
+                matchesStatus = !isUnlocked;
+            }
+
+            let matchesQuery = true;
+            if (query) {
+                const text = (card.textContent || '').toLowerCase();
+                matchesQuery = text.includes(query);
+            }
+
+            if (matchesStatus && matchesQuery) {
+                card.style.display = 'flex';
+                shownCount++;
+            } else {
+                card.style.display = 'none';
+            }
+        });
+
+        if (counterLabel) {
+            const template = "{{ t('achievements.showing_count', shown='__SHOWN__', total=achievements|length) }}";
+            counterLabel.textContent = template.replace('__SHOWN__', String(shownCount));
+        }
+        if (noMatchesBox) {
+            noMatchesBox.style.display = (shownCount === 0) ? 'block' : 'none';
+        }
+    }
+
+    searchInput?.addEventListener('input', applyFilter);
+    clearBtn?.addEventListener('click', () => {
+        if (searchInput) searchInput.value = '';
+        applyFilter();
+    });
+
+    filterPills.forEach(pill => {
+        pill.addEventListener('click', () => {
+            filterPills.forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            activeStatus = pill.getAttribute('data-filter') || 'all';
+            applyFilter();
+        });
+    });
+
+    resetFilterBtn?.addEventListener('click', () => {
+        if (searchInput) searchInput.value = '';
+        activeStatus = 'all';
+        filterPills.forEach(p => {
+            p.classList.toggle('active', p.getAttribute('data-filter') === 'all');
+        });
+        applyFilter();
+    });
+})();
+</script>
 {% endblock %}

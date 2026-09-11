@@ -155,6 +155,48 @@ class GlickoOptOutTest(unittest.TestCase):
         if p1:
             self.assertIsNone(p1["rating"])
 
+    def test_faq_opt_out_reference_for_visitor(self):
+        resp = self.client.get("/glickofaq")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("faq-opt-out", html)
+        self.assertIn("/settings", html)
+        self.assertIn("Performance-Analyse", html)
+        self.assertIn("Glicko Opt-Out", html)
+
+    def test_faq_opt_out_reference_for_standard_user(self):
+        user = self.create_user(role="user", psychology_passed=False, opt_out=0)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        resp = self.client.get("/glickofaq")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("faq-opt-out", html)
+        self.assertIn("/settings", html)
+        self.assertIn("Privatsphäre", html)
+        # Check that members tab also has opt-out reference
+        self.assertIn("Glicko-2 Opt-Out", html)
+
+    def test_faq_opt_out_reference_for_opted_out_user(self):
+        user = self.create_user(role="user", psychology_passed=True, opt_out=1)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        resp = self.client.get("/glickofaq")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Opt-Out aktiv", html)
+        self.assertIn("/settings", html)
+
+    def test_faq_opt_out_reference_in_english(self):
+        resp = self.client.get("/set-language/en?next=/glickofaq", follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Can I hide my performance analysis and rating? (Glicko Opt-Out)", html)
+        self.assertIn("Profile Settings", html)
+        self.assertIn("/settings", html)
+
 
 if __name__ == "__main__":
     unittest.main()

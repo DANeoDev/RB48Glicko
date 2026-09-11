@@ -10,12 +10,20 @@
     >
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
-            <h2 style="margin: 0;">{{ t('match_center.suggested_title', 'Suggested teams') }}</h2>
-            <form method="post" style="margin: 0;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <h2 style="margin: 0;">{{ t('match_center.suggested_title', 'Suggested teams') }}</h2>
+                {% if active_engine == 'whr' %}
+                    <span style="font-size: 11px; background: rgba(0, 131, 143, 0.35); color: #80deea; border: 1px solid rgba(0, 151, 167, 0.5); padding: 2px 8px; border-radius: 12px; font-weight: 700;">WHR Engine</span>
+                {% else %}
+                    <span style="font-size: 11px; background: rgba(123, 82, 197, 0.25); color: #c9c2d8; border: 1px solid rgba(123, 82, 197, 0.4); padding: 2px 8px; border-radius: 12px; font-weight: 700;">Glicko-2 Engine</span>
+                {% endif %}
+            </div>
+            <form method="post" style="margin: 0;" data-scroll-target="#suggested-teams">
                 <input type="hidden" name="action" value="reroll">
                 <input type="hidden" name="mode" value="{{ mode }}">
                 <input type="hidden" name="pitch" value="{{ pitch }}">
                 <input type="hidden" name="date" value="{{ match_date }}">
+                <input type="hidden" name="engine" value="{{ active_engine }}">
                 {% for pid in selected_ids %}
                     <input type="hidden" name="players" value="{{ pid }}">
                 {% endfor %}
@@ -23,6 +31,7 @@
                     type="submit"
                     class="secondary"
                     id="reroll-teams-btn"
+                    data-scroll-target="#suggested-teams"
                     title="{{ t('match_center.reroll_title', 'Generate alternative fair teams') }}"
                     style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 15px; font-size: 13.5px; font-weight: 600;"
                 >

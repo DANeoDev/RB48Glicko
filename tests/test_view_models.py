@@ -81,6 +81,30 @@ class ViewModelsTest(unittest.TestCase):
         self.assertEqual(delta_filtered["losses"], 0)
         self.assertEqual(delta_filtered["win_percent"], 100.0)
 
+    def test_compute_period_delta_inactive_player(self):
+        # Inactive player with 0 events in the period
+        evts = []
+        curr_r = 1500.0
+        curr_rd = 100.872
+        curr_c = curr_r - 3 * curr_rd
+        delta = _compute_period_delta(
+            evts,
+            "2026-01-15",
+            TOTAL,
+            curr_r,
+            curr_rd,
+            curr_c,
+            baseline_r=1500.0,
+            baseline_rd=100.0,
+        )
+        self.assertEqual(delta["games"], 0)
+        self.assertEqual(delta["wins"], 0)
+        self.assertEqual(delta["losses"], 0)
+        self.assertEqual(delta["win_percent"], 0.0)
+        self.assertAlmostEqual(delta["rating"], 0.0)
+        self.assertAlmostEqual(delta["rd"], 0.872)
+        self.assertAlmostEqual(delta["conservative"], -3 * 0.872)
+
     def test_compute_leaderboard_deltas_db(self):
         conn = get_connection()
         try:
@@ -88,6 +112,7 @@ class ViewModelsTest(unittest.TestCase):
             ratings = get_ratings(conn)
             deltas = compute_leaderboard_deltas(conn, ratings, players)
             self.assertIsInstance(deltas, dict)
+            has_inactive_player_with_positive_rd = False
             for pid in players:
                 self.assertIn(pid, deltas)
                 for pitch in ("total", "box", "hf"):
@@ -99,6 +124,14 @@ class ViewModelsTest(unittest.TestCase):
                         self.assertIn("rating", p_data)
                         self.assertIn("rd", p_data)
                         self.assertIn("games", p_data)
+
+                month_data = deltas[pid]["total"]["month"]
+                if month_data["games"] == 0 and month_data["rd"] > 0:
+                    has_inactive_player_with_positive_rd = True
+                    self.assertLess(month_data["conservative"], 0)
+                    self.assertAlmostEqual(month_data["rating"], 0.0)
+
+            self.assertTrue(has_inactive_player_with_positive_rd, "Expected inactive players to have positive RD delta from missed sessions.")
         finally:
             conn.close()
 

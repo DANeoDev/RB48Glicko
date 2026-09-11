@@ -16,6 +16,64 @@
 .rating-selector a.active { background:var(--accent); color:#ffffff; border-color:var(--accent); }
 .rating-selector a:hover { background:var(--accent-hover); color:#ffffff; }
 .rating-selector-help { cursor:help; color:var(--text-muted); font-size:11px; }
+.match-delete-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 100, 100, 0.25);
+    color: #ff8888;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.match-delete-btn:hover {
+    background: rgba(255, 80, 80, 0.2);
+    border-color: rgba(255, 100, 100, 0.5);
+    color: #ffaaaa;
+    transform: translateY(-1px);
+}
+.delete-match-modal-bg {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(10, 5, 22, 0.85) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+    display: none;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 100000 !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+}
+.delete-match-modal-bg.active {
+    display: flex !important;
+}
+.delete-match-modal-card {
+    background: var(--bg-surface, #1e1338) !important;
+    border: 1px solid #7B52C5 !important;
+    border-radius: var(--radius, 12px) !important;
+    padding: 24px !important;
+    width: 100% !important;
+    max-width: 480px !important;
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.9) !important;
+    position: relative !important;
+    color: var(--text-main, #ffffff) !important;
+    box-sizing: border-box !important;
+    animation: matchModalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+@keyframes matchModalPop {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
 </style>
 {% endblock %}
 
@@ -54,10 +112,29 @@
             <a data-preserve-scroll class="{% if selected_rating_type == 'hf' %}active{% endif %}" href="{{ url_for('stats.match_history', rating_type='hf') }}" title="Show HF match history.">HF</a>
         </div>
     </div>
-    {% if has_tier('admin') %}
-        <a class="match-entry-button" href="{{ url_for('match_center.match_center') }}">{{ t('matches.enter_match', '＋ Enter Match') }}</a>
-    {% endif %}
+    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
+        {% if has_tier('admin') %}
+            <a class="match-entry-button" href="{{ url_for('match_center.match_center') }}">{{ t('matches.enter_match', '＋ Enter Match') }}</a>
+        {% endif %}
+    </div>
 </div>
+
+{% if active_model == 'whr' %}
+<div class="whr-mode-banner" style="max-width: 700px; margin: 0 auto 20px; background: rgba(0, 131, 143, 0.15); border: 1px solid rgba(0, 151, 167, 0.4); border-left: 4px solid #00acc1; border-radius: var(--radius); padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 20px;">🔮</span>
+        <div>
+            <strong style="color: #e0f7fa; font-size: 14px;">{{ t('matches.whr_banner_title', 'WHR Hindsight-Modus aktiv') }}</strong>
+            <div style="color: #b2ebf2; font-size: 12px; margin-top: 2px;">
+                {{ t('matches.whr_banner_desc', 'Team-Ratings, Unsicherheiten (RD) und Siegchancen basieren auf der retrospektiv geglätteten Gesamthistorie.') }}
+            </div>
+        </div>
+    </div>
+    <span style="font-size: 11.5px; background: rgba(0, 131, 143, 0.3); color: #80deea; padding: 3px 8px; border-radius: 12px; font-weight: 600;">
+        {{ t('matches.whr_badge', 'WHR Retrospektiv') }}
+    </span>
+</div>
+{% endif %}
 
 <div class="match-history">
 {% for month_group in months_grouped %}
@@ -80,9 +157,25 @@
             {% set prev_date = namespace(val=None) %}
             {% for match in month_group.matches %}
             <div class="match" {% if match.date != prev_date.val %}id="d-{{ match.date }}" data-match-date="{{ match.date }}"{% set prev_date.val = match.date %}{% endif %}>
-                <div class="match-header">
-                    <span>{{ match["match_id"] }} — {{ match["pitch"] | upper }}</span>
-                    <span style="font-size: 11px; opacity: 0.8; font-weight: normal; margin-left: 8px;">{{ match.get("date_formatted", match["date"]) }} · {{ match.get("short_label", "") }}</span>
+                <div class="match-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span>{{ match["match_id"] }} — {{ match["pitch"] | upper }}</span>
+                        {% if active_model == 'whr' %}
+                            <span style="font-size: 10px; background: rgba(0, 131, 143, 0.35); color: #80deea; border: 1px solid rgba(0, 151, 167, 0.5); padding: 1px 5px; border-radius: 4px; margin-left: 6px; font-weight: 700;">WHR</span>
+                        {% endif %}
+                        <span style="font-size: 11px; opacity: 0.8; font-weight: normal; margin-left: 8px;">{{ match.get("date_formatted", match["date"]) }} · {{ match.get("short_label", "") }}</span>
+                    </div>
+                    {% if has_tier('admin') %}
+                        <button
+                            type="button"
+                            class="match-delete-btn"
+                            data-match-id="{{ match['match_id'] }}"
+                            title="{{ t('matches.delete_match_title', 'Match löschen & Glicko neu berechnen') }}"
+                            onclick="event.stopPropagation(); window.confirmDeleteMatch && window.confirmDeleteMatch('{{ match['match_id'] }}');"
+                        >
+                            🗑️ {{ t('matches.delete', 'Löschen') }}
+                        </button>
+                    {% endif %}
                 </div>
                 <div class="match-info">
                     <div class="team team-a">
@@ -171,9 +264,147 @@
 </div>
 {% endfor %}
 </div>
+
+{% if has_tier('admin') %}
+<div class="delete-match-modal-bg modal-bg" id="delete-match-modal" style="display: none;">
+    <div class="delete-match-modal-card modal">
+        <h3 style="color: #ff8888; display: flex; align-items: center; gap: 8px; margin-top: 0;">
+            <span>⚠️</span> {{ t('matches.delete_confirm_title', 'Match wirklich löschen?') }}
+        </h3>
+        <p class="muted" id="delete-match-desc" style="font-size: 14px; line-height: 1.5; margin: 12px 0;">
+            {{ t('matches.delete_confirm_desc', 'Möchtest du dieses Match wirklich unwiderruflich aus der Datenbank und der Matchdatei entfernen? Vor dem Löschen wird automatisch ein CSV-Backup des Spieltags unter data/backups/matches/ gespeichert. Alle Glicko-Ratings werden anschließend ab Saisonbeginn vollständig neu berechnet.') }}
+        </p>
+        <div id="delete-match-error" style="display: none; color: #ff8888; background: rgba(255, 100, 100, 0.1); border: 1px solid rgba(255, 100, 100, 0.3); padding: 8px 12px; border-radius: var(--radius); margin-bottom: 12px; font-size: 13px;"></div>
+        <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="secondary" id="btn-cancel-delete">{{ t('common.cancel', 'Abbrechen') }}</button>
+            <button type="button" class="primary" id="btn-confirm-delete" style="background: #d32f2f; border-color: #d32f2f; color: #ffffff;">
+                {{ t('matches.delete_btn', 'Unwiderruflich löschen') }}
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}
+{% if has_tier('admin') %}
+<script>
+(function() {
+    let pendingMatchId = null;
+    const modal = document.getElementById('delete-match-modal');
+    const cancelBtn = document.getElementById('btn-cancel-delete');
+    const confirmBtn = document.getElementById('btn-confirm-delete');
+    const errorBox = document.getElementById('delete-match-error');
+
+    function openModal(matchId) {
+        pendingMatchId = matchId;
+        const desc = document.getElementById('delete-match-desc');
+        if (desc) {
+            desc.textContent = `Möchtest du das Match "${matchId}" wirklich unwiderruflich entfernen? Alle Glicko-Ratings ab Saisonbeginn werden anschließend vollständig neu berechnet.`;
+        }
+        if (errorBox) {
+            errorBox.style.display = 'none';
+            errorBox.textContent = '';
+        }
+        if (modal) {
+            modal.classList.add('active');
+            modal.style.display = 'flex';
+        } else if (confirm(`Möchtest du das Match "${matchId}" wirklich unwiderruflich entfernen? Alle Glicko-Ratings ab Saisonbeginn werden anschließend vollständig neu berechnet.`)) {
+            executeDelete(matchId);
+        }
+    }
+
+    function closeModal() {
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+        pendingMatchId = null;
+    }
+
+    window.confirmDeleteMatch = openModal;
+
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.match-delete-btn');
+        if (!btn) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const matchId = btn.getAttribute('data-match-id');
+        if (matchId) {
+            openModal(matchId);
+        }
+    });
+
+    cancelBtn?.addEventListener('click', closeModal);
+
+    modal?.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    async function executeDelete(matchId) {
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Lösche & berechne neu...';
+        }
+
+        try {
+            const resp = await fetch('/matches/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ match_id: matchId })
+            });
+            const data = await resp.json();
+            if (resp.ok && data.success) {
+                sessionStorage.setItem("rb48ScrollPosition", String(window.scrollY));
+                sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
+                window.location.reload();
+            } else {
+                if (errorBox) {
+                    errorBox.textContent = data.error || 'Fehler beim Löschen des Spiels.';
+                    errorBox.style.display = 'block';
+                } else {
+                    alert(data.error || 'Fehler beim Löschen.');
+                }
+            }
+        } catch (err) {
+            console.error('Delete error:', err);
+            if (errorBox) {
+                errorBox.textContent = 'Netzwerkfehler beim Löschen.';
+                errorBox.style.display = 'block';
+            } else {
+                alert('Netzwerkfehler beim Löschen.');
+            }
+        } finally {
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = '{{ t('matches.delete_btn', 'Unwiderruflich löschen') }}';
+            }
+        }
+    }
+
+    confirmBtn?.addEventListener('click', () => {
+        if (pendingMatchId) {
+            executeDelete(pendingMatchId);
+        }
+    });
+})();
+</script>
+{% endif %}
+
+
+
 <script src="{{ url_for('static', filename='time_scrollbar.js', v='20260908_1') }}"></script>
 <script>
 document.querySelectorAll(".match").forEach(match => {

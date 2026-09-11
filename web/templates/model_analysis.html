@@ -2,97 +2,773 @@
 {% block title %}{{ t('model_analysis.title', 'Model Analysis') }} · RB48{% endblock %}
 {% block head %}
 <style>
-.model-analysis-page{max-width:1000px;margin:0 auto}.model-analysis-page h1{margin-bottom:8px}.page-intro,.analysis-description{color:var(--text-muted);line-height:1.6}.analysis-switch,.pitch-switch{display:flex;justify-content:center;margin:28px 0;flex-wrap:wrap}.pitch-switch{margin:-12px 0 28px}.analysis-switch-button,.pitch-switch-button{padding:10px 20px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-muted);font-weight:600;text-decoration:none}.pitch-switch-button{padding:8px 20px}.analysis-switch-button:first-child,.pitch-switch-button:first-child{border-radius:var(--radius) 0 0 var(--radius)}.analysis-switch-button:last-child,.pitch-switch-button:last-child{border-radius:0 var(--radius) var(--radius) 0}.analysis-switch-button.active{background:var(--accent);border-color:var(--accent);color:#fff}.pitch-switch-button.active{background:var(--accent);border-color:var(--accent);color:#fff}.analysis-switch-button:hover,.pitch-switch-button:hover{background:var(--accent-hover);color:#fff}.analysis-card{margin-top:24px;padding:24px;background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius)}.analysis-card h2{margin-top:0}.analysis-metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:24px}.analysis-metric{padding:16px 12px;border:1px solid var(--border);border-radius:var(--radius);text-align:center}.analysis-metric-label{display:block;color:var(--text-muted);font-size:13px;margin-bottom:8px;cursor:help}.analysis-metric-value{display:block;font-size:22px;font-weight:600}.analysis-note{margin-top:20px;padding:12px 14px;border-left:3px solid var(--accent);background:var(--bg-surface-alt);color:var(--text-muted);line-height:1.5;font-size:14px}.analysis-table-wrapper{overflow-x:auto}.analysis-table{width:100%;margin-top:18px}.analysis-table th,.analysis-table td{padding:10px 14px}.analysis-table th{white-space:nowrap}.analysis-graph{margin:28px 0 10px}.calibration-graph{width:100%;height:auto;display:block;overflow:visible}.calibration-graph .grid-line{stroke:var(--border);stroke-width:1}.calibration-graph .reference-line{stroke:var(--text-muted);stroke-width:1.5;stroke-dasharray:6 5}.calibration-graph .lowess-line,.calibration-graph .goal-diff-line{fill:none;stroke:var(--accent);stroke-width:3}.calibration-graph .basket-point,.calibration-graph .goal-diff-point{fill:var(--accent);stroke:var(--card-bg);stroke-width:2;cursor:help}.calibration-graph text{fill:var(--text-muted);font-size:12px}.graph-section-title{margin:30px 0 4px;font-size:16px}.graph-section-description{margin:0 0 12px;color:var(--text-muted);font-size:14px;line-height:1.5}.graph-legend{display:flex;justify-content:center;gap:24px;margin-top:8px;color:var(--text-muted);font-size:13px}.graph-legend-item{display:inline-flex;align-items:center;gap:7px}.graph-legend-line{width:24px;border-top:3px solid var(--accent)}.graph-legend-reference{width:24px;border-top:2px dashed var(--text-muted)}.reference-table{margin-top:10px}.reference-table caption{text-align:left;padding:12px 0 4px;color:var(--text-muted);font-size:14px}.percentile-cell{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}.metric-explainer-details{margin-top:20px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-surface-alt);overflow:hidden}.metric-explainer-summary{padding:12px 16px;font-weight:600;font-size:14px;cursor:pointer;color:var(--text);user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between}.metric-explainer-summary::-webkit-details-marker{display:none}.metric-explainer-summary:hover{color:var(--accent)}.metric-explainer-summary::after{content:'▾';font-size:14px;transition:transform .2s ease;margin-left:8px}.metric-explainer-details[open] .metric-explainer-summary::after{transform:rotate(180deg)}.metric-explainer-body{padding:16px 20px 20px;border-top:1px solid var(--border);font-size:14px;line-height:1.6;color:var(--text-muted)}.metric-explainer-intro{margin:0 0 16px;font-size:13.5px;color:var(--text-muted)}.metric-explainer-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.metric-explainer-card{padding:14px 16px;background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius)}.metric-explainer-card h4{margin:0 0 6px;color:var(--text);font-size:14px;font-weight:600}.metric-explainer-card p{margin:0 0 12px;font-size:13px;line-height:1.45;color:var(--text-muted)}.metric-benchmarks{list-style:none;padding:0;margin:0;font-size:12.5px}.metric-benchmarks li{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed var(--border)}.metric-benchmarks li:last-child{border-bottom:none}.metric-benchmarks .val{font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px}.metric-benchmarks .val-good{color:var(--accent)}.metric-benchmarks .val-baseline{color:var(--text-muted)}.metric-subvalue{font-size:15px;color:var(--text-muted);font-weight:400}@media(max-width:800px){.analysis-metrics{grid-template-columns:repeat(2,1fr)}}@media(max-width:700px){.metric-explainer-grid{grid-template-columns:1fr}}@media(max-width:500px){.analysis-switch-button,.pitch-switch-button{padding:9px 12px}.analysis-metrics{grid-template-columns:1fr}}
+.model-analysis-page {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+.model-analysis-page h1 {
+    margin-bottom: 8px;
+}
+.page-intro, .analysis-description {
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+.analysis-switch, .pitch-switch {
+    display: flex;
+    justify-content: center;
+    margin: 28px 0;
+    flex-wrap: wrap;
+}
+.pitch-switch {
+    margin: -12px 0 28px;
+}
+.analysis-switch-button, .pitch-switch-button {
+    padding: 10px 20px;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    font-weight: 600;
+    text-decoration: none;
+    transition: all .15s ease;
+}
+.pitch-switch-button {
+    padding: 8px 20px;
+}
+.analysis-switch-button:first-child, .pitch-switch-button:first-child {
+    border-radius: var(--radius) 0 0 var(--radius);
+}
+.analysis-switch-button:last-child, .pitch-switch-button:last-child {
+    border-radius: 0 var(--radius) var(--radius) 0;
+}
+.analysis-switch-button.active, .pitch-switch-button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+.analysis-switch-button:hover, .pitch-switch-button:hover {
+    background: var(--accent-hover);
+    color: #fff;
+}
+.analysis-card {
+    margin-top: 24px;
+    padding: 24px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.analysis-card h2 {
+    margin-top: 0;
+}
+.analysis-metrics {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-top: 24px;
+}
+.analysis-metric {
+    padding: 16px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-align: center;
+}
+.analysis-metric-label {
+    display: block;
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 8px;
+    cursor: help;
+}
+.analysis-metric-value {
+    display: block;
+    font-size: 22px;
+    font-weight: 600;
+}
+.analysis-note {
+    margin-top: 20px;
+    padding: 12px 14px;
+    border-left: 3px solid var(--accent);
+    background: var(--bg-surface-alt);
+    color: var(--text-muted);
+    line-height: 1.5;
+    font-size: 14px;
+}
+.analysis-table-wrapper {
+    overflow-x: auto;
+}
+.analysis-table {
+    width: 100%;
+    margin-top: 18px;
+    border-collapse: collapse;
+}
+.analysis-table th, .analysis-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+}
+.analysis-table th {
+    white-space: nowrap;
+    background: var(--bg-surface-alt);
+    color: var(--text-muted);
+    text-align: left;
+}
+.analysis-graph {
+    margin: 20px 0 10px;
+}
+.calibration-graph {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+}
+.calibration-graph .grid-line {
+    stroke: var(--border);
+    stroke-width: 1;
+}
+.calibration-graph .reference-line {
+    stroke: var(--text-muted);
+    stroke-width: 1.5;
+    stroke-dasharray: 6 5;
+}
+.calibration-graph text {
+    fill: var(--text-muted);
+    font-size: 12px;
+}
+.graph-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-top: 30px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.graph-section-title {
+    margin: 0 0 4px;
+    font-size: 16px;
+}
+.graph-section-description {
+    margin: 0 0 12px;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1.5;
+}
+.graph-toggle-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin: 16px 0 8px;
+}
+.btn-graph-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s ease;
+}
+.btn-graph-toggle:hover {
+    background: var(--bg-surface-alt);
+    border-color: var(--accent);
+    color: #fff;
+}
+.btn-graph-toggle.active {
+    background: rgba(167, 139, 250, 0.15);
+    border-color: #a78bfa;
+    color: #fff;
+}
+.mode-whr .btn-graph-toggle.active {
+    background: rgba(0, 172, 193, 0.15);
+    border-color: #00acc1;
+    color: #fff;
+}
+.graph-legend {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 10px;
+    color: var(--text-muted);
+    font-size: 13px;
+    flex-wrap: wrap;
+}
+.graph-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+.graph-legend-point {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.graph-legend-line {
+    width: 22px;
+    border-top: 3px solid;
+    display: inline-block;
+}
+.graph-legend-reference {
+    width: 22px;
+    border-top: 2px dashed var(--text-muted);
+    display: inline-block;
+}
+
+/* Colors: Primary Series */
+.model-analysis-page:not(.mode-whr) .primary-series.graph-legend-line { border-color: #a78bfa; }
+.model-analysis-page:not(.mode-whr) .primary-series.graph-legend-point { background-color: #a78bfa; }
+.model-analysis-page:not(.mode-whr) .calibration-graph .lowess-line.primary-series,
+.model-analysis-page:not(.mode-whr) .calibration-graph .goal-diff-line.primary-series { stroke: #a78bfa; fill: none; stroke-width: 3; }
+.model-analysis-page:not(.mode-whr) .calibration-graph .basket-point.primary-series,
+.model-analysis-page:not(.mode-whr) .calibration-graph .goal-diff-point.primary-series { fill: #a78bfa; stroke: var(--card-bg); stroke-width: 2; cursor: help; }
+
+.model-analysis-page.mode-whr .primary-series.graph-legend-line { border-color: #00acc1; }
+.model-analysis-page.mode-whr .primary-series.graph-legend-point { background-color: #00acc1; }
+.model-analysis-page.mode-whr .calibration-graph .lowess-line.primary-series,
+.model-analysis-page.mode-whr .calibration-graph .goal-diff-line.primary-series { stroke: #00acc1; fill: none; stroke-width: 3; }
+.model-analysis-page.mode-whr .calibration-graph .basket-point.primary-series,
+.model-analysis-page.mode-whr .calibration-graph .goal-diff-point.primary-series { fill: #00acc1; stroke: var(--card-bg); stroke-width: 2; cursor: help; }
+
+/* Colors: Comparison Series */
+.model-analysis-page:not(.mode-whr) .comparison-series.graph-legend-line { border-color: #00acc1; border-top-style: dashed; }
+.model-analysis-page:not(.mode-whr) .comparison-series.graph-legend-point { background-color: #00acc1; }
+.model-analysis-page:not(.mode-whr) .calibration-graph .lowess-line.comparison-series,
+.model-analysis-page:not(.mode-whr) .calibration-graph .goal-diff-line.comparison-series { stroke: #00acc1; fill: none; stroke-width: 2.5; stroke-dasharray: 6 4; }
+.model-analysis-page:not(.mode-whr) .calibration-graph .basket-point.comparison-series,
+.model-analysis-page:not(.mode-whr) .calibration-graph .goal-diff-point.comparison-series { fill: #00acc1; stroke: var(--card-bg); stroke-width: 2; opacity: 0.9; cursor: help; }
+
+.model-analysis-page.mode-whr .comparison-series.graph-legend-line { border-color: #a78bfa; border-top-style: dashed; }
+.model-analysis-page.mode-whr .comparison-series.graph-legend-point { background-color: #a78bfa; }
+.model-analysis-page.mode-whr .calibration-graph .lowess-line.comparison-series,
+.model-analysis-page.mode-whr .calibration-graph .goal-diff-line.comparison-series { stroke: #a78bfa; fill: none; stroke-width: 2.5; stroke-dasharray: 6 4; }
+.model-analysis-page.mode-whr .calibration-graph .basket-point.comparison-series,
+.model-analysis-page.mode-whr .calibration-graph .goal-diff-point.comparison-series { fill: #a78bfa; stroke: var(--card-bg); stroke-width: 2; opacity: 0.9; cursor: help; }
+
+.comparison-series { display: none !important; }
+.show-comparison .comparison-series { display: inline !important; }
+.show-comparison span.graph-legend-item.comparison-series { display: inline-flex !important; }
+
+.percentile-cell {
+    cursor: help;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
+.metric-explainer-details {
+    margin-top: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface-alt);
+    overflow: hidden;
+}
+.metric-explainer-summary {
+    padding: 12px 16px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    color: var(--text);
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.metric-explainer-summary::-webkit-details-marker { display: none; }
+.metric-explainer-summary:hover { color: var(--accent); }
+.metric-explainer-summary::after {
+    content: '▾';
+    font-size: 14px;
+    transition: transform .2s ease;
+    margin-left: 8px;
+}
+.metric-explainer-details[open] .metric-explainer-summary::after { transform: rotate(180deg); }
+.metric-explainer-body {
+    padding: 16px 20px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+.metric-explainer-intro {
+    margin: 0 0 16px;
+    font-size: 13.5px;
+    color: var(--text-muted);
+}
+.metric-explainer-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+.metric-explainer-card {
+    padding: 14px 16px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.metric-explainer-card h4 {
+    margin: 0 0 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+}
+.metric-explainer-card p {
+    margin: 0 0 12px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+.metric-benchmarks {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 12.5px;
+}
+.metric-benchmarks li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px dashed var(--border);
+}
+.metric-benchmarks li:last-child { border-bottom: none; }
+.metric-benchmarks .val {
+    font-weight: 600;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+}
+.metric-benchmarks .val-good { color: var(--accent); }
+.metric-benchmarks .val-baseline { color: var(--text-muted); }
+.metric-subvalue {
+    font-size: 15px;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+@media (max-width: 800px) {
+    .analysis-metrics { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 700px) {
+    .metric-explainer-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 500px) {
+    .analysis-switch-button, .pitch-switch-button { padding: 9px 12px; }
+    .analysis-metrics { grid-template-columns: 1fr; }
+}
 </style>
 {% endblock %}
 {% block content %}
-<div class="model-analysis-page">
-<h1>{{ t('model_analysis.title', 'Model Analysis') }}</h1>
-<p class="page-intro">{{ t('model_analysis.intro', 'How well do the pre-match Glicko ratings predict the actual result and the closeness of the resulting game? Only information available before each match is used.') }}</p>
-<div class="analysis-switch">
-<a href="{{ url_for('stats.model_analysis', mode='total') }}" class="analysis-switch-button {% if mode=='total' %}active{% endif %}">{{ t('model_analysis.switch_total', 'Total rating') }}</a>
-<a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='box') }}" class="analysis-switch-button {% if mode=='pitch' %}active{% endif %}">{{ t('model_analysis.switch_pitch', 'Pitch-specific rating') }}</a>
+<div class="model-analysis-page {% if mode == 'whr' %}mode-whr{% endif %}">
+    <h1>{{ t('model_analysis.title', 'Model Analysis') }}</h1>
+    <p class="page-intro">{{ t('model_analysis.intro', 'How well do the pre-match Glicko ratings predict the actual result and the closeness of the resulting game? Only information available before each match is used.') }}</p>
+
+    <div class="analysis-switch">
+        <a href="{{ url_for('stats.model_analysis', mode='total') }}" class="analysis-switch-button {% if mode=='total' %}active{% endif %}">{{ t('model_analysis.switch_total', 'Total rating') }}</a>
+        <a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='box') }}" class="analysis-switch-button {% if mode=='pitch' %}active{% endif %}">{{ t('model_analysis.switch_pitch', 'Pitch-specific rating') }}</a>
+        <a href="{{ url_for('stats.model_analysis', mode='whr', pitch='total') }}" class="analysis-switch-button {% if mode=='whr' %}active{% endif %}">{{ t('model_analysis.switch_whr', 'WHR Glättung (Hindsight)') }}</a>
+    </div>
+
+    {% if mode=='pitch' %}
+    <div class="pitch-switch">
+        <a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='box') }}" class="pitch-switch-button {% if pitch=='box' %}active{% endif %}">BOX</a>
+        <a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='hf') }}" class="pitch-switch-button {% if pitch=='hf' %}active{% endif %}">HF</a>
+    </div>
+    {% endif %}
+
+    {% if mode=='whr' %}
+    <div class="pitch-switch">
+        <a href="{{ url_for('stats.model_analysis', mode='whr', pitch='total') }}" class="pitch-switch-button {% if pitch=='total' %}active{% endif %}">TOTAL</a>
+        <a href="{{ url_for('stats.model_analysis', mode='whr', pitch='box') }}" class="pitch-switch-button {% if pitch=='box' %}active{% endif %}">BOX</a>
+        <a href="{{ url_for('stats.model_analysis', mode='whr', pitch='hf') }}" class="pitch-switch-button {% if pitch=='hf' %}active{% endif %}">HF</a>
+    </div>
+    {% endif %}
+
+    <section class="analysis-card">
+        <h2>
+            {% if mode=='total' %}
+                {{ t('model_analysis.card_total_title', 'Modell: Gesamtratings (TOTAL)') }}
+            {% elif mode=='pitch' %}
+                {{ t('model_analysis.card_pitch_title', 'Modell: {pitch}-Ratings', pitch=('BOX' if pitch=='box' else 'HF')) }}
+            {% else %}
+                {{ t('model_analysis.card_whr_title', 'Modell: Whole-History Rating ({pitch})', pitch=pitch|upper) }}
+            {% endif %}
+        </h2>
+        <p class="analysis-description">
+            {% if mode=='total' %}
+                {{ t('model_analysis.desc_total', 'Every match is predicted from the players\' TOTAL ratings immediately before that match. Every match is oriented toward the model\'s predicted favourite, so every prediction above 50% has the same interpretation.') }}
+            {% elif mode=='pitch' %}
+                {{ t('model_analysis.desc_pitch', 'Only {pitch_label} matches are analysed, using the corresponding pitch-specific ratings immediately before each match. Every match is oriented toward the model\'s predicted favourite, so every prediction above 50% has the same interpretation.', pitch_label=(t('model_analysis.box_label', 'Box') if pitch=='box' else t('model_analysis.hf_label', 'half-field'))) }}
+            {% else %}
+                {{ t('model_analysis.desc_whr', 'Alle Spiele der Historie werden auf Basis der retrospektiv geglätteten WHR-Ratings zum jeweiligen Spielzeitpunkt ausgewertet. Jedes Spiel wird auf den vom WHR-Modell errechneten Favoriten ausgerichtet.') }}
+            {% endif %}
+        </p>
+
+        <div class="analysis-metrics">
+            <div class="analysis-metric">
+                <span class="analysis-metric-label" title="{{ t('model_analysis.ece_title', 'Expected Calibration Error: Weighted average difference between predicted win probabilities and actual win rates across all bins. Lower is better.') }}">{{ t('model_analysis.ece', 'Calibration error (ECE)') }}</span>
+                <span class="analysis-metric-value">{{ '%.1f%%'|format(analysis.ece*100) if analysis.ece is not none else '—' }}</span>
+            </div>
+            <div class="analysis-metric">
+                <span class="analysis-metric-label" title="{{ t('model_analysis.log_loss_title', 'Penalizes confident wrong predictions. Lower is better.') }}">{{ t('model_analysis.log_loss', 'Log loss') }}</span>
+                <span class="analysis-metric-value">{{ '%.4f'|format(analysis.log_loss) if analysis.log_loss is not none else '—' }}</span>
+            </div>
+            <div class="analysis-metric">
+                <span class="analysis-metric-label" title="{{ t('model_analysis.mae_title', 'Average absolute difference between predicted probability and favourite result. Lower is better.') }}">{{ t('model_analysis.mae', 'Mean absolute error') }}</span>
+                <span class="analysis-metric-value">{{ '%.4f'|format(analysis.mean_absolute_error) if analysis.mean_absolute_error is not none else '—' }}</span>
+            </div>
+            <div class="analysis-metric">
+                <span class="analysis-metric-label" title="{{ t('model_analysis.accuracy_title', 'Compares the actual win rate of the favourite with the average predicted win probability.') }}">{{ t('model_analysis.accuracy', 'Favourite wins (Actual / Expected)') }}</span>
+                <span class="analysis-metric-value">{% if analysis.accuracy is not none and analysis.expected_accuracy is not none %}{{ '%.1f%%'|format(analysis.accuracy*100) }} <span class="metric-subvalue">/ {{ '%.1f%%'|format(analysis.expected_accuracy*100) }}</span>{% elif analysis.accuracy is not none %}{{ '%.1f%%'|format(analysis.accuracy*100) }}{% else %}—{% endif %}</span>
+            </div>
+            <div class="analysis-metric">
+                <span class="analysis-metric-label">{{ t('model_analysis.games_analysed', 'Games analysed') }}</span>
+                <span class="analysis-metric-value">{{ analysis.games }}</span>
+            </div>
+        </div>
+
+        <div class="analysis-note">
+            {% if mode=='whr' %}
+                {{ t('model_analysis.note_whr', 'WHR nutzt den gesamten Spielverlauf retrospektiv („Hindsight“): Zufallssiege werden abgedämpft und frühe Siege gegen spätere Leistungsträger aufgewertet. Spiele mit exakter 50:50-Vorhersage werden ausgenommen.') }}
+            {% else %}
+                {{ t('model_analysis.note_50', 'Matches with an exactly 50% prediction are excluded because there is no meaningful predicted favourite. A draw remains a 50% actual result for the probability metrics. Our standard matchdays take place on Wednesdays.') }}
+            {% endif %}
+        </div>
+
+        <details class="metric-explainer-details">
+            <summary class="metric-explainer-summary"><span>📊 {{ t('model_analysis.explainer_toggle', 'Benchmark values & interpretation of main metrics') }}</span></summary>
+            <div class="metric-explainer-body">
+                <p class="metric-explainer-intro">{{ t('model_analysis.explainer_intro', 'Because recreational football with balanced teams involves natural variance, theoretical ideal scores (0.0) are unattainable in practice. The following benchmarks help interpret the model\'s quality:') }}</p>
+                <div class="metric-explainer-grid">
+                    <div class="metric-explainer-card">
+                        <h4>{{ t('model_analysis.ece_expl_title', 'Calibration error (ECE)') }}</h4>
+                        <p>{{ t('model_analysis.ece_expl_desc', 'Expected Calibration Error: Measures the weighted average gap between predicted win probabilities and actual win rates across all probability bins (e.g. 55% prediction vs. 61% actual wins = 6% error).') }}</p>
+                        <ul class="metric-benchmarks">
+                            <li><span>{{ t('model_analysis.bm_perfect', 'Theoretical optimum') }}</span><span class="val val-good">0.0%</span></li>
+                            <li><span>{{ t('model_analysis.bm_solid', 'Excellently calibrated') }}</span><span class="val val-good">&lt; 5.0%</span></li>
+                            <li><span>{{ t('model_analysis.bm_ece_moderate', 'Solid approximation') }}</span><span class="val val-good">5.0% – 10.0%</span></li>
+                            <li><span>{{ t('model_analysis.bm_ece_poor', 'Noticeable skew') }}</span><span class="val val-baseline">&gt; 10.0%</span></li>
+                        </ul>
+                    </div>
+                    <div class="metric-explainer-card">
+                        <h4>{{ t('model_analysis.log_loss', 'Log loss') }}</h4>
+                        <p>{{ t('model_analysis.log_loss_expl_desc', 'Logarithmic cross-entropy. Heavily penalizes wrong predictions made with high confidence.') }}</p>
+                        <ul class="metric-benchmarks">
+                            <li><span>{{ t('model_analysis.bm_perfect', 'Theoretical optimum') }}</span><span class="val val-good">0.0000</span></li>
+                            <li><span>{{ t('model_analysis.bm_solid', 'Strong sports model') }}</span><span class="val val-good">&lt; 0.6500</span></li>
+                            <li><span>{{ t('model_analysis.bm_baseline', 'Random baseline (ln 2)') }}</span><span class="val val-baseline">0.6931</span></li>
+                        </ul>
+                    </div>
+                    <div class="metric-explainer-card">
+                        <h4>{{ t('model_analysis.mae', 'Mean absolute error') }}</h4>
+                        <p>{{ t('model_analysis.mae_expl_desc', 'Mean absolute error. Average absolute distance between predicted probability and actual outcome.') }}</p>
+                        <ul class="metric-benchmarks">
+                            <li><span>{{ t('model_analysis.bm_perfect', 'Theoretical optimum') }}</span><span class="val val-good">0.0000</span></li>
+                            <li><span>{{ t('model_analysis.bm_solid', 'Strong sports model') }}</span><span class="val val-good">&lt; 0.4500</span></li>
+                            <li><span>{{ t('model_analysis.bm_baseline', 'Random baseline (50:50)') }}</span><span class="val val-baseline">0.5000</span></li>
+                        </ul>
+                    </div>
+                    <div class="metric-explainer-card">
+                        <h4>{{ t('model_analysis.accuracy_expl_title', 'Favourite wins (Actual / Expected)') }}</h4>
+                        <p>{{ t('model_analysis.accuracy_expl_desc', 'Naive macro comparison (\'Brier light\'): Compares how often the predicted favourite actually won (actual) against the average predicted win probability (expected).') }}</p>
+                        <ul class="metric-benchmarks">
+                            <li><span>{{ t('model_analysis.bm_macro_calib', 'Perfect macro calibration') }}</span><span class="val val-good">Ist = Soll (z. B. ~60%)</span></li>
+                            <li><span>{{ t('model_analysis.bm_fav_underestimated', 'Favourites underestimated') }}</span><span class="val val-good">Ist &gt; Soll</span></li>
+                            <li><span>{{ t('model_analysis.bm_fav_overestimated', 'Favourites overestimated') }}</span><span class="val val-good">Ist &lt; Soll</span></li>
+                            <li><span>{{ t('model_analysis.bm_baseline', 'Random baseline (50:50)') }}</span><span class="val val-baseline">50.0%</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <div class="rating-comparison-banner" style="margin-top: 24px; padding: 16px 20px; background: linear-gradient(135deg, rgba(88, 45, 161, 0.22), rgba(0, 172, 193, 0.18)); border: 1px solid var(--border); border-radius: var(--radius); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+            <div>
+                <div style="font-weight: 700; font-size: 15px; margin-bottom: 3px; color: #fff;">📊 {{ t('model_analysis.banner_comparison_title', 'Detaillierte Spieler-Vergleichstabelle: Glicko-2 vs. WHR') }}</div>
+                <div style="font-size: 13.5px; color: var(--text-muted);">{{ t('model_analysis.banner_comparison_desc', 'Sieh dir an, welche Spieler durch die retrospektive WHR-Glättung die größten Auf- oder Abwertungen erfahren.') }}</div>
+            </div>
+            <a href="{{ url_for('stats.rating_comparison', pitch=pitch) }}" class="pitch-switch-button active" style="border-radius: var(--radius); text-decoration: none; font-size: 13.5px; white-space: nowrap;">
+                {{ t('model_analysis.banner_comparison_btn', 'Zur Spieler-Vergleichstabelle →') }}
+            </a>
+        </div>
+    </section>
+
+    <section class="analysis-card">
+        <h2>{{ t('model_analysis.calibration_section_title', 'Calibration and game closeness') }}</h2>
+        <p class="analysis-description">{{ t('model_analysis.calibration_section_desc', 'Predictions are divided into 5% probability intervals using only probabilities above 50%. The first graph measures win calibration, followed by the breakdown table. The second graph visualizes the average goal difference.') }}</p>
+
+        {% if analysis.calibration %}
+        <div class="graph-toggle-bar">
+            <button type="button" class="btn-graph-toggle" onclick="toggleGraphComparison()" id="btn-toggle-comparison">
+                <span class="toggle-icon">👁️</span>
+                <span class="toggle-text">{{ t('model_analysis.toggle_comparison_show', 'Vergleichsmodell einblenden ({other_model})', other_model=comparison_model_name) }}</span>
+            </button>
+        </div>
+
+        {% set graph_left=70 %}{% set graph_right=950 %}{% set graph_top=25 %}{% set graph_bottom=300 %}{% set x_min=0.5 %}{% set x_max=1.0 %}
+        <h3 class="graph-section-title">{{ t('model_analysis.fav_win_title', 'Favourite win calibration') }}</h3>
+        <p class="graph-section-description">{{ t('model_analysis.fav_win_desc', 'A perfectly calibrated model follows the dashed diagonal: a 60% favourite should win about 60% of the time.') }}</p>
+        
+        <div class="analysis-graph">
+            <svg class="calibration-graph" viewBox="0 0 1000 350" role="img" aria-label="{{ t('model_analysis.fav_win_title', 'Favourite win calibration graph') }}">
+                {% for tick in [0.5, 0.625, 0.75, 0.875, 1] %}
+                    {% set x=graph_left+((tick-x_min)/(x_max-x_min))*(graph_right-graph_left) %}
+                    <line class="grid-line" x1="{{x}}" y1="{{graph_top}}" x2="{{x}}" y2="{{graph_bottom}}"/>
+                    <text x="{{x}}" y="325" text-anchor="middle">{{'%.1f%%'|format(tick*100)}}</text>
+                {% endfor %}
+                {% for tick in [0, 0.25, 0.5, 0.75, 1] %}
+                    {% set y=graph_bottom-tick*(graph_bottom-graph_top) %}
+                    <line class="grid-line" x1="{{graph_left}}" y1="{{y}}" x2="{{graph_right}}" y2="{{y}}"/>
+                    <text x="58" y="{{y+4}}" text-anchor="end">{{(tick*100)|int}}%</text>
+                {% endfor %}
+                <line class="reference-line" x1="{{graph_left}}" y1="{{graph_bottom-0.5*(graph_bottom-graph_top)}}" x2="{{graph_right}}" y2="{{graph_top}}"/>
+                
+                {# Primary LOWESS Line #}
+                {% set ns=namespace(points=[]) %}
+                {% for point in analysis.lowess %}
+                    {% if point.predicted>=x_min and point.predicted<=x_max %}
+                        {% set x=graph_left+((point.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}
+                        {% set y=graph_bottom-point.actual*(graph_bottom-graph_top) %}
+                        {% set ns.points=ns.points+[x|string~','~y|string] %}
+                    {% endif %}
+                {% endfor %}
+                <polyline class="lowess-line primary-series" points="{{ns.points|join(' ')}}"/>
+
+                {# Comparison LOWESS Line (toggled) #}
+                {% if comparison and comparison.lowess %}
+                    {% set ns_comp=namespace(points=[]) %}
+                    {% for point in comparison.lowess %}
+                        {% if point.predicted>=x_min and point.predicted<=x_max %}
+                            {% set x=graph_left+((point.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}
+                            {% set y=graph_bottom-point.actual*(graph_bottom-graph_top) %}
+                            {% set ns_comp.points=ns_comp.points+[x|string~','~y|string] %}
+                        {% endif %}
+                    {% endfor %}
+                    <polyline class="lowess-line comparison-series" points="{{ns_comp.points|join(' ')}}"/>
+                {% endif %}
+
+                {# Primary Data Points #}
+                {% for bucket in analysis.calibration %}
+                    {% set x=graph_left+((bucket.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}
+                    {% set y=graph_bottom-bucket.actual*(graph_bottom-graph_top) %}
+                    <circle class="basket-point primary-series" cx="{{x}}" cy="{{y}}" r="6">
+                        <title>{{ active_model_name }} ({{bucket.label}}): {{'%.1f%%'|format(bucket.predicted*100)}} {{ t('model_analysis.th_predicted', 'Predicted') }}, {{'%.1f%%'|format(bucket.actual*100)}} {{ t('model_analysis.th_actual', 'Favourite wins') }} ({{bucket.count}} {{ t('model_analysis.th_games', 'Games') }})</title>
+                    </circle>
+                {% endfor %}
+
+                {# Comparison Data Points (toggled) #}
+                {% if comparison and comparison.calibration %}
+                    {% for bucket in comparison.calibration %}
+                        {% set x=graph_left+((bucket.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}
+                        {% set y=graph_bottom-bucket.actual*(graph_bottom-graph_top) %}
+                        <circle class="basket-point comparison-series" cx="{{x}}" cy="{{y}}" r="5">
+                            <title>{{ comparison_model_name }} ({{bucket.label}}): {{'%.1f%%'|format(bucket.predicted*100)}} {{ t('model_analysis.th_predicted', 'Predicted') }}, {{'%.1f%%'|format(bucket.actual*100)}} {{ t('model_analysis.th_actual', 'Favourite wins') }} ({{bucket.count}} {{ t('model_analysis.th_games', 'Games') }})</title>
+                        </circle>
+                    {% endfor %}
+                {% endif %}
+
+                <text x="510" y="345" text-anchor="middle">{{ t('model_analysis.axis_pred_win', 'Average predicted favourite win probability') }}</text>
+                <text x="14" y="165" text-anchor="middle" transform="rotate(-90 14 165)">{{ t('model_analysis.axis_actual_win', 'Actual favourite win rate') }}</text>
+            </svg>
+
+            <div class="graph-legend">
+                <span class="graph-legend-item">
+                    <span class="graph-legend-line primary-series"></span>
+                    <span class="graph-legend-point primary-series"></span>
+                    {{ active_model_name }}
+                </span>
+                {% if comparison and comparison.calibration %}
+                <span class="graph-legend-item comparison-series">
+                    <span class="graph-legend-line comparison-series"></span>
+                    <span class="graph-legend-point comparison-series"></span>
+                    {{ comparison_model_name }}
+                </span>
+                {% endif %}
+                <span class="graph-legend-item">
+                    <span class="graph-legend-reference"></span>
+                    {{ t('model_analysis.legend_perfect', 'Perfect calibration') }}
+                </span>
+            </div>
+        </div>
+
+        <div class="analysis-table-wrapper">
+            <table class="analysis-table">
+                <thead>
+                    <tr>
+                        <th>{{ t('model_analysis.th_bucket', 'Favourite probability') }}</th>
+                        <th>{{ t('model_analysis.th_games', 'Games') }}</th>
+                        <th>{{ t('model_analysis.th_predicted', 'Predicted') }}</th>
+                        <th>{{ t('model_analysis.th_actual', 'Favourite wins') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bucket in analysis.calibration %}
+                    <tr>
+                        <td>{{bucket.label}}</td>
+                        <td>{{bucket.count}}</td>
+                        <td>{{'%.1f%%'|format(bucket.predicted*100)}}</td>
+                        <td>{{'%.1f%%'|format(bucket.actual*100)}}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% set y_min=analysis.goal_diff_min %}{% set y_max=analysis.goal_diff_max %}
+        <h3 class="graph-section-title" style="margin-top: 36px;">{{ t('model_analysis.goal_diff_title', 'Average goal difference') }}</h3>
+        <p class="graph-section-description">{{ t('model_analysis.goal_diff_desc', 'Shows the average goal difference based on predicted favourite win probability. In the total analysis (TOTAL), half-field matches are scaled to 10 winner goals for a uniform scale.') }}</p>
+
+        <div class="analysis-graph">
+            <svg class="calibration-graph" viewBox="0 0 1000 350" role="img" aria-label="{{ t('model_analysis.goal_diff_title', 'Average goal difference graph') }}">
+                {% for tick in [0.5, 0.625, 0.75, 0.875, 1] %}
+                    {% set x=graph_left+((tick-x_min)/(x_max-x_min))*(graph_right-graph_left) %}
+                    <line class="grid-line" x1="{{x}}" y1="{{graph_top}}" x2="{{x}}" y2="{{graph_bottom}}"/>
+                    <text x="{{x}}" y="325" text-anchor="middle">{{'%.1f%%'|format(tick*100)}}</text>
+                {% endfor %}
+                {% for tick in analysis.goal_diff_ticks %}
+                    {% set y=graph_bottom-((tick-y_min)/(y_max-y_min))*(graph_bottom-graph_top) %}
+                    <line class="{% if tick==0 and y_min < 0 %}reference-line{% else %}grid-line{% endif %}" x1="{{graph_left}}" y1="{{y}}" x2="{{graph_right}}" y2="{{y}}"/>
+                    <text x="58" y="{{y+4}}" text-anchor="end">{{'%+d'|format(tick) if tick!=0 else '0'}}</text>
+                {% endfor %}
+
+                {# Primary Goal Diff LOWESS Line #}
+                {% set ns=namespace(points=[]) %}
+                {% for point in analysis.goal_diff_lowess %}
+                    {% if point.predicted>=x_min and point.predicted<=x_max %}
+                        {% set x=graph_left+((point.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}
+                        {% set y=graph_bottom-((point.goal_diff-y_min)/(y_max-y_min))*(graph_bottom-graph_top) %}
+                        {% set ns.points=ns.points+[x|string~','~y|string] %}
+                    {% endif %}
+                {% endfor %}
+                <polyline class="goal-diff-line primary-series" points="{{ns.points|join(' ')}}"/>
+
+                {# Comparison Goal Diff LOWESS Line (toggled) #}
+                {% if comparison and comparison.goal_diff_lowess %}
+                    {% set ns_comp=namespace(points=[]) %}
+                    {% for point in comparison.goal_diff_lowess %}
+                        {% if point.predicted>=x_min and point.predicted<=x_max %}
+                            {% set x=graph_left+((point.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}
+                            {% set y=graph_bottom-((point.goal_diff-y_min)/(y_max-y_min))*(graph_bottom-graph_top) %}
+                            {% set ns_comp.points=ns_comp.points+[x|string~','~y|string] %}
+                        {% endif %}
+                    {% endfor %}
+                    <polyline class="goal-diff-line comparison-series" points="{{ns_comp.points|join(' ')}}"/>
+                {% endif %}
+
+                {# Primary Goal Diff Points #}
+                {% for bucket in analysis.calibration %}
+                    {% set x=graph_left+((bucket.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}
+                    {% set y=graph_bottom-((bucket.avg_goal_diff-y_min)/(y_max-y_min))*(graph_bottom-graph_top) %}
+                    <circle class="goal-diff-point primary-series" cx="{{x}}" cy="{{y}}" r="6">
+                        <title>{{ active_model_name }} ({{bucket.label}}): {{'%+.1f'|format(bucket.avg_goal_diff)}} ({{bucket.count}} {{ t('model_analysis.th_games', 'Games') }}){% if mode=='total' %} · {{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results') }}{% endif %}</title>
+                    </circle>
+                {% endfor %}
+
+                {# Comparison Goal Diff Points (toggled) #}
+                {% if comparison and comparison.calibration %}
+                    {% for bucket in comparison.calibration %}
+                        {% set x=graph_left+((bucket.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}
+                        {% set y=graph_bottom-((bucket.avg_goal_diff-y_min)/(y_max-y_min))*(graph_bottom-graph_top) %}
+                        <circle class="goal-diff-point comparison-series" cx="{{x}}" cy="{{y}}" r="5">
+                            <title>{{ comparison_model_name }} ({{bucket.label}}): {{'%+.1f'|format(bucket.avg_goal_diff)}} ({{bucket.count}} {{ t('model_analysis.th_games', 'Games') }})</title>
+                        </circle>
+                    {% endfor %}
+                {% endif %}
+
+                <text x="510" y="345" text-anchor="middle">{{ t('model_analysis.axis_pred_win', 'Average predicted favourite win probability') }}</text>
+                <text x="14" y="165" text-anchor="middle" transform="rotate(-90 14 165)">{{ t('model_analysis.axis_goal_diff', 'Average goal difference') }}</text>
+            </svg>
+
+            <div class="graph-legend">
+                <span class="graph-legend-item">
+                    <span class="graph-legend-line primary-series"></span>
+                    <span class="graph-legend-point primary-series"></span>
+                    {{ active_model_name }}
+                </span>
+                {% if comparison and comparison.calibration %}
+                <span class="graph-legend-item comparison-series">
+                    <span class="graph-legend-line comparison-series"></span>
+                    <span class="graph-legend-point comparison-series"></span>
+                    {{ comparison_model_name }}
+                </span>
+                {% endif %}
+                {% if y_min < 0 %}
+                <span class="graph-legend-item">
+                    <span class="graph-legend-reference"></span>
+                    {{ t('model_analysis.legend_neutral', 'Neutral (0 goals)') }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <h3 class="graph-section-title" style="margin-top: 28px;">{{ t('model_analysis.goal_diff_table_title', 'Goal difference by favourite probability') }}</h3>
+        <p class="graph-section-description">{{ t('model_analysis.goal_diff_table_desc', 'Average favourite goal difference broken down across the 10 dynamic probability intervals.') }}</p>
+        
+        <div class="analysis-table-wrapper">
+            <table class="analysis-table goal-diff-table">
+                <thead>
+                    <tr>
+                        <th>{{ t('model_analysis.th_bucket', 'Favourite probability') }}</th>
+                        <th>{{ t('model_analysis.th_games', 'Games') }}</th>
+                        <th>{{ t('model_analysis.th_predicted', 'Predicted') }}</th>
+                        <th title="{% if mode=='total' %}{{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results (winner scaled to 10 goals)') }}{% else %}{{ t('model_analysis.goal_diff_hover_actual', 'Actual average goal difference of the favourite') }}{% endif %}">{{ t('model_analysis.th_avg_goal_diff', 'Avg goal diff') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bucket in analysis.calibration %}
+                    <tr>
+                        <td>{{bucket.label}}</td>
+                        <td>{{bucket.count}}</td>
+                        <td>{{'%.1f%%'|format(bucket.predicted*100)}}</td>
+                        <td class="percentile-cell" title="{{'%+.1f'|format(bucket.avg_goal_diff)}} {% if mode=='total' %}({{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results') }}){% else %}({{ t('model_analysis.goal_diff_hover_actual', 'Actual average goal difference of the favourite') }}){% endif %}">{{'%+.1f'|format(bucket.avg_goal_diff)}}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p>{{ t('model_analysis.no_predictions', 'No predictions are available for this model yet.') }}</p>
+        {% endif %}
+    </section>
 </div>
-{% if mode=='pitch' %}<div class="pitch-switch"><a href="{{ url_for('stats.model_analysis',mode='pitch',pitch='box') }}" class="pitch-switch-button {% if analysis.pitch=='box' %}active{% endif %}">BOX</a><a href="{{ url_for('stats.model_analysis',mode='pitch',pitch='hf') }}" class="pitch-switch-button {% if analysis.pitch=='hf' %}active{% endif %}">HF</a></div>{% endif %}
-<section class="analysis-card">
-<h2>{% if mode=='total' %}{{ t('model_analysis.card_total_title', 'Total rating model') }}{% else %}{{ t('model_analysis.card_pitch_title', '{pitch} rating model', pitch=('BOX' if analysis.pitch=='box' else 'HF')) }}{% endif %}</h2>
-<p class="analysis-description">{% if mode=='total' %}{{ t('model_analysis.desc_total', 'Every match is predicted from the players\' TOTAL ratings immediately before that match. Every match is oriented toward the model\'s predicted favourite, so every prediction above 50% has the same interpretation.') }}{% else %}{{ t('model_analysis.desc_pitch', 'Only {pitch_label} matches are analysed, using the corresponding pitch-specific ratings immediately before each match. Every match is oriented toward the model\'s predicted favourite, so every prediction above 50% has the same interpretation.', pitch_label=(t('model_analysis.box_label', 'Box') if analysis.pitch=='box' else t('model_analysis.hf_label', 'half-field'))) }}{% endif %}</p>
-<div class="analysis-metrics">
-<div class="analysis-metric"><span class="analysis-metric-label" title="{{ t('model_analysis.ece_title', 'Expected Calibration Error: Weighted average difference between predicted win probabilities and actual win rates across all bins. Lower is better.') }}">{{ t('model_analysis.ece', 'Calibration error (ECE)') }}</span><span class="analysis-metric-value">{{ '%.1f%%'|format(analysis.ece*100) if analysis.ece is not none else '—' }}</span></div>
-<div class="analysis-metric"><span class="analysis-metric-label" title="{{ t('model_analysis.log_loss_title', 'Penalizes confident wrong predictions. Lower is better.') }}">{{ t('model_analysis.log_loss', 'Log loss') }}</span><span class="analysis-metric-value">{{ '%.4f'|format(analysis.log_loss) if analysis.log_loss is not none else '—' }}</span></div>
-<div class="analysis-metric"><span class="analysis-metric-label" title="{{ t('model_analysis.mae_title', 'Average absolute difference between predicted probability and favourite result. Lower is better.') }}">{{ t('model_analysis.mae', 'Mean absolute error') }}</span><span class="analysis-metric-value">{{ '%.4f'|format(analysis.mean_absolute_error) if analysis.mean_absolute_error is not none else '—' }}</span></div>
-<div class="analysis-metric"><span class="analysis-metric-label" title="{{ t('model_analysis.accuracy_title', 'Compares the actual win rate of the favourite with the average predicted win probability.') }}">{{ t('model_analysis.accuracy', 'Favourite wins (Actual / Expected)') }}</span><span class="analysis-metric-value">{% if analysis.accuracy is not none and analysis.expected_accuracy is not none %}{{ '%.1f%%'|format(analysis.accuracy*100) }} <span class="metric-subvalue">/ {{ '%.1f%%'|format(analysis.expected_accuracy*100) }}</span>{% elif analysis.accuracy is not none %}{{ '%.1f%%'|format(analysis.accuracy*100) }}{% else %}—{% endif %}</span></div>
-<div class="analysis-metric"><span class="analysis-metric-label">{{ t('model_analysis.games_analysed', 'Games analysed') }}</span><span class="analysis-metric-value">{{ analysis.games }}</span></div>
-</div>
-<div class="analysis-note">{{ t('model_analysis.note_50', 'Matches with an exactly 50% prediction are excluded because there is no meaningful predicted favourite. A draw remains a 50% actual result for the probability metrics. Our standard matchdays take place on Wednesdays.') }}</div>
-<details class="metric-explainer-details">
-<summary class="metric-explainer-summary"><span>📊 {{ t('model_analysis.explainer_toggle', 'Benchmark values & interpretation of main metrics') }}</span></summary>
-<div class="metric-explainer-body">
-<p class="metric-explainer-intro">{{ t('model_analysis.explainer_intro', 'Because recreational football with balanced teams involves natural variance, theoretical ideal scores (0.0) are unattainable in practice. The following benchmarks help interpret the model\'s quality:') }}</p>
-<div class="metric-explainer-grid">
-<div class="metric-explainer-card">
-<h4>{{ t('model_analysis.ece_expl_title', 'Calibration error (ECE)') }}</h4>
-<p>{{ t('model_analysis.ece_expl_desc', 'Expected Calibration Error: Measures the weighted average gap between predicted win probabilities and actual win rates across all probability bins (e.g. 55% prediction vs. 61% actual wins = 6% error).') }}</p>
-<ul class="metric-benchmarks">
-<li><span>{{ t('model_analysis.bm_perfect', 'Theoretical optimum') }}</span><span class="val val-good">0.0%</span></li>
-<li><span>{{ t('model_analysis.bm_solid', 'Excellently calibrated') }}</span><span class="val val-good">&lt; 5.0%</span></li>
-<li><span>{{ t('model_analysis.bm_ece_moderate', 'Solid approximation') }}</span><span class="val val-good">5.0% – 10.0%</span></li>
-<li><span>{{ t('model_analysis.bm_ece_poor', 'Noticeable skew') }}</span><span class="val val-baseline">&gt; 10.0%</span></li>
-</ul>
-</div>
-<div class="metric-explainer-card">
-<h4>{{ t('model_analysis.log_loss', 'Log loss') }}</h4>
-<p>{{ t('model_analysis.log_loss_expl_desc', 'Logarithmic cross-entropy. Heavily penalizes wrong predictions made with high confidence.') }}</p>
-<ul class="metric-benchmarks">
-<li><span>{{ t('model_analysis.bm_perfect', 'Theoretical optimum') }}</span><span class="val val-good">0.0000</span></li>
-<li><span>{{ t('model_analysis.bm_solid', 'Strong sports model') }}</span><span class="val val-good">&lt; 0.6500</span></li>
-<li><span>{{ t('model_analysis.bm_baseline', 'Random baseline (ln 2)') }}</span><span class="val val-baseline">0.6931</span></li>
-</ul>
-</div>
-<div class="metric-explainer-card">
-<h4>{{ t('model_analysis.mae', 'Mean absolute error') }}</h4>
-<p>{{ t('model_analysis.mae_expl_desc', 'Mean absolute error. Average absolute distance between predicted probability and actual outcome.') }}</p>
-<ul class="metric-benchmarks">
-<li><span>{{ t('model_analysis.bm_perfect', 'Theoretical optimum') }}</span><span class="val val-good">0.0000</span></li>
-<li><span>{{ t('model_analysis.bm_solid', 'Strong sports model') }}</span><span class="val val-good">&lt; 0.4500</span></li>
-<li><span>{{ t('model_analysis.bm_baseline', 'Random baseline (50:50)') }}</span><span class="val val-baseline">0.5000</span></li>
-</ul>
-</div>
-<div class="metric-explainer-card">
-<h4>{{ t('model_analysis.accuracy_expl_title', 'Favourite wins (Actual / Expected)') }}</h4>
-<p>{{ t('model_analysis.accuracy_expl_desc', 'Naive macro comparison (\'Brier light\'): Compares how often the predicted favourite actually won (actual) against the average predicted win probability (expected).') }}</p>
-<ul class="metric-benchmarks">
-<li><span>{{ t('model_analysis.bm_macro_calib', 'Perfect macro calibration') }}</span><span class="val val-good">Ist = Soll (z. B. ~60%)</span></li>
-<li><span>{{ t('model_analysis.bm_fav_underestimated', 'Favourites underestimated') }}</span><span class="val val-good">Ist &gt; Soll</span></li>
-<li><span>{{ t('model_analysis.bm_fav_overestimated', 'Favourites overestimated') }}</span><span class="val val-good">Ist &lt; Soll</span></li>
-<li><span>{{ t('model_analysis.bm_baseline', 'Random baseline (50:50)') }}</span><span class="val val-baseline">50.0%</span></li>
-</ul>
-</div>
-</div>
-</div>
-</details>
-</section>
-<section class="analysis-card">
-<h2>{{ t('model_analysis.calibration_section_title', 'Calibration and game closeness') }}</h2>
-<p class="analysis-description">{{ t('model_analysis.calibration_section_desc', 'Predictions are divided into 5% probability intervals using only probabilities above 50%. The first graph measures win calibration, followed by the breakdown table. The second graph visualizes the average goal difference.') }}</p>
-{% if analysis.calibration %}
-{% set graph_left=70 %}{% set graph_right=950 %}{% set graph_top=25 %}{% set graph_bottom=300 %}{% set x_min=0.5 %}{% set x_max=1.0 %}
-<h3 class="graph-section-title">{{ t('model_analysis.fav_win_title', 'Favourite win calibration') }}</h3><p class="graph-section-description">{{ t('model_analysis.fav_win_desc', 'A perfectly calibrated model follows the dashed diagonal: a 60% favourite should win about 60% of the time.') }}</p>
-<div class="analysis-graph"><svg class="calibration-graph" viewBox="0 0 1000 350" role="img" aria-label="{{ t('model_analysis.fav_win_title', 'Favourite win calibration graph') }}">
-{% for tick in [0.5,0.625,0.75,0.875,1] %}{% set x=graph_left+((tick-x_min)/(x_max-x_min))*(graph_right-graph_left) %}<line class="grid-line" x1="{{x}}" y1="{{graph_top}}" x2="{{x}}" y2="{{graph_bottom}}"/><text x="{{x}}" y="325" text-anchor="middle">{{'%.1f%%'|format(tick*100)}}</text>{% endfor %}{% for tick in [0,0.25,0.5,0.75,1] %}{% set y=graph_bottom-tick*(graph_bottom-graph_top) %}<line class="grid-line" x1="{{graph_left}}" y1="{{y}}" x2="{{graph_right}}" y2="{{y}}"/><text x="58" y="{{y+4}}" text-anchor="end">{{(tick*100)|int}}%</text>{% endfor %}
-<line class="reference-line" x1="{{graph_left}}" y1="{{graph_bottom-0.5*(graph_bottom-graph_top)}}" x2="{{graph_right}}" y2="{{graph_top}}"/>
-{% set ns=namespace(points=[]) %}{% for point in analysis.lowess %}{% if point.predicted>=x_min and point.predicted<=x_max %}{% set x=graph_left+((point.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}{% set y=graph_bottom-point.actual*(graph_bottom-graph_top) %}{% set ns.points=ns.points+[x|string~','~y|string] %}{% endif %}{% endfor %}<polyline class="lowess-line" points="{{ns.points|join(' ')}}"/>
-{% for bucket in analysis.calibration %}{% set x=graph_left+((bucket.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}{% set y=graph_bottom-bucket.actual*(graph_bottom-graph_top) %}<circle class="basket-point" cx="{{x}}" cy="{{y}}" r="6"><title>{{bucket.label}}: {{'%.1f%%'|format(bucket.predicted*100)}} predicted, {{'%.1f%%'|format(bucket.actual*100)}} actual ({{bucket.count}} games)</title></circle>{% endfor %}
-<text x="510" y="345" text-anchor="middle">{{ t('model_analysis.axis_pred_win', 'Average predicted favourite win probability') }}</text><text x="14" y="165" text-anchor="middle" transform="rotate(-90 14 165)">{{ t('model_analysis.axis_actual_win', 'Actual favourite win rate') }}</text></svg><div class="graph-legend"><span class="graph-legend-item"><span class="graph-legend-line"></span>{{ t('model_analysis.legend_lowess', 'LOWESS calibration') }}</span><span class="graph-legend-item"><span class="graph-legend-reference"></span>{{ t('model_analysis.legend_perfect', 'Perfect calibration') }}</span></div></div>
-<div class="analysis-table-wrapper"><table class="analysis-table"><thead><tr><th>{{ t('model_analysis.th_bucket', 'Favourite probability') }}</th><th>{{ t('model_analysis.th_games', 'Games') }}</th><th>{{ t('model_analysis.th_predicted', 'Predicted') }}</th><th>{{ t('model_analysis.th_actual', 'Favourite wins') }}</th><th title="{% if mode=='total' %}{{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results (winner scaled to 10 goals)') }}{% else %}{{ t('model_analysis.goal_diff_hover_actual', 'Actual average goal difference') }}{% endif %}">{{ t('model_analysis.th_avg_goal_diff', 'Avg goal diff') }}</th></tr></thead><tbody>{% for bucket in analysis.calibration %}<tr><td>{{bucket.label}}</td><td>{{bucket.count}}</td><td>{{'%.1f%%'|format(bucket.predicted*100)}}</td><td>{{'%.1f%%'|format(bucket.actual*100)}}</td><td class="percentile-cell" title="{{'%.1f'|format(bucket.avg_goal_diff)}} {% if mode=='total' %}({{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results') }}){% else %}({{ t('model_analysis.goal_diff_hover_actual', 'Actual average goal difference') }}){% endif %}">{{'%.1f'|format(bucket.avg_goal_diff)}}</td></tr>{% endfor %}</tbody></table></div>
-{% set y_min=0 %}{% set y_max=analysis.goal_diff_max %}
-<h3 class="graph-section-title">{{ t('model_analysis.goal_diff_title', 'Average goal difference') }}</h3><p class="graph-section-description">{{ t('model_analysis.goal_diff_desc', 'Shows the average goal difference based on predicted favourite win probability. In the total analysis (TOTAL), half-field matches are scaled to 10 winner goals for a uniform scale.') }}</p>
-<div class="analysis-graph"><svg class="calibration-graph" viewBox="0 0 1000 350" role="img" aria-label="{{ t('model_analysis.goal_diff_title', 'Average goal difference graph') }}">
-{% for tick in [0.5,0.625,0.75,0.875,1] %}{% set x=graph_left+((tick-x_min)/(x_max-x_min))*(graph_right-graph_left) %}<line class="grid-line" x1="{{x}}" y1="{{graph_top}}" x2="{{x}}" y2="{{graph_bottom}}"/><text x="{{x}}" y="325" text-anchor="middle">{{'%.1f%%'|format(tick*100)}}</text>{% endfor %}{% for tick in analysis.goal_diff_ticks %}{% set y=graph_bottom-((tick-y_min)/(y_max-y_min))*(graph_bottom-graph_top) %}<line class="grid-line" x1="{{graph_left}}" y1="{{y}}" x2="{{graph_right}}" y2="{{y}}"/><text x="58" y="{{y+4}}" text-anchor="end">{{tick}}</text>{% endfor %}
-{% set ns=namespace(points=[]) %}{% for point in analysis.goal_diff_lowess %}{% if point.predicted>=x_min and point.predicted<=x_max %}{% set x=graph_left+((point.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}{% set y=graph_bottom-((point.goal_diff-y_min)/(y_max-y_min))*(graph_bottom-graph_top) %}{% set ns.points=ns.points+[x|string~','~y|string] %}{% endif %}{% endfor %}<polyline class="goal-diff-line" points="{{ns.points|join(' ')}}"/>{% for bucket in analysis.calibration %}{% set x=graph_left+((bucket.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}{% set y=graph_bottom-((bucket.avg_goal_diff-y_min)/(y_max-y_min))*(graph_bottom-graph_top) %}<circle class="goal-diff-point" cx="{{x}}" cy="{{y}}" r="6"><title>{{bucket.label}}: {{'%.1f'|format(bucket.avg_goal_diff)}} ({{bucket.count}} games){% if mode=='total' %} · {{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results') }}{% endif %}</title></circle>{% endfor %}
-<text x="510" y="345" text-anchor="middle">{{ t('model_analysis.axis_pred_win', 'Average predicted favourite win probability') }}</text><text x="14" y="165" text-anchor="middle" transform="rotate(-90 14 165)">{{ t('model_analysis.axis_goal_diff', 'Average goal difference') }}</text></svg><div class="graph-legend"><span class="graph-legend-item"><span class="graph-legend-line"></span>{{ t('model_analysis.legend_trend', 'LOWESS trend') }}</span></div></div>
-<h3 class="graph-section-title">{{ t('model_analysis.ref_table_title', 'Historical distribution of goal differences') }}</h3><p class="graph-section-description">{{ t('model_analysis.ref_table_desc', 'Overview of the frequency of different actual goal differences in recorded matches.') }}</p>
-{% for pitch_name,rows in analysis.goal_diff_reference.items() %}<div class="analysis-table-wrapper"><table class="analysis-table reference-table"><caption>{{'BOX' if pitch_name=='box' else 'HF'}}</caption><thead><tr><th>{{ t('model_analysis.th_actual_diff', 'Actual goal difference') }}</th><th>{{ t('model_analysis.th_games', 'Games') }}</th><th>{{ t('model_analysis.th_share', 'Share') }}</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{row.goal_diff}}</td><td>{{row.count}}</td><td class="percentile-cell" title="{{row.count}} / {{analysis.goal_diff_pitch_totals.get(pitch_name, 0)}}">{{'%.1f%%'|format(row.share)}}</td></tr>{% endfor %}</tbody></table></div>{% endfor %}
-{% else %}<p>{{ t('model_analysis.no_predictions', 'No predictions are available for this model yet.') }}</p>{% endif %}
-</section></div>
+
+<script>
+function toggleGraphComparison() {
+    const page = document.querySelector('.model-analysis-page');
+    if (!page) return;
+    const isShown = page.classList.toggle('show-comparison');
+    try {
+        localStorage.setItem('rb48_model_analysis_show_comparison', isShown ? 'true' : 'false');
+    } catch (e) {}
+    updateComparisonButtons(isShown);
+}
+
+function updateComparisonButtons(isShown) {
+    const btns = document.querySelectorAll('.btn-graph-toggle');
+    const textShow = "{{ t('model_analysis.toggle_comparison_show', 'Vergleichsmodell einblenden ({other_model})', other_model=comparison_model_name) }}";
+    const textHide = "{{ t('model_analysis.toggle_comparison_hide', 'Vergleichsmodell ausblenden ({other_model})', other_model=comparison_model_name) }}";
+    btns.forEach(btn => {
+        const textSpan = btn.querySelector('.toggle-text');
+        if (textSpan) {
+            textSpan.textContent = isShown ? textHide : textShow;
+        }
+        if (isShown) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    let saved = false;
+    try {
+        saved = localStorage.getItem('rb48_model_analysis_show_comparison') === 'true';
+    } catch (e) {}
+    if (saved) {
+        const page = document.querySelector('.model-analysis-page');
+        if (page) {
+            page.classList.add('show-comparison');
+            updateComparisonButtons(true);
+        }
+    }
+});
+</script>
 {% endblock %}

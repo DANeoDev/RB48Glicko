@@ -34,7 +34,7 @@
                                 <option value="{{ ev.id }}">{{ ev.event_date }} — {{ ev.title or 'Spieltag' }} ({{ ev.attendee_count or 0 }} Zusagen)</option>
                             {% endfor %}
                         </select>
-                        <button class="secondary" type="submit" name="action" value="import_planner" style="white-space: nowrap;">
+                        <button class="secondary" type="submit" name="action" value="import_planner" data-scroll-target="#matchmaker-details" style="white-space: nowrap;">
                             📥 {{ t('match_center.import_btn', 'Kader importieren') }}
                         </button>
                     </div>
@@ -79,6 +79,7 @@
                         type="submit"
                         name="action"
                         value="parse_source"
+                        data-scroll-target="#parser-details"
                     >
                         {{ t('match_center.parse_btn', 'Parse') }}
                     </button>
@@ -265,6 +266,7 @@
                                 type="submit"
                                 name="action"
                                 value="resolve_conflicts"
+                                data-scroll-target="#matchmaker-details"
                             >
                                 {{ t('match_center.confirm_identities', 'Confirm Identities & Proceed') }}
                             </button>
@@ -300,6 +302,15 @@
                                         data-name="{{ u.name | e }}"
                                     >
                                         {{ t('match_center.add_player_btn', 'Add player') }}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        class="secondary ignore-btn"
+                                        data-name="{{ u.name | e }}"
+                                        title="{{ t('match_center.ignore_player_tooltip', 'Ignore this name and treat as external guest player (+1)') }}"
+                                    >
+                                        🚫 {{ t('match_center.ignore_player_btn', 'Spieler ignorieren') }}
                                     </button>
 
                                 </div>

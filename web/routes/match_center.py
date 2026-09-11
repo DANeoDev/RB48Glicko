@@ -1,10 +1,11 @@
+import json
 from datetime import date
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, session
 
 from scripts.accounts.database import get_accounts_connection
 from scripts.database.database import get_connection
 from scripts.database.db_ratings import get_ratings
-from scripts.database.db_players import get_players, get_alias_lookup, add_alias
+from scripts.database.db_players import get_players, get_alias_lookup, add_alias, get_ignored_aliases, add_ignored_alias
 from scripts.matches.match_entry import (
     add_match,
     next_match_id,
@@ -47,12 +48,30 @@ def _alias_candidates(players):
     return lookup
 
 
-def _build_parse_result(parsed, players):
+def _build_parse_result(parsed, players, ignored_aliases=None):
+    ignored_set = {normalize_player_name(a).casefold() for a in (ignored_aliases or set())}
     parsed_names = parsed.get("players", [])
-    verified_ids, conflicts, unmatched = resolve_player_names(parsed_names, players)
+    verified_ids, conflicts, unmatched = resolve_player_names(parsed_names, players, ignored_aliases=ignored_aliases)
     lookup = _alias_candidates(players)
-    team_a_ids = [ids[0] for raw in parsed.get("team_a", []) if len(ids := lookup.get(normalize_player_name(raw).casefold(), [])) == 1]
-    team_b_ids = [ids[0] for raw in parsed.get("team_b", []) if len(ids := lookup.get(normalize_player_name(raw).casefold(), [])) == 1]
+
+    team_a_ids = []
+    external_a = 0
+    for raw in parsed.get("team_a", []):
+        norm = normalize_player_name(raw).casefold()
+        if len(ids := lookup.get(norm, [])) == 1:
+            team_a_ids.append(ids[0])
+        elif norm in ignored_set:
+            external_a += 1
+
+    team_b_ids = []
+    external_b = 0
+    for raw in parsed.get("team_b", []):
+        norm = normalize_player_name(raw).casefold()
+        if len(ids := lookup.get(norm, [])) == 1:
+            team_b_ids.append(ids[0])
+        elif norm in ignored_set:
+            external_b += 1
+
     return {
         "kind": parsed.get("kind", "unknown"),
         "match_date": parsed.get("match_date"),
@@ -61,6 +80,8 @@ def _build_parse_result(parsed, players):
         "team_b": parsed.get("team_b", []),
         "team_a_ids": team_a_ids,
         "team_b_ids": team_b_ids,
+        "external_a": external_a,
+        "external_b": external_b,
         "goals_a": parsed.get("goals_a"),
         "goals_b": parsed.get("goals_b"),
         "verified_ids": verified_ids,
@@ -69,7 +90,7 @@ def _build_parse_result(parsed, players):
     }
 
 
-def _rebuild_parser_result(form, players, files=None):
+def _rebuild_parser_result(form, players, files=None, ignored_aliases=None):
     def integer_or_none(value):
         try:
             return int(value) if value not in (None, "") else None
@@ -85,7 +106,7 @@ def _rebuild_parser_result(form, players, files=None):
             if not upload or not upload.filename:
                 raise MatchParserError("Please paste a WhatsApp message or choose/paste an image first.")
             parsed = parse_match_image(upload.read(), upload.mimetype)
-        return _build_parse_result(parsed, players)
+        return _build_parse_result(parsed, players, ignored_aliases=ignored_aliases)
 
     return _build_parse_result({
         "kind": form.get("parsed_kind", "unknown"),
@@ -95,7 +116,7 @@ def _rebuild_parser_result(form, players, files=None):
         "team_b": [x for x in form.get("parsed_team_b", "").split("||") if x],
         "goals_a": integer_or_none(form.get("parsed_goals_a")),
         "goals_b": integer_or_none(form.get("parsed_goals_b")),
-    }, players)
+    }, players, ignored_aliases=ignored_aliases)
 
 
 def _remove_resolved_name(parse_result, name):
@@ -115,7 +136,7 @@ def _get_prefilled_team_ids(form, team_name, players):
 # Modular Action Handlers for match_center
 # -----------------------------------------------------------------------------
 
-def _handle_parse_action(form, files, players):
+def _handle_parse_action(form, files, players, connection):
     """Handle match message or match sheet image parsing via Gemini."""
     try:
         action = form.get("action")
@@ -126,17 +147,19 @@ def _handle_parse_action(form, files, players):
             if not upload or not upload.filename:
                 raise MatchParserError("Please paste a WhatsApp message or choose/paste an image first.")
             parsed = parse_match_image(upload.read(), upload.mimetype)
-        parse_result = _build_parse_result(parsed, players)
+        ignored_aliases = get_ignored_aliases(connection)
+        parse_result = _build_parse_result(parsed, players, ignored_aliases=ignored_aliases)
         selected_ids = parse_result["verified_ids"]
         parser_success = "This looks like an already played match. Review the imported facts, or check the same players for fairer possible teams." if parse_result["kind"] == "match" else None
         return parse_result, selected_ids, parser_success, None
     except MatchParserError as exc:
-        empty_res = _EmptyParseResult(kind="", match_date=None, players=[], team_a=[], team_b=[], team_a_ids=[], team_b_ids=[], goals_a=None, goals_b=None, verified_ids=[], conflicts=[], unmatched=[])
+        empty_res = _EmptyParseResult(kind="", match_date=None, players=[], team_a=[], team_b=[], team_a_ids=[], team_b_ids=[], external_a=0, external_b=0, goals_a=None, goals_b=None, verified_ids=[], conflicts=[], unmatched=[])
         return empty_res, [], None, str(exc)
 
 
-def _handle_resolve_conflicts(form, players):
-    parse_result = _rebuild_parser_result(form, players)
+def _handle_resolve_conflicts(form, players, connection):
+    ignored_aliases = get_ignored_aliases(connection)
+    parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
     selected_ids = list(parse_result["verified_ids"])
     lookup = _alias_candidates(players)
     remaining = []
@@ -156,7 +179,8 @@ def _handle_resolve_conflicts(form, players):
 
 
 def _handle_add_parser_alias(form, connection, players, selected_ids):
-    parse_result = _rebuild_parser_result(form, players)
+    ignored_aliases = get_ignored_aliases(connection)
+    parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
     alias = normalize_player_name(form.get("new_alias", ""))
     try:
         player_id = int(form.get("target_player_id", ""))
@@ -172,7 +196,8 @@ def _handle_add_parser_alias(form, connection, players, selected_ids):
         invalidate_stats_cache()
         players = get_players(connection)
         selected_ids = list(dict.fromkeys(selected_ids + [player_id]))
-        parse_result = _rebuild_parser_result(form, players)
+        ignored_aliases = get_ignored_aliases(connection)
+        parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
         _remove_resolved_name(parse_result, alias)
         return players, selected_ids, parse_result, f"Added '{alias}' as an alias and selected the player.", None
     except (ValueError, TypeError) as exc:
@@ -197,11 +222,30 @@ def _handle_create_parser_player(form, connection, players, selected_ids):
         invalidate_stats_cache()
         players = get_players(connection)
         selected_ids = list(dict.fromkeys(selected_ids + [created_id]))
-        parse_result = _rebuild_parser_result(form, players)
+        ignored_aliases = get_ignored_aliases(connection)
+        parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
         _remove_resolved_name(parse_result, alias)
         return players, selected_ids, parse_result, f"Created {alias} and selected them.", None
     except ValueError as exc:
-        parse_result = _rebuild_parser_result(form, players)
+        ignored_aliases = get_ignored_aliases(connection)
+        parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
+        return players, selected_ids, parse_result, None, str(exc)
+
+
+def _handle_ignore_parser_player(form, connection, players, selected_ids):
+    alias = normalize_player_name(form.get("target_alias") or form.get("new_alias") or "")
+    try:
+        if not alias:
+            raise ValueError("Alias cannot be empty.")
+        add_ignored_alias(connection, alias)
+        connection.commit()
+        ignored_aliases = get_ignored_aliases(connection)
+        parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
+        _remove_resolved_name(parse_result, alias)
+        return players, selected_ids, parse_result, f"Ignored '{alias}'. This tag will count as an external guest player in matches.", None
+    except ValueError as exc:
+        ignored_aliases = get_ignored_aliases(connection)
+        parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
         return players, selected_ids, parse_result, None, str(exc)
 
 
@@ -273,37 +317,102 @@ def _handle_create_player(form, is_xhr, connection, players, selected_ids):
         return players, selected_ids, None, err, None, None
 
 
-def _handle_save_match(form, is_xhr, connection, players):
-    match_date = form.get("date", date.today().isoformat())
-    pitch = form.get("pitch", "box")
-    goals_a = form.get("goals_a", "0")
-    goals_b = form.get("goals_b", "0")
-    team_a = _get_prefilled_team_ids(form, "team_a", players)
-    team_b = _get_prefilled_team_ids(form, "team_b", players)
+def _handle_save_match(data, is_xhr, connection, players):
     try:
-        external_a = int(form.get("external_a", "0") or 0)
-        external_b = int(form.get("external_b", "0") or 0)
-        if external_a < 0 or external_b < 0:
-            raise ValueError("External player counts cannot be negative.")
-        if (not team_a and external_a == 0) or (not team_b and external_b == 0):
-            raise ValueError("Both teams need at least one player.")
-        if len(team_a) != len(set(team_a)) or len(team_b) != len(set(team_b)):
-            raise ValueError("A player cannot appear more than once on the same team.")
-        if set(team_a) & set(team_b):
-            raise ValueError("A player cannot be on both teams.")
-        goals_a_int, goals_b_int = int(goals_a), int(goals_b)
-        if goals_a_int < 0 or goals_b_int < 0:
-            raise ValueError("Goals cannot be negative.")
-        date.fromisoformat(match_date)
-        match_id = add_match(connection, match_date, pitch, team_a, team_b, goals_a_int, goals_b_int, len(team_a) + external_a, len(team_b) + external_b)
+        matches_list = None
+        if hasattr(data, "get"):
+            matches_json = data.get("matches_json")
+            if matches_json:
+                matches_list = json.loads(matches_json)
+            elif data.get("matches"):
+                matches_list = data.get("matches")
+
+        if not matches_list:
+            matches_list = [{
+                "date": data.get("date", date.today().isoformat()),
+                "pitch": data.get("pitch", "box"),
+                "team_a": _get_prefilled_team_ids(data, "team_a", players) if hasattr(data, "getlist") else [int(p) for p in data.get("team_a", []) if str(p).isdigit() and int(p) in players],
+                "team_b": _get_prefilled_team_ids(data, "team_b", players) if hasattr(data, "getlist") else [int(p) for p in data.get("team_b", []) if str(p).isdigit() and int(p) in players],
+                "external_a": int(data.get("external_a", "0") or 0),
+                "external_b": int(data.get("external_b", "0") or 0),
+                "goals_a": int(data.get("goals_a", "0") or 0),
+                "goals_b": int(data.get("goals_b", "0") or 0),
+            }]
+
+        parsed_matches = []
+        for idx, m in enumerate(matches_list, start=1):
+            m_date = m.get("date") or (data.get("date") if hasattr(data, "get") else None) or date.today().isoformat()
+            m_pitch = m.get("pitch") or (data.get("pitch") if hasattr(data, "get") else None) or "box"
+            if m_pitch not in ("box", "hf"):
+                raise ValueError(f"Spiel {idx}: Ungültiges Platzformat '{m_pitch}'.")
+            date.fromisoformat(m_date)
+
+            raw_team_a = m.get("team_a", [])
+            raw_team_b = m.get("team_b", [])
+            if isinstance(raw_team_a, str):
+                raw_team_a = [p.strip() for p in raw_team_a.split(",") if p.strip()]
+            if isinstance(raw_team_b, str):
+                raw_team_b = [p.strip() for p in raw_team_b.split(",") if p.strip()]
+
+            m_team_a = [int(p) for p in raw_team_a if str(p).isdigit() and int(p) in players]
+            m_team_b = [int(p) for p in raw_team_b if str(p).isdigit() and int(p) in players]
+            m_ext_a = int(m.get("external_a", 0) or 0)
+            m_ext_b = int(m.get("external_b", 0) or 0)
+
+            if m_ext_a < 0 or m_ext_b < 0:
+                raise ValueError(f"Spiel {idx}: Externe Spieleranzahl darf nicht negativ sein.")
+            if (not m_team_a and m_ext_a == 0) or (not m_team_b and m_ext_b == 0):
+                raise ValueError(f"Spiel {idx}: Beide Teams benötigen mindestens einen Spieler.")
+            if len(m_team_a) != len(set(m_team_a)) or len(m_team_b) != len(set(m_team_b)):
+                raise ValueError(f"Spiel {idx}: Ein Spieler darf nicht mehrfach im selben Team vorkommen.")
+            if set(m_team_a) & set(m_team_b):
+                raise ValueError(f"Spiel {idx}: Ein Spieler darf nicht in beiden Teams gleichzeitig spielen.")
+
+            goals_a_int = int(m.get("goals_a", 0))
+            goals_b_int = int(m.get("goals_b", 0))
+            if goals_a_int < 0 or goals_b_int < 0:
+                raise ValueError(f"Spiel {idx}: Tore dürfen nicht negativ sein.")
+
+            parsed_matches.append({
+                "date": m_date,
+                "pitch": m_pitch,
+                "team_a": m_team_a,
+                "team_b": m_team_b,
+                "external_a": m_ext_a,
+                "external_b": m_ext_b,
+                "goals_a": goals_a_int,
+                "goals_b": goals_b_int,
+            })
+
+        created_match_ids = []
+        for m in parsed_matches:
+            match_id = add_match(
+                connection,
+                m["date"],
+                m["pitch"],
+                m["team_a"],
+                m["team_b"],
+                m["goals_a"],
+                m["goals_b"],
+                len(m["team_a"]) + m["external_a"],
+                len(m["team_b"]) + m["external_b"],
+            )
+            created_match_ids.append(match_id)
+
         processed = process_new_matches(connection)
         invalidate_stats_cache()
-        success = f"Saved {match_id} and updated Glicko ({processed} match processed)."
+
+        if len(created_match_ids) == 1:
+            success = f"Saved: {created_match_ids[0]} and Glicko ratings updated ({processed} match calculated)."
+        else:
+            success = f"Saved: {len(created_match_ids)} matches ({', '.join(created_match_ids)}) and Glicko ratings updated for this evening."
+
         if is_xhr:
-            next_id = next_match_id(connection, match_date)
+            next_id = next_match_id(connection, parsed_matches[-1]["date"])
             return success, None, jsonify({
                 "success": True,
-                "match_id": match_id,
+                "match_id": created_match_ids[0],
+                "match_ids": created_match_ids,
                 "message": success,
                 "next_match_id": next_id,
             })
@@ -333,6 +442,10 @@ def match_center():
         pitch = pitch if pitch in ("box", "hf") else "box"
         rating_type = "total" if mode == "total" else pitch
 
+        engine = request.form.get("engine", request.args.get("engine", session.get("active_model", "glicko"))).lower()
+        if engine not in ("glicko", "whr"):
+            engine = "glicko"
+
         raw_players = request.form.getlist("players") or request.args.getlist("players")
         if len(raw_players) == 1 and "," in raw_players[0]:
             raw_players = [p.strip() for p in raw_players[0].split(",") if p.strip()]
@@ -340,28 +453,32 @@ def match_center():
 
         result = None
         seed = None
-        parse_result = _EmptyParseResult(kind="", match_date=None, players=[], team_a=[], team_b=[], team_a_ids=[], team_b_ids=[], goals_a=None, goals_b=None, verified_ids=[], conflicts=[], unmatched=[])
+        parse_result = _EmptyParseResult(kind="", match_date=None, players=[], team_a=[], team_b=[], team_a_ids=[], team_b_ids=[], external_a=0, external_b=0, goals_a=None, goals_b=None, verified_ids=[], conflicts=[], unmatched=[])
         parse_error = None
         parser_success = None
         success = None
         error = None
         calibration_message = None
-        action = request.form.get("action") if request.method == "POST" else None
+        req_data = (request.get_json(silent=True) or {}) if request.is_json else request.form
+        action = req_data.get("action") if request.method == "POST" else None
         imported_planner_date = None
-        is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json
 
         if request.method == "POST":
             if action in ("parse_image", "parse_source"):
-                parse_result, selected_ids, parser_success, parse_error = _handle_parse_action(request.form, request.files, players)
+                parse_result, selected_ids, parser_success, parse_error = _handle_parse_action(request.form, request.files, players, connection)
 
             elif action == "resolve_conflicts":
-                parse_result, selected_ids, parser_success = _handle_resolve_conflicts(request.form, players)
+                parse_result, selected_ids, parser_success = _handle_resolve_conflicts(request.form, players, connection)
 
             elif action == "add_parser_alias":
                 players, selected_ids, parse_result, parser_success, parse_error = _handle_add_parser_alias(request.form, connection, players, selected_ids)
 
             elif action == "create_parser_player":
                 players, selected_ids, parse_result, parser_success, parse_error = _handle_create_parser_player(request.form, connection, players, selected_ids)
+
+            elif action == "ignore_parser_player":
+                players, selected_ids, parse_result, parser_success, parse_error = _handle_ignore_parser_player(request.form, connection, players, selected_ids)
 
             elif action == "import_planner":
                 selected_ids, imported_planner_date, imported_planner_pitch, parser_success = _handle_import_planner(request.form, connection, selected_ids)
@@ -375,8 +492,8 @@ def match_center():
                 if xhr_resp:
                     return xhr_resp
 
-            elif action == "save":
-                success, error, xhr_resp = _handle_save_match(request.form, is_xhr, connection, players)
+            elif action in ("save", "save_batch"):
+                success, error, xhr_resp = _handle_save_match(req_data, is_xhr, connection, players)
                 if xhr_resp:
                     return xhr_resp
 
@@ -386,7 +503,12 @@ def match_center():
                 except ValueError:
                     seed = None
                 if len(selected_ids) >= 2:
-                    result = generate_match(selected_ids, players, ratings, rating_type, seed=seed)
+                    if engine == "whr":
+                        from scripts.analysis.whr import get_whr_ratings_dict
+                        ratings_to_use = get_whr_ratings_dict(connection)
+                    else:
+                        ratings_to_use = ratings
+                    result = generate_match(selected_ids, players, ratings_to_use, rating_type, seed=seed)
 
         match_date = imported_planner_date or request.form.get("date", request.args.get("date", request.form.get("parsed_match_date", date.today().isoformat())))
         if parse_result and parse_result.get("match_date"):
@@ -394,15 +516,26 @@ def match_center():
 
         team_a = _get_prefilled_team_ids(request.form, "team_a", players) if request.method == "POST" and action in ("save", "create_player") else []
         team_b = _get_prefilled_team_ids(request.form, "team_b", players) if request.method == "POST" and action in ("save", "create_player") else []
+        try:
+            external_a = int(request.form.get("external_a", "0") or 0) if request.method == "POST" and action in ("save", "create_player") else 0
+            external_b = int(request.form.get("external_b", "0") or 0) if request.method == "POST" and action in ("save", "create_player") else 0
+        except (ValueError, TypeError):
+            external_a, external_b = 0, 0
         goals_a = request.form.get("goals_a", "0") if request.method == "POST" else "0"
         goals_b = request.form.get("goals_b", "0") if request.method == "POST" else "0"
         if parse_result and parse_result.get("kind") == "match" and not team_a and not team_b:
             team_a = parse_result.get("team_a_ids", [])
             team_b = parse_result.get("team_b_ids", [])
+            external_a = parse_result.get("external_a", 0)
+            external_b = parse_result.get("external_b", 0)
             goals_a = parse_result.get("goals_a") if parse_result.get("goals_a") is not None else 0
             goals_b = parse_result.get("goals_b") if parse_result.get("goals_b") is not None else 0
 
-        player_names = {pid: (data["aliases"][0] if data["aliases"] else f"Player {pid}") for pid, data in players.items()}
+        player_names = {}
+        for pid, data in players.items():
+            pname = data["aliases"][0] if data["aliases"] else f"Player {pid}"
+            player_names[pid] = pname
+            player_names[str(pid)] = pname
         player_search_data = [{"id": pid, "name": player_names[pid], "positions": data.get("positions", [])} for pid, data in players.items()]
 
         p_conn = get_planner_connection()
@@ -416,6 +549,7 @@ def match_center():
         return render_template(
             "match_center.html",
             players=players,
+            player_names=player_names,
             ratings=ratings,
             selected_ids=selected_ids,
             result=result,
@@ -426,6 +560,8 @@ def match_center():
             next_match_id=next_id,
             team_a=team_a,
             team_b=team_b,
+            external_a=external_a,
+            external_b=external_b,
             goals_a=goals_a,
             goals_b=goals_b,
             success=success,
@@ -438,6 +574,7 @@ def match_center():
             certainty_levels=CERTAINTY_LEVELS,
             player_search_data=player_search_data,
             planner_events=planner_events,
+            active_engine=engine,
         )
     finally:
         connection.close()

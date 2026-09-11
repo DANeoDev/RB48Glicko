@@ -8,6 +8,7 @@ from scripts.database.db_matches import get_match_teams, get_matches
 from scripts.database.db_ratings import get_match_ratings
 from scripts.glicko.glicko2 import (
     BOX,
+    DEFAULT_RATING,
     DEFAULT_SIGMA,
     GLICKO2_SCALE,
     HF,
@@ -62,12 +63,12 @@ def _log_loss(prediction, actual):
     return -(actual * math.log(prediction) + (1 - actual) * math.log(1 - prediction))
 
 
-def _goal_diff_distribution(matches_list):
-    """Return historical goal-difference frequency and shares by pitch."""
+def _goal_diff_distribution(observations):
+    """Return historical favourite goal-difference frequency and shares by pitch."""
     by_pitch = {}
-    for match in matches_list:
-        pitch = match["pitch"]
-        diff = abs(match["goals_a"] - match["goals_b"])
+    for obs in observations:
+        pitch = obs["pitch"]
+        diff = int(round(obs.get("raw_goal_diff", obs.get("goal_diff", 0.0))))
         by_pitch.setdefault(pitch, []).append(diff)
 
     distribution = {}
@@ -87,39 +88,46 @@ def _goal_diff_distribution(matches_list):
     return distribution, totals
 
 
-def _calibration_baskets(predictions, step=0.05):
-    """Group favourite predictions (>= 50%) into distinct probability intervals (e.g. 50-55%, 55-60%)."""
+def _calibration_baskets(predictions, basket_count=10, step=None):
+    """Group favourite predictions (>= 50%) into dynamic quantile intervals with equal match counts."""
     if not predictions:
         return []
+    if isinstance(basket_count, float):
+        # Gracefully handle legacy positional step argument
+        basket_count = 10
+
+    ordered = sorted(predictions, key=lambda x: x["prediction"])
+    n = len(ordered)
+    k_count = min(basket_count, n)
+    slices = [ordered[k * n // k_count : (k + 1) * n // k_count] for k in range(k_count)]
+
+    raw_bounds = [0.50]
+    for k in range(k_count - 1):
+        p_last = slices[k][-1]["prediction"]
+        p_first = slices[k + 1][0]["prediction"]
+        raw_bounds.append((p_last + p_first) / 2.0)
+    last_p = slices[-1][-1]["prediction"]
+    penult = raw_bounds[-1]
+    raw_bounds.append(min(1.0, max(last_p + (last_p - penult), last_p + 0.01, 0.75)))
+
+    for i in range(1, len(raw_bounds)):
+        if raw_bounds[i] <= raw_bounds[i - 1] + 0.001:
+            raw_bounds[i] = raw_bounds[i - 1] + 0.002
+
     baskets = []
-    num_bins = int(round((1.0 - 0.5) / step))
-
-    for i in range(num_bins):
-        bin_start = 0.5 + i * step
-        bin_end = bin_start + step
-        if i == num_bins - 1:
-            values = [
-                item for item in predictions
-                if bin_start - 1e-9 <= item["prediction"] <= bin_end + 1e-9
-            ]
-        else:
-            values = [
-                item for item in predictions
-                if bin_start - 1e-9 <= item["prediction"] < bin_end - 1e-9
-            ]
-
-        if not values:
-            continue
-
-        predictions_only = [item["prediction"] for item in values]
-        actuals = [item["actual"] for item in values]
-        goal_diffs = [item["goal_diff"] for item in values]
-        avg_diff = sum(goal_diffs) / len(values)
+    for k in range(k_count):
+        vals = slices[k]
+        low = raw_bounds[k]
+        high = raw_bounds[k + 1]
+        preds = [v["prediction"] for v in vals]
+        acts = [v["actual"] for v in vals]
+        diffs = [v["goal_diff"] for v in vals]
+        avg_diff = sum(diffs) / len(vals)
         baskets.append({
-            "label": f"{bin_start * 100:.0f}% – {bin_end * 100:.0f}%",
-            "count": len(values),
-            "predicted": sum(predictions_only) / len(values),
-            "actual": sum(actuals) / len(values),
+            "label": f"{low * 100:.1f}% – {high * 100:.1f}%",
+            "count": len(vals),
+            "predicted": sum(preds) / len(vals),
+            "actual": sum(acts) / len(vals),
             "avg_goal_diff": avg_diff,
             "goal_diff": avg_diff,
         })
@@ -130,37 +138,24 @@ def _calibration_baskets(predictions, step=0.05):
 _quantile_baskets = _calibration_baskets
 
 
-def _lowess(predictions, value_key="actual", points=50, fraction=0.35, min_val=0.0, max_val=1.0):
-    """Return a LOWESS curve for one observation field against prediction."""
-    if len(predictions) < 10:
+def _linear_trend(predictions, value_key="actual", points=50, min_val=0.0, max_val=1.0):
+    """Return a linear regression trendline for one observation field across predicted probabilities [0.5, 1.0]."""
+    if len(predictions) < 2:
         return []
-    ordered = sorted(predictions, key=lambda item: item["prediction"])
-    xs = [item["prediction"] for item in ordered]
-    ys = [item[value_key] for item in ordered]
+    xs = [item["prediction"] for item in predictions]
+    ys = [item[value_key] for item in predictions]
     n = len(xs)
-    span = max(3, int(math.ceil(fraction * n)))
-    curve = []
+    mean_x = sum(xs) / n
+    mean_y = sum(ys) / n
+    sxx = sum((x - mean_x) ** 2 for x in xs)
+    sxy = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
+    slope = sxy / sxx if sxx > 1e-12 else 0.0
+    intercept = mean_y - slope * mean_x
 
+    curve = []
     for step in range(points):
-        x0 = step / (points - 1)
-        distances = [abs(x - x0) for x in xs]
-        bandwidth = sorted(distances)[min(span - 1, n - 1)]
-        if bandwidth == 0:
-            weights = [1.0 if distance == 0 else 0.0 for distance in distances]
-        else:
-            weights = [
-                (1 - (distance / bandwidth) ** 3) ** 3 if distance <= bandwidth else 0.0
-                for distance in distances
-            ]
-        weight_sum = sum(weights)
-        if weight_sum == 0:
-            continue
-        mean_x = sum(weight * x for weight, x in zip(weights, xs)) / weight_sum
-        mean_y = sum(weight * y for weight, y in zip(weights, ys)) / weight_sum
-        sxx = sum(weight * (x - mean_x) ** 2 for weight, x in zip(weights, xs))
-        sxy = sum(weight * (x - mean_x) * (y - mean_y) for weight, x, y in zip(weights, xs, ys))
-        slope = sxy / sxx if sxx > 1e-12 else 0.0
-        fitted = mean_y + slope * (x0 - mean_x)
+        x0 = 0.5 + (step / (points - 1)) * 0.5
+        fitted = intercept + slope * x0
         if min_val is not None:
             fitted = max(min_val, fitted)
         if max_val is not None:
@@ -168,6 +163,9 @@ def _lowess(predictions, value_key="actual", points=50, fraction=0.35, min_val=0
         curve.append({"predicted": x0, value_key: fitted})
 
     return curve
+
+
+_lowess = _linear_trend
 
 
 def analyze_model(connection, mode=TOTAL, pitch=None):
@@ -222,14 +220,18 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
 
         goals_a = match["goals_a"]
         goals_b = match["goals_b"]
+        if raw_prediction > 0.5:
+            fav_goals, und_goals = goals_a, goals_b
+        else:
+            fav_goals, und_goals = goals_b, goals_a
+
+        raw_diff = fav_goals - und_goals
         winner_goals = max(goals_a, goals_b)
-        loser_goals = min(goals_a, goals_b)
-        raw_diff = winner_goals - loser_goals
 
         if mode == TOTAL and match["pitch"] == HF:
-            # Scale HF games to 10 goals for winner (e.g. 4:1 -> 10:2.5, diff = 7.5)
+            # Scale HF games to 10 goals for winner (e.g. 4:1 -> 10:2.5, diff = +7.5; 1:4 -> 2.5:10, diff = -7.5)
             if winner_goals > 0:
-                goal_diff = 10.0 * (winner_goals - loser_goals) / winner_goals
+                goal_diff = 10.0 * (fav_goals - und_goals) / winner_goals
             else:
                 goal_diff = 0.0
         else:
@@ -245,17 +247,30 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
         })
 
     count = len(observations)
-    relevant_matches = [m for m in matches.values() if pitch is None or m["pitch"] == pitch]
-    goal_diff_reference, goal_diff_pitch_totals = _goal_diff_distribution(relevant_matches)
+    return _build_analysis_result(observations, count, excluded, mode=mode, pitch=pitch)
 
-    if mode == TOTAL or pitch == BOX:
-        max_obs = max((item["goal_diff"] for item in observations), default=10.0)
-        goal_diff_max = max(10, int(math.ceil(max_obs)))
-        goal_diff_ticks = list(range(0, goal_diff_max + 1, 2))
+
+def _build_analysis_result(observations, count, excluded, mode, pitch):
+    """Aggregate raw observations into standard calibration metrics, LOWESS trendlines, and bins."""
+    goal_diff_reference, goal_diff_pitch_totals = _goal_diff_distribution(observations)
+
+    is_box_or_total = mode == TOTAL or pitch == BOX or (mode == "whr" and pitch in ("total", None, BOX))
+    if count:
+        min_obs = min(item["goal_diff"] for item in observations)
+        max_obs = max(item["goal_diff"] for item in observations)
+        if is_box_or_total:
+            goal_diff_max = max(10, int(math.ceil(max_obs / 2.0)) * 2)
+            goal_diff_min = min(0, int(math.floor(min_obs / 2.0)) * 2)
+            goal_diff_ticks = list(range(goal_diff_min, goal_diff_max + 1, 2))
+        else:
+            goal_diff_max = max(5, int(math.ceil(max_obs)))
+            goal_diff_min = min(0, int(math.floor(min_obs)))
+            step = 1 if (goal_diff_max - goal_diff_min) <= 8 else 2
+            goal_diff_ticks = list(range(goal_diff_min, goal_diff_max + 1, step))
     else:
-        max_obs = max((item["goal_diff"] for item in observations), default=5.0)
-        goal_diff_max = max(5, int(math.ceil(max_obs)))
-        step = 1 if goal_diff_max <= 6 else 2
+        goal_diff_min = 0
+        goal_diff_max = 10 if is_box_or_total else 5
+        step = 2 if is_box_or_total else 1
         goal_diff_ticks = list(range(0, goal_diff_max + 1, step))
 
     if not count:
@@ -275,6 +290,7 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
             "goal_diff_lowess": [],
             "goal_diff_reference": goal_diff_reference,
             "goal_diff_pitch_totals": goal_diff_pitch_totals,
+            "goal_diff_min": goal_diff_min,
             "goal_diff_max": goal_diff_max,
             "goal_diff_ticks": goal_diff_ticks,
         }
@@ -309,9 +325,90 @@ def analyze_model(connection, mode=TOTAL, pitch=None):
         "expected_accuracy": expected_accuracy,
         "calibration": calibration_baskets,
         "lowess": _lowess(observations, "actual", min_val=0.0, max_val=1.0),
-        "goal_diff_lowess": _lowess(observations, "goal_diff", min_val=0.0, max_val=float(goal_diff_max)),
+        "goal_diff_lowess": _lowess(observations, "goal_diff", min_val=float(goal_diff_min), max_val=float(goal_diff_max)),
         "goal_diff_reference": goal_diff_reference,
         "goal_diff_pitch_totals": goal_diff_pitch_totals,
+        "goal_diff_min": goal_diff_min,
         "goal_diff_max": goal_diff_max,
         "goal_diff_ticks": goal_diff_ticks,
     }
+
+
+def analyze_whr_model(connection, mode="whr", pitch=None, whr_models=None):
+    """Analyse historical match predictions using retrospective WHR rating trajectories."""
+    from scripts.analysis.whr import get_whr_models
+
+    if whr_models is None:
+        whr_models = get_whr_models(connection)
+
+    if pitch in ("total", None):
+        target_pitch = None
+        rating_type = TOTAL
+    elif pitch.lower() == "box":
+        target_pitch = BOX
+        rating_type = BOX
+    elif pitch.lower() == "hf":
+        target_pitch = HF
+        rating_type = HF
+    else:
+        raise ValueError("pitch must be None, 'total', 'box', or 'hf'")
+
+    whr_model = whr_models.get(rating_type, whr_models[TOTAL])
+    matches = get_matches(connection)
+    observations = []
+    excluded = 0
+
+    for match in matches.values():
+        if target_pitch is not None and match["pitch"] != target_pitch:
+            continue
+
+        team_a_ids, team_b_ids = get_match_teams(connection, match["match_id"])
+        if not team_a_ids or not team_b_ids:
+            excluded += 1
+            continue
+
+        match_date = match["date"]
+        r_a = [whr_model.get_player_rating_at(p, match_date) for p in team_a_ids]
+        r_b = [whr_model.get_player_rating_at(p, match_date) for p in team_b_ids]
+        tot_a = match["players_a"]
+        tot_b = match["players_b"]
+        mean_a = (sum(r_a) + (tot_a - len(r_a)) * DEFAULT_RATING) / max(tot_a, 1)
+        mean_b = (sum(r_b) + (tot_b - len(r_b)) * DEFAULT_RATING) / max(tot_b, 1)
+
+        diff = (mean_a - mean_b) / GLICKO2_SCALE
+        raw_prediction = 1.0 / (1.0 + math.exp(-max(-35, min(35, diff))))
+
+        if math.isclose(raw_prediction, 0.5, abs_tol=1e-12):
+            excluded += 1
+            continue
+
+        goals_a = match["goals_a"]
+        goals_b = match["goals_b"]
+        if raw_prediction > 0.5:
+            fav_goals, und_goals = goals_a, goals_b
+        else:
+            fav_goals, und_goals = goals_b, goals_a
+
+        raw_diff = fav_goals - und_goals
+        winner_goals = max(goals_a, goals_b)
+
+        if (target_pitch is None or rating_type == TOTAL) and match["pitch"] == HF:
+            if winner_goals > 0:
+                goal_diff = 10.0 * (fav_goals - und_goals) / winner_goals
+            else:
+                goal_diff = 0.0
+        else:
+            goal_diff = float(raw_diff)
+
+        prediction, actual = _favourite_observation(raw_prediction, _actual_score(match))
+        observations.append({
+            "prediction": prediction,
+            "actual": actual,
+            "pitch": match["pitch"],
+            "goal_diff": goal_diff,
+            "raw_goal_diff": raw_diff,
+        })
+
+    count = len(observations)
+    display_pitch = pitch if pitch in ("box", "hf") else "total"
+    return _build_analysis_result(observations, count, excluded, mode="whr", pitch=display_pitch)

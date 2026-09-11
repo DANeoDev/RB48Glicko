@@ -148,6 +148,50 @@ body {
 }
 
 /* =========================
+   Model Switcher Toggle (Glicko-2 vs WHR)
+   ========================= */
+.model-toggle-group {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(42, 21, 72, 0.75);
+    border: 1px solid rgba(123, 82, 197, 0.4);
+    border-radius: 20px;
+    padding: 2px 3px;
+    gap: 2px;
+}
+
+.model-toggle-btn {
+    padding: 4px 9px;
+    font-size: 11.5px;
+    font-weight: 700;
+    font-family: inherit;
+    letter-spacing: 0.4px;
+    color: var(--text-muted);
+    border-radius: 16px;
+    text-decoration: none;
+    transition: all 0.15s ease;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.model-toggle-btn:hover {
+    color: #80deea;
+    background: rgba(123, 82, 197, 0.35);
+}
+
+.model-toggle-btn.active {
+    background: linear-gradient(135deg, #7B52C5, #582DA1);
+    color: #ffffff;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+
+.model-toggle-btn.active[data-model="whr"] {
+    background: linear-gradient(135deg, #00838f, #006064);
+    color: #e0f7fa;
+    box-shadow: 0 1px 6px rgba(0, 131, 143, 0.5);
+}
+
+/* =========================
    Reading & Prose Typography
    ========================= */
 .reading-text, .prose-text, .faq-item p, .about-section p, .account-content p {
@@ -637,6 +681,37 @@ a:hover { color: var(--accent-hover); }
 /* =========================================================================
    Universal Modal & Backdrop Styles (Shared across all pages)
    ========================================================================= */
+.modal-bg {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100vw; height: 100vh;
+    background: rgba(10, 5, 22, 0.85);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    z-index: 10000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.modal-bg.active, .modal-bg.open {
+    display: flex !important;
+}
+
+.modal {
+    background: var(--bg-surface, #1e1338);
+    border: 1px solid #7B52C5;
+    border-radius: var(--radius, 12px);
+    padding: 24px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.9);
+    position: relative;
+    color: var(--text-main, #ffffff);
+    box-sizing: border-box;
+}
+
 .corr-modal-backdrop, .global-search-backdrop {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;

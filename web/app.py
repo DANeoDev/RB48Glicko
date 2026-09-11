@@ -69,6 +69,9 @@ def create_app():
             except Exception:
                 unseen_webmaster_notifications_count = 0
 
+        can_switch_model = has_tier(Tier.GLICKO_USER)
+        active_model = session.get("active_model", "glicko") if can_switch_model else "glicko"
+
         return {
             "current_user": user,
             "effective_tier": get_effective_tier(),
@@ -78,6 +81,8 @@ def create_app():
             "is_webmaster": has_tier(Tier.WEBMASTER),
             "is_admin": has_tier(Tier.ADMIN),
             "simulated_tier": session.get("simulated_tier") if user and user.get("role") == "webmaster" else None,
+            "active_model": active_model,
+            "can_switch_model": can_switch_model,
             "current_lang": lang,
             "t": t,
             "get_current_lang": get_current_lang,

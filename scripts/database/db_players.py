@@ -114,6 +114,7 @@ def add_position(
 def add_ignored_alias(connection, alias):
 
     connection.execute("""
-        INSERT INTO ignored_aliases (alias)
+        INSERT OR IGNORE INTO ignored_aliases (alias)
         VALUES (?)
     """, (alias,))
+

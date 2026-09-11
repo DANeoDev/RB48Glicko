@@ -218,20 +218,20 @@
 {% block content %}
 <div class="doc-container">
     <div class="doc-header">
-        <a href="{{ url_for('stats.glicko_explainer') }}#webmaster-project" class="doc-back-link">
+        <a href="{{ back_faq_url or url_for('stats.glicko_explainer') ~ '#webmaster-project' }}" class="doc-back-link">
             {{ t('faq.model_docs_back', '← Zurück zur FAQ') }}
         </a>
         <h1 style="margin: 6px 0 8px; color: #ffffff; font-size: 28px;">
-            {{ t('faq.model_docs_heading', 'The RB48 Team-Based Glicko-2 Engine') }}
+            {{ doc_title or t('faq.model_docs_heading', 'The RB48 Team-Based Glicko-2 Engine') }}
         </h1>
         <p class="muted" style="margin: 0; font-size: 15px;">
-            {{ t('faq.model_docs_subtitle', 'Technical & Conceptual Mathematical Architecture') }}
+            {{ doc_subtitle or t('faq.model_docs_subtitle', 'Technical & Conceptual Mathematical Architecture') }}
         </p>
         <div class="doc-actions">
-            <a href="{{ url_for('stats.model_documentation_raw') }}" target="_blank" class="doc-action-btn">
+            <a href="{{ raw_url or url_for('stats.model_documentation_raw') }}" target="_blank" class="doc-action-btn">
                 📄 Raw Markdown (.md)
             </a>
-            <a href="{{ url_for('stats.glicko_explainer') }}#faq-glicko" class="doc-action-btn">
+            <a href="{{ back_faq_url or url_for('stats.glicko_explainer') ~ '#faq-glicko' }}" class="doc-action-btn">
                 ❓ FAQ & Leitfaden
             </a>
         </div>
@@ -252,12 +252,14 @@
 function initDocMath() {
     if (typeof renderMathInElement === "function") {
         var docElem = document.querySelector(".doc-container");
-        if (docElem) {
+        if (docElem && !docElem.dataset.mathRendered) {
+            docElem.dataset.mathRendered = "true";
             renderMathInElement(docElem, {
                 delimiters: [
                     { left: "$$", right: "$$", display: true },
                     { left: "\\[", right: "\\]", display: true },
-                    { left: "\\(", right: "\\)", display: false }
+                    { left: "\\(", right: "\\)", display: false },
+                    { left: "$", right: "$", display: false }
                 ],
                 ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code"],
                 throwOnError: false

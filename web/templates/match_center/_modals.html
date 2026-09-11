@@ -99,6 +99,34 @@
 
         </div>
 
+        <div id="team-add-choice" style="display: none;">
+
+            <p>
+                {{ t('match_center.team_add_choice_prompt', 'Möchtest du einen neuen Spieler in der Datenbank anlegen oder einen externen Gastspieler (+1) hinzufügen?') }}
+            </p>
+
+            <div class="modal-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
+
+                <button
+                    class="primary"
+                    id="choice-create-player-btn"
+                    type="button"
+                >
+                    👤 {{ t('match_center.choice_new_player', 'Neuen Spieler erstellen') }}
+                </button>
+
+                <button
+                    class="secondary"
+                    id="choice-external-player-btn"
+                    type="button"
+                >
+                    ➕ {{ t('match_center.choice_external_player', 'Externen Spieler hinzufügen (+1)') }}
+                </button>
+
+            </div>
+
+        </div>
+
 
         <div
             id="alias-form"
@@ -295,6 +323,65 @@
 
     </div>
 
+</div>
+
+
+<!-- ================================================================
+     BATCH SAVE CONFIRMATION MODAL
+     ================================================================ -->
+
+<div
+    class="modal-bg"
+    id="batch-save-modal"
+    style="display: none;"
+>
+    <div class="modal" style="max-width: 680px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+            <h3 style="margin: 0; font-size: 19px;">{{ t('match_center.batch_modal_title', 'Spiele für diesen Abend erfassen') }}</h3>
+            <span id="batch-modal-date-badge" class="muted" style="font-size: 13px; background: rgba(255, 255, 255, 0.06); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border);"></span>
+        </div>
+
+        <p class="muted" style="font-size: 13px; margin: 0 0 16px 0; line-height: 1.4;">
+            {{ t('match_center.batch_modal_desc', 'Bestätige das Ergebnis oder trage direkt weitere Spiele für diesen Spieltag ein. Alle Spiele des Abends werden gemeinsam als eine zusammenhängende Glicko-Session berechnet.') }}
+        </p>
+
+        <div id="batch-modal-error" style="display: none; margin-bottom: 12px; color: #ff8888; background: rgba(255, 100, 100, 0.1); border: 1px solid rgba(255, 100, 100, 0.3); padding: 8px 12px; border-radius: var(--radius); font-size: 13.5px;"></div>
+
+        <div id="batch-matches-container" style="overflow-y: auto; flex: 1; margin-bottom: 16px; padding-right: 4px;">
+            <!-- Rendered dynamically by match_center.js -->
+        </div>
+
+        <div style="margin-bottom: 16px;">
+            <button
+                type="button"
+                id="batch-add-match-btn"
+                class="secondary"
+                style="width: 100%; padding: 9px 12px; border-style: dashed; font-weight: 600; cursor: pointer;"
+            >
+                ➕ {{ t('match_center.batch_add_game', '+ Weiteres Spiel für diesen Abend hinzufügen') }}
+            </button>
+        </div>
+
+        <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border); padding-top: 14px; margin-top: auto;">
+            <button
+                class="secondary"
+                id="batch-cancel-btn"
+                type="button"
+            >
+                {{ t('common.cancel', 'Abbrechen') }}
+            </button>
+            <button
+                class="primary"
+                id="batch-confirm-btn"
+                type="button"
+                style="min-width: 160px;"
+            >
+                ✓ {{ t('match_center.batch_confirm_btn', 'Eingabe bestätigen') }}
+            </button>
+        </div>
+
+    </div>
 </div>
 
 
