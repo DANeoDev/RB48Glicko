@@ -44,7 +44,7 @@ from scripts.accounts.psychology import (
 )
 from scripts.database.database import get_connection as get_main_connection
 from scripts.database.db_players import get_players
-from scripts.planner.database import get_planner_connection, get_attendance_logs, get_attendance_logs_count
+from scripts.planner.database import get_planner_connection, get_attendance_logs, get_attendance_logs_count, get_all_events
 from web.services.email_service import is_smtp_configured, send_verification_email
 from web.services.translations import get_current_lang
 from web.services.security import (
@@ -264,9 +264,9 @@ def admin_users():
 
 
 @auth_bp.route("/admin/attendance-logs")
-@require_webmaster
+@require_tier(Tier.ADMIN)
 def admin_attendance_logs():
-    """Webmaster audit log dashboard showing attendee registrations and cancellations."""
+    """Admin & Webmaster audit log dashboard showing attendee registrations and cancellations."""
     p_conn = get_planner_connection()
     try:
         page = max(1, request.args.get("page", 1, type=int))
@@ -276,13 +276,28 @@ def admin_attendance_logs():
         if action_filter not in ("registered", "cancelled", "declined"):
             action_filter = None
 
-        raw_logs = get_attendance_logs(p_conn, limit=per_page, offset=offset, action=action_filter)
-        total_logs = get_attendance_logs_count(p_conn, action=action_filter)
+        event_id_filter = request.args.get("event_id", type=int)
+
+        raw_logs = get_attendance_logs(p_conn, limit=per_page, offset=offset, event_id=event_id_filter, action=action_filter)
+        total_logs = get_attendance_logs_count(p_conn, event_id=event_id_filter, action=action_filter)
         total_pages = max(1, (total_logs + per_page - 1) // per_page)
 
-        reg_count = get_attendance_logs_count(p_conn, action="registered")
-        cancel_count = get_attendance_logs_count(p_conn, action="cancelled")
-        decline_count = get_attendance_logs_count(p_conn, action="declined")
+        reg_count = get_attendance_logs_count(p_conn, event_id=event_id_filter, action="registered")
+        cancel_count = get_attendance_logs_count(p_conn, event_id=event_id_filter, action="cancelled")
+        decline_count = get_attendance_logs_count(p_conn, event_id=event_id_filter, action="declined")
+
+        # Fetch all events for the filter dropdown
+        raw_events = get_all_events(p_conn)
+        events_list = []
+        selected_event_title = None
+        for ev in raw_events:
+            ev_dict = dict(ev)
+            custom = f" ({ev_dict['title']})" if ev_dict.get("title") else ""
+            title = f"{ev_dict.get('event_date', '')} · {ev_dict.get('pitch', '').upper()}{custom}"
+            ev_dict["display_title"] = title
+            events_list.append(ev_dict)
+            if event_id_filter and ev_dict["id"] == event_id_filter:
+                selected_event_title = title
 
         logs = []
         for row in raw_logs:
@@ -301,6 +316,9 @@ def admin_attendance_logs():
             total_pages=total_pages,
             total_logs=total_logs,
             action_filter=action_filter or "",
+            event_id_filter=event_id_filter,
+            selected_event_title=selected_event_title,
+            events_list=events_list,
             reg_count=reg_count,
             cancel_count=cancel_count,
             decline_count=decline_count,

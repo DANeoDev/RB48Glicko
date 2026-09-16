@@ -1019,4 +1019,7 @@ TRANSLATIONS_DE = {
     "rating_comparison.th_games": "Spiele",
     "rating_comparison.showing_players": "{count} Spieler angezeigt",
     "rating_comparison.doc_link": "WHR Modell-Dokumentation lesen →",
+    "admin.nav_attendance_log": "Anwesenheits-Log",
+    "planner.view_all_logs_title": "Gesamtes An- und Abmelde-Audit-Log aller Spieltage öffnen",
+    "planner.log_btn_title": "An- und Abmelde-Log für diesen Spieltag anzeigen",
 }

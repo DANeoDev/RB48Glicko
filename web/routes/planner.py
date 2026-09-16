@@ -1,7 +1,7 @@
 """Routes and business logic for the Attendance Planner tool."""
 
 from datetime import datetime, timedelta, timezone
-from flask import Blueprint, flash, redirect, render_template, request, url_for, Response
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for, Response
 
 from scripts.accounts.database import get_accounts_connection, get_user_by_id, set_user_attendance_name
 from scripts.database.database import get_connection as get_main_connection
@@ -14,6 +14,8 @@ from scripts.planner.database import (
     cancel_user_rsvp,
     create_event,
     delete_event,
+    get_attendance_logs,
+    get_attendance_logs_count,
     get_attendee_by_id,
     get_event_attendees,
     get_event_by_id,
@@ -273,6 +275,7 @@ def edit_event_attendee(event_id, attendee_id):
         flash("Please provide a valid name and status.", "danger")
         return redirect(url_for("planner.planner"))
 
+    user = get_current_user()
     connection = get_planner_connection()
     try:
         attendee = get_attendee_by_id(connection, attendee_id)
@@ -280,7 +283,8 @@ def edit_event_attendee(event_id, attendee_id):
             flash("Attendee entry not found.", "danger")
             return redirect(url_for("planner.planner"))
 
-        update_attendee(connection, attendee_id, name=new_name, status=new_status)
+        actor_name = (user.get("attendance_name") or user.get("username")) if user else "Admin"
+        update_attendee(connection, attendee_id, name=new_name, status=new_status, actor_name=actor_name)
         flash(f"Updated entry for '{new_name}'.", "success")
     finally:
         connection.close()
@@ -314,6 +318,77 @@ def remove_event_attendee(event_id, attendee_id):
         connection.close()
 
     return redirect(url_for("planner.planner"))
+
+
+@planner_bp.route("/planner/<int:event_id>/logs")
+@require_tier(Tier.ADMIN)
+def event_attendance_logs(event_id):
+    """Retrieve attendance audit logs for a specific matchday event (Admin & Webmaster)."""
+    connection = get_planner_connection()
+    try:
+        event = get_event_by_id(connection, event_id)
+        if not event:
+            return jsonify({"success": False, "error": "Spieltag nicht gefunden."}), 404
+
+        raw_logs = get_attendance_logs(connection, limit=500, offset=0, event_id=event_id)
+        logs = []
+        for row in raw_logs:
+            r = dict(row)
+            try:
+                dt = datetime.fromisoformat(r["created_at"])
+                r["formatted_time"] = dt.strftime("%d.%m.%Y %H:%M:%S")
+            except Exception:
+                r["formatted_time"] = r["created_at"]
+
+            # Human-readable labels & styling
+            action = r.get("action", "")
+            if action == "registered":
+                r["action_label"] = "Angemeldet"
+                r["action_badge_class"] = "badge-registered"
+                r["action_icon"] = "🟢"
+            elif action == "cancelled":
+                r["action_label"] = "Abgemeldet"
+                r["action_badge_class"] = "badge-cancelled"
+                r["action_icon"] = "🔴"
+            elif action == "declined":
+                r["action_label"] = "Abgesagt"
+                r["action_badge_class"] = "badge-declined"
+                r["action_icon"] = "🟡"
+            else:
+                r["action_label"] = action
+                r["action_badge_class"] = "badge-secondary"
+                r["action_icon"] = "⚪"
+
+            att_type = r.get("attendee_type", "")
+            if att_type == "visitor":
+                r["type_label"] = "Besucher"
+            elif att_type == "member_guest":
+                r["type_label"] = "Gast"
+            elif att_type == "member":
+                r["type_label"] = "Mitglied"
+            else:
+                r["type_label"] = att_type
+
+            logs.append(r)
+
+        event_dict = dict(event)
+        custom = f" ({event_dict['title']})" if event_dict.get("title") else ""
+        event_title = f"{event_dict.get('event_date', '')} · {event_dict.get('pitch', '').upper()}{custom}"
+
+        return jsonify({
+            "success": True,
+            "event_id": event_id,
+            "event_title": event_title,
+            "logs": logs,
+            "counts": {
+                "total": len(logs),
+                "registered": sum(1 for l in logs if l["action"] == "registered"),
+                "cancelled": sum(1 for l in logs if l["action"] == "cancelled"),
+                "declined": sum(1 for l in logs if l["action"] == "declined"),
+            },
+        })
+    finally:
+        connection.close()
 
 
 @planner_bp.route("/planner/events/create", methods=["POST"])

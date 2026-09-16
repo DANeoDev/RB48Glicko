@@ -472,6 +472,118 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(remove_resp.status_code, 200)
         self.assertIsNone(get_attendee_by_id(self.conn, attendee_id))
 
+    def test_event_attendance_logs_authorization_and_details(self):
+        # Create user, admin, webmaster
+        u_name = f"user_{int(time.time() * 1000000)}"
+        user_id, _ = register_user(u_name, f"{u_name}@example.com", "UserPass123!")
+        a_name = f"admin_{int(time.time() * 1000000)}"
+        admin_id, _ = register_user(a_name, f"{a_name}@example.com", "AdminPass123!")
+        w_name = f"webmaster_{int(time.time() * 1000000)}"
+        webmaster_id, _ = register_user(w_name, f"{w_name}@example.com", "WebmasterPass123!")
+
+        acc_conn = get_accounts_connection()
+        try:
+            mark_email_verified(acc_conn, user_id)
+            approve_user(acc_conn, user_id, approved=True)
+            update_user_role(acc_conn, user_id, "user")
+
+            mark_email_verified(acc_conn, admin_id)
+            approve_user(acc_conn, admin_id, approved=True)
+            update_user_role(acc_conn, admin_id, "admin")
+
+            mark_email_verified(acc_conn, webmaster_id)
+            approve_user(acc_conn, webmaster_id, approved=True)
+            update_user_role(acc_conn, webmaster_id, "webmaster")
+        finally:
+            acc_conn.close()
+
+        event_id = create_event(self.conn, "2026-11-20 20:00", "box")
+
+        # 1. Unauthenticated visitor -> 302 redirect
+        res_anon = self.client.get(f"/planner/{event_id}/logs")
+        self.assertEqual(res_anon.status_code, 302)
+
+        # 2. Normal user -> 302 redirect
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        res_user = self.client.get(f"/planner/{event_id}/logs")
+        self.assertEqual(res_user.status_code, 302)
+
+        # 3. Simulate activity on this event:
+        # a) User registers (attending)
+        set_user_rsvp(self.conn, event_id, user_id, u_name, "attending")
+        # b) Guest registers
+        add_guest_rsvp(self.conn, event_id, "Guest Max", registered_by_user_id=user_id, registered_by_name=u_name)
+        # c) Admin updates attendee to declined
+        attendees = get_event_attendees(self.conn, event_id)
+        user_att = next(a for a in attendees if a["user_id"] == user_id)
+        update_attendee(self.conn, user_att["id"], status="declined", actor_name=a_name)
+        # d) Guest is removed
+        guest_att = next(a for a in attendees if "Guest Max" in a["name"])
+        remove_attendee(self.conn, guest_att["id"], actor_name=a_name)
+
+        # 4. Admin accesses /planner/<event_id>/logs -> 200 JSON
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = admin_id
+        res_admin = self.client.get(f"/planner/{event_id}/logs")
+        self.assertEqual(res_admin.status_code, 200)
+        data = res_admin.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertEqual(data["event_id"], event_id)
+        self.assertIn("logs", data)
+        self.assertGreaterEqual(len(data["logs"]), 3)
+        self.assertIn("counts", data)
+        self.assertEqual(data["counts"]["cancelled"], 1)
+        self.assertEqual(data["counts"]["declined"], 1)
+
+        # 5. Webmaster accesses /planner/<event_id>/logs -> 200 JSON
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = webmaster_id
+        res_wm = self.client.get(f"/planner/{event_id}/logs")
+        self.assertEqual(res_wm.status_code, 200)
+        data_wm = res_wm.get_json()
+        self.assertTrue(data_wm.get("success"))
+
+    def test_admin_attendance_log_dashboard_filter(self):
+        # Create admin and regular user
+        u_name = f"user_{int(time.time() * 1000000)}"
+        user_id, _ = register_user(u_name, f"{u_name}@example.com", "UserPass123!")
+        a_name = f"admin_{int(time.time() * 1000000)}"
+        admin_id, _ = register_user(a_name, f"{a_name}@example.com", "AdminPass123!")
+
+        acc_conn = get_accounts_connection()
+        try:
+            mark_email_verified(acc_conn, user_id)
+            approve_user(acc_conn, user_id, approved=True)
+            update_user_role(acc_conn, user_id, "user")
+
+            mark_email_verified(acc_conn, admin_id)
+            approve_user(acc_conn, admin_id, approved=True)
+            update_user_role(acc_conn, admin_id, "admin")
+        finally:
+            acc_conn.close()
+
+        event_id = create_event(self.conn, "2026-11-25 20:00", "hf")
+        set_user_rsvp(self.conn, event_id, user_id, u_name, "attending")
+
+        # 1. Normal user cannot access /admin/attendance-logs -> 302
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        res_user = self.client.get("/admin/attendance-logs")
+        self.assertEqual(res_user.status_code, 302)
+
+        # 2. Admin can access /admin/attendance-logs -> 200
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = admin_id
+        res_admin = self.client.get("/admin/attendance-logs")
+        self.assertEqual(res_admin.status_code, 200)
+        self.assertIn(b"Anwesenheits-Audit-Log", res_admin.data)
+
+        # 3. Admin can filter by event_id -> 200
+        res_filtered = self.client.get(f"/admin/attendance-logs?event_id={event_id}")
+        self.assertEqual(res_filtered.status_code, 200)
+        self.assertIn(u_name.encode("utf-8"), res_filtered.data)
+
 
 if __name__ == "__main__":
     unittest.main()

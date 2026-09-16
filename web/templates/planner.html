@@ -21,6 +21,9 @@
                 </a>
             {% endif %}
             {% if has_tier('admin') %}
+                <a href="{{ url_for('auth.admin_attendance_logs') }}" class="planner-btn-pill" style="background: rgba(128, 222, 234, 0.15); border: 1px solid rgba(128, 222, 234, 0.4); color: #80deea; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;" title="{{ t('planner.view_all_logs_title', 'Gesamtes An- und Abmelde-Audit-Log aller Spieltage öffnen') }}">
+                    📋 {{ t('admin.nav_attendance_log', 'Anmelde-Logs') }}
+                </a>
                 <form method="post" action="{{ url_for('planner.auto_seed_events') }}" style="margin: 0; display: inline;">
                     <button type="submit" class="planner-btn-pill planner-btn-standard" title="{{ t('planner.add_standard_title', 'Automatically schedule the next 4 Wednesdays with alternating BOX/HF pitches') }}">
                         {{ t('planner.add_standard', '＋ Add 4 Standard Matches') }}
@@ -109,6 +112,14 @@
 
                             {% if has_tier('admin') %}
                                 <div style="display: flex; gap: 8px; align-items: center;">
+                                    <button type="button" 
+                                            class="secondary btn-matchday-log" 
+                                            data-event-id="{{ event.id }}" 
+                                            data-event-title="{{ event.formatted_date }} · {{ event.badge_label }}{% if event.title %} ({{ event.title }}){% endif %}"
+                                            style="font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 5px; color: #80deea; border-color: rgba(128, 222, 234, 0.4); background: rgba(128, 222, 234, 0.1); cursor: pointer;"
+                                            title="{{ t('planner.log_btn_title', 'An- und Abmelde-Log für diesen Spieltag anzeigen') }}">
+                                        📜 Log
+                                    </button>
                                     <a href="{{ url_for('match_center.match_center', players=event.matched_player_ids_str, pitch=event.pitch_lower, date=event.event_date[:10]) if event.matched_player_ids_str else url_for('match_center.match_center', pitch=event.pitch_lower, date=event.event_date[:10]) }}" class="secondary" style="font-size: 12px; padding: 6px 12px; text-decoration: none;" title="Transfer attending lineup directly to Match Center">
                                         {{ t('nav.match_center', 'Match Center') }} →
                                     </a>
@@ -345,6 +356,72 @@
                 <button type="submit" class="primary">{{ t('common.save', 'Save Changes') }}</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Modal 3c: Admin & Webmaster Matchday Attendance Log -->
+<div class="planner-modal-overlay" id="matchday-log-modal">
+    <div class="planner-modal-card" style="max-width: 820px; width: 95%;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; gap: 10px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+                    <span style="font-size: 22px;">📜</span>
+                    <h2 style="margin: 0; color: #ffffff; font-size: 20px;">An- &amp; Abmelde-Log</h2>
+                    <span style="background: rgba(128, 222, 234, 0.15); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.35); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px;">Admin &amp; Webmaster</span>
+                </div>
+                <div id="log-modal-event-title" style="color: #80deea; font-size: 13.5px; font-weight: 600;"></div>
+            </div>
+            <button type="button" class="modal-cancel-btn" style="background: none; border: none; color: var(--text-muted); font-size: 22px; cursor: pointer; padding: 0 4px; line-height: 1;">✕</button>
+        </div>
+
+        <!-- Filter Pills inside Modal -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+            <div id="log-modal-filters" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button type="button" class="log-filter-btn active" data-action="all" style="padding: 4px 10px; font-size: 11.5px; border-radius: 12px; border: 1px solid var(--accent); background: var(--accent); color: #ffffff; cursor: pointer;">
+                    Alle (<span id="log-count-all">0</span>)
+                </button>
+                <button type="button" class="log-filter-btn" data-action="registered" style="padding: 4px 10px; font-size: 11.5px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-surface-alt); color: #88ff88; cursor: pointer;">
+                    👍 Angemeldet (<span id="log-count-registered">0</span>)
+                </button>
+                <button type="button" class="log-filter-btn" data-action="cancelled" style="padding: 4px 10px; font-size: 11.5px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-surface-alt); color: #ff8888; cursor: pointer;">
+                    ✕ Abgemeldet (<span id="log-count-cancelled">0</span>)
+                </button>
+                <button type="button" class="log-filter-btn" data-action="declined" style="padding: 4px 10px; font-size: 11.5px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-surface-alt); color: #ffe082; cursor: pointer;">
+                    👎 Abgesagt (<span id="log-count-declined">0</span>)
+                </button>
+            </div>
+            <a id="log-modal-dashboard-link" href="{{ url_for('auth.admin_attendance_logs') }}" style="font-size: 12px; color: #80deea; text-decoration: none; font-weight: 600;" target="_blank">
+                Im Dashboard öffnen →
+            </a>
+        </div>
+
+        <!-- Table Container -->
+        <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: rgba(0,0,0,0.2);">
+            <table style="width: 100%; border-collapse: collapse; font-size: 12.5px; text-align: left;">
+                <thead>
+                    <tr style="background: var(--bg-surface-alt); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2;">
+                        <th style="padding: 9px 12px; color: var(--text-muted); font-weight: 600;">Zeitpunkt</th>
+                        <th style="padding: 9px 12px; color: var(--text-muted); font-weight: 600;">Spieler / Name</th>
+                        <th style="padding: 9px 12px; color: var(--text-muted); font-weight: 600;">Typ</th>
+                        <th style="padding: 9px 12px; color: var(--text-muted); font-weight: 600;">Aktion</th>
+                        <th style="padding: 9px 12px; color: var(--text-muted); font-weight: 600;">Durchgeführt von</th>
+                    </tr>
+                </thead>
+                <tbody id="log-modal-tbody">
+                    <!-- Dynamic rows or loading spinner -->
+                </tbody>
+            </table>
+            <div id="log-modal-empty" style="display: none; padding: 30px 16px; text-align: center; color: var(--text-muted); font-size: 13px;">
+                Keine Logeinträge für diesen Spieltag vorhanden.
+            </div>
+            <div id="log-modal-loading" style="padding: 30px 16px; text-align: center; color: var(--text-muted); font-size: 13px;">
+                <span>⏳ Lade Logdaten...</span>
+            </div>
+        </div>
+
+        <div class="planner-modal-actions" style="margin-top: 16px; display: flex; justify-content: flex-end;">
+            <button type="button" class="secondary modal-cancel-btn">Schließen</button>
+        </div>
     </div>
 </div>
 {% endif %}

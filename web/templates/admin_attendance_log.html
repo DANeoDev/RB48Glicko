@@ -50,21 +50,38 @@
         </div>
 
         <!-- Filter Controls -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
-            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                <span style="font-size: 13px; color: var(--text-muted); font-weight: 600; margin-right: 4px;">Filter:</span>
-                <a href="{{ url_for('auth.admin_attendance_logs') }}" style="padding: 5px 12px; font-size: 12.5px; text-decoration: none; border-radius: 14px; border: 1px solid {% if not action_filter %}var(--accent){% else %}var(--border){% endif %}; background: {% if not action_filter %}var(--accent){% else %}var(--bg-surface-alt){% endif %}; color: {% if not action_filter %}#ffffff{% else %}var(--text-muted){% endif %};">
-                    Alle
-                </a>
-                <a href="{{ url_for('auth.admin_attendance_logs', action='registered') }}" style="padding: 5px 12px; font-size: 12.5px; text-decoration: none; border-radius: 14px; border: 1px solid {% if action_filter == 'registered' %}#28a745{% else %}var(--border){% endif %}; background: {% if action_filter == 'registered' %}rgba(40, 167, 69, 0.3){% else %}var(--bg-surface-alt){% endif %}; color: {% if action_filter == 'registered' %}#88ff88{% else %}var(--text-muted){% endif %};">
-                    👍 Nur Anmeldungen
-                </a>
-                <a href="{{ url_for('auth.admin_attendance_logs', action='cancelled') }}" style="padding: 5px 12px; font-size: 12.5px; text-decoration: none; border-radius: 14px; border: 1px solid {% if action_filter == 'cancelled' %}#dc3545{% else %}var(--border){% endif %}; background: {% if action_filter == 'cancelled' %}rgba(220, 53, 69, 0.3){% else %}var(--bg-surface-alt){% endif %}; color: {% if action_filter == 'cancelled' %}#ff8888{% else %}var(--text-muted){% endif %};">
-                    ✕ Nur Abmeldungen
-                </a>
-                <a href="{{ url_for('auth.admin_attendance_logs', action='declined') }}" style="padding: 5px 12px; font-size: 12.5px; text-decoration: none; border-radius: 14px; border: 1px solid {% if action_filter == 'declined' %}#ffc107{% else %}var(--border){% endif %}; background: {% if action_filter == 'declined' %}rgba(255, 193, 7, 0.3){% else %}var(--bg-surface-alt){% endif %}; color: {% if action_filter == 'declined' %}#ffe082{% else %}var(--text-muted){% endif %};">
-                    👎 Nur Absagen
-                </a>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 14px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px;">
+            <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+                <!-- Action Filter Buttons -->
+                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                    <span style="font-size: 13px; color: var(--text-muted); font-weight: 600; margin-right: 2px;">Aktion:</span>
+                    <a href="{{ url_for('auth.admin_attendance_logs', event_id=event_id_filter) }}" style="padding: 4px 10px; font-size: 12px; text-decoration: none; border-radius: 12px; border: 1px solid {% if not action_filter %}var(--accent){% else %}var(--border){% endif %}; background: {% if not action_filter %}var(--accent){% else %}var(--bg-surface-alt){% endif %}; color: {% if not action_filter %}#ffffff{% else %}var(--text-muted){% endif %};">
+                        Alle
+                    </a>
+                    <a href="{{ url_for('auth.admin_attendance_logs', action='registered', event_id=event_id_filter) }}" style="padding: 4px 10px; font-size: 12px; text-decoration: none; border-radius: 12px; border: 1px solid {% if action_filter == 'registered' %}#28a745{% else %}var(--border){% endif %}; background: {% if action_filter == 'registered' %}rgba(40, 167, 69, 0.3){% else %}var(--bg-surface-alt){% endif %}; color: {% if action_filter == 'registered' %}#88ff88{% else %}var(--text-muted){% endif %};">
+                        👍 Anmeldungen
+                    </a>
+                    <a href="{{ url_for('auth.admin_attendance_logs', action='cancelled', event_id=event_id_filter) }}" style="padding: 4px 10px; font-size: 12px; text-decoration: none; border-radius: 12px; border: 1px solid {% if action_filter == 'cancelled' %}#dc3545{% else %}var(--border){% endif %}; background: {% if action_filter == 'cancelled' %}rgba(220, 53, 69, 0.3){% else %}var(--bg-surface-alt){% endif %}; color: {% if action_filter == 'cancelled' %}#ff8888{% else %}var(--text-muted){% endif %};">
+                        ✕ Abmeldungen
+                    </a>
+                    <a href="{{ url_for('auth.admin_attendance_logs', action='declined', event_id=event_id_filter) }}" style="padding: 4px 10px; font-size: 12px; text-decoration: none; border-radius: 12px; border: 1px solid {% if action_filter == 'declined' %}#ffc107{% else %}var(--border){% endif %}; background: {% if action_filter == 'declined' %}rgba(255, 193, 7, 0.3){% else %}var(--bg-surface-alt){% endif %}; color: {% if action_filter == 'declined' %}#ffe082{% else %}var(--text-muted){% endif %};">
+                        👎 Absagen
+                    </a>
+                </div>
+
+                <!-- Matchday Dropdown -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label for="event-select" style="font-size: 13px; color: var(--text-muted); font-weight: 600;">📅 Spieltag:</label>
+                    <select id="event-select" onchange="filterByEvent(this.value)" style="background: var(--bg-surface-alt); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--radius); padding: 5px 10px; font-size: 12.5px; max-width: 320px;">
+                        <option value="">Alle Spieltage</option>
+                        {% for ev in events_list %}
+                            <option value="{{ ev.id }}" {% if event_id_filter == ev.id %}selected{% endif %}>{{ ev.display_title }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if event_id_filter %}
+                        <a href="{{ url_for('auth.admin_attendance_logs', action=action_filter) }}" style="font-size: 12px; color: #ff8888; text-decoration: none; margin-left: 2px;" title="Spieltags-Filter zurücksetzen">✕ Filter aufheben</a>
+                    {% endif %}
+                </div>
             </div>
 
             <div style="font-size: 13px; color: var(--text-muted);">
@@ -138,7 +155,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; flex-wrap: wrap; gap: 10px;">
                     <div>
                         {% if page > 1 %}
-                            <a href="{{ url_for('auth.admin_attendance_logs', page=page-1, action=action_filter) }}" class="secondary" style="padding: 6px 14px; font-size: 12.5px; text-decoration: none;">← Vorherige</a>
+                            <a href="{{ url_for('auth.admin_attendance_logs', page=page-1, action=action_filter, event_id=event_id_filter) }}" class="secondary" style="padding: 6px 14px; font-size: 12.5px; text-decoration: none;">← Vorherige</a>
                         {% endif %}
                     </div>
                     <div style="font-size: 13px; color: var(--text-muted);">
@@ -146,7 +163,7 @@
                     </div>
                     <div>
                         {% if page < total_pages %}
-                            <a href="{{ url_for('auth.admin_attendance_logs', page=page+1, action=action_filter) }}" class="secondary" style="padding: 6px 14px; font-size: 12.5px; text-decoration: none;">Nächste →</a>
+                            <a href="{{ url_for('auth.admin_attendance_logs', page=page+1, action=action_filter, event_id=event_id_filter) }}" class="secondary" style="padding: 6px 14px; font-size: 12.5px; text-decoration: none;">Nächste →</a>
                         {% endif %}
                     </div>
                 </div>
@@ -160,4 +177,17 @@
 
     </div>
 </div>
+
+<script>
+function filterByEvent(eventId) {
+    const url = new URL(window.location.href);
+    if (eventId) {
+        url.searchParams.set('event_id', eventId);
+    } else {
+        url.searchParams.delete('event_id');
+    }
+    url.searchParams.set('page', '1');
+    window.location.href = url.toString();
+}
+</script>
 {% endblock %}

@@ -344,6 +344,8 @@
                                     <span class="nav-achievement-pill" style="background: #80deea; color: #140b28;">{{ unseen_webmaster_notifications_count }} {{ t('achievements.badge_new', 'NEU') }}</span>
                                 {% endif %}
                             </a>
+                        {% endif %}
+                        {% if has_tier('admin') %}
                             <a href="{{ url_for('auth.admin_attendance_logs') }}" style="color: #80deea; font-size: 13px;">
                                 <span>📋 {{ t('admin.nav_attendance_log', 'Anwesenheits-Log') }}</span>
                             </a>

@@ -259,6 +259,17 @@ def get_event_by_id(connection, event_id):
     ).fetchone()
 
 
+def get_all_events(connection):
+    """Retrieve all match events ordered by event_date DESC, id DESC."""
+    return connection.execute(
+        """
+        SELECT id, event_date, pitch, max_players, title, location, status, created_at
+        FROM events
+        ORDER BY event_date DESC, id DESC
+        """
+    ).fetchall()
+
+
 def get_planner_events_for_import(connection, limit=30):
     """Retrieve recent and upcoming events with attendee counts for match center import."""
     return connection.execute(
@@ -514,7 +525,7 @@ def get_attendee_by_id(connection, attendee_id):
     ).fetchone()
 
 
-def update_attendee(connection, attendee_id, name=None, status=None):
+def update_attendee(connection, attendee_id, name=None, status=None, actor_name=None):
     """Update an attendee's name and/or status."""
     existing = get_attendee_by_id(connection, attendee_id)
     if not existing:
@@ -533,6 +544,19 @@ def update_attendee(connection, attendee_id, name=None, status=None):
         (new_name, new_status, now, attendee_id),
     )
     connection.commit()
+
+    if status and status != existing["status"]:
+        action = "registered" if new_status == "attending" else "declined"
+        attendee_type = "member_guest" if existing["is_guest"] else "member"
+        log_attendance_action(
+            connection,
+            existing["event_id"],
+            name=new_name,
+            action=action,
+            attendee_type=attendee_type,
+            actor_name=actor_name or "Admin",
+            created_at=now,
+        )
 
 
 def remove_attendee(connection, attendee_id, actor_name=None):

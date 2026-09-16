@@ -997,4 +997,7 @@ TRANSLATIONS_EN = {
     "rating_comparison.th_games": "Games",
     "rating_comparison.showing_players": "Showing {count} players",
     "rating_comparison.doc_link": "Read WHR Model Documentation →",
+    "admin.nav_attendance_log": "Attendance Logs",
+    "planner.view_all_logs_title": "Open full attendance audit log for all matchdays",
+    "planner.log_btn_title": "View attendance sign-up and cancellation log for this matchday",
 }
