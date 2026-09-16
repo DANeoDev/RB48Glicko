@@ -308,7 +308,7 @@
 
 
 <div class="page-header" style="text-align: center; position: relative; margin-bottom: 24px;">
-    {% if has_tier('webmaster') and active_model != 'whr' %}
+    {% if has_tier('webmaster') %}
     <button type="button" class="recalc-glicko-btn" id="btn-open-recalc-modal" title="{{ t('matches.recalculate_title', 'Glicko-2 Tabelle neu berechnen (Webmaster)') }}">
         <span class="btn-icon">🔄</span> <span class="btn-text">{{ t('matches.recalculate_btn', 'Glicko-2 neu berechnen') }}</span>
     </button>
@@ -325,7 +325,7 @@
     </a>
 </div>
 
-{% if has_tier('webmaster') and active_model != 'whr' %}
+{% if has_tier('webmaster') %}
 <div class="recalc-modal-bg modal-bg" id="recalc-glicko-modal" style="display: none;">
     <div class="recalc-modal-card modal">
         <h3 style="color: #80deea; display: flex; align-items: center; gap: 8px; margin-top: 0;">
@@ -342,23 +342,6 @@
             </button>
         </div>
     </div>
-</div>
-{% endif %}
-
-{% if active_model == 'whr' %}
-<div class="whr-mode-banner" style="max-width: 900px; margin: -8px auto 20px; background: rgba(0, 131, 143, 0.15); border: 1px solid rgba(0, 151, 167, 0.4); border-left: 4px solid #00acc1; border-radius: var(--radius); padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-    <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 20px;">🔮</span>
-        <div>
-            <strong style="color: #e0f7fa; font-size: 14px;">{{ t('stats.whr_banner_title', 'Whole-History Rating (WHR) aktiv') }}</strong>
-            <div style="color: #b2ebf2; font-size: 12.5px; margin-top: 2px;">
-                {{ t('stats.whr_banner_desc', 'Diese alternative Rangliste basiert auf der globalen retrospektiven Glättung aller Partien.') }}
-            </div>
-        </div>
-    </div>
-    <a href="{{ url_for('stats.whr_documentation') }}" style="color: #80deea; font-size: 12.5px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: rgba(0, 131, 143, 0.25); border: 1px solid rgba(0, 151, 167, 0.4); border-radius: 14px;">
-        {{ t('stats.whr_banner_link', 'WHR-Modell erklärt →') }}
-    </a>
 </div>
 {% endif %}
 
@@ -866,7 +849,7 @@ window.applyTableFilters = function() {
 })();
 </script>
 
-{% if has_tier('webmaster') and active_model != 'whr' %}
+{% if has_tier('webmaster') %}
 <script>
 (function() {
     const openBtn = document.getElementById('btn-open-recalc-modal');

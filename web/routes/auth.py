@@ -44,6 +44,7 @@ from scripts.accounts.psychology import (
 )
 from scripts.database.database import get_connection as get_main_connection
 from scripts.database.db_players import get_players
+from scripts.planner.database import get_planner_connection, get_attendance_logs, get_attendance_logs_count
 from web.services.email_service import is_smtp_configured, send_verification_email
 from web.services.translations import get_current_lang
 from web.services.security import (
@@ -260,6 +261,52 @@ def admin_users():
     finally:
         connection.close()
         main_conn.close()
+
+
+@auth_bp.route("/admin/attendance-logs")
+@require_webmaster
+def admin_attendance_logs():
+    """Webmaster audit log dashboard showing attendee registrations and cancellations."""
+    p_conn = get_planner_connection()
+    try:
+        page = max(1, request.args.get("page", 1, type=int))
+        per_page = 40
+        offset = (page - 1) * per_page
+        action_filter = request.args.get("action", "").strip().lower() or None
+        if action_filter not in ("registered", "cancelled", "declined"):
+            action_filter = None
+
+        raw_logs = get_attendance_logs(p_conn, limit=per_page, offset=offset, action=action_filter)
+        total_logs = get_attendance_logs_count(p_conn, action=action_filter)
+        total_pages = max(1, (total_logs + per_page - 1) // per_page)
+
+        reg_count = get_attendance_logs_count(p_conn, action="registered")
+        cancel_count = get_attendance_logs_count(p_conn, action="cancelled")
+        decline_count = get_attendance_logs_count(p_conn, action="declined")
+
+        logs = []
+        for row in raw_logs:
+            r = dict(row)
+            try:
+                dt = datetime.fromisoformat(r["created_at"])
+                r["formatted_time"] = dt.strftime("%d.%m.%Y %H:%M:%S")
+            except Exception:
+                r["formatted_time"] = r["created_at"]
+            logs.append(r)
+
+        return render_template(
+            "admin_attendance_log.html",
+            logs=logs,
+            page=page,
+            total_pages=total_pages,
+            total_logs=total_logs,
+            action_filter=action_filter or "",
+            reg_count=reg_count,
+            cancel_count=cancel_count,
+            decline_count=decline_count,
+        )
+    finally:
+        p_conn.close()
 
 
 @auth_bp.route("/admin/notifications/mark-read", methods=["POST"])

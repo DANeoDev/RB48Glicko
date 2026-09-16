@@ -19,7 +19,7 @@ from scripts.analysis.achievements import get_player_achievements
 from scripts.analysis.history_snapshots import (
     get_matchday_metadata_map,
 )
-from scripts.analysis.model_analysis import analyze_model, analyze_whr_model
+from scripts.analysis.model_analysis import analyze_model
 from scripts.analysis.synergies import get_community_synergies
 from scripts.database.database import get_connection
 from scripts.database.db_matches import get_player_stats
@@ -32,8 +32,6 @@ from scripts.glicko.glicko2 import BOX, HF, TOTAL
 from web.services.cache import (
     get_cached_stats_data,
     get_cached_match_history,
-    get_cached_whr_stats_data,
-    get_cached_whr_match_history,
 )
 from web.services.security import (
     Tier,
@@ -61,19 +59,7 @@ def dashboard():
 @stats_bp.route("/stats")
 @require_tier(Tier.USER)
 def stats():
-    active_model = session.get("active_model", "glicko") if has_tier(Tier.GLICKO_USER) else "glicko"
-    if active_model == "whr":
-        try:
-            cached = get_cached_whr_stats_data()
-            if not cached.get("whr_models"):
-                active_model = "glicko"
-                session["active_model"] = "glicko"
-        except (ImportError, ModuleNotFoundError):
-            active_model = "glicko"
-            session["active_model"] = "glicko"
-            cached = get_cached_stats_data()
-    else:
-        cached = get_cached_stats_data()
+    cached = get_cached_stats_data()
 
     leaderboard = [dict(p) for p in cached["leaderboard_base"]]
     synergies = cached["synergies"]
@@ -96,7 +82,6 @@ def stats():
         streaks=streaks,
         opted_out_player_ids=opted_out_player_ids,
         historical_snapshots=historical_snapshots,
-        active_model=active_model,
     )
 
 
@@ -246,16 +231,7 @@ def player_profile(player_id):
 def match_history():
     selected_rating_type = request.args.get("rating_type", "total").lower()
     selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
-    active_model = session.get("active_model", "glicko") if has_tier(Tier.GLICKO_USER) else "glicko"
-    if active_model == "whr":
-        try:
-            cached = get_cached_whr_match_history(rating_type=selected_rating_type)
-        except (ImportError, ModuleNotFoundError):
-            active_model = "glicko"
-            session["active_model"] = "glicko"
-            cached = get_cached_match_history(rating_type=selected_rating_type)
-    else:
-        cached = get_cached_match_history(rating_type=selected_rating_type)
+    cached = get_cached_match_history(rating_type=selected_rating_type)
     matches = cached["matches"]
     months_grouped = cached["months_grouped"]
     timeline_data = cached["timeline_data"]
@@ -273,7 +249,6 @@ def match_history():
         timeline_data=timeline_data,
         opted_out_player_ids=opted_out_player_ids,
         is_webmaster=has_tier(Tier.WEBMASTER),
-        active_model=active_model,
     )
 
 
@@ -363,117 +338,25 @@ def recalculate_glicko_endpoint():
 @stats_bp.route("/model-analysis")
 @require_tier(Tier.GLICKO_USER)
 def model_analysis():
-    active_model = session.get("active_model", "glicko") if has_tier(Tier.GLICKO_USER) else "glicko"
-    req_model = request.args.get("model", "").lower()
-    req_mode = request.args.get("mode", "").lower()
-
-    if req_model in ("glicko", "whr"):
-        selected_model = req_model
-    elif req_mode == "whr":
-        selected_model = "whr"
-    elif req_mode in ("total", "pitch"):
-        selected_model = "glicko"
-    else:
-        selected_model = "whr" if active_model == "whr" else "glicko"
-
-    pitch = request.args.get("pitch", "").lower()
+    pitch = request.args.get("pitch", "total").lower()
     if pitch not in ("total", "box", "hf"):
-        if req_mode == "pitch":
-            pitch = "box"
-        else:
-            pitch = "total"
+        pitch = "total"
 
-    mode = "whr" if selected_model == "whr" else ("total" if pitch == "total" else "pitch")
-
+    mode = "total" if pitch == "total" else "pitch"
     connection = get_connection()
     try:
-        if selected_model == "whr":
-            try:
-                analysis = analyze_whr_model(connection, mode="whr", pitch=pitch)
-                # Companion comparison series: Glicko for the matching pitch
-                if pitch == "total":
-                    comparison = analyze_model(connection, mode=TOTAL)
-                elif pitch == "box":
-                    comparison = analyze_model(connection, mode="pitch", pitch=BOX)
-                else:
-                    comparison = analyze_model(connection, mode="pitch", pitch=HF)
-                active_model_name = "WHR"
-                comparison_model_name = "Glicko-2"
-            except (ImportError, ModuleNotFoundError):
-                flash("Das WHR-Modell benötigt das Paket 'numpy', welches auf dem Server noch nicht installiert ist (pip install numpy).", "warning")
-                return redirect(url_for("stats.model_analysis", model="glicko", pitch=pitch))
+        if pitch == "total":
+            analysis = analyze_model(connection, mode=TOTAL)
+        elif pitch == "box":
+            analysis = analyze_model(connection, mode="pitch", pitch=BOX)
         else:
-            if pitch == "total":
-                analysis = analyze_model(connection, mode=TOTAL)
-            elif pitch == "box":
-                analysis = analyze_model(connection, mode="pitch", pitch=BOX)
-            else:
-                analysis = analyze_model(connection, mode="pitch", pitch=HF)
-
-            try:
-                comparison = analyze_whr_model(connection, mode="whr", pitch=pitch)
-            except (ImportError, ModuleNotFoundError):
-                comparison = None
-            active_model_name = "Glicko-2"
-            comparison_model_name = "WHR" if comparison else None
-
-        if comparison and "goal_diff_min" in analysis and "goal_diff_min" in comparison:
-            y_min = min(analysis["goal_diff_min"], comparison["goal_diff_min"])
-            y_max = max(analysis["goal_diff_max"], comparison["goal_diff_max"])
-            is_box_or_total = (pitch in ("total", "box"))
-            step = 2 if is_box_or_total else (1 if (y_max - y_min) <= 8 else 2)
-            unified_ticks = list(range(y_min, y_max + 1, step))
-            analysis["goal_diff_min"] = y_min
-            analysis["goal_diff_max"] = y_max
-            analysis["goal_diff_ticks"] = unified_ticks
+            analysis = analyze_model(connection, mode="pitch", pitch=HF)
 
         return render_template(
             "model_analysis.html",
             analysis=analysis,
-            comparison=comparison,
-            model=selected_model,
             mode=mode,
             pitch=pitch,
-            active_model_name=active_model_name,
-            comparison_model_name=comparison_model_name,
-        )
-    finally:
-        connection.close()
-
-
-@stats_bp.route("/model-comparison")
-@stats_bp.route("/rating-comparison")
-@require_tier(Tier.GLICKO_USER)
-def rating_comparison():
-    """Dedicated player-by-player rating comparison table between Glicko-2 and WHR."""
-    try:
-        from scripts.analysis.whr import compute_whr_ratings
-    except (ImportError, ModuleNotFoundError):
-        flash("Der Modellvergleich benötigt das Python-Paket 'numpy', welches auf dem Server noch nicht installiert ist (pip install numpy).", "warning")
-        return redirect(url_for("stats.model_analysis"))
-
-    pitch = request.args.get("pitch", "total").lower()
-    pitch = pitch if pitch in ("total", "box", "hf") else "total"
-    pitch_const = BOX if pitch == "box" else (HF if pitch == "hf" else TOTAL)
-
-    connection = get_connection()
-    try:
-        whr_data = compute_whr_ratings(connection, pitch_filter=pitch_const)
-        players = whr_data.get("players", [])
-
-        deltas = [p["delta"] for p in players if p.get("delta") is not None]
-        max_gain = max(players, key=lambda p: p["delta"]) if players else None
-        max_drop = min(players, key=lambda p: p["delta"]) if players else None
-        avg_abs_delta = round(sum(abs(d) for d in deltas) / len(deltas), 1) if deltas else 0.0
-
-        return render_template(
-            "rating_comparison.html",
-            whr_data=whr_data,
-            players=players,
-            pitch=pitch,
-            max_gain=max_gain,
-            max_drop=max_drop,
-            avg_abs_delta=avg_abs_delta,
         )
     finally:
         connection.close()
@@ -507,40 +390,6 @@ def model_documentation_raw():
         from scripts.docs.generate_model_docs import update_docs_file
         update_docs_file()
     content = docs_file.read_text(encoding="utf-8")
-    return Response(content, mimetype="text/markdown; charset=utf-8")
-
-
-@stats_bp.route("/whr-documentation")
-def whr_documentation():
-    """Detailed technical and conceptual documentation of the team-based Whole-History Rating model."""
-    from pathlib import Path
-    from scripts.docs.generate_model_docs import markdown_to_html
-    docs_file = Path(__file__).resolve().parent.parent.parent / "docs" / "WHR_TEAM_MODEL.md"
-    if docs_file.exists():
-        md_content = docs_file.read_text(encoding="utf-8")
-    else:
-        md_content = "# Whole-History Rating (WHR) Modell-Dokumentation\n\nDokumentation wird geladen..."
-    content_html = markdown_to_html(md_content)
-    return render_template(
-        "model_docs.html",
-        content_html=content_html,
-        doc_title="The RB48 Team-Based Whole-History Rating (WHR) Engine",
-        doc_subtitle="Retrospective Bayesian Global MAP Optimization & Newton-Raphson Solver",
-        raw_url=url_for("stats.whr_documentation_raw"),
-        back_faq_url=url_for("stats.glicko_explainer") + "#faq-whr",
-    )
-
-
-@stats_bp.route("/whr-documentation/raw")
-def whr_documentation_raw():
-    """Serve the raw markdown file of the WHR model documentation."""
-    from pathlib import Path
-    from flask import Response
-    docs_file = Path(__file__).resolve().parent.parent.parent / "docs" / "WHR_TEAM_MODEL.md"
-    if docs_file.exists():
-        content = docs_file.read_text(encoding="utf-8")
-    else:
-        content = "# Whole-History Rating (WHR) Modell-Dokumentation"
     return Response(content, mimetype="text/markdown; charset=utf-8")
 
 
@@ -686,27 +535,3 @@ def player_achievements(player_id: int):
         total_count=total_count,
         is_webmaster=is_webmaster,
     )
-
-
-@stats_bp.route("/set-model")
-def set_model():
-    """Switch active rating model between Glicko-2 and WHR for Glicko-tier users."""
-    model = request.args.get("model", "glicko").lower()
-    if model not in ("glicko", "whr"):
-        model = "glicko"
-
-    if model == "whr":
-        try:
-            import numpy  # noqa: F401
-            from scripts.analysis.whr import get_whr_models  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            flash("Das Whole-History Rating (WHR) Modell benötigt das Python-Paket 'numpy', welches auf dem Server noch nicht installiert ist (pip install numpy).", "warning")
-            model = "glicko"
-
-    if has_tier(Tier.GLICKO_USER):
-        session["active_model"] = model
-
-    next_url = request.args.get("next") or request.referrer
-    if not next_url or not next_url.startswith("/") or next_url.startswith("//"):
-        next_url = url_for("stats.dashboard")
-    return redirect(next_url)

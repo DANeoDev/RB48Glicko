@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Anwesenheits-Audit-Log · RB48 Webmaster{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width: 1360px; width: 100%; margin: 30px auto; padding: 0 20px; box-sizing: border-box;">
+    <div class="account-card" style="padding: 28px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; box-sizing: border-box;">
+        
+        <!-- Header & Nav Sub-tabs -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 14px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
+                    <h1 style="margin: 0; color: #ffffff; font-size: 24px;">📋 {{ t('admin.attendance_log_title', 'Anwesenheits-Audit-Log') }}</h1>
+                    <span style="background: rgba(123, 82, 197, 0.25); color: #c9c2d8; border: 1px solid rgba(123, 82, 197, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px;">Webmaster</span>
+                </div>
+                <p class="muted" style="margin: 0; font-size: 13.5px;">{{ t('admin.attendance_log_desc', 'Vollständiges Protokoll aller Anmeldungen, Abmeldungen und Absagen für Spieltage.') }}</p>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div style="display: inline-flex; background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px;">
+                    <a href="{{ url_for('auth.admin_users') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
+                        👥 {{ t('auth.admin_users_heading', 'User Management') }}
+                    </a>
+                    <a href="{{ url_for('auth.admin_attendance_logs') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--accent); color: #ffffff; border-radius: 4px;">
+                        📋 {{ t('admin.nav_attendance_log', 'Anwesenheits-Log') }}
+                    </a>
+                </div>
+                <a href="{{ url_for('planner.planner') }}" class="secondary" style="padding: 7px 14px; font-size: 13px; text-decoration: none;">📅 {{ t('nav.attendance_planner', 'Spieltagsplaner') }}</a>
+            </div>
+        </div>
+
+        <!-- KPI Quick Stat Summary -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px;">
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px;">
+                <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Einträge Gesamt</div>
+                <div style="font-size: 24px; font-weight: 700; color: #ffffff; margin-top: 4px;">{{ total_logs }}</div>
+            </div>
+            <div style="background: rgba(40, 167, 69, 0.08); border: 1px solid rgba(40, 167, 69, 0.25); border-radius: 8px; padding: 14px 18px;">
+                <div style="font-size: 12px; color: #88ff88; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Anmeldungen</div>
+                <div style="font-size: 24px; font-weight: 700; color: #88ff88; margin-top: 4px;">{{ reg_count }}</div>
+            </div>
+            <div style="background: rgba(220, 53, 69, 0.08); border: 1px solid rgba(220, 53, 69, 0.25); border-radius: 8px; padding: 14px 18px;">
+                <div style="font-size: 12px; color: #ff8888; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Abmeldungen</div>
+                <div style="font-size: 24px; font-weight: 700; color: #ff8888; margin-top: 4px;">{{ cancel_count }}</div>
+            </div>
+            <div style="background: rgba(255, 193, 7, 0.08); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 8px; padding: 14px 18px;">
+                <div style="font-size: 12px; color: #ffe082; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Absagen ('Nicht dabei')</div>
+                <div style="font-size: 24px; font-weight: 700; color: #ffe082; margin-top: 4px;">{{ decline_count }}</div>
+            </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <span style="font-size: 13px; color: var(--text-muted); font-weight: 600; margin-right: 4px;">Filter:</span>
+                <a href="{{ url_for('auth.admin_attendance_logs') }}" style="padding: 5px 12px; font-size: 12.5px; text-decoration: none; border-radius: 14px; border: 1px solid {% if not action_filter %}var(--accent){% else %}var(--border){% endif %}; background: {% if not action_filter %}var(--accent){% else %}var(--bg-surface-alt){% endif %}; color: {% if not action_filter %}#ffffff{% else %}var(--text-muted){% endif %};">
+                    Alle
+                </a>
+                <a href="{{ url_for('auth.admin_attendance_logs', action='registered') }}" style="padding: 5px 12px; font-size: 12.5px; text-decoration: none; border-radius: 14px; border: 1px solid {% if action_filter == 'registered' %}#28a745{% else %}var(--border){% endif %}; background: {% if action_filter == 'registered' %}rgba(40, 167, 69, 0.3){% else %}var(--bg-surface-alt){% endif %}; color: {% if action_filter == 'registered' %}#88ff88{% else %}var(--text-muted){% endif %};">
+                    👍 Nur Anmeldungen
+                </a>
+                <a href="{{ url_for('auth.admin_attendance_logs', action='cancelled') }}" style="padding: 5px 12px; font-size: 12.5px; text-decoration: none; border-radius: 14px; border: 1px solid {% if action_filter == 'cancelled' %}#dc3545{% else %}var(--border){% endif %}; background: {% if action_filter == 'cancelled' %}rgba(220, 53, 69, 0.3){% else %}var(--bg-surface-alt){% endif %}; color: {% if action_filter == 'cancelled' %}#ff8888{% else %}var(--text-muted){% endif %};">
+                    ✕ Nur Abmeldungen
+                </a>
+                <a href="{{ url_for('auth.admin_attendance_logs', action='declined') }}" style="padding: 5px 12px; font-size: 12.5px; text-decoration: none; border-radius: 14px; border: 1px solid {% if action_filter == 'declined' %}#ffc107{% else %}var(--border){% endif %}; background: {% if action_filter == 'declined' %}rgba(255, 193, 7, 0.3){% else %}var(--bg-surface-alt){% endif %}; color: {% if action_filter == 'declined' %}#ffe082{% else %}var(--text-muted){% endif %};">
+                    👎 Nur Absagen
+                </a>
+            </div>
+
+            <div style="font-size: 13px; color: var(--text-muted);">
+                Seite {{ page }} von {{ total_pages }} ({{ total_logs }} Einträge)
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        {% if logs %}
+            <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 8px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;">
+                    <thead>
+                        <tr style="background: var(--bg-surface-alt); border-bottom: 1px solid var(--border);">
+                            <th style="padding: 12px 14px; color: var(--text-muted); font-weight: 600;">Zeitpunkt</th>
+                            <th style="padding: 12px 14px; color: var(--text-muted); font-weight: 600;">Spieler / Name</th>
+                            <th style="padding: 12px 14px; color: var(--text-muted); font-weight: 600;">Typ</th>
+                            <th style="padding: 12px 14px; color: var(--text-muted); font-weight: 600;">Aktion</th>
+                            <th style="padding: 12px 14px; color: var(--text-muted); font-weight: 600;">Spieltermin</th>
+                            <th style="padding: 12px 14px; color: var(--text-muted); font-weight: 600;">Durchgeführt von</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); transition: background .12s ease;">
+                                <td style="padding: 11px 14px; color: var(--text-muted); white-space: nowrap; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px;">
+                                    {{ log.formatted_time }}
+                                </td>
+                                <td style="padding: 11px 14px; font-weight: 600; color: #ffffff;">
+                                    {{ log.name }}
+                                </td>
+                                <td style="padding: 11px 14px;">
+                                    {% if log.attendee_type == 'visitor' %}
+                                        <span style="background: rgba(0, 172, 193, 0.2); color: #80deea; border: 1px solid rgba(0, 172, 193, 0.4); padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 600;">👤 Besucher</span>
+                                    {% elif log.attendee_type == 'member_guest' %}
+                                        <span style="background: rgba(123, 82, 197, 0.2); color: #c9c2d8; border: 1px solid rgba(123, 82, 197, 0.4); padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 600;">👥 Gast</span>
+                                    {% else %}
+                                        <span style="background: rgba(255, 255, 255, 0.08); color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.2); padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 600;">⭐ Mitglied</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 11px 14px;">
+                                    {% if log.action == 'registered' %}
+                                        <span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;">
+                                            👍 Anmeldung
+                                        </span>
+                                    {% elif log.action == 'cancelled' %}
+                                        <span style="background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.5); font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;">
+                                            ✕ Abmeldung
+                                        </span>
+                                    {% elif log.action == 'declined' %}
+                                        <span style="background: rgba(255, 193, 7, 0.25); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.5); font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;">
+                                            👎 Absage
+                                        </span>
+                                    {% else %}
+                                        <span style="color: var(--text-muted); font-size: 12px;">{{ log.action }}</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 11px 14px; color: var(--text-muted); font-size: 12.5px;">
+                                    {{ log.event_title or ('Event #' ~ log.event_id) }}
+                                </td>
+                                <td style="padding: 11px 14px; color: var(--text-muted); font-size: 12px;">
+                                    {{ log.actor_name or 'System' }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination Bar -->
+            {% if total_pages > 1 %}
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        {% if page > 1 %}
+                            <a href="{{ url_for('auth.admin_attendance_logs', page=page-1, action=action_filter) }}" class="secondary" style="padding: 6px 14px; font-size: 12.5px; text-decoration: none;">← Vorherige</a>
+                        {% endif %}
+                    </div>
+                    <div style="font-size: 13px; color: var(--text-muted);">
+                        Seite {{ page }} von {{ total_pages }}
+                    </div>
+                    <div>
+                        {% if page < total_pages %}
+                            <a href="{{ url_for('auth.admin_attendance_logs', page=page+1, action=action_filter) }}" class="secondary" style="padding: 6px 14px; font-size: 12.5px; text-decoration: none;">Nächste →</a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+
+        {% else %}
+            <div style="padding: 40px 20px; text-align: center; background: var(--bg-surface-alt); border: 1px dashed var(--border); border-radius: 8px;">
+                <p class="muted" style="margin: 0; font-size: 14px;">Bisher liegen keine Anwesenheits-Logeinträge vor.</p>
+            </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

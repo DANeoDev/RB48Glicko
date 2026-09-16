@@ -28,4 +28,5 @@ htmlcov/
 .DS_Store
 
 # Local export / split projects
-Split_Project_TTA_Glicko_WHR/
+Split_Project_TTA_Glicko_WHR/
+scratch/

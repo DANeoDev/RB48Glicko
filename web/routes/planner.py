@@ -301,13 +301,15 @@ def remove_event_attendee(event_id, attendee_id):
             return redirect(url_for("planner.planner"))
 
         is_admin = has_tier(Tier.ADMIN)
-        is_guest_owner = user and target["is_guest"] and target["registered_by_user_id"] == user["id"]
+        is_guest_owner = bool(user and target["is_guest"] and target["registered_by_user_id"] == user["id"])
+        is_visitor_entry = bool(target["is_guest"] and not target["registered_by_user_id"] and not target["user_id"])
 
-        if is_admin or is_guest_owner:
-            remove_attendee(connection, attendee_id)
-            flash(f"Removed '{target['name']}' from the list.", "info")
+        if is_admin or is_guest_owner or is_visitor_entry:
+            actor_name = (user.get("attendance_name") or user.get("username")) if user else "Besucher"
+            remove_attendee(connection, attendee_id, actor_name=actor_name)
+            flash(f"'{target['name']}' wurde erfolgreich abgemeldet.", "info")
         else:
-            flash("You do not have permission to remove this attendee. Please select 'Nicht dabei' to decline.", "danger")
+            flash(t("planner.no_permission_remove", "Du hast keine Berechtigung, diesen Eintrag zu entfernen. Bitte wähle 'Nicht dabei', um abzusagen."), "danger")
     finally:
         connection.close()
 

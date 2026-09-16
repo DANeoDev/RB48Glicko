@@ -150,6 +150,10 @@
                                             <form method="post" action="{{ url_for('planner.remove_event_attendee', event_id=event.id, attendee_id=player.id) }}" style="margin: 0;">
                                                 <button type="submit" class="planner-remove-btn" title="Remove {{ player.name }}">✕</button>
                                             </form>
+                                        {% elif player.is_guest and not player.registered_by_user_id %}
+                                            <form method="post" action="{{ url_for('planner.remove_event_attendee', event_id=event.id, attendee_id=player.id) }}" style="margin: 0;" onsubmit="return confirm('{{ t('planner.confirm_remove_guest', 'Möchtest du diesen Besucher wirklich abmelden?') }}');">
+                                                <button type="submit" class="planner-remove-btn" title="{{ t('planner.remove_guest_title', 'Besucher abmelden') }}">✕</button>
+                                            </form>
                                         {% endif %}
                                     </li>
                                 {% endfor %}
@@ -183,6 +187,10 @@
                                             {% elif current_user and player.is_guest and player.registered_by_user_id == current_user.id %}
                                                 <form method="post" action="{{ url_for('planner.remove_event_attendee', event_id=event.id, attendee_id=player.id) }}" style="margin: 0;">
                                                     <button type="submit" class="planner-remove-btn" title="Remove {{ player.name }}">✕</button>
+                                                </form>
+                                            {% elif player.is_guest and not player.registered_by_user_id %}
+                                                <form method="post" action="{{ url_for('planner.remove_event_attendee', event_id=event.id, attendee_id=player.id) }}" style="margin: 0;" onsubmit="return confirm('{{ t('planner.confirm_remove_guest', 'Möchtest du diesen Besucher wirklich abmelden?') }}');">
+                                                    <button type="submit" class="planner-remove-btn" title="{{ t('planner.remove_guest_title', 'Besucher abmelden') }}">✕</button>
                                                 </form>
                                             {% endif %}
                                         </li>

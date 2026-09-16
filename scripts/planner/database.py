@@ -81,6 +81,21 @@ def create_planner_tables(connection):
         )
     """)
 
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS attendance_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id INTEGER NOT NULL,
+            event_title TEXT,
+            name TEXT NOT NULL,
+            action TEXT NOT NULL CHECK (action IN ('registered', 'cancelled', 'declined')),
+            attendee_type TEXT NOT NULL CHECK (attendee_type IN ('visitor', 'member_guest', 'member')),
+            actor_name TEXT,
+            created_at TEXT NOT NULL
+        )
+    """)
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_attendance_logs_created ON attendance_logs(created_at DESC)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_attendance_logs_event ON attendance_logs(event_id)")
+
     # Repair attendees table if its foreign key is pointing to events_old
     attendees_sql = connection.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='attendees'"
@@ -314,6 +329,79 @@ def get_user_registered_guests(connection, event_id, user_id):
     ).fetchall()
 
 
+def log_attendance_action(
+    connection,
+    event_id,
+    name,
+    action,
+    attendee_type,
+    actor_name=None,
+    created_at=None,
+    event_title=None,
+):
+    """Record an entry in the attendance audit log."""
+    if action not in ("registered", "cancelled", "declined"):
+        raise ValueError(f"Invalid action: {action}")
+    if attendee_type not in ("visitor", "member_guest", "member"):
+        raise ValueError(f"Invalid attendee_type: {attendee_type}")
+
+    if event_title is None:
+        evt = get_event_by_id(connection, event_id)
+        if evt:
+            evt_dict = dict(evt)
+            custom = f" ({evt_dict['title']})" if evt_dict.get("title") else ""
+            pitch_str = f" · {evt_dict['pitch'].upper()}" if evt_dict.get("pitch") else ""
+            event_title = f"{evt_dict.get('event_date', '')}{pitch_str}{custom}".strip()
+        else:
+            event_title = f"Event #{event_id}"
+
+    if created_at is None:
+        created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    connection.execute(
+        """
+        INSERT INTO attendance_logs (event_id, event_title, name, action, attendee_type, actor_name, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (event_id, event_title, name, action, attendee_type, actor_name, created_at),
+    )
+    connection.commit()
+
+
+def get_attendance_logs(connection, limit=100, offset=0, event_id=None, action=None):
+    """Retrieve attendance audit logs ordered chronologically descending."""
+    query = "SELECT id, event_id, event_title, name, action, attendee_type, actor_name, created_at FROM attendance_logs"
+    params = []
+    clauses = []
+    if event_id is not None:
+        clauses.append("event_id = ?")
+        params.append(event_id)
+    if action:
+        clauses.append("action = ?")
+        params.append(action)
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY id DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    return connection.execute(query, params).fetchall()
+
+
+def get_attendance_logs_count(connection, event_id=None, action=None):
+    """Return total count of attendance audit logs matching filters."""
+    query = "SELECT COUNT(*) FROM attendance_logs"
+    params = []
+    clauses = []
+    if event_id is not None:
+        clauses.append("event_id = ?")
+        params.append(event_id)
+    if action:
+        clauses.append("action = ?")
+        params.append(action)
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    return connection.execute(query, params).fetchone()[0]
+
+
 def set_user_rsvp(connection, event_id, user_id, display_name, status):
     """Set or update a member's direct attendance status (attending or declined)."""
     if status not in ("attending", "declined"):
@@ -340,10 +428,21 @@ def set_user_rsvp(connection, event_id, user_id, display_name, status):
             (event_id, user_id, display_name, status, now),
         )
     connection.commit()
+    log_attendance_action(
+        connection,
+        event_id,
+        name=display_name,
+        action="registered" if status == "attending" else "declined",
+        attendee_type="member",
+        actor_name=display_name,
+        created_at=now,
+    )
 
 
-def cancel_user_rsvp(connection, event_id, user_id):
+def cancel_user_rsvp(connection, event_id, user_id, actor_name=None):
     """Remove a member's direct RSVP record."""
+    existing = get_user_event_rsvp(connection, event_id, user_id)
+    name = existing["name"] if existing else f"User #{user_id}"
     connection.execute(
         """
         DELETE FROM attendees
@@ -352,6 +451,14 @@ def cancel_user_rsvp(connection, event_id, user_id):
         (event_id, user_id),
     )
     connection.commit()
+    log_attendance_action(
+        connection,
+        event_id,
+        name=name,
+        action="cancelled",
+        attendee_type="member",
+        actor_name=actor_name or name,
+    )
 
 
 def add_guest_rsvp(connection, event_id, guest_name, registered_by_user_id=None, registered_by_name=None):
@@ -367,9 +474,13 @@ def add_guest_rsvp(connection, event_id, guest_name, registered_by_user_id=None,
         existing_guests = get_user_registered_guests(connection, event_id, registered_by_user_id)
         next_index = len(existing_guests) + 1
         formatted_name = f"{guest_name} ({registered_by_name} +{next_index})"
+        attendee_type = "member_guest"
+        actor_name = registered_by_name
     else:
         next_index = 0
         formatted_name = f"{guest_name} (Guest)"
+        attendee_type = "visitor"
+        actor_name = "Besucher"
 
     cursor = connection.execute(
         """
@@ -379,6 +490,15 @@ def add_guest_rsvp(connection, event_id, guest_name, registered_by_user_id=None,
         (event_id, formatted_name, registered_by_user_id, next_index, now),
     )
     connection.commit()
+    log_attendance_action(
+        connection,
+        event_id,
+        name=formatted_name,
+        action="registered",
+        attendee_type=attendee_type,
+        actor_name=actor_name,
+        created_at=now,
+    )
     return cursor.lastrowid
 
 
@@ -415,10 +535,32 @@ def update_attendee(connection, attendee_id, name=None, status=None):
     connection.commit()
 
 
-def remove_attendee(connection, attendee_id):
-    """Delete a specific attendee entry by attendee ID."""
-    connection.execute("DELETE FROM attendees WHERE id = ?", (attendee_id,))
-    connection.commit()
+def remove_attendee(connection, attendee_id, actor_name=None):
+    """Delete a specific attendee entry by attendee ID and log cancellation."""
+    attendee = get_attendee_by_id(connection, attendee_id)
+    if attendee:
+        event_id = attendee["event_id"]
+        name = attendee["name"]
+        if attendee["is_guest"]:
+            attendee_type = "member_guest" if attendee["registered_by_user_id"] else "visitor"
+        else:
+            attendee_type = "member"
+
+        connection.execute("DELETE FROM attendees WHERE id = ?", (attendee_id,))
+        connection.commit()
+
+        effective_actor = actor_name or ("Besucher" if attendee_type == "visitor" else name)
+        log_attendance_action(
+            connection,
+            event_id=event_id,
+            name=name,
+            action="cancelled",
+            attendee_type=attendee_type,
+            actor_name=effective_actor,
+        )
+    else:
+        connection.execute("DELETE FROM attendees WHERE id = ?", (attendee_id,))
+        connection.commit()
 
 
 def get_planner_backup_dir():

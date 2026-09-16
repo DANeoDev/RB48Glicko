@@ -10,7 +10,17 @@
                 <h1 style="margin: 0; color: #ffffff;">{{ t('auth.admin_users_heading', 'User Management') }}</h1>
                 <p class="muted" style="margin-top: 4px;">{{ t('auth.admin_users_sub', 'Review registered accounts, approve memberships, manage player links, and manage account records.') }}</p>
             </div>
-            <a href="{{ url_for('stats.home') }}" class="secondary" style="padding: 8px 16px; text-decoration: none;">← {{ t('nav.dashboard', 'Dashboard') }}</a>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div style="display: inline-flex; background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px;">
+                    <a href="{{ url_for('auth.admin_users') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--accent); color: #ffffff; border-radius: 4px;">
+                        👥 {{ t('auth.admin_users_heading', 'User Management') }}
+                    </a>
+                    <a href="{{ url_for('auth.admin_attendance_logs') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
+                        📋 {{ t('admin.nav_attendance_log', 'Anwesenheits-Log') }}
+                    </a>
+                </div>
+                <a href="{{ url_for('stats.home') }}" class="secondary" style="padding: 8px 16px; text-decoration: none;">← {{ t('nav.dashboard', 'Dashboard') }}</a>
+            </div>
         </div>
 
         <!-- Webmaster Notifications & Activity Feed -->
