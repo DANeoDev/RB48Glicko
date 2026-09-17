@@ -1,6 +1,6 @@
 /**
  * RB48 Feedback System
- * Handles modal open/close, client telemetry collection, category syncing, and AJAX submission.
+ * Handles modal open/close, client telemetry collection, category switching with distinct text fields, and AJAX submission.
  */
 (function() {
     window.RB48Feedback = {
@@ -19,20 +19,16 @@
             if (touchEl) touchEl.textContent = hasTouch ? "Ja" : "Nein";
 
             // Default category: if mobile viewport or touch screen, select mobile_handling; otherwise general
-            const catMobileRadio = document.getElementById("cat-mobile");
-            const catGeneralRadio = document.getElementById("cat-general");
-            if (hasTouch || window.innerWidth <= 768) {
-                if (catMobileRadio) catMobileRadio.checked = true;
-            } else {
-                if (catGeneralRadio) catGeneralRadio.checked = true;
-            }
-            this.syncCatLabels();
+            const defaultCat = (hasTouch || window.innerWidth <= 768) ? "mobile_handling" : "general";
+            this.setCategory(defaultCat);
 
             backdrop.classList.add("open");
             modal.classList.add("open");
             setTimeout(() => {
-                const textarea = document.getElementById("feedback-message");
-                if (textarea) textarea.focus();
+                const activeTextarea = defaultCat === "mobile_handling" 
+                    ? document.getElementById("feedback-message-mobile") 
+                    : document.getElementById("feedback-message-general");
+                if (activeTextarea) activeTextarea.focus();
             }, 100);
         },
 
@@ -43,31 +39,54 @@
             if (backdrop) backdrop.classList.remove("open");
         },
 
-        syncCatLabels: function() {
-            document.querySelectorAll(".feedback-cat-label").forEach(label => {
-                const radio = label.querySelector("input[type='radio']");
-                if (radio && radio.checked) {
-                    label.classList.add("active");
-                } else {
-                    label.classList.remove("active");
-                }
-            });
+        setCategory: function(cat) {
+            const catMobileRadio = document.getElementById("cat-mobile");
+            const catGeneralRadio = document.getElementById("cat-general");
+            const labelMobile = document.getElementById("label-cat-mobile");
+            const labelGeneral = document.getElementById("label-cat-general");
+            const groupMobile = document.getElementById("feedback-group-mobile");
+            const groupGeneral = document.getElementById("feedback-group-general");
+
+            if (cat === "mobile_handling") {
+                if (catMobileRadio) catMobileRadio.checked = true;
+                if (labelMobile) labelMobile.classList.add("active");
+                if (labelGeneral) labelGeneral.classList.remove("active");
+                if (groupMobile) groupMobile.style.display = "block";
+                if (groupGeneral) groupGeneral.style.display = "none";
+                const ta = document.getElementById("feedback-message-mobile");
+                if (ta && document.activeElement !== ta) ta.focus();
+            } else {
+                if (catGeneralRadio) catGeneralRadio.checked = true;
+                if (labelGeneral) labelGeneral.classList.add("active");
+                if (labelMobile) labelMobile.classList.remove("active");
+                if (groupGeneral) groupGeneral.style.display = "block";
+                if (groupMobile) groupMobile.style.display = "none";
+                const ta = document.getElementById("feedback-message-general");
+                if (ta && document.activeElement !== ta) ta.focus();
+            }
         },
 
         submit: function(e) {
             e.preventDefault();
-            const messageEl = document.getElementById("feedback-message");
             const submitBtn = document.getElementById("feedback-submit-btn");
-            if (!messageEl || !submitBtn) return;
-
-            const message = messageEl.value.trim();
-            if (!message) {
-                alert("Bitte gib eine Beschreibung ein.");
-                return;
-            }
+            if (!submitBtn) return;
 
             const checkedCat = document.querySelector("input[name='feedback_category']:checked");
-            const category = checkedCat ? checkedCat.value : "general";
+            const category = checkedCat ? checkedCat.value : "mobile_handling";
+
+            const messageMobileEl = document.getElementById("feedback-message-mobile");
+            const messageGeneralEl = document.getElementById("feedback-message-general");
+
+            const message = (category === "mobile_handling" 
+                ? (messageMobileEl ? messageMobileEl.value : "") 
+                : (messageGeneralEl ? messageGeneralEl.value : "")).trim();
+
+            if (!message) {
+                alert("Bitte gib eine Beschreibung ein.");
+                const focusEl = category === "mobile_handling" ? messageMobileEl : messageGeneralEl;
+                if (focusEl) focusEl.focus();
+                return;
+            }
 
             const hasTouch = 'ontouchstart' in window || (navigator.maxTouchPoints > 0);
             const payload = {
@@ -97,7 +116,8 @@
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = origText;
                 if (data.success) {
-                    messageEl.value = "";
+                    if (messageMobileEl) messageMobileEl.value = "";
+                    if (messageGeneralEl) messageGeneralEl.value = "";
                     window.RB48Feedback.close();
                     if (window.showToast) {
                         window.showToast("Vielen Dank! Dein Feedback wurde erfasst.", 3200);
@@ -118,13 +138,19 @@
 
     // Initialize event handlers
     document.addEventListener("DOMContentLoaded", () => {
-        document.querySelectorAll(".feedback-cat-label").forEach(label => {
-            label.addEventListener("click", () => {
-                setTimeout(() => {
-                    window.RB48Feedback.syncCatLabels();
-                }, 10);
+        const labelMobile = document.getElementById("label-cat-mobile");
+        const labelGeneral = document.getElementById("label-cat-general");
+
+        if (labelMobile) {
+            labelMobile.addEventListener("click", () => {
+                window.RB48Feedback.setCategory("mobile_handling");
             });
-        });
+        }
+        if (labelGeneral) {
+            labelGeneral.addEventListener("click", () => {
+                window.RB48Feedback.setCategory("general");
+            });
+        }
 
         // Close on ESC key
         document.addEventListener("keydown", (e) => {

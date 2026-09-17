@@ -84,23 +84,26 @@
 }
 
 .footer-feedback-btn {
-    background: rgba(123, 82, 197, 0.18);
-    border: 1px solid rgba(123, 82, 197, 0.45);
-    color: #d1bbf8;
-    border-radius: 6px;
-    padding: 4px 10px;
-    font-size: 12px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: var(--text-muted);
+    border-radius: 14px;
+    padding: 3px 10px;
+    font-size: 12.5px;
+    font-weight: 500;
     font-family: inherit;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     cursor: pointer;
     transition: all 0.15s ease;
+    text-decoration: none;
+    line-height: normal;
     white-space: nowrap;
 }
 
 .footer-feedback-btn:hover {
-    background: #582DA1;
+    background: rgba(123, 82, 197, 0.25);
     border-color: #7B52C5;
     color: #ffffff;
 }
@@ -113,7 +116,7 @@
     }
 
     .site-footer-links {
-        gap: 12px;
+        gap: 10px;
         padding-right: 14px;
         font-size: 12px;
     }
@@ -134,7 +137,7 @@
     }
     .footer-search-btn,
     .footer-feedback-btn {
-        padding: 6px 8px;
+        padding: 5px 8px;
         min-width: 32px;
         justify-content: center;
     }

@@ -9,8 +9,8 @@
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='images/RB48_logo.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/RB48_logo.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='footer.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2.2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='footer.css') }}?v=2.2">
     <link rel="stylesheet" href="{{ url_for('static', filename='noise.css') }}">
     {% block head %}{% endblock %}
     <style>
@@ -265,16 +265,9 @@
 
 <header class="site-header">
     <nav class="navbar">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <a class="logo" href="{{ url_for('stats.home') }}" aria-label="RB48 home">
-                <img src="{{ url_for('static', filename='images/RB48_logo.png') }}" alt="RB48">
-            </a>
-            <button type="button" class="nav-mobile-toggle" id="nav-mobile-toggle" aria-label="Menü umschalten" aria-expanded="false">
-                <span class="nav-hamburger-bar"></span>
-                <span class="nav-hamburger-bar"></span>
-                <span class="nav-hamburger-bar"></span>
-            </button>
-        </div>
+        <a class="logo" href="{{ url_for('stats.home') }}" aria-label="RB48 home">
+            <img src="{{ url_for('static', filename='images/RB48_logo.png') }}" alt="RB48">
+        </a>
         <div class="nav-links" id="nav-links">
             <a href="{{ url_for('stats.dashboard') }}" class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}active{% endif %}">{{ t('nav.dashboard', 'Dashboard') }}</a>
             
@@ -388,6 +381,11 @@
                    class="lang-toggle-btn {% if current_lang == 'en' %}active{% endif %}" 
                    title="English">EN</a>
             </div>
+            <button type="button" class="nav-mobile-toggle" id="nav-mobile-toggle" aria-label="Menü umschalten" aria-expanded="false" style="display: none;">
+                <span class="nav-hamburger-bar"></span>
+                <span class="nav-hamburger-bar"></span>
+                <span class="nav-hamburger-bar"></span>
+            </button>
         </div>
     </nav>
 </header>
@@ -412,14 +410,14 @@
             <span class="footer-search-label">{{ t('search.label', 'Suche...') }}</span>
             <kbd class="footer-search-kbd">Ctrl+K</kbd>
         </button>
-        <button type="button" id="footer-feedback-btn" class="footer-feedback-btn" onclick="window.RB48Feedback && window.RB48Feedback.open()" title="{{ t('nav.feedback_title', 'Feedback oder Mobile-Problem melden') }}">
-            <span>💬</span>
-            <span class="footer-feedback-label">{{ t('nav.feedback', 'Feedback') }}</span>
-        </button>
         <a class="site-footer-home" href="{{ url_for('stats.home') }}">{{ t('nav.footer_home', 'RB 48 Homepage') }}</a>
         <nav class="site-footer-links" aria-label="Footer navigation">
             <a href="{{ url_for('stats.about') }}">{{ t('nav.footer_about', 'About') }}</a>
             <a href="{{ url_for('stats.glicko_explainer') }}">{{ t('nav.footer_faq', 'FAQ') }}</a>
+            <button type="button" id="footer-feedback-btn" class="footer-feedback-btn" onclick="window.RB48Feedback && window.RB48Feedback.open()" title="{{ t('nav.feedback_title', 'Feedback oder Mobile-Problem melden') }}">
+                <span>💬</span>
+                <span class="footer-feedback-label">{{ t('nav.feedback', 'Feedback') }}</span>
+            </button>
             <a href="https://github.com/DANeoDev/RB48Glicko" target="_blank" rel="noopener noreferrer">{{ t('nav.footer_github', 'GitHub') }}</a>
         </nav>
     </div>
@@ -660,19 +658,29 @@ if (navToggle && navLinks) {
                 {{ t('feedback.cat_label', 'Kategorie auswählen:') }}
             </label>
             <div class="feedback-category-group" style="display: flex; gap: 8px;">
-                <label class="feedback-cat-label active" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: center;">
+                <label id="label-cat-mobile" class="feedback-cat-label active" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: center;">
                     <input type="radio" name="feedback_category" value="mobile_handling" id="cat-mobile" checked style="display: none;">
                     <span>{{ t('feedback.cat_mobile', '📱 Mobile Handling Probleme') }}</span>
                 </label>
-                <label class="feedback-cat-label" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: center;">
+                <label id="label-cat-general" class="feedback-cat-label" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: center;">
                     <input type="radio" name="feedback_category" value="general" id="cat-general" style="display: none;">
                     <span>{{ t('feedback.cat_general', '💬 Allgemein') }}</span>
                 </label>
             </div>
         </div>
 
-        <div style="margin-bottom: 14px;">
-            <textarea id="feedback-message" required rows="4" placeholder="{{ t('feedback.desc_placeholder', 'Was ist dir aufgefallen? (z. B. Button lässt sich auf dem Smartphone schwer antippen, Layout verschoben, Tippfehler...)') }}" style="width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; border-radius: 8px; border: 1px solid var(--border); background: #211553; color: #ffffff; resize: vertical; min-height: 100px;"></textarea>
+        <div id="feedback-group-mobile" style="margin-bottom: 14px;">
+            <label for="feedback-message-mobile" style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">
+                {{ t('feedback.mobile_desc_label', 'Welches Problem tritt auf Mobilgeräten auf?') }}
+            </label>
+            <textarea id="feedback-message-mobile" rows="4" placeholder="{{ t('feedback.mobile_placeholder', 'Was hakt beim mobilen Handling? (z. B. Button schwer anzutippen, Scrollen stockt, Layout verzerrt, etc.)...') }}" style="width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; border-radius: 8px; border: 1px solid var(--border); background: #211553; color: #ffffff; resize: vertical; min-height: 100px;"></textarea>
+        </div>
+
+        <div id="feedback-group-general" style="margin-bottom: 14px; display: none;">
+            <label for="feedback-message-general" style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">
+                {{ t('feedback.general_desc_label', 'Allgemeines Feedback, Anmerkung oder Verbesserungsvorschlag:') }}
+            </label>
+            <textarea id="feedback-message-general" rows="4" placeholder="{{ t('feedback.general_placeholder', 'Deine Ideen, Anregungen oder Wünsche für RB48...') }}" style="width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; border-radius: 8px; border: 1px solid var(--border); background: #211553; color: #ffffff; resize: vertical; min-height: 100px;"></textarea>
         </div>
 
         <!-- Automatic telemetry / metadata preview -->
@@ -693,6 +701,6 @@ if (navToggle && navLinks) {
 
 <div id="toast-container" class="toast-container"></div>
 <script src="{{ url_for('static', filename='global_search.js') }}"></script>
-<script src="{{ url_for('static', filename='feedback.js') }}"></script>
+<script src="{{ url_for('static', filename='feedback.js') }}?v=2.2"></script>
 </body>
 </html>
