@@ -1022,4 +1022,10 @@ TRANSLATIONS_DE = {
     "admin.nav_attendance_log": "Anwesenheits-Log",
     "planner.view_all_logs_title": "Gesamtes An- und Abmelde-Audit-Log aller Spieltage öffnen",
     "planner.log_btn_title": "An- und Abmelde-Log für diesen Spieltag anzeigen",
+    "admin.nav_player_positions": "Spielerpositionen",
+    "admin.player_positions_title": "Spielerpositionen · RB48",
+    "admin.player_positions_heading": "Spielerpositionen verwalten",
+    "admin.player_positions_sub": "Positionsfähigkeiten und Hauptposition für alle Spieler in der Datenbank festlegen.",
+    "admin.search_players_placeholder": "Spieler nach Name suchen...",
+    "admin.players_count_label": "Spieler in der Datenbank",
 }

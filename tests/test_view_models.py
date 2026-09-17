@@ -132,6 +132,28 @@ class ViewModelsTest(unittest.TestCase):
                     self.assertAlmostEqual(month_data["rating"], 0.0)
 
             self.assertTrue(has_inactive_player_with_positive_rd, "Expected inactive players to have positive RD delta from missed sessions.")
+
+            # Verify last matchday delta & inactivity handling
+            has_inactive_game_delta = False
+            has_active_game_delta = False
+            for pid in players:
+                game_data = deltas[pid]["total"]["game"]
+                self.assertIn("is_inactivity", game_data)
+                self.assertIn("tooltip", game_data)
+                if game_data["is_inactivity"]:
+                    has_inactive_game_delta = True
+                    self.assertEqual(game_data["games"], 0)
+                    self.assertAlmostEqual(game_data["rating"], 0.0)
+                    self.assertIn("Inaktivitätsanpassung:", game_data["tooltip"])
+                    self.assertLess(game_data["conservative"], 0.0)
+                    self.assertGreater(game_data["rd"], 0.0)
+                elif game_data["games"] > 0:
+                    has_active_game_delta = True
+                    self.assertFalse(game_data["is_inactivity"])
+                    self.assertEqual(game_data["tooltip"], "")
+
+            self.assertTrue(has_inactive_game_delta, "Expected some players to be inactive on the last matchday.")
+            self.assertTrue(has_active_game_delta, "Expected some players to be active on the last matchday.")
         finally:
             conn.close()
 

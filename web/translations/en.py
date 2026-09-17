@@ -1000,4 +1000,10 @@ TRANSLATIONS_EN = {
     "admin.nav_attendance_log": "Attendance Logs",
     "planner.view_all_logs_title": "Open full attendance audit log for all matchdays",
     "planner.log_btn_title": "View attendance sign-up and cancellation log for this matchday",
+    "admin.nav_player_positions": "Player Positions",
+    "admin.player_positions_title": "Player Positions · RB48",
+    "admin.player_positions_heading": "Manage Player Positions",
+    "admin.player_positions_sub": "Configure role capabilities and primary positions for all players in the database.",
+    "admin.search_players_placeholder": "Search players by name...",
+    "admin.players_count_label": "Players in database",
 }

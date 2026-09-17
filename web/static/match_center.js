@@ -1101,8 +1101,8 @@
                 team_b: [...baseMatch.team_b],
                 external_a: baseMatch.external_a,
                 external_b: baseMatch.external_b,
-                goals_a: 0,
-                goals_b: 0,
+                goals_a: baseMatch.goals_a !== undefined ? baseMatch.goals_a : 0,
+                goals_b: baseMatch.goals_b !== undefined ? baseMatch.goals_b : 0,
             });
             renderBatchModal();
             setTimeout(() => {

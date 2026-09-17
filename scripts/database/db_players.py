@@ -111,6 +111,33 @@ def add_position(
     ))
 
 
+def set_player_positions(connection, player_id, positions, primary_position=None):
+    """Set all positions for a player, replacing any existing positions."""
+    connection.execute("DELETE FROM positions WHERE player_id = ?", (player_id,))
+
+    clean_primary = primary_position.replace("*", "").strip().upper() if primary_position else None
+
+    clean_positions = set()
+    for pos in positions:
+        pos_clean = pos.replace("*", "").strip().upper()
+        if pos_clean in ("GK", "DEF", "MID", "ATT"):
+            clean_positions.add(pos_clean)
+
+    if clean_primary and clean_primary in ("GK", "DEF", "MID", "ATT"):
+        clean_positions.add(clean_primary)
+
+    for pos_clean in sorted(clean_positions):
+        is_primary = 1 if (clean_primary and pos_clean == clean_primary) else 0
+        connection.execute(
+            """
+            INSERT INTO positions (player_id, position, is_primary)
+            VALUES (?, ?, ?)
+            """,
+            (player_id, pos_clean, is_primary),
+        )
+    connection.commit()
+
+
 def add_ignored_alias(connection, alias):
 
     connection.execute("""

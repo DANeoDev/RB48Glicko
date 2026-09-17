@@ -39,6 +39,12 @@
         padding: 5px 8px;
     }
 }
+.delta-val.delta-inactivity {
+    color: var(--text-muted) !important;
+    opacity: 0.75;
+    font-style: italic;
+    cursor: help;
+}
 .recalc-modal-bg {
     position: fixed !important;
     top: 0 !important;
@@ -435,6 +441,8 @@
                         data-{{ pitch }}-delta-{{ interval }}-losses="{{ player[pitch]['deltas'][interval]['losses'] }}"
                         data-{{ pitch }}-delta-{{ interval }}-win-percent="{{ player[pitch]['deltas'][interval]['win_percent'] }}"
                     {% endfor %}
+                    data-{{ pitch }}-delta-game-is-inactivity="{{ 'true' if player[pitch]['deltas']['game'].get('is_inactivity') else 'false' }}"
+                    data-{{ pitch }}-delta-game-tooltip="{{ player[pitch]['deltas']['game'].get('tooltip', '') }}"
                 {% endfor %}
             >
                 <td>{{ '—' if is_opted_out else loop.index }}</td>
@@ -533,6 +541,10 @@ function syncDeltaRowAttributesAndCells() {
             const dLosses = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-losses`) || "0");
             const dWinPercent = parseFloat(row.getAttribute(`data-${pitch}-delta-${currentDeltaMode}-win-percent`) || "0");
 
+            const isGame = currentDeltaMode === "game";
+            const isInactivity = isGame && row.getAttribute(`data-${pitch}-delta-game-is-inactivity`) === "true";
+            const gameTooltip = isGame ? (row.getAttribute(`data-${pitch}-delta-game-tooltip`) || "") : "";
+
             row.setAttribute(`data-${pitch}-delta-conservative`, dConservative);
             row.setAttribute(`data-${pitch}-delta-rating`, dRating);
             row.setAttribute(`data-${pitch}-delta-rd`, dRd);
@@ -549,6 +561,7 @@ function syncDeltaRowAttributesAndCells() {
                 if (isOptedOut && (type === "conservative" || type === "rating" || type === "rd")) {
                     cell.textContent = "—";
                     cell.className = `delta-col delta-${type}-col delta-val zero`;
+                    cell.removeAttribute("title");
                     return;
                 }
                 let fmt;
@@ -561,8 +574,19 @@ function syncDeltaRowAttributesAndCells() {
                 else if (type === "win-percent") fmt = formatDelta(dWinPercent, type);
 
                 if (fmt) {
-                    cell.textContent = fmt.text;
-                    cell.className = `delta-col delta-${type}-col delta-val ${fmt.cls}`;
+                    if (isInactivity && (type === "conservative" || type === "rating" || type === "rd")) {
+                        cell.textContent = `(${fmt.text})`;
+                        cell.className = `delta-col delta-${type}-col delta-val delta-inactivity`;
+                        if (gameTooltip) {
+                            cell.title = gameTooltip;
+                        } else {
+                            cell.removeAttribute("title");
+                        }
+                    } else {
+                        cell.textContent = fmt.text;
+                        cell.className = `delta-col delta-${type}-col delta-val ${fmt.cls}`;
+                        cell.removeAttribute("title");
+                    }
                 }
             });
         });

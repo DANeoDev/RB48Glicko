@@ -408,7 +408,8 @@
 
     function isMatchHistoryPage() {
         const p = getCanonicalPagePath();
-        return p === "/matches";
+        const raw = window.location.pathname || "";
+        return p === "/matches" || p.startsWith("/matches/") || raw === "/matches" || raw.startsWith("/matches/");
     }
 
     async function saveBubble() {

@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('admin.player_positions_title', 'Spielerpositionen · RB48') }}{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width: 1360px; width: 100%; margin: 30px auto; padding: 0 20px; box-sizing: border-box;">
+    <div class="account-card" style="padding: 28px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; box-sizing: border-box;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 14px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
+                    <h1 style="margin: 0; color: #ffffff; font-size: 24px;">⚽ {{ t('admin.player_positions_heading', 'Spielerpositionen verwalten') }}</h1>
+                    <span style="background: rgba(123, 82, 197, 0.25); color: #c9c2d8; border: 1px solid rgba(123, 82, 197, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px;">Webmaster</span>
+                </div>
+                <p class="muted" style="margin: 0; font-size: 13.5px;">{{ t('admin.player_positions_sub', 'Positionsfähigkeiten und Hauptposition für alle Spieler in der Datenbank festlegen.') }}</p>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div style="display: inline-flex; background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px;">
+                    <a href="{{ url_for('auth.admin_users') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
+                        👥 {{ t('auth.admin_users_heading', 'User Management') }}
+                    </a>
+                    <a href="{{ url_for('auth.admin_attendance_logs') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
+                        📋 {{ t('admin.nav_attendance_log', 'Anwesenheits-Log') }}
+                    </a>
+                    <a href="{{ url_for('auth.admin_player_positions') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--accent); color: #ffffff; border-radius: 4px;">
+                        ⚽ {{ t('admin.nav_player_positions', 'Spielerpositionen') }}
+                    </a>
+                </div>
+                <a href="{{ url_for('stats.home') }}" class="secondary" style="padding: 7px 14px; font-size: 13px; text-decoration: none;">← {{ t('nav.dashboard', 'Dashboard') }}</a>
+            </div>
+        </div>
+
+        <!-- Filter / Search bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; background: var(--bg-surface-alt); padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border);">
+            <div style="display: flex; align-items: center; gap: 10px; flex: 1; max-width: 400px;">
+                <span style="color: var(--text-muted); font-size: 14px;">🔍</span>
+                <input type="text" id="player-filter-input" placeholder="{{ t('admin.search_players_placeholder', 'Spieler nach Name suchen...') }}" style="width: 100%; padding: 7px 12px; font-size: 13px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; color: #ffffff;">
+            </div>
+            <div style="font-size: 12.5px; color: var(--text-muted);">
+                <span id="player-count-display">{{ players | length }}</span> {{ t('admin.players_count_label', 'Spieler in der Datenbank') }}
+            </div>
+        </div>
+
+        <!-- Players Table -->
+        <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius);">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+                <thead>
+                    <tr style="background: var(--bg-surface-alt); border-bottom: 1px solid var(--border);">
+                        <th style="padding: 12px 16px; color: var(--text-muted); font-weight: 600; width: 60px;">ID</th>
+                        <th style="padding: 12px 16px; color: var(--text-muted); font-weight: 600; min-width: 180px;">Spieler / Name</th>
+                        <th style="padding: 12px 16px; color: var(--text-muted); font-weight: 600; min-width: 150px;">Aktuelle Rollen</th>
+                        <th style="padding: 12px 16px; color: var(--text-muted); font-weight: 600; min-width: 220px;">Positionen</th>
+                        <th style="padding: 12px 16px; color: var(--text-muted); font-weight: 600; min-width: 170px;">Hauptposition</th>
+                        <th style="padding: 12px 16px; color: var(--text-muted); font-weight: 600; width: 140px; text-align: right;">Aktion</th>
+                    </tr>
+                </thead>
+                <tbody id="player-table-body">
+                    {% for p in players %}
+                    <tr class="player-row" data-player-name="{{ p.name | lower }}" style="border-bottom: 1px solid var(--border); transition: background .15s ease;">
+                        <td style="padding: 12px 16px; color: var(--text-muted); font-family: monospace;">#{{ p.player_id }}</td>
+                        <td style="padding: 12px 16px;">
+                            <a href="{{ url_for('stats.player_profile', player_id=p.player_id) }}" style="color: #80deea; text-decoration: none; font-weight: 700;">
+                                {{ p.name }}
+                            </a>
+                            {% if p.aliases | length > 1 %}
+                                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                                    Aliases: {{ p.aliases[1:] | join(', ') }}
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 12px 16px;">
+                            <div class="current-badges-wrap" id="badges-{{ p.player_id }}" style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                {% if p.raw_positions %}
+                                    {% for pos in p.raw_positions %}
+                                        <span style="background: rgba(128, 222, 234, 0.15); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.35); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">
+                                            {{ pos }}
+                                        </span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span style="color: var(--text-muted); font-size: 11.5px;">—</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td style="padding: 12px 16px;">
+                            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                                {% for role in ['GK', 'DEF', 'MID', 'ATT'] %}
+                                <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; cursor: pointer; color: var(--text-main);">
+                                    <input type="checkbox" 
+                                           class="pos-checkbox pos-{{ p.player_id }}" 
+                                           data-player-id="{{ p.player_id }}" 
+                                           value="{{ role }}"
+                                           {% if role in p.clean_positions %}checked{% endif %}>
+                                    {{ role }}
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td style="padding: 12px 16px;">
+                            <select class="primary-pos-select" id="primary-{{ p.player_id }}" style="padding: 5px 8px; font-size: 12px; background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 5px; color: #ffffff; width: 100%; max-width: 150px;">
+                                <option value="">Keine (Flexibel)</option>
+                                <option value="GK" {% if p.primary_position == 'GK' %}selected{% endif %}>GK* (Tor)</option>
+                                <option value="DEF" {% if p.primary_position == 'DEF' %}selected{% endif %}>DEF* (Abwehr)</option>
+                                <option value="MID" {% if p.primary_position == 'MID' %}selected{% endif %}>MID* (Mittelfeld)</option>
+                                <option value="ATT" {% if p.primary_position == 'ATT' %}selected{% endif %}>ATT* (Sturm)</option>
+                            </select>
+                        </td>
+                        <td style="padding: 12px 16px; text-align: right;">
+                            <button type="button" 
+                                    class="secondary btn-save-pos" 
+                                    data-player-id="{{ p.player_id }}"
+                                    style="padding: 5px 12px; font-size: 12px; cursor: pointer; border-radius: 5px;">
+                                Speichern
+                            </button>
+                            <span class="save-status" id="status-{{ p.player_id }}" style="font-size: 11px; margin-left: 6px; display: none;"></span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    // 1. Live player search filtering
+    const searchInput = document.getElementById("player-filter-input");
+    const rows = document.querySelectorAll(".player-row");
+    const countDisplay = document.getElementById("player-count-display");
+
+    searchInput?.addEventListener("input", (e) => {
+        const query = e.target.value.trim().toLowerCase();
+        let visibleCount = 0;
+        rows.forEach(row => {
+            const name = row.getAttribute("data-player-name") || "";
+            if (!query || name.includes(query)) {
+                row.style.display = "";
+                visibleCount++;
+            } else {
+                row.style.display = "none";
+            }
+        });
+        if (countDisplay) countDisplay.textContent = visibleCount;
+    });
+
+    // 2. Automatically check role checkbox when primary position is selected
+    document.querySelectorAll(".primary-pos-select").forEach(sel => {
+        sel.addEventListener("change", (e) => {
+            const playerId = sel.id.replace("primary-", "");
+            const val = e.target.value;
+            if (val) {
+                const targetCheckbox = document.querySelector(`.pos-checkbox.pos-${playerId}[value="${val}"]`);
+                if (targetCheckbox) targetCheckbox.checked = true;
+            }
+        });
+    });
+
+    // 3. Save button handler (AJAX POST)
+    document.querySelectorAll(".btn-save-pos").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            const playerId = parseInt(btn.getAttribute("data-player-id"), 10);
+            const checkboxes = document.querySelectorAll(`.pos-checkbox.pos-${playerId}:checked`);
+            const positions = Array.from(checkboxes).map(cb => cb.value);
+            const primarySel = document.getElementById(`primary-${playerId}`);
+            const primaryPos = primarySel ? primarySel.value.trim() : null;
+            const statusEl = document.getElementById(`status-${playerId}`);
+
+            btn.disabled = true;
+            btn.textContent = "Speichere...";
+            if (statusEl) {
+                statusEl.style.display = "none";
+            }
+
+            try {
+                const resp = await fetch("{{ url_for('auth.admin_player_positions') }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({
+                        player_id: playerId,
+                        positions: positions,
+                        primary_position: primaryPos || null
+                    })
+                });
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    // Update badges in row
+                    const badgesContainer = document.getElementById(`badges-${playerId}`);
+                    if (badgesContainer) {
+                        badgesContainer.innerHTML = "";
+                        if (positions.length === 0 && !primaryPos) {
+                            badgesContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 11.5px;">—</span>';
+                        } else {
+                            const distinct = Array.from(new Set(positions));
+                            if (primaryPos && !distinct.includes(primaryPos)) distinct.push(primaryPos);
+                            distinct.sort().forEach(pos => {
+                                const isPrim = (primaryPos && pos === primaryPos);
+                                const span = document.createElement("span");
+                                span.style.cssText = "background: rgba(128, 222, 234, 0.15); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.35); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;";
+                                span.textContent = isPrim ? (pos + "*") : pos;
+                                badgesContainer.appendChild(span);
+                            });
+                        }
+                    }
+
+                    if (statusEl) {
+                        statusEl.textContent = "✓ Gespeichert";
+                        statusEl.style.color = "#88ff88";
+                        statusEl.style.display = "inline";
+                        setTimeout(() => { statusEl.style.display = "none"; }, 2500);
+                    }
+                } else {
+                    alert(data.error || "Fehler beim Speichern der Positionen.");
+                }
+            } catch (err) {
+                console.error("Failed to save positions:", err);
+                alert("Netzwerkfehler beim Speichern.");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Speichern";
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

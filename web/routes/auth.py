@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
 import time
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from scripts.accounts.auth import (
@@ -43,8 +43,9 @@ from scripts.accounts.psychology import (
     get_psychology_personas,
 )
 from scripts.database.database import get_connection as get_main_connection
-from scripts.database.db_players import get_players
+from scripts.database.db_players import get_players, set_player_positions
 from scripts.planner.database import get_planner_connection, get_attendance_logs, get_attendance_logs_count, get_all_events
+from web.services.cache import invalidate_stats_cache
 from web.services.email_service import is_smtp_configured, send_verification_email
 from web.services.translations import get_current_lang
 from web.services.security import (
@@ -325,6 +326,68 @@ def admin_attendance_logs():
         )
     finally:
         p_conn.close()
+
+
+@auth_bp.route("/admin/player-positions", methods=["GET", "POST"])
+@require_webmaster
+def admin_player_positions():
+    """Webmaster tool: View and update player positions for all players in the database."""
+    main_conn = get_main_connection()
+    try:
+        if request.method == "POST":
+            if request.is_json:
+                data = request.get_json(silent=True) or {}
+                player_id = data.get("player_id")
+                positions = data.get("positions", [])
+                primary_position = data.get("primary_position")
+            else:
+                player_id = request.form.get("player_id", type=int)
+                positions = request.form.getlist("positions")
+                primary_position = request.form.get("primary_position")
+
+            if not player_id:
+                if request.is_json:
+                    return jsonify({"success": False, "error": "Invalid player ID."}), 400
+                flash("Invalid player ID.", "danger")
+                return redirect(url_for("auth.admin_player_positions"))
+
+            set_player_positions(main_conn, player_id, positions, primary_position)
+            invalidate_stats_cache()
+
+            if request.is_json:
+                return jsonify({
+                    "success": True,
+                    "player_id": player_id,
+                    "positions": positions,
+                    "primary_position": primary_position,
+                })
+            flash("Player positions updated successfully.", "success")
+            return redirect(url_for("auth.admin_player_positions"))
+
+        # GET: List all players with their positions
+        raw_players = get_players(main_conn)
+        player_list = []
+        for pid, pdata in raw_players.items():
+            name = pdata["aliases"][0] if pdata["aliases"] else f"Player {pid}"
+            clean_positions = [pos.replace("*", "").strip().upper() for pos in pdata.get("positions", [])]
+            primary_position = next((pos.replace("*", "").strip().upper() for pos in pdata.get("positions", []) if "*" in pos), "")
+            player_list.append({
+                "player_id": pid,
+                "name": name,
+                "aliases": pdata.get("aliases", []),
+                "raw_positions": pdata.get("positions", []),
+                "clean_positions": clean_positions,
+                "primary_position": primary_position,
+            })
+
+        player_list.sort(key=lambda p: p["name"].lower())
+
+        return render_template(
+            "admin_player_positions.html",
+            players=player_list,
+        )
+    finally:
+        main_conn.close()
 
 
 @auth_bp.route("/admin/notifications/mark-read", methods=["POST"])
