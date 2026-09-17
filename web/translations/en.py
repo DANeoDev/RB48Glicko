@@ -1023,6 +1023,7 @@ TRANSLATIONS_EN = {
     "feedback.sending": "Sending...",
     "feedback.success_toast": "Thank you! Your feedback has been recorded.",
     "feedback.error_toast": "Error submitting feedback. Please try again.",
+    "feedback.privacy_hint": "Note: When submitting, these technical diagnostics (device/browser) are stored together with your message exclusively for bug troubleshooting and optimization.",
     "admin.nav_feedback": "Feedback Logs",
     "admin.feedback_title": "Feedback Logs · RB48",
     "admin.feedback_heading": "User & Mobile Feedback",

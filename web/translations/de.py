@@ -1045,6 +1045,7 @@ TRANSLATIONS_DE = {
     "feedback.sending": "Wird gesendet...",
     "feedback.success_toast": "Vielen Dank! Dein Feedback wurde erfasst.",
     "feedback.error_toast": "Fehler beim Senden. Bitte versuche es erneut.",
+    "feedback.privacy_hint": "Hinweis: Beim Absenden werden diese technischen Diagnosedaten (Gerät/Browser) zusammen mit deiner Nachricht ausschließlich zur Fehleranalyse und Optimierung gespeichert.",
     "admin.nav_feedback": "Feedback-Logs",
     "admin.feedback_title": "Feedback-Logs · RB48",
     "admin.feedback_heading": "Benutzer- & Mobile-Feedback",
