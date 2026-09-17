@@ -18,9 +18,13 @@ from scripts.accounts.database import (
     approve_user,
     backup_and_delete_user,
     clear_all_webmaster_notifications,
+    create_feedback_entry,
+    delete_feedback_entry,
     delete_webmaster_notification,
     get_accounts_connection,
+    get_all_feedback,
     get_all_users,
+    get_feedback_counts,
     get_unseen_webmaster_notifications_count,
     get_user_authored_noise_bubbles,
     get_user_by_email,
@@ -34,6 +38,7 @@ from scripts.accounts.database import (
     set_user_access_level,
     set_user_persona,
     unlink_player,
+    update_feedback_status,
     update_user_password,
     update_user_profile,
 )
@@ -767,4 +772,112 @@ def set_language(lang):
     if next_url.startswith("//") or (not next_url.startswith("/") and not next_url.startswith(request.host_url)):
         next_url = url_for("stats.home")
     return redirect(next_url)
+
+
+# =========================================================================
+# Feedback System Routes
+# =========================================================================
+
+@auth_bp.route("/api/feedback", methods=["POST"])
+def submit_feedback():
+    """Submit user/visitor feedback with categorized diagnostics."""
+    data = request.get_json(silent=True) or request.form
+    category = (data.get("category") or "general").strip()
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify({"success": False, "error": "Bitte gib eine Beschreibung ein."}), 400
+    if category not in ("mobile_handling", "general"):
+        category = "general"
+
+    user = get_current_user()
+    user_id = user["id"] if user else None
+    username = (user["username"] if user else (data.get("username") or "Gast")).strip()
+    page_url = (data.get("page_url") or "").strip()
+    viewport = (data.get("viewport") or "").strip()
+    screen_res = (data.get("screen_res") or "").strip()
+    touch_support = 1 if data.get("touch_support") in (1, True, "1", "true") else 0
+    user_agent = (data.get("user_agent") or request.headers.get("User-Agent") or "").strip()
+
+    conn = get_accounts_connection()
+    try:
+        feedback_id = create_feedback_entry(
+            conn,
+            category=category,
+            message=message,
+            user_id=user_id,
+            username=username,
+            page_url=page_url,
+            viewport=viewport,
+            screen_res=screen_res,
+            touch_support=touch_support,
+            user_agent=user_agent,
+        )
+    finally:
+        conn.close()
+
+    return jsonify({
+        "success": True,
+        "feedback_id": feedback_id,
+        "message": "Feedback erfolgreich übermittelt. Vielen Dank!"
+    })
+
+
+@auth_bp.route("/admin/feedback", methods=["GET"])
+@require_tier(Tier.ADMIN)
+def admin_feedback():
+    """Admin & Webmaster dashboard to review and manage user feedback."""
+    category = request.args.get("category", "all")
+    status = request.args.get("status", "all")
+    conn = get_accounts_connection()
+    try:
+        entries = get_all_feedback(conn, category=category, status=status)
+        counts = get_feedback_counts(conn)
+    finally:
+        conn.close()
+
+    return render_template(
+        "admin_feedback.html",
+        entries=entries,
+        counts=counts,
+        active_category=category,
+        active_status=status,
+    )
+
+
+@auth_bp.route("/admin/feedback/<int:feedback_id>/status", methods=["POST"])
+@require_tier(Tier.ADMIN)
+def admin_feedback_status(feedback_id):
+    """Toggle or update status of a feedback entry ('open', 'resolved', 'archived')."""
+    data = request.get_json(silent=True) or request.form
+    new_status = data.get("status", "resolved")
+    if new_status not in ("open", "resolved", "archived"):
+        new_status = "resolved"
+
+    conn = get_accounts_connection()
+    try:
+        success = update_feedback_status(conn, feedback_id, new_status)
+    finally:
+        conn.close()
+
+    if request.is_json:
+        return jsonify({"success": success})
+    flash("Feedback-Status aktualisiert.", "success")
+    return redirect(url_for("auth.admin_feedback"))
+
+
+@auth_bp.route("/admin/feedback/<int:feedback_id>/delete", methods=["POST"])
+@require_tier(Tier.ADMIN)
+def admin_feedback_delete(feedback_id):
+    """Delete a feedback entry."""
+    conn = get_accounts_connection()
+    try:
+        success = delete_feedback_entry(conn, feedback_id)
+    finally:
+        conn.close()
+
+    if request.is_json:
+        return jsonify({"success": success})
+    flash("Feedback-Eintrag gelöscht.", "success")
+    return redirect(url_for("auth.admin_feedback"))
+
 

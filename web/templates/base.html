@@ -265,10 +265,17 @@
 
 <header class="site-header">
     <nav class="navbar">
-        <a class="logo" href="{{ url_for('stats.home') }}" aria-label="RB48 home">
-            <img src="{{ url_for('static', filename='images/RB48_logo.png') }}" alt="RB48">
-        </a>
-        <div class="nav-links">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <a class="logo" href="{{ url_for('stats.home') }}" aria-label="RB48 home">
+                <img src="{{ url_for('static', filename='images/RB48_logo.png') }}" alt="RB48">
+            </a>
+            <button type="button" class="nav-mobile-toggle" id="nav-mobile-toggle" aria-label="Menü umschalten" aria-expanded="false">
+                <span class="nav-hamburger-bar"></span>
+                <span class="nav-hamburger-bar"></span>
+                <span class="nav-hamburger-bar"></span>
+            </button>
+        </div>
+        <div class="nav-links" id="nav-links">
             <a href="{{ url_for('stats.dashboard') }}" class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}active{% endif %}">{{ t('nav.dashboard', 'Dashboard') }}</a>
             
             <a href="{{ url_for('planner.planner') }}" class="{% if request.endpoint == 'planner.planner' %}active{% endif %}">{{ t('nav.planner', 'Planner') }}</a>
@@ -404,6 +411,10 @@
             <span>🔍</span>
             <span class="footer-search-label">{{ t('search.label', 'Suche...') }}</span>
             <kbd class="footer-search-kbd">Ctrl+K</kbd>
+        </button>
+        <button type="button" id="footer-feedback-btn" class="footer-feedback-btn" onclick="window.RB48Feedback && window.RB48Feedback.open()" title="{{ t('nav.feedback_title', 'Feedback oder Mobile-Problem melden') }}">
+            <span>💬</span>
+            <span class="footer-feedback-label">{{ t('nav.feedback', 'Feedback') }}</span>
         </button>
         <a class="site-footer-home" href="{{ url_for('stats.home') }}">{{ t('nav.footer_home', 'RB 48 Homepage') }}</a>
         <nav class="site-footer-links" aria-label="Footer navigation">
@@ -593,6 +604,34 @@ if (document.getElementById("leaderboard")) {
         playerLink.title = `How can the ratings diverge even though ${player} only has games in ${pitch}? Well, this is a good question, but it works as intended. If you can figure out the reason, send a Mail to the webmaster — he will grant you a reward.`;
     });
 }
+
+// Mobile navigation drawer toggle
+const navToggle = document.getElementById("nav-mobile-toggle");
+const navLinks = document.getElementById("nav-links");
+if (navToggle && navLinks) {
+    navToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = navLinks.classList.toggle("nav-links-open");
+        navToggle.classList.toggle("active", isOpen);
+        navToggle.setAttribute("aria-expanded", String(isOpen));
+    });
+
+    document.addEventListener("click", (e) => {
+        if (!navLinks.contains(e.target) && !navToggle.contains(e.target)) {
+            navLinks.classList.remove("nav-links-open");
+            navToggle.classList.remove("active");
+            navToggle.setAttribute("aria-expanded", "false");
+        }
+    });
+
+    navLinks.querySelectorAll("a").forEach(link => {
+        link.addEventListener("click", () => {
+            navLinks.classList.remove("nav-links-open");
+            navToggle.classList.remove("active");
+            navToggle.setAttribute("aria-expanded", "false");
+        });
+    });
+}
 </script>
 
 <!-- Global Search Modal & Backdrop -->
@@ -606,7 +645,54 @@ if (document.getElementById("leaderboard")) {
     <div class="global-search-results" id="global-search-results"></div>
 </div>
 
+<!-- Universal Feedback Modal & Backdrop -->
+<div class="feedback-modal-backdrop" id="feedback-modal-backdrop" onclick="window.RB48Feedback && window.RB48Feedback.close()"></div>
+<div class="feedback-modal" id="feedback-modal" role="dialog" aria-modal="true" aria-labelledby="feedback-modal-title">
+    <div class="feedback-modal-header">
+        <h3 id="feedback-modal-title" style="margin: 0; font-size: 18px; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+            <span>💬</span> {{ t('feedback.modal_title', 'Feedback & Meldung') }}
+        </h3>
+        <button type="button" class="feedback-modal-close" onclick="window.RB48Feedback && window.RB48Feedback.close()" aria-label="Schließen">✕</button>
+    </div>
+    <form id="feedback-form" onsubmit="window.RB48Feedback && window.RB48Feedback.submit(event)">
+        <div style="margin-bottom: 14px;">
+            <label style="display: block; font-size: 12.5px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px;">
+                {{ t('feedback.cat_label', 'Kategorie auswählen:') }}
+            </label>
+            <div class="feedback-category-group" style="display: flex; gap: 8px;">
+                <label class="feedback-cat-label active" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: center;">
+                    <input type="radio" name="feedback_category" value="mobile_handling" id="cat-mobile" checked style="display: none;">
+                    <span>{{ t('feedback.cat_mobile', '📱 Mobile Handling Probleme') }}</span>
+                </label>
+                <label class="feedback-cat-label" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: center;">
+                    <input type="radio" name="feedback_category" value="general" id="cat-general" style="display: none;">
+                    <span>{{ t('feedback.cat_general', '💬 Allgemein') }}</span>
+                </label>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+            <textarea id="feedback-message" required rows="4" placeholder="{{ t('feedback.desc_placeholder', 'Was ist dir aufgefallen? (z. B. Button lässt sich auf dem Smartphone schwer antippen, Layout verschoben, Tippfehler...)') }}" style="width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; border-radius: 8px; border: 1px solid var(--border); background: #211553; color: #ffffff; resize: vertical; min-height: 100px;"></textarea>
+        </div>
+
+        <!-- Automatic telemetry / metadata preview -->
+        <div id="feedback-telemetry-preview" style="font-size: 11px; color: var(--text-muted); margin-bottom: 16px; background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 6px; display: flex; flex-wrap: wrap; gap: 12px;">
+            <div><strong>Seite:</strong> <span id="telemetry-page">-</span></div>
+            <div><strong>Viewport:</strong> <span id="telemetry-vp">-</span></div>
+            <div><strong>Touch:</strong> <span id="telemetry-touch">-</span></div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" class="secondary" onclick="window.RB48Feedback && window.RB48Feedback.close()" style="padding: 9px 16px; font-size: 13px; border-radius: 6px; cursor: pointer;">Abbrechen</button>
+            <button type="submit" id="feedback-submit-btn" class="primary" style="padding: 9px 20px; font-size: 13px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                {{ t('feedback.submit_btn', 'Feedback absenden') }}
+            </button>
+        </div>
+    </form>
+</div>
+
 <div id="toast-container" class="toast-container"></div>
 <script src="{{ url_for('static', filename='global_search.js') }}"></script>
+<script src="{{ url_for('static', filename='feedback.js') }}"></script>
 </body>
 </html>

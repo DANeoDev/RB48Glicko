@@ -29,6 +29,9 @@
                         ⚽ {{ t('admin.nav_player_positions', 'Spielerpositionen') }}
                     </a>
                     {% endif %}
+                    <a href="{{ url_for('auth.admin_feedback') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
+                        💬 {{ t('admin.nav_feedback', 'Feedback-Logs') }}
+                    </a>
                 </div>
                 <a href="{{ url_for('planner.planner') }}" class="secondary" style="padding: 7px 14px; font-size: 13px; text-decoration: none;">📅 {{ t('nav.attendance_planner', 'Spieltagsplaner') }}</a>
             </div>

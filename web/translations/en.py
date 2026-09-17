@@ -1006,4 +1006,23 @@ TRANSLATIONS_EN = {
     "admin.player_positions_sub": "Configure role capabilities and primary positions for all players in the database.",
     "admin.search_players_placeholder": "Search players by name...",
     "admin.players_count_label": "Players in database",
+
+    # Feedback System
+    "nav.feedback": "Feedback",
+    "nav.feedback_title": "Report feedback or mobile handling issues",
+    "feedback.modal_title": "💬 User Feedback & Report",
+    "feedback.cat_label": "Select category:",
+    "feedback.cat_mobile": "📱 Mobile Handling Issues",
+    "feedback.cat_general": "💬 General",
+    "feedback.desc_placeholder": "What did you notice? (e.g. button hard to tap on mobile, layout overlapping, typo...)",
+    "feedback.submit_btn": "Submit Feedback",
+    "feedback.sending": "Sending...",
+    "feedback.success_toast": "Thank you! Your feedback has been recorded.",
+    "feedback.error_toast": "Error submitting feedback. Please try again.",
+    "admin.nav_feedback": "Feedback Logs",
+    "admin.feedback_title": "Feedback Logs · RB48",
+    "admin.feedback_heading": "User & Mobile Feedback",
+    "admin.feedback_sub": "Submitted feedback regarding UX, mobile usability, and general ideas.",
+    "admin.feedback_export_btn": "📋 Copy Logs for AI",
+    "admin.feedback_export_success": "Logs copied to clipboard!",
 }

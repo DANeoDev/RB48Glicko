@@ -138,6 +138,23 @@ def create_account_tables(connection):
             FOREIGN KEY (notification_id) REFERENCES webmaster_notifications(id) ON DELETE CASCADE
         )
     """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            username TEXT,
+            category TEXT NOT NULL,
+            message TEXT NOT NULL,
+            page_url TEXT,
+            viewport TEXT,
+            screen_res TEXT,
+            touch_support INTEGER NOT NULL DEFAULT 0,
+            user_agent TEXT,
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+    """)
 
     # Column migrations for existing tables
     cursor = connection.execute("PRAGMA table_info(users)")
@@ -1102,6 +1119,107 @@ def clear_all_webmaster_notifications(connection):
     connection.execute("DELETE FROM webmaster_seen_notifications")
     connection.execute("DELETE FROM webmaster_notifications")
     connection.commit()
+
+
+# =========================================================================
+# Feedback System Helpers
+# =========================================================================
+
+def create_feedback_entry(
+    connection,
+    category: str,
+    message: str,
+    user_id: int | None = None,
+    username: str | None = None,
+    page_url: str | None = None,
+    viewport: str | None = None,
+    screen_res: str | None = None,
+    touch_support: int = 0,
+    user_agent: str | None = None,
+) -> int:
+    """Insert a new user/visitor feedback entry into the database."""
+    now_iso = datetime.now().isoformat()
+    cursor = connection.execute("""
+        INSERT INTO feedback (
+            user_id, username, category, message, page_url,
+            viewport, screen_res, touch_support, user_agent, status, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
+    """, (
+        user_id, username, category, message, page_url,
+        viewport, screen_res, int(touch_support), user_agent, now_iso
+    ))
+    connection.commit()
+    return cursor.lastrowid
+
+
+def get_all_feedback(
+    connection,
+    category: str | None = None,
+    status: str | None = None,
+    limit: int = 150,
+) -> list[dict]:
+    """Retrieve feedback entries with optional filtering by category and status."""
+    query = "SELECT * FROM feedback WHERE 1=1"
+    params = []
+    if category and category != "all":
+        query += " AND category = ?"
+        params.append(category)
+    if status and status != "all":
+        query += " AND status = ?"
+        params.append(status)
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+
+    rows = connection.execute(query, params).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_feedback_counts(connection) -> dict:
+    """Return count of open and total feedback items per category."""
+    rows = connection.execute("""
+        SELECT category, status, COUNT(*) AS count
+        FROM feedback
+        GROUP BY category, status
+    """).fetchall()
+
+    counts = {
+        "total": 0,
+        "open": 0,
+        "resolved": 0,
+        "mobile_handling": 0,
+        "general": 0,
+    }
+    for row in rows:
+        c = row["category"]
+        s = row["status"]
+        cnt = int(row["count"])
+        counts["total"] += cnt
+        if s == "open":
+            counts["open"] += cnt
+            if c in counts:
+                counts[c] += cnt
+        elif s == "resolved":
+            counts["resolved"] += cnt
+    return counts
+
+
+def update_feedback_status(connection, feedback_id: int, status: str) -> bool:
+    """Update status of a feedback item ('open', 'resolved', 'archived')."""
+    cursor = connection.execute(
+        "UPDATE feedback SET status = ? WHERE id = ?",
+        (status, feedback_id)
+    )
+    connection.commit()
+    return cursor.rowcount > 0
+
+
+def delete_feedback_entry(connection, feedback_id: int) -> bool:
+    """Delete a single feedback entry."""
+    cursor = connection.execute("DELETE FROM feedback WHERE id = ?", (feedback_id,))
+    connection.commit()
+    return cursor.rowcount > 0
+
 
 
 

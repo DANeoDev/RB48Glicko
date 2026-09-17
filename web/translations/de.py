@@ -1028,4 +1028,23 @@ TRANSLATIONS_DE = {
     "admin.player_positions_sub": "Positionsfähigkeiten und Hauptposition für alle Spieler in der Datenbank festlegen.",
     "admin.search_players_placeholder": "Spieler nach Name suchen...",
     "admin.players_count_label": "Spieler in der Datenbank",
+
+    # Feedback System
+    "nav.feedback": "Feedback",
+    "nav.feedback_title": "Feedback oder Mobile-Problem melden",
+    "feedback.modal_title": "💬 Feedback & Meldung",
+    "feedback.cat_label": "Kategorie auswählen:",
+    "feedback.cat_mobile": "📱 Mobile Handling Probleme",
+    "feedback.cat_general": "💬 Allgemein",
+    "feedback.desc_placeholder": "Was ist dir aufgefallen? (z. B. Button lässt sich auf dem Smartphone schwer antippen, Layout verschoben, Tippfehler...)",
+    "feedback.submit_btn": "Feedback absenden",
+    "feedback.sending": "Wird gesendet...",
+    "feedback.success_toast": "Vielen Dank! Dein Feedback wurde erfasst.",
+    "feedback.error_toast": "Fehler beim Senden. Bitte versuche es erneut.",
+    "admin.nav_feedback": "Feedback-Logs",
+    "admin.feedback_title": "Feedback-Logs · RB48",
+    "admin.feedback_heading": "Benutzer- & Mobile-Feedback",
+    "admin.feedback_sub": "Eingegangene Meldungen zu Handhabung, mobiler Bedienung und allgemeinen Anregungen.",
+    "admin.feedback_export_btn": "📋 Logs für KI kopieren",
+    "admin.feedback_export_success": "Logs erfolgreich in die Zwischenablage kopiert!",
 }
