@@ -367,7 +367,14 @@
         const relY = e.pageY - metrics.top;
 
         const posXPercent = Math.max(1, Math.min(99, (relX / metrics.width) * 100));
-        const posYPercent = Math.max(1, Math.min(99, (relY / metrics.height) * 100));
+        let posYPercent;
+        if (isMatchHistoryPage()) {
+            const maxScroll = getMaxScrollDistance();
+            const distFromBottom = Math.max(0, (metrics.top + metrics.height) - e.pageY);
+            posYPercent = 100 - Math.max(0, Math.min(100, (distFromBottom / maxScroll) * 100));
+        } else {
+            posYPercent = Math.max(1, Math.min(99, (relY / metrics.height) * 100));
+        }
 
         pendingCoords = {
             x: parseFloat(posXPercent.toFixed(2)),
@@ -410,6 +417,10 @@
         const p = getCanonicalPagePath();
         const raw = window.location.pathname || "";
         return p === "/matches" || p.startsWith("/matches/") || raw === "/matches" || raw.startsWith("/matches/");
+    }
+
+    function getMaxScrollDistance() {
+        return Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
     }
 
     async function saveBubble() {
@@ -500,7 +511,9 @@
 
         if (isMatchHistoryPage()) {
             wrapper.classList.add("noise-match-history-anchored");
-            wrapper.style.bottom = `${100 - b.pos_y_percent}%`;
+            const maxScroll = getMaxScrollDistance();
+            const bottomPx = ((100 - b.pos_y_percent) / 100) * maxScroll;
+            wrapper.style.bottom = `${bottomPx}px`;
             wrapper.style.top = "auto";
         } else {
             wrapper.style.top = `${b.pos_y_percent}%`;
@@ -609,18 +622,22 @@
             const relY = moveEvt.pageY - metrics.top;
 
             const posXPercent = Math.max(1, Math.min(99, (relX / metrics.width) * 100));
-            const posYPercent = Math.max(1, Math.min(99, (relY / metrics.height) * 100));
-
             currentDrag.element.style.left = `${posXPercent}%`;
+
             if (isMatchHistoryPage()) {
-                currentDrag.element.style.bottom = `${100 - posYPercent}%`;
+                const maxScroll = getMaxScrollDistance();
+                const distFromBottom = Math.max(0, (metrics.top + metrics.height) - moveEvt.pageY);
+                const posYPercent = 100 - Math.max(0, Math.min(100, (distFromBottom / maxScroll) * 100));
+                currentDrag.element.style.bottom = `${distFromBottom}px`;
                 currentDrag.element.style.top = "auto";
+                currentDrag.newY = parseFloat(posYPercent.toFixed(2));
             } else {
+                const posYPercent = Math.max(1, Math.min(99, (relY / metrics.height) * 100));
                 currentDrag.element.style.top = `${posYPercent}%`;
                 currentDrag.element.style.bottom = "auto";
+                currentDrag.newY = parseFloat(posYPercent.toFixed(2));
             }
             currentDrag.newX = parseFloat(posXPercent.toFixed(2));
-            currentDrag.newY = parseFloat(posYPercent.toFixed(2));
         };
 
         const onMouseUp = async () => {

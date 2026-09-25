@@ -1238,10 +1238,12 @@
             const pitchSelect = document.getElementById('pitch');
             const pitchVal = pitchSelect?.value || 'box';
 
-            const scoreAInput = document.getElementById('score-a');
-            const scoreBInput = document.getElementById('score-b');
-            const goalsAVal = parseInt(scoreAInput?.value, 10) || 0;
-            const goalsBVal = parseInt(scoreBInput?.value, 10) || 0;
+            const scoreAInput = document.getElementById('score-a') || matchForm?.querySelector('input[name="goals_a"]');
+            const scoreBInput = document.getElementById('score-b') || matchForm?.querySelector('input[name="goals_b"]');
+            const parsedA = parseInt(scoreAInput?.value, 10);
+            const parsedB = parseInt(scoreBInput?.value, 10);
+            const goalsAVal = Number.isInteger(parsedA) ? parsedA : 0;
+            const goalsBVal = Number.isInteger(parsedB) ? parsedB : 0;
 
             const teamAIds = Array.from(teamAInputs).map(inp => parseInt(inp.value, 10)).filter(Boolean);
             const teamBIds = Array.from(teamBInputs).map(inp => parseInt(inp.value, 10)).filter(Boolean);

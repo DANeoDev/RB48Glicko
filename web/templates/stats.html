@@ -513,10 +513,15 @@ function formatDelta(val, type) {
         return { text: "0", cls: "zero" };
     }
     const isPos = num > 0;
-    const cls = isPos ? "positive" : "negative";
     const sign = isPos ? "+" : "";
 
-    if (type === "conservative" || type === "rating" || type === "rd") {
+    if (type === "rd") {
+        return { text: `${sign}${num.toFixed(1)}`, cls: "neutral" };
+    }
+
+    const cls = isPos ? "positive" : "negative";
+
+    if (type === "conservative" || type === "rating") {
         return { text: `${sign}${num.toFixed(1)}`, cls: cls };
     } else if (type === "win-percent") {
         return { text: `${sign}${num.toFixed(1)}%`, cls: cls };
