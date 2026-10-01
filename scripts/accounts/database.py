@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import sqlite3
 from datetime import datetime, timedelta
+from urllib.parse import urlparse, parse_qs
 from zoneinfo import ZoneInfo
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -661,15 +662,28 @@ def backup_and_delete_user(connection, user_id):
 
 
 def normalize_noise_page_path(path):
-    """Normalize page paths so that root, /dashboard, and /index map to '/'."""
+    """Normalize page paths so that root, /dashboard, and /index map to '/', and /matches preserves ?page=X (for X > 1)."""
     if not path:
         return "/"
     p = str(path).strip()
     if p in ("/dashboard", "/index", "", "/dashboard/", "/index/"):
         return "/"
-    if len(p) > 1 and p.endswith("/"):
-        p = p.rstrip("/")
-    return p
+    parsed = urlparse(p)
+    pathname = parsed.path.rstrip("/") if (parsed.path and parsed.path != "/") else "/"
+    if pathname in ("/dashboard", "/index", ""):
+        return "/"
+    if pathname == "/matches":
+        qs = parse_qs(parsed.query)
+        page_val = qs.get("page", [None])[0]
+        if page_val:
+            try:
+                page_num = int(page_val)
+                if page_num > 1:
+                    return f"/matches?page={page_num}"
+            except (ValueError, TypeError):
+                pass
+        return "/matches"
+    return pathname or "/"
 
 
 def add_noise_bubble(
@@ -917,6 +931,101 @@ def get_user_authored_noise_bubbles(connection, user_id):
         (user_id,),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def shift_match_history_noise_bubbles(connection=None, shift_slots=1, total_slots=12):
+    """
+    Shift all noise bubbles on the match history page by the specified number of game slots.
+    Each slot corresponds to (100.0 / total_slots)% vertical distance (approx 8.333% for 12 slots).
+    Positive shift_slots (e.g. +1 on match creation) pushes bubbles downward.
+    If a bubble's Y position reaches or exceeds 100%, it overflows to the next page (p -> p + 1, y -> y - 100%).
+    Negative shift_slots (e.g. -1 on match deletion) pulls bubbles upward.
+    If a bubble's Y position falls below 0% and p > 1, it pulls back to the previous page (p -> p - 1, y -> y + 100%).
+    If p == 1 and y < 0%, y is clamped to 0.0%.
+    Updates both noise_bubbles base positions and any user_noise_overrides.
+    """
+    if shift_slots == 0:
+        return 0
+
+    close_conn = False
+    if connection is None:
+        connection = get_accounts_connection()
+        close_conn = True
+
+    try:
+        delta_y = float(shift_slots) * (100.0 / float(total_slots))
+        rows = connection.execute(
+            """
+            SELECT id, page_path, pos_y_percent
+            FROM noise_bubbles
+            WHERE page_path = '/matches' OR page_path LIKE '/matches?%'
+            """
+        ).fetchall()
+
+        updated_count = 0
+        for row in rows:
+            b_id = row["id"]
+            current_path = row["page_path"]
+            current_y = float(row["pos_y_percent"])
+
+            p = 1
+            if "?page=" in current_path:
+                try:
+                    p = int(current_path.split("?page=")[1].split("&")[0])
+                except (ValueError, IndexError):
+                    p = 1
+
+            p_old = p
+            y_new = current_y + delta_y
+
+            # Overflow: bubble pushed beneath designated game entry area
+            while y_new >= 100.0:
+                p += 1
+                y_new -= 100.0
+
+            # Underflow: bubble pulled above designated game entry area
+            while y_new < 0.0 and p > 1:
+                p -= 1
+                y_new += 100.0
+
+            if y_new < 0.0:
+                y_new = 0.0
+
+            new_y = round(y_new, 2)
+            new_path = f"/matches?page={p}" if p > 1 else "/matches"
+
+            connection.execute(
+                """
+                UPDATE noise_bubbles
+                SET page_path = ?, pos_y_percent = ?
+                WHERE id = ?
+                """,
+                (new_path, new_y, b_id),
+            )
+
+            # Also shift user overrides in sync
+            delta_p = p - p_old
+            overrides = connection.execute(
+                "SELECT user_id, custom_y_percent FROM user_noise_overrides WHERE bubble_id = ? AND custom_y_percent IS NOT NULL",
+                (b_id,),
+            ).fetchall()
+            for ov in overrides:
+                u_id = ov["user_id"]
+                ov_y = float(ov["custom_y_percent"])
+                ov_y_new = ov_y + delta_y - (float(delta_p) * 100.0)
+                ov_y_new = max(0.0, min(100.0, round(ov_y_new, 2)))
+                connection.execute(
+                    "UPDATE user_noise_overrides SET custom_y_percent = ? WHERE user_id = ? AND bubble_id = ?",
+                    (ov_y_new, u_id, b_id),
+                )
+
+            updated_count += 1
+
+        connection.commit()
+        return updated_count
+    finally:
+        if close_conn:
+            connection.close()
 
 
 def record_gallery_photo(connection, filename, uploader_user_id=None, uploader_username=None, capture_date=None):

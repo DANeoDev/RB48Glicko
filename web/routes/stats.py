@@ -8,6 +8,7 @@ from flask import (
     session,
     url_for,
 )
+import math
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from scripts.accounts.database import (
@@ -292,11 +293,58 @@ def match_history():
             "deadline_short": deadline.strftime("%d.%m., %H:%M"),
         }
 
+    GAMES_PER_PAGE = 12
+    raw_page = request.args.get("page", 1, type=int)
+    total_games = len(matches)
+    max_page = max(1, math.ceil(total_games / GAMES_PER_PAGE))
+    page = max(1, min(raw_page if raw_page is not None else 1, max_page))
+
+    start_idx = (page - 1) * GAMES_PER_PAGE
+    end_idx = start_idx + GAMES_PER_PAGE
+    page_matches = matches[start_idx:end_idx]
+
+    # Re-group page matches into month groups for this page slice
+    page_months_dict = {}
+    for m in page_matches:
+        mkey = m.get("month_key", m.get("date", "")[:7])
+        if mkey not in page_months_dict:
+            page_months_dict[mkey] = {
+                "month_key": mkey,
+                "month_label": m.get("month_label", mkey),
+                "month_vertical": m.get("month_vertical", mkey),
+                "matches": [],
+            }
+        page_months_dict[mkey]["matches"].append(m)
+    page_months_grouped = list(page_months_dict.values())
+
+    # Build timeline_data for page matches
+    page_dates = set(m["date"] for m in page_matches)
+    page_timeline_matchdays = [d for d in timeline_data.get("matchdays", []) if d["date"] in page_dates]
+    page_month_keys = set(page_months_dict.keys())
+    page_timeline_months = [m for m in timeline_data.get("months", []) if m["month_key"] in page_month_keys]
+    page_timeline_data = {
+        "matchdays": page_timeline_matchdays,
+        "months": page_timeline_months,
+    }
+
+    pagination = {
+        "page": page,
+        "max_page": max_page,
+        "total_games": total_games,
+        "per_page": GAMES_PER_PAGE,
+        "has_prev": page > 1,
+        "has_next": page < max_page,
+        "prev_page": page - 1 if page > 1 else None,
+        "next_page": page + 1 if page < max_page else None,
+    }
+
     return render_template(
         "matches.html",
-        matches=matches,
-        months_grouped=months_grouped,
-        timeline_data=timeline_data,
+        matches=page_matches,
+        months_grouped=page_months_grouped,
+        timeline_data=page_timeline_data,
+        pagination=pagination,
+        selected_rating_type=selected_rating_type,
         opted_out_player_ids=opted_out_player_ids,
         is_webmaster=has_tier(Tier.WEBMASTER),
         match_voting_status=match_voting_status,

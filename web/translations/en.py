@@ -344,6 +344,17 @@ TRANSLATIONS_EN = {
     "matches.mvp_vote_success": "Your votes were recorded successfully!",
     "matches.mvp_select_required": "Please select at least one player for the 1st place vote.",
 
+    # Pagination
+    "pagination.first": "First Page",
+    "pagination.first_short": "First",
+    "pagination.prev": "Previous Page",
+    "pagination.prev_short": "Prev",
+    "pagination.next": "Next Page",
+    "pagination.next_short": "Next",
+    "pagination.last": "Last Page",
+    "pagination.last_short": "Last",
+    "pagination.page_x_of_max": "Page {page} / {max}",
+
     # MVP Medals Table
     "stats.mvp_medals_title": "MVP Medal Table",
     "stats.mvp_medals_subtitle": "The most decorated and most-voted players by Gold, Silver, and Bronze medals",

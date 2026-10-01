@@ -357,6 +357,17 @@ TRANSLATIONS_DE = {
     "matches.mvp_vote_success": "Deine Stimmen wurden erfolgreich gespeichert!",
     "matches.mvp_select_required": "Bitte wähle mindestens einen Spieler für die 1. Stimme aus.",
 
+    # Pagination
+    "pagination.first": "Erste Seite",
+    "pagination.first_short": "Erste",
+    "pagination.prev": "Vorherige Seite",
+    "pagination.prev_short": "Zurück",
+    "pagination.next": "Nächste Seite",
+    "pagination.next_short": "Weiter",
+    "pagination.last": "Letzte Seite",
+    "pagination.last_short": "Letzte",
+    "pagination.page_x_of_max": "Seite {page} / {max}",
+
     # MVP Medaillenspiegel
     "stats.mvp_medals_title": "MVP-Medaillenspiegel",
     "stats.mvp_medals_subtitle": "Die erfolgreichsten und meistgewählten Spieler nach Gold-, Silber- und Bronzemedaillen",

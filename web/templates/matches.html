@@ -281,6 +281,22 @@
 {% endfor %}
 </div>
 
+{% if pagination and pagination.max_page > 1 %}
+<div class="match-pagination" id="match-pagination">
+    <div class="pagination-controls">
+        {% if pagination.page > 1 %}
+            <a class="pagination-btn pagination-first" href="{{ url_for('stats.match_history', rating_type=selected_rating_type, page=1) }}" title="{{ t('pagination.first', 'Erste Seite') }}">&laquo; {{ t('pagination.first_short', 'Erste') }}</a>
+            <a class="pagination-btn pagination-prev" href="{{ url_for('stats.match_history', rating_type=selected_rating_type, page=pagination.prev_page) }}" title="{{ t('pagination.prev', 'Vorherige Seite') }}">&lsaquo; {{ t('pagination.prev_short', 'Zurück') }}</a>
+        {% endif %}
+        <span class="pagination-indicator">({{ t('pagination.page_x_of_max', page=pagination.page, max=pagination.max_page) }})</span>
+        {% if pagination.has_next %}
+            <a class="pagination-btn pagination-next" href="{{ url_for('stats.match_history', rating_type=selected_rating_type, page=pagination.next_page) }}" title="{{ t('pagination.next', 'Nächste Seite') }}">{{ t('pagination.next_short', 'Weiter') }} &rsaquo;</a>
+            <a class="pagination-btn pagination-last" href="{{ url_for('stats.match_history', rating_type=selected_rating_type, page=pagination.max_page) }}" title="{{ t('pagination.last', 'Letzte Seite') }}">{{ t('pagination.last_short', 'Letzte') }} &raquo;</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 {% if has_tier('admin') %}
 <div class="delete-match-modal-bg modal-bg" id="delete-match-modal" style="display: none;">
     <div class="delete-match-modal-card modal">

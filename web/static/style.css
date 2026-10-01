@@ -578,7 +578,7 @@ a:hover { color: var(--accent-hover); }
 /* =========================
    Match history
    ========================= */
-.match-history { width: 800px; max-width: 90%; margin: 30px auto; }
+.match-history { position: relative; width: 800px; max-width: 90%; margin: 30px auto; }
 .match { padding: 20px 10px; margin-bottom: 30px; border-bottom: 1px solid var(--border); cursor: pointer; }
 .match-header { margin-bottom: 10px; font-weight: bold; text-align: center; }
 .match-info {
@@ -648,6 +648,81 @@ a:hover { color: var(--accent-hover); }
     color: var(--accent-hover, #646cff);
     border-color: var(--accent-hover, #646cff);
     background: rgba(100, 108, 255, 0.1);
+}
+
+/* =========================================================================
+   Match History Pagination Selector
+   ========================================================================= */
+.match-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 35px auto 45px auto;
+    width: 100%;
+    max-width: 800px;
+}
+
+.pagination-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-surface, #19113C);
+    border: 1px solid var(--border, #3A403C);
+    border-radius: 24px;
+    padding: 6px 14px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+}
+
+.pagination-indicator {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-nav-gold, #dfc289);
+    padding: 4px 10px;
+    letter-spacing: 0.3px;
+    user-select: none;
+}
+
+.pagination-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main, #bbb09d);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.pagination-btn:hover {
+    color: #ffd700;
+    background: rgba(255, 215, 0, 0.12);
+    border-color: rgba(255, 215, 0, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.pagination-btn:active {
+    transform: translateY(0);
+}
+
+@media (max-width: 500px) {
+    .pagination-controls {
+        gap: 5px;
+        padding: 5px 10px;
+        border-radius: 20px;
+    }
+    .pagination-btn {
+        padding: 4px 8px;
+        font-size: 12px;
+    }
+    .pagination-indicator {
+        font-size: 12px;
+        padding: 2px 6px;
+    }
 }
 
 /* =========================================================================

@@ -198,6 +198,13 @@ def add_match(connection, match_date, pitch, team_a_ids, team_b_ids, goals_a, go
     except Exception:
         connection.rollback()
         raise
+
+    try:
+        from scripts.accounts.database import shift_match_history_noise_bubbles
+        shift_match_history_noise_bubbles(shift_slots=1)
+    except Exception:
+        pass
+
     return match_id
 
 
@@ -392,6 +399,12 @@ def delete_match(connection, match_id):
 
     # 3. Recalculate Glicko ratings from scratch across all remaining matches
     recalculate_glicko2_ratings(connection=connection, create_backup=False)
+
+    try:
+        from scripts.accounts.database import shift_match_history_noise_bubbles
+        shift_match_history_noise_bubbles(shift_slots=-1)
+    except Exception:
+        pass
 
     return {
         "success": True,

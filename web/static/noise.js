@@ -56,6 +56,10 @@
     let selectedTextColor = TEXT_PALETTE[0].hex;
 
     function getMainElement() {
+        if (isMatchHistoryPage()) {
+            const mh = document.querySelector(".match-history");
+            if (mh) return mh;
+        }
         return document.querySelector("main") || document.body;
     }
 
@@ -367,14 +371,7 @@
         const relY = e.pageY - metrics.top;
 
         const posXPercent = Math.max(1, Math.min(99, (relX / metrics.width) * 100));
-        let posYPercent;
-        if (isMatchHistoryPage()) {
-            const maxScroll = getMaxScrollDistance();
-            const distFromBottom = Math.max(0, (metrics.top + metrics.height) - e.pageY);
-            posYPercent = 100 - Math.max(0, Math.min(100, (distFromBottom / maxScroll) * 100));
-        } else {
-            posYPercent = Math.max(1, Math.min(99, (relY / metrics.height) * 100));
-        }
+        const posYPercent = Math.max(1, Math.min(99, (relY / metrics.height) * 100));
 
         pendingCoords = {
             x: parseFloat(posXPercent.toFixed(2)),
@@ -410,17 +407,20 @@
         if (p.length > 1 && p.endsWith("/")) {
             p = p.slice(0, -1);
         }
+        if (p === "/matches") {
+            const params = new URLSearchParams(window.location.search);
+            const page = parseInt(params.get("page"), 10);
+            if (page && page > 1) {
+                return `/matches?page=${page}`;
+            }
+            return "/matches";
+        }
         return p;
     }
 
     function isMatchHistoryPage() {
-        const p = getCanonicalPagePath();
-        const raw = window.location.pathname || "";
-        return p === "/matches" || p.startsWith("/matches/") || raw === "/matches" || raw.startsWith("/matches/");
-    }
-
-    function getMaxScrollDistance() {
-        return Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+        const p = window.location.pathname || "";
+        return p === "/matches" || p.startsWith("/matches/");
     }
 
     async function saveBubble() {
@@ -508,17 +508,8 @@
         wrapper.className = "noise-bubble-wrapper";
         wrapper.id = `noise-bubble-wrap-${b.id}`;
         wrapper.style.left = `${b.pos_x_percent}%`;
-
-        if (isMatchHistoryPage()) {
-            wrapper.classList.add("noise-match-history-anchored");
-            const maxScroll = getMaxScrollDistance();
-            const bottomPx = ((100 - b.pos_y_percent) / 100) * maxScroll;
-            wrapper.style.bottom = `${bottomPx}px`;
-            wrapper.style.top = "auto";
-        } else {
-            wrapper.style.top = `${b.pos_y_percent}%`;
-            wrapper.style.bottom = "auto";
-        }
+        wrapper.style.top = `${b.pos_y_percent}%`;
+        wrapper.style.bottom = "auto";
 
         if (userDisplayMode === "expanded") {
             renderExpandedBubble(wrapper, b, isAuthorOrStaff);
@@ -624,19 +615,10 @@
             const posXPercent = Math.max(1, Math.min(99, (relX / metrics.width) * 100));
             currentDrag.element.style.left = `${posXPercent}%`;
 
-            if (isMatchHistoryPage()) {
-                const maxScroll = getMaxScrollDistance();
-                const distFromBottom = Math.max(0, (metrics.top + metrics.height) - moveEvt.pageY);
-                const posYPercent = 100 - Math.max(0, Math.min(100, (distFromBottom / maxScroll) * 100));
-                currentDrag.element.style.bottom = `${distFromBottom}px`;
-                currentDrag.element.style.top = "auto";
-                currentDrag.newY = parseFloat(posYPercent.toFixed(2));
-            } else {
-                const posYPercent = Math.max(1, Math.min(99, (relY / metrics.height) * 100));
-                currentDrag.element.style.top = `${posYPercent}%`;
-                currentDrag.element.style.bottom = "auto";
-                currentDrag.newY = parseFloat(posYPercent.toFixed(2));
-            }
+            const posYPercent = Math.max(1, Math.min(99, (relY / metrics.height) * 100));
+            currentDrag.element.style.top = `${posYPercent}%`;
+            currentDrag.element.style.bottom = "auto";
+            currentDrag.newY = parseFloat(posYPercent.toFixed(2));
             currentDrag.newX = parseFloat(posXPercent.toFixed(2));
         };
 
