@@ -927,11 +927,24 @@ def auto_allocate_transaction_to_debts(
         remaining_amount = float(tx["amount"])
         covered = 0
 
-        # If 48.00 € (membership due), check membership dues first
-        if remaining_amount >= MEMBERSHIP_DUE_PER_HALFYEAR and status == "member":
-            # Check 2026-H2 and 2026-H1
-            for per in ("2026-H1", "2026-H2"):
-                if remaining_amount < MEMBERSHIP_DUE_PER_HALFYEAR:
+        # For members: Check membership dues (members can voluntarily choose lower amounts < 48 €)
+        if status == "member" and remaining_amount > 0:
+            is_bank = (tx.get("source") or "").lower() == "bank"
+            tx_text = f"{tx.get('description') or ''} {tx.get('note') or ''}".lower()
+            has_due_hint = any(k in tx_text for k in ("beitrag", "mitglied", "halbjahr", "h1", "h2", "vereinsbeitrag"))
+
+            # Check if this is a proxy payment for guests (e.g. member paid 3.50€ multiples without due hint and not from bank)
+            rem = remaining_amount % GUEST_FEE_PER_KICK
+            is_guest_multiple = rem < 0.01 or (GUEST_FEE_PER_KICK - rem) < 0.01
+            if is_guest_multiple and not is_bank and not has_due_hint and remaining_amount < 40.0:
+                proxy_covered = auto_allocate_proxy_guest_payment(transaction_id, player_id)
+                if proxy_covered > 0:
+                    covered += proxy_covered
+                    return covered
+
+            # Allocate to membership dues for current periods (e.g. 2026-H2 or 2026-H1)
+            for per in ("2026-H2", "2026-H1"):
+                if remaining_amount <= 0:
                     break
                 allocs = get_allocations_for_period(finances_conn, per)
                 p_allocs = [a for a in allocs if a.get("player_id") == player_id]
@@ -939,30 +952,23 @@ def auto_allocate_transaction_to_debts(
                 if paid_sum >= MEMBERSHIP_DUE_PER_HALFYEAR:
                     continue
 
+                alloc_amt = min(remaining_amount, MEMBERSHIP_DUE_PER_HALFYEAR - paid_sum)
+                if alloc_amt <= 0:
+                    alloc_amt = remaining_amount
+
+                source_label = "Konto" if tx.get("source") == "bank" else "PayPal"
                 add_payment_allocation(
                     finances_conn,
                     fee_type="membership_due",
-                    allocated_amount=MEMBERSHIP_DUE_PER_HALFYEAR,
+                    allocated_amount=alloc_amt,
                     payment_method=tx["source"],
                     transaction_id=tx["id"],
                     period=per,
                     player_id=player_id,
-                    note=f"PayPal {tx['tx_code'] or ''}".strip(),
+                    note=f"{source_label} {tx.get('tx_code') or ''}".strip(),
                 )
-                remaining_amount -= MEMBERSHIP_DUE_PER_HALFYEAR
+                remaining_amount -= alloc_amt
                 covered += 1
-
-        # Check if this is a proxy payment (member paying for guests)
-        if remaining_amount >= GUEST_FEE_PER_KICK and status == 'member':
-            # Member paying 3.50€ multiples -> likely paying for guests
-            remainder_check = remaining_amount % GUEST_FEE_PER_KICK
-            is_guest_fee_multiple = remainder_check < 0.01 or (GUEST_FEE_PER_KICK - remainder_check) < 0.01
-            if is_guest_fee_multiple:
-                proxy_covered = auto_allocate_proxy_guest_payment(
-                    transaction_id, player_id,
-                )
-                covered += proxy_covered
-                return covered  # Proxy allocation handled the rest
 
         # Match history guest kicks (3.50 €) -- for self-paying guests
         match_date_rows = rb48_conn.execute(
@@ -981,6 +987,10 @@ def auto_allocate_transaction_to_debts(
                 break
 
             mdate = drow["date"]
+            m_status = resolve_player_membership_status(player_id, finances_conn, accounts_conn, as_of_date=mdate)
+            if m_status != "guest":
+                continue
+
             allocs = get_allocations_for_match_date(finances_conn, mdate)
             p_allocs = [a for a in allocs if a.get("player_id") == player_id]
             paid_sum = sum(a["allocated_amount"] for a in p_allocs if a["payment_method"] != "waived")
@@ -1508,10 +1518,12 @@ def get_finance_summary_metrics(
         total_dues_expected = 0.0
         total_dues_collected = 0.0
 
+        partial_dues_count = 0
         for dp in due_periods:
             d_ov = get_membership_dues_overview(dp)
             open_dues_amount += d_ov.get("outstanding", 0.0)
-            open_dues_count += sum(1 for mem in d_ov.get("members", []) if mem.get("payment_status") in ("unpaid", "partial"))
+            open_dues_count += sum(1 for mem in d_ov.get("members", []) if mem.get("payment_status") == "unpaid")
+            partial_dues_count += sum(1 for mem in d_ov.get("members", []) if mem.get("payment_status") == "partial")
             total_dues_expected += d_ov.get("total_expected", 0.0)
             total_dues_collected += d_ov.get("total_collected", 0.0)
 
@@ -1571,6 +1583,7 @@ def get_finance_summary_metrics(
             # 2. Offene Mitgliedsbeiträge
             "open_dues_amount": round(open_dues_amount, 2),
             "open_dues_count": open_dues_count,
+            "partial_dues_count": partial_dues_count,
             "total_dues_expected": round(total_dues_expected, 2),
             "total_dues_collected": round(total_dues_collected, 2),
             # 3. Paypaleinnahmen
@@ -1641,11 +1654,18 @@ def settle_transaction_and_debts(
             if match.get("player_id") and match.get("confidence", 0) >= 0.60:
                 payer_pid = match["player_id"]
 
+        # Fallback: if payer is not registered in system, use raw payer name or email as alias
+        if not payer_pid and not payer_alias:
+            payer_alias = tx.get("raw_payer_name") or tx.get("raw_payer_email") or "Zahler"
+
         # Resolve beneficiary
         bene_pid = None
         bene_alias = beneficiary_alias
-        if isinstance(beneficiary_player_id, str) and beneficiary_player_id.startswith("ignored:"):
-            bene_alias = beneficiary_player_id.split(":", 1)[1]
+        if isinstance(beneficiary_player_id, str) and (beneficiary_player_id.startswith("ignored:") or not beneficiary_player_id.isdigit()):
+            if beneficiary_player_id.startswith("ignored:"):
+                bene_alias = beneficiary_player_id.split(":", 1)[1]
+            elif beneficiary_player_id.strip():
+                bene_alias = str(beneficiary_player_id).strip()
         elif beneficiary_player_id is not None and not bene_alias:
             try:
                 bene_pid = int(beneficiary_player_id)
@@ -1836,6 +1856,9 @@ def settle_transaction_and_debts(
                 for mdate in dates_to_check:
                     if remaining_amount < GUEST_FEE_PER_KICK:
                         break
+                    m_status = resolve_player_membership_status(bene_pid, finances_conn, accounts_conn, as_of_date=mdate)
+                    if m_status != "guest":
+                        continue
                     allocs = get_allocations_for_match_date(finances_conn, mdate)
                     p_allocs = [a for a in allocs if a.get("player_id") == bene_pid]
                     paid_sum = sum(a["allocated_amount"] for a in p_allocs if a["payment_method"] != "waived")
@@ -1856,11 +1879,11 @@ def settle_transaction_and_debts(
                     remaining_amount -= GUEST_FEE_PER_KICK
                     covered_count += 1
 
-            # 3. If beneficiary is a member and remaining >= 48 €, allocate to membership dues
+            # 3. If beneficiary is a member, allocate to membership dues (supports flexible amounts < 48 €)
             status = resolve_player_membership_status(bene_pid, finances_conn, accounts_conn)
-            if remaining_amount >= MEMBERSHIP_DUE_PER_HALFYEAR and status == "member":
-                for per in ("2026-H1", "2026-H2"):
-                    if remaining_amount < MEMBERSHIP_DUE_PER_HALFYEAR:
+            if remaining_amount > 0 and status == "member":
+                for per in ("2026-H2", "2026-H1"):
+                    if remaining_amount <= 0:
                         break
                     allocs = get_allocations_for_period(finances_conn, per)
                     p_allocs = [a for a in allocs if a.get("player_id") == bene_pid]
@@ -1868,10 +1891,14 @@ def settle_transaction_and_debts(
                     if paid_sum >= MEMBERSHIP_DUE_PER_HALFYEAR:
                         continue
 
+                    alloc_amt = min(remaining_amount, max(0.0, MEMBERSHIP_DUE_PER_HALFYEAR - paid_sum))
+                    if alloc_amt <= 0:
+                        alloc_amt = remaining_amount
+
                     add_payment_allocation(
                         finances_conn,
                         fee_type="membership_due",
-                        allocated_amount=MEMBERSHIP_DUE_PER_HALFYEAR,
+                        allocated_amount=alloc_amt,
                         payment_method=tx["source"],
                         transaction_id=transaction_id,
                         period=per,
@@ -1879,13 +1906,14 @@ def settle_transaction_and_debts(
                         paid_by_player_id=payer_pid if payer_pid != bene_pid else None,
                         note=alloc_note,
                     )
-                    remaining_amount -= MEMBERSHIP_DUE_PER_HALFYEAR
+                    remaining_amount -= alloc_amt
                     covered_count += 1
 
-        # Fallback: if there is still remaining amount (e.g. advance payment, or match date not yet recorded),
-        # allocate remaining funds to the beneficiary so the transaction is accounted for.
+        # Fallback: if there is still remaining amount (e.g. advance payment, external player like Martin Wagener, etc.),
+        # allocate remaining funds to the beneficiary / payer so the transaction is accounted for.
         if remaining_amount > 0 and (bene_alias or bene_pid):
-            fee_t = "membership_due" if (remaining_amount >= MEMBERSHIP_DUE_PER_HALFYEAR and not bene_alias) else "match_guest"
+            bene_status = resolve_player_membership_status(bene_pid, finances_conn, accounts_conn) if bene_pid else "guest"
+            fee_t = "membership_due" if (bene_status == "member" or (not bene_alias and remaining_amount >= 15.0)) else "match_guest"
             add_payment_allocation(
                 finances_conn,
                 fee_type=fee_t,

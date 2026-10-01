@@ -83,16 +83,19 @@
                     </div>
                 </div>
                 <div style="font-size: 12px; color: var(--text-muted); margin-top: 10px; line-height: 1.4;">
-                    {% if metrics.open_dues_amount > 0 %}
-                        <span style="color: #ffe082; font-weight: 600;">🟡 {{ metrics.open_dues_count }} Beiträge offen</span> (à {{ "%.2f"|format(membership_due_rate)|replace(".", ",") }} €)
+                    {% if metrics.open_dues_count > 0 %}
+                        <span style="color: #ffe082; font-weight: 600;">🟡 {{ metrics.open_dues_count }} noch unbezahlt</span>
+                        {% if metrics.partial_dues_count > 0 %}
+                            <span style="font-size: 11px; opacity: 0.85;">({{ metrics.partial_dues_count }} ermäßigt/flexibel)</span>
+                        {% endif %}
                     {% else %}
                         <span style="color: #88ff88; font-weight: 600;">✓ Alle Mitgliedsbeiträge bezahlt</span>
                     {% endif %}
-                    <div style="font-size: 11px; opacity: 0.8; margin-top: 2px;">{{ "%.2f"|format(metrics.total_dues_collected)|replace(".", ",") }} € von {{ "%.2f"|format(metrics.total_dues_expected)|replace(".", ",") }} € bezahlt</div>
+                    <div style="font-size: 11px; opacity: 0.8; margin-top: 2px;">{{ "%.2f"|format(metrics.total_dues_collected)|replace(".", ",") }} € von {{ "%.2f"|format(metrics.total_dues_expected)|replace(".", ",") }} € eingezahlt</div>
                 </div>
             </div>
 
-            <!-- Card 3: Paypaleinnahmen (--> Mitgliedsbeiträge / Kleckerbeträge) -->
+            <!-- Card 3: Paypaleinnahmen -->
             <div style="background: rgba(40, 167, 69, 0.12); border: 1px solid rgba(40, 167, 69, 0.35); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
                 <div>
                     <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">💳 Paypaleinnahmen</div>
@@ -100,24 +103,12 @@
                         {{ "%.2f"|format(metrics.total_paypal_income)|replace(".", ",") }} €
                     </div>
                 </div>
-                <div style="font-size: 12px; margin-top: 10px; line-height: 1.5; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 6px;">
-                    <div style="display: flex; justify-content: space-between; color: #ffffff;">
-                        <span style="color: var(--text-muted);">↳ Mitgliedsbeiträge:</span>
-                        <strong style="color: #88ff88;">{{ "%.2f"|format(metrics.paypal_membership_dues)|replace(".", ",") }} €</strong>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; color: #ffffff;">
-                        <span style="color: var(--text-muted);">↳ Kleckerbeträge:</span>
-                        <strong style="color: #80deea;">{{ "%.2f"|format(metrics.paypal_guest_fees)|replace(".", ",") }} €</strong>
-                    </div>
-                    {% if metrics.paypal_unassigned > 0.01 %}
-                    <div style="font-size: 11px; color: #ffe082; margin-top: 2px;">
-                        ({{ "%.2f"|format(metrics.paypal_unassigned)|replace(".", ",") }} € noch unzugeordnet)
-                    </div>
-                    {% endif %}
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 10px; line-height: 1.4;">
+                    Einnahmen über PayPal
                 </div>
             </div>
 
-            <!-- Card 4: Kontoeinnahmen ( --> Mitgliedsbeiträge) -->
+            <!-- Card 4: Kontoeinnahmen -->
             <div style="background: rgba(0, 188, 212, 0.12); border: 1px solid rgba(0, 188, 212, 0.35); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
                 <div>
                     <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">🏦 Kontoeinnahmen</div>
@@ -125,20 +116,8 @@
                         {{ "%.2f"|format(metrics.total_bank_income)|replace(".", ",") }} €
                     </div>
                 </div>
-                <div style="font-size: 12px; margin-top: 10px; line-height: 1.5; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 6px;">
-                    <div style="display: flex; justify-content: space-between; color: #ffffff;">
-                        <span style="color: var(--text-muted);">↳ Mitgliedsbeiträge:</span>
-                        <strong style="color: #88ff88;">{{ "%.2f"|format(metrics.bank_membership_dues)|replace(".", ",") }} €</strong>
-                    </div>
-                    {% if metrics.bank_guest_fees > 0.01 %}
-                    <div style="display: flex; justify-content: space-between; color: #ffffff;">
-                        <span style="color: var(--text-muted);">↳ Kleckerbeträge:</span>
-                        <strong style="color: #80deea;">{{ "%.2f"|format(metrics.bank_guest_fees)|replace(".", ",") }} €</strong>
-                    </div>
-                    {% endif %}
-                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
-                        aus Banküberweisungen (Konto)
-                    </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 10px; line-height: 1.4;">
+                    Einnahmen über Bankkonto
                 </div>
             </div>
         </div>
@@ -589,22 +568,46 @@
                                                 </form>
                                             </div>
                                         {% elif tx.get('is_proxy_candidate') %}
-                                            {# Proxy payment split UI #}
+                                            {# Proxy payment split UI with 1-click Beglichen #}
                                             <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
-                                                <div style="background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.4); border-radius: 6px; padding: 8px 10px; font-size: 11.5px; text-align: left; max-width: 340px;">
-                                                    <div style="color: #ffe082; font-weight: 700; margin-bottom: 4px;">🔀 Stellvertreter-Zahlung erkannt</div>
-                                                    <div style="color: var(--text-muted);">
-                                                        Zahlung über {{ "%.2f"|format(tx.amount)|replace(".", ",") }} € ({{ tx.proxy_num_kicks }}× Gastbeitrag). Weise den Zahler und die begünstigten Gäste zu:
-                                                    </div>
+                                                <div style="display: flex; gap: 6px; align-items: center;">
+                                                    {% if tx.suggestion and tx.suggestion.player_id %}
+                                                        <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
+                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                            <input type="hidden" name="payer_player_id" value="{{ tx.suggestion.player_id }}">
+                                                            <input type="hidden" name="remember_identity" value="1">
+                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Direkt für {{ tx.suggestion_player_name }} als beglichen markieren">
+                                                                ✓ Beglichen ({{ tx.suggestion_player_name }})
+                                                            </button>
+                                                        </form>
+                                                    {% elif tx.raw_payer_name %}
+                                                        <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
+                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Direkt als beglichen abhaken (auch ohne Spieler-Zuordnung)">
+                                                                ✓ Beglichen ({{ tx.raw_payer_name }})
+                                                            </button>
+                                                        </form>
+                                                    {% else %}
+                                                        <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
+                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer;" title="Manuell als beglichen/erledigt markieren">
+                                                                ✓ Beglichen
+                                                            </button>
+                                                        </form>
+                                                    {% endif %}
                                                 </div>
-                                                <form method="post" action="{{ url_for('finances.split_assign_transaction') }}" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end; margin: 0; width: 100%; max-width: 340px;" id="split-form-{{ tx.id }}">
-                                                    <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                    <input type="hidden" name="allocations" id="split-allocs-{{ tx.id }}" value="[]">
 
-                                                    <div style="width: 100%; display: flex; align-items: center; gap: 6px;">
-                                                        <span style="font-size: 11px; color: var(--text-muted); width: 60px;">Zahler:</span>
-                                                        <select name="paid_by_player_id" required style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 3px 4px; border-radius: 4px; flex: 1;">
-                                                            <option value="">-- Zahler wählen --</option>
+                                                <details style="width: 100%; text-align: left; max-width: 340px; margin-top: 2px;">
+                                                    <summary style="font-size: 10.5px; color: #ffe082; cursor: pointer; font-weight: 600;">🔀 Aufteilen auf {{ tx.proxy_num_kicks }} Gäste ({{ "%.2f"|format(tx.amount)|replace(".", ",") }} €) →</summary>
+                                                    <div style="margin-top: 6px; background: rgba(255, 193, 7, 0.08); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 6px; padding: 8px;">
+                                                        <form method="post" action="{{ url_for('finances.split_assign_transaction') }}" style="display: flex; flex-direction: column; gap: 5px; align-items: flex-end; margin: 0; width: 100%;" id="split-form-{{ tx.id }}">
+                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                            <input type="hidden" name="allocations" id="split-allocs-{{ tx.id }}" value="[]">
+
+                                                            <div style="width: 100%; display: flex; align-items: center; gap: 6px;">
+                                                                <span style="font-size: 10.5px; color: var(--text-muted); width: 55px;">Zahler:</span>
+                                                                <select name="paid_by_player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; flex: 1;">
+                                                                    <option value="">{% if tx.raw_payer_name %}{{ tx.raw_payer_name }} (Zahler){% else %}-- Zahler wählen --{% endif %}</option>
                                                             <optgroup label="Registrierte Spieler & Gäste">
                                                                 {% for p in player_list %}
                                                                     <option value="{{ p.player_id }}" {% if (tx.suggestion and tx.suggestion.player_id == p.player_id) or (tx.matched_player_id == p.player_id) %}selected{% endif %}>{{ p.name }}</option>
@@ -656,7 +659,9 @@
                                                             🔀 Aufteilen & Begleichen
                                                         </button>
                                                     </div>
-                                                </form>
+                                                        </form>
+                                                    </div>
+                                                </details>
                                                 {# Fallback: direct settle or single assignment #}
                                                 <details style="width: 100%;">
                                                     <summary style="font-size: 10.5px; color: var(--text-muted); cursor: pointer;">Oder: Einfache Einzelzuordnung →</summary>

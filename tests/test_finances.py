@@ -738,4 +738,87 @@ def test_historical_kicks_guest_fee_when_now_member(clean_finances_env):
     assert "2026-09-15" not in malte_unpaid_dates
 
 
+def test_unregistered_payer_direct_settlement(clean_finances_env):
+    """Test 1-click settlement for an unregistered external payer (e.g. Martin Wagener 7.00 €) without player ID."""
+    f_conn = get_finances_connection()
+    tx_id = insert_transaction(
+        f_conn,
+        source="paypal",
+        tx_code="MARTIN-WAGENER-7EUR",
+        date="2026-07-30",
+        time="09:02:31",
+        raw_payer_name="Martin Wagener",
+        raw_payer_email="machtin@mail.com",
+        amount=7.00,
+        status="imported",
+        is_confirmed=0,
+        note="Handyzahlung",
+    )
+    f_conn.close()
+
+    # 1-click settle directly (payer_player_id=None, remember=False)
+    res = settle_transaction_and_debts(
+        transaction_id=tx_id,
+        payer_player_id=None,
+        remember=False,
+    )
+    assert res["success"] is True
+
+    f_conn = get_finances_connection()
+    tx = get_transaction_by_id(f_conn, tx_id)
+    assert tx["status"] == "assigned"
+    assert tx["is_confirmed"] == 1
+
+    allocs = f_conn.execute("SELECT * FROM payment_allocations WHERE transaction_id = ?", (tx_id,)).fetchall()
+    assert len(allocs) == 1
+    assert allocs[0]["fee_type"] == "match_guest"
+    assert allocs[0]["guest_alias"] == "Martin Wagener"
+    assert allocs[0]["player_id"] is None
+    assert allocs[0]["allocated_amount"] == 7.00
+    f_conn.close()
+
+
+def test_flexible_member_dues_allocation(clean_finances_env):
+    """Test voluntary/flexible membership due payment less than 48.00 € (e.g. 30.00 €) credited properly."""
+    f_conn = get_finances_connection()
+    set_player_membership_status(f_conn, 1, "member")
+    tx_id = insert_transaction(
+        f_conn,
+        source="bank",
+        tx_code="BANK-FLEX-DUE-30",
+        date="2026-08-15",
+        time="10:00:00",
+        raw_payer_name="Stefan Player1",
+        raw_payer_email="",
+        amount=30.00,
+        status="imported",
+        is_confirmed=0,
+        note="Mitgliedsbeitrag ermäßigt",
+    )
+    f_conn.close()
+
+    res = settle_transaction_and_debts(
+        transaction_id=tx_id,
+        payer_player_id=1,
+        remember=True,
+    )
+    assert res["success"] is True
+
+    f_conn = get_finances_connection()
+    allocs = f_conn.execute("SELECT * FROM payment_allocations WHERE transaction_id = ?", (tx_id,)).fetchall()
+    assert len(allocs) == 1
+    assert allocs[0]["fee_type"] == "membership_due"
+    assert allocs[0]["player_id"] == 1
+    assert allocs[0]["period"] == "2026-H2"
+    assert allocs[0]["allocated_amount"] == 30.00
+    f_conn.close()
+
+    # Verify metrics for 2026-H2
+    metrics = get_finance_summary_metrics("2026-H2")
+    # Member 1 should count towards partial_dues_count and not open_dues_count
+    assert metrics["partial_dues_count"] >= 1
+    assert metrics["open_dues_count"] == 0  # Assuming only player 1 is a member in clean_finances_env
+
+
+
 
