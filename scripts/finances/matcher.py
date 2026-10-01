@@ -256,3 +256,54 @@ def find_player_match(
             rb48_conn.close()
         if close_acc:
             accounts_conn.close()
+
+
+def mask_single_word(word: str) -> str:
+    """Mask a single word/name so it is not fully exposed."""
+    s = word.strip()
+    if len(s) <= 2:
+        return s + ".."
+    if len(s) == 3:
+        return s[:2] + ".."
+    if len(s) == 4:
+        return s[:2] + ".."
+    if len(s) == 5:
+        return s[:3] + "..."
+    if len(s) == 6:
+        return s[:4] + "..."
+    return s[:3] + "..."
+
+
+def mask_payer_name(raw_name: str | None) -> str:
+    """
+    Mask a payer name or email from PayPal so that full names are not completely exposed.
+    Examples:
+        'Sarah Lagona'               -> 'Sarah Lago...'
+        'Julian Lang'                -> 'Julian La..'
+        'Stefan Metzger'             -> 'Stefan Met...'
+        'sarah.lagona@gmail.com'     -> 'Sarah Lago...'
+        'juliankorsch@googlemail.com'-> 'Jul...'
+    """
+    if not raw_name:
+        return ""
+    s = raw_name.strip()
+    if s.startswith("Transaktion #"):
+        return s
+    if "@" in s and " " not in s:
+        local, _ = s.split("@", 1)
+        for sep in [".", "_", "-"]:
+            if sep in local:
+                sub = local.split(sep)
+                first = sub[0].capitalize()
+                last = sub[-1].capitalize()
+                return f"{first} {mask_single_word(last)}"
+        return mask_single_word(local).capitalize()
+
+    parts = s.split()
+    if len(parts) == 1:
+        return mask_single_word(parts[0])
+
+    first_names = " ".join(parts[:-1])
+    last_name = parts[-1]
+    return f"{first_names} {mask_single_word(last_name)}"
+

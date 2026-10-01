@@ -23,7 +23,7 @@ from scripts.finances.paypal_parser import (
     parse_date_to_iso,
     parse_paypal_csv,
 )
-from scripts.finances.matcher import find_player_match, normalize_text
+from scripts.finances.matcher import find_player_match, normalize_text, mask_payer_name
 from scripts.finances.reconciliation import (
     get_match_history_financial_overview,
     get_match_date_guest_status,
@@ -331,7 +331,10 @@ def test_webmaster_finances_web_routes(clean_finances_env):
     assert "btn-copy-all-open" in after_html
     assert "copyAllOpenDebts" in after_html
     assert "copyDayOpenDebts" in after_html
+    assert "Offene Beträge:" in after_html
+    assert "buildFooterText" in after_html
     assert "Die Liste kann unvollständig und/oder falsche Einträge beinhalten" in after_html
+    assert "(automatisch erstellt)" in after_html
 
     # Test presence of new cards and period filter
     assert "Offene Kleckerbeträge" in after_html
@@ -429,5 +432,21 @@ def test_finance_summary_metrics_and_period_filtering(clean_finances_env):
     m_2025 = get_finance_summary_metrics("2025-H1")
     assert m_2025["paypal_guest_fees"] == 0.0
     assert m_2025["bank_membership_dues"] == 0.0
+
+
+def test_mask_payer_name():
+    # User's exact prompt examples
+    assert mask_payer_name("Sarah Lagona") == "Sarah Lago..."
+    assert mask_payer_name("Julian Lang") == "Julian La.."
+    assert mask_payer_name("Stefan Metzger") == "Stefan Met..."
+
+    # Email inputs
+    assert mask_payer_name("sarah.lagona@gmail.com") == "Sarah Lago..."
+    assert mask_payer_name("juliankorsch@googlemail.com") == "Jul..."
+
+    # Fallback string
+    assert mask_payer_name("Transaktion #42") == "Transaktion #42"
+    assert mask_payer_name("") == ""
+
 
 

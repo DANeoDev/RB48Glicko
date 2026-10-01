@@ -28,7 +28,7 @@ from scripts.finances.database import (
     set_player_membership_status,
 )
 from scripts.finances.paypal_parser import parse_paypal_csv
-from scripts.finances.matcher import find_player_match
+from scripts.finances.matcher import find_player_match, mask_payer_name
 from scripts.finances.reconciliation import (
     get_match_history_financial_overview,
     get_match_date_guest_status,
@@ -149,8 +149,9 @@ def admin_finances():
         for t in transactions:
             if not t.get("is_confirmed") and t.get("amount", 0) > 0 and t.get("status") == "imported":
                 name = t.get("raw_payer_name") or t.get("raw_payer_email") or f"Transaktion #{t['id']}"
-                if name not in unassigned_payers:
-                    unassigned_payers.append(name)
+                masked = mask_payer_name(name)
+                if masked and masked not in unassigned_payers:
+                    unassigned_payers.append(masked)
 
         # Ignored aliases list (sorted alphabetically)
         ignored_aliases_list = sorted(list(get_ignored_aliases(rb48_conn)))

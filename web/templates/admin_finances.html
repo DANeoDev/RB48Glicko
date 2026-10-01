@@ -897,12 +897,38 @@ function prepareSplitAllocations(txId) {
 const ALL_UNPAID_DEBTS = {{ all_unpaid_entries|tojson if all_unpaid_entries is defined else '[]' }};
 const UNASSIGNED_PAYERS = {{ unassigned_payers|tojson if unassigned_payers is defined else '[]' }};
 
-function buildHeaderText() {
+function maskWord(w) {
+    const s = w.trim();
+    if (s.length <= 4) return s.slice(0, 2) + '..';
+    if (s.length <= 5) return s.slice(0, 3) + '...';
+    if (s.length === 6) return s.slice(0, 4) + '...';
+    return s.slice(0, 3) + '...';
+}
+
+function maskPayerName(raw) {
+    if (!raw) return '';
+    let s = raw.trim();
+    if (s.startsWith('Transaktion #') || s.endsWith('..') || s.endsWith('...')) return s;
+    if (s.includes('@') && !s.includes(' ')) {
+        const parts = s.split('@')[0].split(/[._-]/);
+        if (parts.length >= 2) {
+            return parts[0].charAt(0).toUpperCase() + parts[0].slice(1) + ' ' + maskWord(parts[parts.length - 1]);
+        }
+        return maskWord(s.split('@')[0]);
+    }
+    const parts = s.split(/\s+/);
+    if (parts.length === 1) return maskWord(parts[0]);
+    const firstNames = parts.slice(0, -1).join(' ');
+    const lastName = parts[parts.length - 1];
+    return firstNames + ' ' + maskWord(lastName);
+}
+
+function buildFooterText() {
     let unassignedText = 'keine';
     if (UNASSIGNED_PAYERS && UNASSIGNED_PAYERS.length > 0) {
-        unassignedText = UNASSIGNED_PAYERS.join(', ');
+        unassignedText = UNASSIGNED_PAYERS.map(maskPayerName).join(', ');
     }
-    return 'Die Liste kann unvollständig und/oder falsche Einträge beinhalten. Ich konnte bspw. ' + unassignedText + ' nicht einem Spieler zuordnen. Bitte die Beträge begleichen oder PN an mich zur Klärung.\n\n';
+    return '\n\nDie Liste kann unvollständig und/oder falsche Einträge beinhalten. Ich konnte bspw. ' + unassignedText + ' nicht einem Spieler zuordnen. Bitte die Beträge begleichen oder PN an mich zur Klärung. (automatisch erstellt)';
 }
 
 function copyToClipboard(text, buttonElement, defaultText) {
@@ -953,7 +979,7 @@ function copyAllOpenDebts() {
     const lines = ALL_UNPAID_DEBTS.map(function(item) {
         return item.name + ' - ' + item.match_date;
     });
-    const text = buildHeaderText() + lines.join('\n');
+    const text = 'Offene Beträge:\n\n' + lines.join('\n') + buildFooterText();
     copyToClipboard(text, btn, '📋 Alle offenen kopieren');
 }
 
@@ -988,7 +1014,7 @@ function copyDayOpenDebts(matchDate) {
         return;
     }
 
-    const text = buildHeaderText() + lines.join('\n');
+    const text = 'Offene Beträge:\n\n' + lines.join('\n') + buildFooterText();
     copyToClipboard(text, btn, '📋 Offene kopieren (' + matchDate + ')');
 }
 
