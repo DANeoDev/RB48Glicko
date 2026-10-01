@@ -208,6 +208,30 @@ def get_match_history_financial_overview() -> list[dict]:
         accounts_conn.close()
 
 
+def get_all_unpaid_guest_entries() -> list[dict]:
+    """
+    Return all unpaid guest fee entries across all match dates.
+    Each item contains: name, match_date, fee_required, amount_paid, payment_status, player_id.
+    Ordered by match_date DESC, name ASC.
+    """
+    overview = get_match_history_financial_overview()
+    unpaid_matches = [m for m in overview if m.get("unpaid_count", 0) > 0]
+    all_unpaid = []
+    for m in unpaid_matches:
+        details = get_match_date_guest_status(m["match_date"])
+        for g in details.get("guest_entries", []):
+            if g.get("payment_status") in ("unpaid", "partial"):
+                all_unpaid.append({
+                    "name": g["name"],
+                    "match_date": m["match_date"],
+                    "fee_required": g["fee_required"],
+                    "amount_paid": g["amount_paid"],
+                    "payment_status": g["payment_status"],
+                    "player_id": g["player_id"],
+                })
+    return all_unpaid
+
+
 def get_match_date_guest_status(match_date: str) -> dict:
     """
     Get financial breakdown for all players on a specific match date from Match History.

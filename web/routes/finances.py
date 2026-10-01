@@ -10,7 +10,11 @@ from flask import (
 )
 from web.services.security import require_webmaster, get_current_user
 from scripts.database.database import get_connection as get_rb48_connection
-from scripts.database.db_players import get_players
+from scripts.database.db_players import (
+    get_players,
+    get_ignored_aliases,
+    ensure_ignored_alias_as_guest_player,
+)
 from scripts.accounts.database import get_accounts_connection
 from scripts.finances.database import (
     get_finances_connection,
@@ -33,6 +37,7 @@ from scripts.finances.reconciliation import (
     manual_mark_match_guest_payment,
     manual_mark_membership_due,
     auto_allocate_transaction_to_debts,
+    get_all_unpaid_guest_entries,
     GUEST_FEE_PER_KICK,
     MEMBERSHIP_DUE_PER_HALFYEAR,
 )
@@ -124,6 +129,18 @@ def admin_finances():
         unassigned_count = sum(1 for t in transactions if not t.get("is_confirmed") and t["status"] == "imported")
         total_members_count = sum(1 for p in players_with_status if p["status"] == "member")
         total_guests_count = sum(1 for p in players_with_status if p["status"] == "guest")
+        all_unpaid_entries = get_all_unpaid_guest_entries()
+
+        # Unassigned transaction payers (payers of positive unconfirmed transactions)
+        unassigned_payers = []
+        for t in transactions:
+            if not t.get("is_confirmed") and t.get("amount", 0) > 0 and t.get("status") == "imported":
+                name = t.get("raw_payer_name") or t.get("raw_payer_email") or f"Transaktion #{t['id']}"
+                if name not in unassigned_payers:
+                    unassigned_payers.append(name)
+
+        # Ignored aliases list (sorted alphabetically)
+        ignored_aliases_list = sorted(list(get_ignored_aliases(rb48_conn)))
 
         return render_template(
             "admin_finances.html",
@@ -131,6 +148,9 @@ def admin_finances():
             matches_overview=matches_overview,
             selected_date=selected_date,
             selected_date_details=selected_date_details,
+            all_unpaid_entries=all_unpaid_entries,
+            unassigned_payers=unassigned_payers,
+            ignored_aliases=ignored_aliases_list,
             players_with_status=players_with_status,
             dues_overview=dues_overview,
             selected_period=selected_period,
@@ -306,9 +326,24 @@ def upload_csv():
 def assign_transaction():
     """Assign or confirm a player for a transaction and optionally learn the mapping."""
     tx_id = request.form.get("tx_id", type=int)
-    player_id = request.form.get("player_id", type=int)
+    raw_player_id = request.form.get("player_id", "")
     remember = request.form.get("remember_identity") in ("1", "true", "on")
     ignore = request.form.get("ignore") in ("1", "true", "on")
+
+    player_id = None
+    if raw_player_id:
+        if str(raw_player_id).startswith("ignored:"):
+            ignored_alias = str(raw_player_id).split(":", 1)[1]
+            rb_conn = get_rb48_connection()
+            try:
+                player_id = ensure_ignored_alias_as_guest_player(rb_conn, ignored_alias)
+            finally:
+                rb_conn.close()
+        else:
+            try:
+                player_id = int(raw_player_id)
+            except (ValueError, TypeError):
+                player_id = None
 
     if not tx_id:
         return jsonify({"success": False, "error": "Missing transaction ID"}), 400
@@ -360,9 +395,24 @@ def assign_transaction():
 @require_webmaster
 def save_identity():
     """Save or update a learned payment identity."""
-    player_id = request.form.get("player_id", type=int)
+    raw_player_id = request.form.get("player_id", "")
     payer_email = request.form.get("payer_email")
     payer_name = request.form.get("payer_name")
+
+    player_id = None
+    if raw_player_id:
+        if str(raw_player_id).startswith("ignored:"):
+            ignored_alias = str(raw_player_id).split(":", 1)[1]
+            rb_conn = get_rb48_connection()
+            try:
+                player_id = ensure_ignored_alias_as_guest_player(rb_conn, ignored_alias)
+            finally:
+                rb_conn.close()
+        else:
+            try:
+                player_id = int(raw_player_id)
+            except (ValueError, TypeError):
+                player_id = None
 
     if not player_id or (not payer_email and not payer_name):
         flash("Bitte einen Spieler und eine E-Mail oder einen Namen angeben.", "warning")
@@ -419,6 +469,20 @@ def split_assign_transaction():
     
     if not alloc_list:
         return jsonify({"success": False, "error": "No allocations provided"}), 400
+
+    # Convert any ignored: alias guest allocations to real guest player_ids
+    rb_conn = None
+    try:
+        for item in alloc_list:
+            raw_pid = item.get("player_id")
+            if raw_pid and str(raw_pid).startswith("ignored:"):
+                ignored_alias = str(raw_pid).split(":", 1)[1]
+                if rb_conn is None:
+                    rb_conn = get_rb48_connection()
+                item["player_id"] = ensure_ignored_alias_as_guest_player(rb_conn, ignored_alias)
+    finally:
+        if rb_conn:
+            rb_conn.close()
     
     finances_conn = get_finances_connection()
     curr_user = get_current_user()

@@ -62,16 +62,17 @@ def get_alias_lookup(connection):
 
 
 def get_ignored_aliases(connection):
-
-    cursor = connection.execute("""
-        SELECT alias
-        FROM ignored_aliases
-    """)
-
-    return {
-        alias
-        for (alias,) in cursor
-    }
+    try:
+        cursor = connection.execute("""
+            SELECT alias
+            FROM ignored_aliases
+        """)
+        return {
+            alias
+            for (alias,) in cursor
+        }
+    except Exception:
+        return set()
 
 
 def create_player(connection, player_id):
@@ -144,4 +145,32 @@ def add_ignored_alias(connection, alias):
         INSERT OR IGNORE INTO ignored_aliases (alias)
         VALUES (?)
     """, (alias,))
+
+
+def delete_ignored_alias(connection, alias):
+    """Remove an alias from the ignored_aliases table."""
+    connection.execute("DELETE FROM ignored_aliases WHERE alias = ?", (alias,))
+    connection.commit()
+
+
+def ensure_ignored_alias_as_guest_player(connection, alias: str) -> int:
+    """
+    Ensure that an ignored alias exists as a registered player in players & aliases.
+    If it already exists in aliases, returns the existing player_id.
+    If not, creates a new player_id, adds the alias, and removes it from ignored_aliases.
+    """
+    alias_clean = alias.strip()
+    if not alias_clean:
+        raise ValueError("Alias cannot be empty.")
+
+    alias_lookup = get_alias_lookup(connection)
+    if alias_clean in alias_lookup:
+        return alias_lookup[alias_clean]
+
+    player_id = get_next_player_id(connection)
+    create_player(connection, player_id)
+    add_alias(connection, alias_clean, player_id)
+    delete_ignored_alias(connection, alias_clean)
+    connection.commit()
+    return player_id
 

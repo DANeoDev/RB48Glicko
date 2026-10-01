@@ -90,7 +90,12 @@
         <div style="display: grid; grid-template-columns: 360px 1fr; gap: 24px; align-items: start;">
             <!-- Left: Match Dates List -->
             <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-                <h3 style="margin: 0 0 12px 0; font-size: 15px; color: #ffffff;">Gespielte Spieltage</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap;">
+                    <h3 style="margin: 0; font-size: 15px; color: #ffffff;">Gespielte Spieltage</h3>
+                    <button type="button" class="secondary" id="btn-copy-all-open" onclick="copyAllOpenDebts()" style="font-size: 11px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;" title="Alle offenen Gastbeiträge aller Spieltage in die Zwischenablage kopieren">
+                        📋 Alle offenen kopieren
+                    </button>
+                </div>
                 <div style="display: flex; flex-direction: column; gap: 8px; max-height: 600px; overflow-y: auto;">
                     {% if matches_overview %}
                         {% for m in matches_overview %}
@@ -137,7 +142,12 @@
                         <!-- Guest Players Table -->
                         {% if selected_date_details.guest_entries %}
                         <div style="margin-bottom: 24px;">
-                            <h4 style="margin: 0 0 10px 0; color: #80deea; font-size: 14px;">Gastspieler (Beitragspflichtig: 3,50 €)</h4>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                                <h4 style="margin: 0; color: #80deea; font-size: 14px;">Gastspieler (Beitragspflichtig: 3,50 €)</h4>
+                                <button type="button" class="secondary" id="btn-copy-day-open" onclick="copyDayOpenDebts('{{ selected_date_details.match_date }}')" style="font-size: 11px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;" title="Offene Gastbeiträge dieses Spieltags (Name und Datum) in die Zwischenablage kopieren">
+                                    📋 Offene kopieren ({{ selected_date_details.match_date }})
+                                </button>
+                            </div>
                             <div style="overflow-x: auto;">
                                 <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                                     <thead>
@@ -151,7 +161,7 @@
                                     </thead>
                                     <tbody>
                                         {% for g in selected_date_details.guest_entries %}
-                                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                            <tr id="guest-row-{{ g.player_id }}" data-name="{{ g.name }}" data-unpaid="{% if g.payment_status in ('unpaid', 'partial') %}1{% else %}0{% endif %}" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
                                                 <td style="padding: 12px 8px;">
                                                     <strong style="color: #ffffff;">{{ g.name }}</strong>
                                                 </td>
@@ -488,9 +498,18 @@
                                                         <div style="display: flex; gap: 4px; align-items: center;">
                                                             <select name="guest_{{ i }}" class="split-guest-select" data-form-id="{{ tx.id }}" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 3px 4px; border-radius: 4px; flex: 1;">
                                                                 <option value="">-- Gast {{ i + 1 }} --</option>
-                                                                {% for p in player_list if p.status == 'guest' %}
-                                                                    <option value="{{ p.player_id }}">{{ p.name }}</option>
-                                                                {% endfor %}
+                                                                <optgroup label="Reguläre Gäste">
+                                                                    {% for p in player_list if p.status == 'guest' %}
+                                                                        <option value="{{ p.player_id }}">{{ p.name }}</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                {% if ignored_aliases %}
+                                                                <optgroup label="Ignorierte Aliase / Externe Gäste">
+                                                                    {% for ign in ignored_aliases %}
+                                                                        <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                {% endif %}
                                                             </select>
                                                             <span style="font-size: 11px; color: var(--text-muted); white-space: nowrap;">3,50 €</span>
                                                         </div>
@@ -512,9 +531,18 @@
                                                         <input type="hidden" name="tx_id" value="{{ tx.id }}">
                                                         <select name="player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 12px; padding: 4px 6px; border-radius: 4px;">
                                                             <option value="">-- Spieler --</option>
-                                                            {% for p in player_list %}
-                                                                <option value="{{ p.player_id }}" {% if tx.suggestion and tx.suggestion.player_id == p.player_id %}selected{% endif %}>{{ p.name }}</option>
-                                                            {% endfor %}
+                                                            <optgroup label="Registrierte Spieler">
+                                                                {% for p in player_list %}
+                                                                    <option value="{{ p.player_id }}" {% if tx.suggestion and tx.suggestion.player_id == p.player_id %}selected{% endif %}>{{ p.name }}</option>
+                                                                {% endfor %}
+                                                            </optgroup>
+                                                            {% if ignored_aliases %}
+                                                            <optgroup label="Ignorierte Aliase / Externe Gäste">
+                                                                {% for ign in ignored_aliases %}
+                                                                    <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                                                {% endfor %}
+                                                            </optgroup>
+                                                            {% endif %}
                                                         </select>
                                                         <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;">
                                                             <input type="checkbox" name="remember_identity" value="1" checked> 💾
@@ -529,11 +557,20 @@
                                                 <input type="hidden" name="tx_id" value="{{ tx.id }}">
                                                 <select name="player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 12px; padding: 4px 6px; border-radius: 4px;">
                                                     <option value="">-- Spieler wählen --</option>
-                                                    {% for p in player_list %}
-                                                        <option value="{{ p.player_id }}" {% if (tx.matched_player_id == p.player_id) or (not tx.matched_player_id and tx.suggestion and tx.suggestion.player_id == p.player_id) %}selected{% endif %}>
-                                                            {{ p.name }}
-                                                        </option>
-                                                    {% endfor %}
+                                                    <optgroup label="Registrierte Spieler">
+                                                        {% for p in player_list %}
+                                                            <option value="{{ p.player_id }}" {% if (tx.matched_player_id == p.player_id) or (not tx.matched_player_id and tx.suggestion and tx.suggestion.player_id == p.player_id) %}selected{% endif %}>
+                                                                {{ p.name }}
+                                                            </option>
+                                                        {% endfor %}
+                                                    </optgroup>
+                                                    {% if ignored_aliases %}
+                                                    <optgroup label="Ignorierte Aliase / Externe Gäste">
+                                                        {% for ign in ignored_aliases %}
+                                                            <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                                        {% endfor %}
+                                                    </optgroup>
+                                                    {% endif %}
                                                 </select>
                                                 <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;" title="Dauerhaft für zukünftige Uploads dieser E-Mail merken">
                                                     <input type="checkbox" name="remember_identity" value="1" checked> 💾 Merken
@@ -578,9 +615,18 @@
                         <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Zugeordneter Spieler *</label>
                         <select name="player_id" required style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 4px; font-size: 13px;">
                             <option value="">-- Spieler wählen --</option>
-                            {% for p in player_list %}
-                                <option value="{{ p.player_id }}">{{ p.name }} ({{ p.aliases_str }})</option>
-                            {% endfor %}
+                            <optgroup label="Registrierte Spieler">
+                                {% for p in player_list %}
+                                    <option value="{{ p.player_id }}">{{ p.name }} ({{ p.aliases_str }})</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% if ignored_aliases %}
+                            <optgroup label="Ignorierte Aliase / Externe Gäste">
+                                {% for ign in ignored_aliases %}
+                                    <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endif %}
                         </select>
                     </div>
                     <button type="submit" class="primary" style="padding: 9px; font-weight: 600; cursor: pointer; margin-top: 6px;">
@@ -653,14 +699,19 @@ function markMatchGuest(matchDate, playerId, method) {
         if (data.success) {
             const col = document.getElementById('status-match-' + playerId);
             if (col) {
+                const row = document.getElementById('guest-row-' + playerId);
                 if (method === 'cash') {
                     col.innerHTML = '<span style="background: rgba(128, 222, 234, 0.25); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">💵 Bar bezahlt</span>';
+                    if (row) row.setAttribute('data-unpaid', '0');
                 } else if (method === 'paypal') {
                     col.innerHTML = '<span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟢 Bezahlt (PayPal)</span>';
+                    if (row) row.setAttribute('data-unpaid', '0');
                 } else if (method === 'waived') {
                     col.innerHTML = '<span style="background: rgba(255, 255, 255, 0.1); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.2); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">⚪ Erlassen</span>';
+                    if (row) row.setAttribute('data-unpaid', '0');
                 } else {
                     col.innerHTML = '<span style="background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🔴 Offen</span>';
+                    if (row) row.setAttribute('data-unpaid', '1');
                 }
             }
         }
@@ -760,6 +811,105 @@ function prepareSplitAllocations(txId) {
     
     document.getElementById('split-allocs-' + txId).value = JSON.stringify(allocations);
     return true;
+}
+
+// Data for all open debts passed from backend
+const ALL_UNPAID_DEBTS = {{ all_unpaid_entries|tojson if all_unpaid_entries is defined else '[]' }};
+const UNASSIGNED_PAYERS = {{ unassigned_payers|tojson if unassigned_payers is defined else '[]' }};
+
+function buildHeaderText() {
+    let unassignedText = 'keine';
+    if (UNASSIGNED_PAYERS && UNASSIGNED_PAYERS.length > 0) {
+        unassignedText = UNASSIGNED_PAYERS.join(', ');
+    }
+    return 'Die Liste kann unvollständig und/oder falsche Einträge beinhalten. Ich konnte bspw. ' + unassignedText + ' nicht einem Spieler zuordnen. Bitte die Beträge begleichen oder PN an mich zur Klärung.\n\n';
+}
+
+function copyToClipboard(text, buttonElement, defaultText) {
+    if (!navigator.clipboard) {
+        // Fallback for older browsers or non-secure contexts
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            showButtonSuccess(buttonElement, defaultText);
+        } catch (err) {
+            console.error('Fallback copy failed:', err);
+            alert('Kopieren fehlgeschlagen.');
+        }
+        document.body.removeChild(textarea);
+        return;
+    }
+
+    navigator.clipboard.writeText(text).then(function() {
+        showButtonSuccess(buttonElement, defaultText);
+    }).catch(function(err) {
+        console.error('Clipboard write failed:', err);
+        alert('Kopieren fehlgeschlagen: ' + err);
+    });
+}
+
+function showButtonSuccess(btn, defaultText) {
+    if (!btn) return;
+    btn.innerHTML = '✅ Kopiert!';
+    btn.style.color = '#88ff88';
+    setTimeout(function() {
+        btn.innerHTML = defaultText;
+        btn.style.color = '';
+    }, 2000);
+}
+
+function copyAllOpenDebts() {
+    const btn = document.getElementById('btn-copy-all-open');
+    if (!ALL_UNPAID_DEBTS || ALL_UNPAID_DEBTS.length === 0) {
+        alert('Keine offenen Beiträge vorhanden.');
+        return;
+    }
+    // Format: Name - Datum
+    const lines = ALL_UNPAID_DEBTS.map(function(item) {
+        return item.name + ' - ' + item.match_date;
+    });
+    const text = buildHeaderText() + lines.join('\n');
+    copyToClipboard(text, btn, '📋 Alle offenen kopieren');
+}
+
+function copyDayOpenDebts(matchDate) {
+    const btn = document.getElementById('btn-copy-day-open');
+    const rows = document.querySelectorAll('tr[id^="guest-row-"]');
+    const lines = [];
+
+    rows.forEach(function(row) {
+        const isUnpaid = row.getAttribute('data-unpaid') === '1';
+        if (isUnpaid) {
+            const name = row.getAttribute('data-name');
+            if (name) {
+                lines.push(name + ' - ' + matchDate);
+            }
+        }
+    });
+
+    if (lines.length === 0) {
+        // Fallback: check if we can filter from ALL_UNPAID_DEBTS
+        if (ALL_UNPAID_DEBTS && ALL_UNPAID_DEBTS.length > 0) {
+            ALL_UNPAID_DEBTS.forEach(function(item) {
+                if (item.match_date === matchDate) {
+                    lines.push(item.name + ' - ' + matchDate);
+                }
+            });
+        }
+    }
+
+    if (lines.length === 0) {
+        alert('Keine offenen Beiträge für diesen Spieltag (' + matchDate + ') vorhanden.');
+        return;
+    }
+
+    const text = buildHeaderText() + lines.join('\n');
+    copyToClipboard(text, btn, '📋 Offene kopieren (' + matchDate + ')');
 }
 </script>
 {% endblock %}

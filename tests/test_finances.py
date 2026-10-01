@@ -32,6 +32,7 @@ from scripts.finances.reconciliation import (
     manual_mark_match_guest_payment,
     manual_mark_membership_due,
     auto_allocate_transaction_to_debts,
+    get_all_unpaid_guest_entries,
     resolve_player_membership_status,
     GUEST_FEE_PER_KICK,
     MEMBERSHIP_DUE_PER_HALFYEAR,
@@ -40,6 +41,7 @@ from scripts.database.database import (
     get_connection as get_rb48_connection,
     create_players_table,
     create_aliases_table,
+    create_ignored_aliases_table,
     create_positions_table,
     create_matches_table,
     create_match_players_table,
@@ -71,12 +73,14 @@ def clean_finances_env(tmp_path, monkeypatch):
     r_conn = get_rb48_connection()
     create_players_table(r_conn)
     create_aliases_table(r_conn)
+    create_ignored_aliases_table(r_conn)
     create_positions_table(r_conn)
     create_matches_table(r_conn)
     create_match_players_table(r_conn)
 
     r_conn.execute("INSERT INTO players (player_id) VALUES (1), (2), (33)")
     r_conn.execute("INSERT INTO aliases (alias, player_id) VALUES ('Stefan', 1), ('Nik', 2), ('Kha', 33)")
+    r_conn.execute("INSERT INTO ignored_aliases (alias) VALUES ('Micha+1')")
     
     # Create sample match
     create_match(r_conn, "2026-07-15-1", "2026-07-15", "box", 2, 1, 5, 3)
@@ -316,3 +320,46 @@ def test_webmaster_finances_web_routes(clean_finances_env):
     )
     assert resp_mark.status_code == 200
     assert resp_mark.json["success"] is True
+
+    # Test presence of copy buttons and header text in tab=matches
+    resp_after = client.get("/admin/finances?tab=matches")
+    assert resp_after.status_code == 200
+    after_html = resp_after.get_data(as_text=True)
+    assert "btn-copy-all-open" in after_html
+    assert "copyAllOpenDebts" in after_html
+    assert "copyDayOpenDebts" in after_html
+    assert "Die Liste kann unvollständig und/oder falsche Einträge beinhalten" in after_html
+
+    # Test presence of ignored aliases in tab=identities dropdown
+    resp_identities = client.get("/admin/finances?tab=identities")
+    assert resp_identities.status_code == 200
+    identities_html = resp_identities.get_data(as_text=True)
+    assert "ignored:Micha+1" in identities_html
+    assert "Ignorierte Aliase / Externe G" in identities_html
+
+    # Test saving identity with ignored alias (transparent guest promotion)
+    resp_save_id = client.post(
+        "/admin/finances/identity/save",
+        data={
+            "payer_email": "micha.gast@example.com",
+            "payer_name": "Micha Gast",
+            "player_id": "ignored:Micha+1",
+        },
+        follow_redirects=True,
+    )
+    assert resp_save_id.status_code == 200
+
+
+def test_get_all_unpaid_guest_entries(clean_finances_env):
+    unpaid = get_all_unpaid_guest_entries()
+    assert isinstance(unpaid, list)
+    # Player 33 is a guest who played on 2026-07-15 and has not paid yet
+    assert len(unpaid) >= 1
+    found_33 = any(u["player_id"] == 33 and u["match_date"] == "2026-07-15" for u in unpaid)
+    assert found_33
+    entry = next(u for u in unpaid if u["player_id"] == 33)
+    assert entry["name"] == "Kha"
+    assert entry["match_date"] == "2026-07-15"
+    assert entry["fee_required"] == 3.50
+    assert entry["payment_status"] == "unpaid"
+
