@@ -1,3 +1,4 @@
+import csv
 from datetime import datetime, timezone
 from scripts.finances.database import (
     get_finances_connection,
@@ -9,11 +10,13 @@ from scripts.finances.database import (
     update_transaction_assignment,
     save_or_update_identity,
     get_all_player_membership_statuses,
+    get_all_player_membership_records,
     get_player_membership_status,
     set_player_membership_status,
 )
 from scripts.database.database import get_connection as get_rb48_connection
-from scripts.database.db_players import get_players
+from scripts.database.db_players import get_players, get_ignored_aliases, get_alias_lookup
+from scripts.matches.match_entry import get_matches_dir
 from scripts.accounts.database import get_accounts_connection
 from scripts.finances.matcher import parse_guest_hints_from_note, normalize_text, find_player_match
 
@@ -28,14 +31,59 @@ def resolve_player_membership_status(
     accounts_conn=None,
     explicit_statuses=None,
     linked_player_ids=None,
+    as_of_date: str | None = None,
+    explicit_records=None,
+    user_created_dates=None,
 ) -> str:
     """
     Determine if a player is 'member' or 'guest'.
     Rule:
-    1. If explicitly set in `player_membership_status`, use that.
-    2. Else if player is linked to an approved user account, default to 'member'.
-    3. Else default to 'guest'.
+    1. If as_of_date is provided and player has a recorded 'match_guest' allocation for as_of_date,
+       treat as 'guest' for that historical match.
+    2. If explicitly set in `player_membership_status`:
+       - If as_of_date is provided and status is 'member':
+         Check member_since. If as_of_date < member_since, return 'guest'.
+       - Else return explicit status.
+    3. Else if player is linked to an approved user account:
+       - If as_of_date is provided and user was created after as_of_date, return 'guest'.
+       - Else default to 'member'.
+    4. Else default to 'guest'.
     """
+    # 1. Historical allocation check
+    if as_of_date and finances_conn:
+        try:
+            row = finances_conn.execute(
+                "SELECT 1 FROM payment_allocations WHERE match_date = ? AND player_id = ? AND fee_type = 'match_guest'",
+                (as_of_date, player_id),
+            ).fetchone()
+            if row:
+                return "guest"
+        except Exception:
+            pass
+
+    # 2. Explicit membership record check
+    rec = None
+    if explicit_records is not None:
+        rec = explicit_records.get(player_id)
+    elif finances_conn:
+        try:
+            r = finances_conn.execute(
+                "SELECT status, member_since FROM player_membership_status WHERE player_id = ?",
+                (player_id,),
+            ).fetchone()
+            if r:
+                rec = dict(r)
+        except Exception:
+            pass
+
+    if rec:
+        exp_status = rec.get("status")
+        member_since = rec.get("member_since")
+        if as_of_date and exp_status == "member" and member_since and as_of_date < member_since:
+            return "guest"
+        if exp_status:
+            return exp_status
+
     if explicit_statuses is not None:
         if player_id in explicit_statuses:
             return explicit_statuses[player_id]
@@ -44,17 +92,92 @@ def resolve_player_membership_status(
         if exp:
             return exp
 
+    # 3. Linked user account check
+    is_linked = False
     if linked_player_ids is not None:
-        if player_id in linked_player_ids:
-            return "member"
+        is_linked = player_id in linked_player_ids
     elif accounts_conn:
-        row = accounts_conn.execute(
+        urow = accounts_conn.execute(
             "SELECT 1 FROM users WHERE player_id = ?", (player_id,)
         ).fetchone()
-        if row:
-            return "member"
+        is_linked = bool(urow)
+
+    if is_linked:
+        return "member"
 
     return "guest"
+
+
+def get_ignored_guests_for_match_date(match_date: str, rb48_conn=None) -> list[str]:
+    """
+    Scan match CSVs in get_matches_dir() for the given match date (YYYY-MM-DD)
+    and find any participating player names that belong to ignored_aliases.
+    Returns sorted list of distinct alias names.
+    """
+    close_rb = False
+    if rb48_conn is None:
+        rb48_conn = get_rb48_connection()
+        close_rb = True
+
+    try:
+        ignored = get_ignored_aliases(rb48_conn)
+        if not ignored:
+            return []
+
+        ignored_map = {a.casefold(): a for a in ignored}
+        matches_dir = get_matches_dir()
+        found = set()
+
+        for p in matches_dir.glob(f"{match_date}*.csv"):
+            for enc in ("utf-8", "latin-1", "cp1252"):
+                try:
+                    with open(p, "r", encoding=enc) as f:
+                        for row in csv.reader(f):
+                            if not row or len(row) < 6 or row[0].strip().casefold() == "match_id":
+                                continue
+                            team_a = [name.strip() for name in row[2].split(",") if name.strip()]
+                            team_b = [name.strip() for name in row[3].split(",") if name.strip()]
+                            for name in team_a + team_b:
+                                if name.casefold() in ignored_map:
+                                    found.add(ignored_map[name.casefold()])
+                    break
+                except Exception:
+                    continue
+
+        return sorted(list(found))
+    finally:
+        if close_rb:
+            rb48_conn.close()
+
+
+def get_all_match_dates_for_ignored_alias(alias: str, rb48_conn=None) -> list[str]:
+    """
+    Find all match dates (YYYY-MM-DD) where a given ignored alias participated in match CSVs.
+    Ordered ascending.
+    """
+    clean_alias = alias.strip().casefold()
+    matches_dir = get_matches_dir()
+    dates = set()
+
+    for p in matches_dir.glob("*.csv"):
+        for enc in ("utf-8", "latin-1", "cp1252"):
+            try:
+                with open(p, "r", encoding=enc) as f:
+                    for row in csv.reader(f):
+                        if not row or len(row) < 6 or row[0].strip().casefold() == "match_id":
+                            continue
+                        m_id = row[0].strip()
+                        m_date = m_id.rsplit("-", 1)[0]
+                        team_a = [name.strip() for name in row[2].split(",") if name.strip()]
+                        team_b = [name.strip() for name in row[3].split(",") if name.strip()]
+                        for name in team_a + team_b:
+                            if name.casefold() == clean_alias:
+                                dates.add(m_date)
+                break
+            except Exception:
+                continue
+
+    return sorted(list(dates))
 
 
 def get_all_players_with_membership(
@@ -124,7 +247,8 @@ def get_all_players_with_membership(
 
 def get_match_history_financial_overview() -> list[dict]:
     """
-    Return all distinct match dates from Match History (`rb48.db`) with guest fee metrics.
+    Return all distinct match dates from Match History (`rb48.db`) with guest fee metrics,
+    including both regular guest players and participating ignored aliases.
     """
     rb48_conn = get_rb48_connection()
     finances_conn = get_finances_connection()
@@ -142,11 +266,14 @@ def get_match_history_financial_overview() -> list[dict]:
             """
         ).fetchall()
 
-        explicit_statuses = get_all_player_membership_statuses(finances_conn)
+        explicit_records = get_all_player_membership_records(finances_conn)
+        explicit_statuses = {pid: r["status"] for pid, r in explicit_records.items()}
         user_rows = accounts_conn.execute(
-            "SELECT player_id FROM users WHERE player_id IS NOT NULL"
+            "SELECT player_id, created_at FROM users WHERE player_id IS NOT NULL"
         ).fetchall()
         linked_player_ids = {u["player_id"] for u in user_rows}
+        user_created_dates = {u["player_id"]: str(u["created_at"])[:10] for u in user_rows if u["created_at"]}
+        players_dict = get_players(rb48_conn)
 
         results = []
         for drow in date_rows:
@@ -170,10 +297,13 @@ def get_match_history_financial_overview() -> list[dict]:
                     r["player_id"],
                     explicit_statuses=explicit_statuses,
                     linked_player_ids=linked_player_ids,
+                    as_of_date=mdate,
+                    explicit_records=explicit_records,
+                    user_created_dates=user_created_dates,
+                    finances_conn=finances_conn,
                 ) == "guest"
             ]
 
-            guest_count = len(guest_pids)
             allocations = get_allocations_for_match_date(finances_conn, mdate)
 
             paid_pids = {
@@ -182,19 +312,44 @@ def get_match_history_financial_overview() -> list[dict]:
                 if a.get("player_id") and (a["payment_method"] == "waived" or a["allocated_amount"] >= GUEST_FEE_PER_KICK)
             }
 
-            paid_count = len(set(guest_pids).intersection(paid_pids))
+            # Check ignored guests for this match date
+            ignored_guests = get_ignored_guests_for_match_date(mdate, rb48_conn)
+            present_aliases = set()
+            for r in prows:
+                pdata = players_dict.get(r["player_id"], {})
+                for al in pdata.get("aliases", []):
+                    present_aliases.add(al.casefold())
+
+            unlinked_ignored_guests = [ign for ign in ignored_guests if ign.casefold() not in present_aliases]
+
+            paid_ignored_count = 0
+            collected_ignored = 0.0
+            for ign in unlinked_ignored_guests:
+                ign_allocs = [
+                    a for a in allocations
+                    if (a.get("guest_alias") and a["guest_alias"].casefold() == ign.casefold())
+                    or (not a.get("player_id") and not a.get("guest_alias") and ign.casefold() in (a.get("note") or "").casefold())
+                ]
+                ign_paid_sum = sum(a["allocated_amount"] for a in ign_allocs if a["payment_method"] != "waived")
+                ign_waived = any(a["payment_method"] == "waived" for a in ign_allocs)
+                collected_ignored += ign_paid_sum
+                if ign_waived or ign_paid_sum >= GUEST_FEE_PER_KICK:
+                    paid_ignored_count += 1
+
+            guest_count = len(guest_pids) + len(unlinked_ignored_guests)
+            paid_count = len(set(guest_pids).intersection(paid_pids)) + paid_ignored_count
             unpaid_count = max(0, guest_count - paid_count)
             total_expected = guest_count * GUEST_FEE_PER_KICK
             total_collected = sum(
                 a["allocated_amount"]
                 for a in allocations
                 if a.get("player_id") in guest_pids and a["payment_method"] != "waived"
-            )
+            ) + collected_ignored
 
             results.append({
                 "match_date": mdate,
                 "match_count": drow["match_count"],
-                "total_players": drow["total_players"],
+                "total_players": drow["total_players"] + len(unlinked_ignored_guests),
                 "guest_count": guest_count,
                 "paid_count": paid_count,
                 "unpaid_count": unpaid_count,
@@ -236,7 +391,8 @@ def get_all_unpaid_guest_entries() -> list[dict]:
 
 def get_match_date_guest_status(match_date: str) -> dict:
     """
-    Get financial breakdown for all players on a specific match date from Match History.
+    Get financial breakdown for all players on a specific match date from Match History,
+    including both regular guest players and participating ignored aliases.
     """
     rb48_conn = get_rb48_connection()
     finances_conn = get_finances_connection()
@@ -244,12 +400,14 @@ def get_match_date_guest_status(match_date: str) -> dict:
 
     try:
         players_dict = get_players(rb48_conn)
-        explicit_statuses = get_all_player_membership_statuses(finances_conn)
+        explicit_records = get_all_player_membership_records(finances_conn)
+        explicit_statuses = {pid: r["status"] for pid, r in explicit_records.items()}
         user_rows = accounts_conn.execute(
-            "SELECT player_id, username, attendance_name FROM users WHERE player_id IS NOT NULL"
+            "SELECT player_id, username, attendance_name, created_at FROM users WHERE player_id IS NOT NULL"
         ).fetchall()
         users_by_player_id = {u["player_id"]: dict(u) for u in user_rows}
         linked_player_ids = set(users_by_player_id.keys())
+        user_created_dates = {u["player_id"]: str(u["created_at"])[:10] for u in user_rows if u["created_at"]}
 
         prows = rb48_conn.execute(
             """
@@ -282,6 +440,10 @@ def get_match_date_guest_status(match_date: str) -> dict:
                 pid,
                 explicit_statuses=explicit_statuses,
                 linked_player_ids=linked_player_ids,
+                as_of_date=match_date,
+                explicit_records=explicit_records,
+                user_created_dates=user_created_dates,
+                finances_conn=finances_conn,
             )
 
             p_allocs = alloc_by_player.get(pid, [])
@@ -328,6 +490,7 @@ def get_match_date_guest_status(match_date: str) -> dict:
                     "allocations": p_allocs,
                     "paid_by_name": paid_by_name,
                     "paid_by_player_id": paid_by_pid,
+                    "id_slug": f"p_{pid}",
                 })
             else:
                 member_entries.append({
@@ -336,6 +499,69 @@ def get_match_date_guest_status(match_date: str) -> dict:
                     "aliases_str": ", ".join(pdata.get("aliases", [])),
                     "status": status,
                 })
+
+        # Process ignored guests participating on this match date
+        ignored_guests = get_ignored_guests_for_match_date(match_date, rb48_conn)
+        present_aliases = set()
+        for r in prows:
+            pdata = players_dict.get(r["player_id"], {})
+            for al in pdata.get("aliases", []):
+                present_aliases.add(al.casefold())
+
+        for ign in ignored_guests:
+            if ign.casefold() in present_aliases:
+                continue
+
+            ign_allocs = [
+                a for a in allocations
+                if (a.get("guest_alias") and a["guest_alias"].casefold() == ign.casefold())
+                or (not a.get("player_id") and not a.get("guest_alias") and ign.casefold() in (a.get("note") or "").casefold())
+            ]
+            paid_sum = sum(a["allocated_amount"] for a in ign_allocs if a["payment_method"] != "waived")
+            is_waived = any(a["payment_method"] == "waived" for a in ign_allocs)
+
+            total_guest_fees_expected += GUEST_FEE_PER_KICK
+            total_guest_fees_collected += paid_sum
+
+            if is_waived:
+                payment_status = "waived"
+            elif paid_sum >= GUEST_FEE_PER_KICK:
+                pmethods = {a["payment_method"] for a in ign_allocs}
+                if "cash" in pmethods and "paypal" not in pmethods:
+                    payment_status = "cash"
+                elif "bank" in pmethods and "paypal" not in pmethods:
+                    payment_status = "bank"
+                else:
+                    payment_status = "paid"
+            elif paid_sum > 0:
+                payment_status = "partial"
+            else:
+                payment_status = "unpaid"
+
+            paid_by_name = None
+            paid_by_pid = None
+            for a in ign_allocs:
+                if a.get("paid_by_player_id"):
+                    paid_by_pid = a["paid_by_player_id"]
+                    pb_pdata = players_dict.get(paid_by_pid, {})
+                    paid_by_name = pb_pdata.get("aliases", [f"Player #{paid_by_pid}"])[0]
+                    break
+
+            ign_slug = f"ign_{abs(hash(ign)) % 10000000}"
+            guest_entries.append({
+                "player_id": f"ignored:{ign}",
+                "name": ign,
+                "aliases_str": f"{ign} (Extern)",
+                "status": "guest",
+                "fee_required": GUEST_FEE_PER_KICK,
+                "amount_paid": paid_sum,
+                "payment_status": payment_status,
+                "allocations": ign_allocs,
+                "paid_by_name": paid_by_name,
+                "paid_by_player_id": paid_by_pid,
+                "is_ignored_alias": True,
+                "id_slug": ign_slug,
+            })
 
         return {
             "match_date": match_date,
@@ -408,24 +634,95 @@ def find_unconfirmed_transaction_for_player(
 
 def manual_mark_match_guest_payment(
     match_date: str,
-    player_id: int,
+    player_id: int | str | None,
     payment_method: str,
     note: str | None = None,
     amount: float = GUEST_FEE_PER_KICK,
+    guest_alias: str | None = None,
 ) -> int:
     """
     Manually mark a player's guest fee for a match date as cash, paypal direct, waived, or unpaid.
+    Supports regular player_ids and ignored aliases (via 'ignored:NAME' or guest_alias parameter).
     Automatically links to an unconfirmed imported transaction (e.g. PayPal) if available.
     """
     finances_conn = get_finances_connection()
     try:
+        clean_alias = guest_alias
+        real_pid = None
+        if isinstance(player_id, str) and player_id.startswith("ignored:"):
+            clean_alias = player_id.split(":", 1)[1]
+        elif player_id is not None and not clean_alias:
+            try:
+                real_pid = int(player_id)
+            except (ValueError, TypeError):
+                clean_alias = str(player_id)
+
+        if clean_alias:
+            # Handle ignored alias guest
+            existing_allocs = finances_conn.execute(
+                """
+                SELECT * FROM payment_allocations
+                WHERE match_date = ? AND fee_type = 'match_guest'
+                AND (guest_alias = ? OR (guest_alias IS NULL AND player_id IS NULL AND note LIKE ?))
+                """,
+                (match_date, clean_alias, f"%{clean_alias}%"),
+            ).fetchall()
+
+            if payment_method == "unpaid":
+                for ea in existing_allocs:
+                    if ea["transaction_id"]:
+                        finances_conn.execute(
+                            "UPDATE finance_transactions SET status = 'imported', is_confirmed = 0 WHERE id = ?",
+                            (ea["transaction_id"],),
+                        )
+                finances_conn.execute(
+                    """
+                    DELETE FROM payment_allocations
+                    WHERE match_date = ? AND fee_type = 'match_guest'
+                    AND (guest_alias = ? OR (guest_alias IS NULL AND player_id IS NULL AND note LIKE ?))
+                    """,
+                    (match_date, clean_alias, f"%{clean_alias}%"),
+                )
+                finances_conn.commit()
+                return 0
+
+            # Delete prior manual allocations (without transaction_id)
+            finances_conn.execute(
+                """
+                DELETE FROM payment_allocations
+                WHERE match_date = ? AND fee_type = 'match_guest' AND transaction_id IS NULL
+                AND (guest_alias = ? OR (guest_alias IS NULL AND player_id IS NULL AND note LIKE ?))
+                """,
+                (match_date, clean_alias, f"%{clean_alias}%"),
+            )
+            finances_conn.commit()
+
+            linked_tx_id = None
+            for ea in existing_allocs:
+                if ea["transaction_id"]:
+                    linked_tx_id = ea["transaction_id"]
+                    break
+
+            alloc_amount = 0.0 if payment_method == "waived" else amount
+            return add_payment_allocation(
+                finances_conn,
+                fee_type="match_guest",
+                allocated_amount=alloc_amount,
+                payment_method=payment_method,
+                transaction_id=linked_tx_id,
+                match_date=match_date,
+                player_id=None,
+                guest_alias=clean_alias,
+                note=note or f"Gastbeitrag {clean_alias} ({payment_method})",
+            )
+
         # Find any existing allocation for this match date and player
         existing_allocs = finances_conn.execute(
             """
             SELECT * FROM payment_allocations
             WHERE match_date = ? AND player_id = ? AND fee_type = 'match_guest'
             """,
-            (match_date, player_id),
+            (match_date, real_pid),
         ).fetchall()
 
         # If payment_method is "unpaid", reset any linked transactions back to 'imported' and delete allocations
@@ -441,7 +738,7 @@ def manual_mark_match_guest_payment(
                 DELETE FROM payment_allocations
                 WHERE match_date = ? AND player_id = ? AND fee_type = 'match_guest'
                 """,
-                (match_date, player_id),
+                (match_date, real_pid),
             )
             finances_conn.commit()
             return 0
@@ -452,7 +749,7 @@ def manual_mark_match_guest_payment(
             DELETE FROM payment_allocations
             WHERE match_date = ? AND player_id = ? AND transaction_id IS NULL AND fee_type = 'match_guest'
             """,
-            (match_date, player_id),
+            (match_date, real_pid),
         )
         finances_conn.commit()
 
@@ -465,13 +762,13 @@ def manual_mark_match_guest_payment(
 
         # If no linked transaction yet and method is paypal or bank, auto-link matching imported transaction
         if not linked_tx_id and payment_method in ("paypal", "bank"):
-            cand = find_unconfirmed_transaction_for_player(finances_conn, player_id, match_date, amount=amount)
+            cand = find_unconfirmed_transaction_for_player(finances_conn, real_pid, match_date, amount=amount)
             if cand:
                 linked_tx_id = cand["id"]
                 update_transaction_assignment(
                     finances_conn,
                     linked_tx_id,
-                    player_id=player_id,
+                    player_id=real_pid,
                     status="assigned",
                     is_confirmed=1,
                 )
@@ -484,7 +781,7 @@ def manual_mark_match_guest_payment(
             payment_method=payment_method,
             transaction_id=linked_tx_id,
             match_date=match_date,
-            player_id=player_id,
+            player_id=real_pid,
             note=note or f"Erfassung ({payment_method})",
         )
     finally:
@@ -1297,17 +1594,19 @@ def get_finance_summary_metrics(
 
 def settle_transaction_and_debts(
     transaction_id: int,
-    payer_player_id: int | None = None,
-    beneficiary_player_id: int | None = None,
+    payer_player_id: int | str | None = None,
+    beneficiary_player_id: int | str | None = None,
     match_date: str | None = None,
     remember: bool = False,
     current_user_id: int | None = None,
     note: str | None = None,
+    beneficiary_alias: str | None = None,
 ) -> dict:
     """
     Settle a transaction directly, covering debts for either the payer themselves
-    or on behalf of another guest player (e.g. Claudio paying for Paul).
-    Also links any existing manual allocations for this player/date (e.g. Martin).
+    or on behalf of another guest player (e.g. Claudio paying for Paul, or Julian paying for Malte).
+    Supports regular player IDs as well as ignored aliases (via 'ignored:NAME' or beneficiary_alias).
+    Also links any existing manual allocations for this player/alias/date.
     """
     finances_conn = get_finances_connection()
     rb48_conn = get_rb48_connection()
@@ -1318,11 +1617,20 @@ def settle_transaction_and_debts(
         if not tx:
             return {"success": False, "error": "Transaktion nicht gefunden"}
 
-        # Resolve payer player ID
-        payer_pid = payer_player_id
-        if not payer_pid:
+        # Resolve payer
+        payer_pid = None
+        payer_alias = None
+        if isinstance(payer_player_id, str) and payer_player_id.startswith("ignored:"):
+            payer_alias = payer_player_id.split(":", 1)[1]
+        elif payer_player_id is not None:
+            try:
+                payer_pid = int(payer_player_id)
+            except (ValueError, TypeError):
+                payer_alias = str(payer_player_id)
+
+        if not payer_pid and not payer_alias:
             payer_pid = tx.get("matched_player_id")
-        if not payer_pid:
+        if not payer_pid and not payer_alias:
             match = find_player_match(
                 tx.get("raw_payer_name"),
                 tx.get("raw_payer_email"),
@@ -1333,10 +1641,22 @@ def settle_transaction_and_debts(
             if match.get("player_id") and match.get("confidence", 0) >= 0.60:
                 payer_pid = match["player_id"]
 
-        # Beneficiary defaults to payer
-        bene_pid = beneficiary_player_id or payer_pid
+        # Resolve beneficiary
+        bene_pid = None
+        bene_alias = beneficiary_alias
+        if isinstance(beneficiary_player_id, str) and beneficiary_player_id.startswith("ignored:"):
+            bene_alias = beneficiary_player_id.split(":", 1)[1]
+        elif beneficiary_player_id is not None and not bene_alias:
+            try:
+                bene_pid = int(beneficiary_player_id)
+            except (ValueError, TypeError):
+                bene_alias = str(beneficiary_player_id)
 
-        # Remember identity if requested
+        if not bene_pid and not bene_alias:
+            bene_pid = payer_pid
+            bene_alias = payer_alias
+
+        # Strictly remember identity only for payer_pid (never for beneficiary if proxy)
         if remember and payer_pid:
             save_or_update_identity(
                 finances_conn,
@@ -1359,18 +1679,105 @@ def settle_transaction_and_debts(
         remaining_amount = float(tx.get("amount", 0))
         covered_count = 0
 
-        if bene_pid and remaining_amount > 0:
+        payer_name = "Zahler"
+        if payer_pid:
             players_dict = get_players(rb48_conn)
-            payer_pdata = players_dict.get(payer_pid, {}) if payer_pid else {}
-            payer_name = payer_pdata.get("aliases", [f"Spieler #{payer_pid}"])[0] if payer_pid else (tx.get("raw_payer_name") or "Zahler")
+            payer_pdata = players_dict.get(payer_pid, {})
+            payer_name = payer_pdata.get("aliases", [f"Spieler #{payer_pid}"])[0]
+        elif payer_alias:
+            payer_name = payer_alias
+        elif tx.get("raw_payer_name"):
+            payer_name = tx["raw_payer_name"]
 
-            alloc_note = note
-            if not alloc_note:
-                if payer_pid and bene_pid != payer_pid:
-                    alloc_note = f"Bezahlt von {payer_name}"
+        alloc_note = note
+        if not alloc_note:
+            is_proxy = (bene_pid and payer_pid and bene_pid != payer_pid) or (bene_alias and bene_alias != payer_alias)
+            if is_proxy:
+                alloc_note = f"Bezahlt von {payer_name}"
+            else:
+                alloc_note = f"PayPal {tx['tx_code'] or ''}".strip()
+
+        # Case A: Beneficiary is an ignored alias (external player)
+        if bene_alias and remaining_amount > 0:
+            # 1. Check existing manual allocations without transaction_id for this alias
+            if match_date:
+                manual_rows = finances_conn.execute(
+                    """
+                    SELECT id, allocated_amount FROM payment_allocations
+                    WHERE match_date = ? AND fee_type = 'match_guest' AND transaction_id IS NULL
+                    AND (guest_alias = ? OR (guest_alias IS NULL AND player_id IS NULL AND note LIKE ?))
+                    """,
+                    (match_date, bene_alias, f"%{bene_alias}%"),
+                ).fetchall()
+            else:
+                manual_rows = finances_conn.execute(
+                    """
+                    SELECT id, allocated_amount FROM payment_allocations
+                    WHERE fee_type = 'match_guest' AND transaction_id IS NULL
+                    AND (guest_alias = ? OR (guest_alias IS NULL AND player_id IS NULL AND note LIKE ?))
+                    ORDER BY match_date DESC
+                    """,
+                    (bene_alias, f"%{bene_alias}%"),
+                ).fetchall()
+
+            for mr in manual_rows:
+                if remaining_amount < GUEST_FEE_PER_KICK:
+                    break
+                finances_conn.execute(
+                    """
+                    UPDATE payment_allocations
+                    SET transaction_id = ?, payment_method = ?, paid_by_player_id = ?, guest_alias = ?, note = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        transaction_id,
+                        tx["source"],
+                        payer_pid,
+                        bene_alias,
+                        alloc_note,
+                        mr["id"],
+                    ),
+                )
+                remaining_amount -= GUEST_FEE_PER_KICK
+                covered_count += 1
+
+            # 2. Check unpaid match guest fees for this alias
+            if remaining_amount >= GUEST_FEE_PER_KICK:
+                if match_date:
+                    dates_to_check = [match_date]
                 else:
-                    alloc_note = f"PayPal {tx['tx_code'] or ''}".strip()
+                    dates_to_check = get_all_match_dates_for_ignored_alias(bene_alias, rb48_conn)
 
+                for mdate in dates_to_check:
+                    if remaining_amount < GUEST_FEE_PER_KICK:
+                        break
+                    allocs = get_allocations_for_match_date(finances_conn, mdate)
+                    ign_allocs = [
+                        a for a in allocs
+                        if (a.get("guest_alias") and a["guest_alias"].casefold() == bene_alias.casefold())
+                        or (not a.get("player_id") and not a.get("guest_alias") and bene_alias.casefold() in (a.get("note") or "").casefold())
+                    ]
+                    paid_sum = sum(a["allocated_amount"] for a in ign_allocs if a["payment_method"] != "waived")
+                    if paid_sum >= GUEST_FEE_PER_KICK:
+                        continue
+
+                    add_payment_allocation(
+                        finances_conn,
+                        fee_type="match_guest",
+                        allocated_amount=GUEST_FEE_PER_KICK,
+                        payment_method=tx["source"],
+                        transaction_id=transaction_id,
+                        match_date=mdate,
+                        player_id=None,
+                        guest_alias=bene_alias,
+                        paid_by_player_id=payer_pid,
+                        note=alloc_note,
+                    )
+                    remaining_amount -= GUEST_FEE_PER_KICK
+                    covered_count += 1
+
+        # Case B: Beneficiary is a registered player (guest or member with historical guest fees)
+        elif bene_pid and remaining_amount > 0:
             # 1. Check existing manual allocations without transaction_id for the beneficiary
             if match_date:
                 manual_rows = finances_conn.execute(
@@ -1410,7 +1817,7 @@ def settle_transaction_and_debts(
                 remaining_amount -= GUEST_FEE_PER_KICK
                 covered_count += 1
 
-            # 2. Check unpaid match guest fees for beneficiary
+            # 2. Check unpaid match guest fees for beneficiary (even if now member)
             if remaining_amount >= GUEST_FEE_PER_KICK:
                 if match_date:
                     dates_to_check = [match_date]
@@ -1475,12 +1882,32 @@ def settle_transaction_and_debts(
                     remaining_amount -= MEMBERSHIP_DUE_PER_HALFYEAR
                     covered_count += 1
 
+        # Fallback: if there is still remaining amount (e.g. advance payment, or match date not yet recorded),
+        # allocate remaining funds to the beneficiary so the transaction is accounted for.
+        if remaining_amount > 0 and (bene_alias or bene_pid):
+            fee_t = "membership_due" if (remaining_amount >= MEMBERSHIP_DUE_PER_HALFYEAR and not bene_alias) else "match_guest"
+            add_payment_allocation(
+                finances_conn,
+                fee_type=fee_t,
+                allocated_amount=remaining_amount,
+                payment_method=tx.get("source", "paypal"),
+                transaction_id=transaction_id,
+                match_date=match_date or tx.get("date"),
+                player_id=bene_pid,
+                guest_alias=bene_alias,
+                paid_by_player_id=payer_pid if payer_pid != bene_pid else None,
+                note=alloc_note,
+            )
+            covered_count += 1
+            remaining_amount = 0.0
+
         finances_conn.commit()
         return {
             "success": True,
             "transaction_id": transaction_id,
             "payer_player_id": payer_pid,
             "beneficiary_player_id": bene_pid,
+            "beneficiary_alias": bene_alias,
             "covered_count": covered_count,
         }
     finally:

@@ -64,11 +64,14 @@ def clean_finances_env(tmp_path, monkeypatch):
     rb_db = tmp_path / "rb48_test.db"
     acc_db = tmp_path / "accounts_test.db"
     plan_db = tmp_path / "planner_test.db"
+    matches_dir = tmp_path / "matches"
+    matches_dir.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setenv("RB48_FINANCES_DATABASE_FILE", str(fin_db))
     monkeypatch.setenv("RB48_DATABASE_FILE", str(rb_db))
     monkeypatch.setenv("RB48_ACCOUNTS_DATABASE_FILE", str(acc_db))
     monkeypatch.setenv("RB48_PLANNER_DATABASE_FILE", str(plan_db))
+    monkeypatch.setenv("RB48_MATCHES_DIR", str(matches_dir))
 
     # Initialize tables
     f_conn = get_finances_connection()
@@ -586,6 +589,153 @@ def test_settle_transaction_direct_and_manual_linking(clean_finances_env):
     assert len(allocs_after_reset) == 0
 
     f_conn.close()
+
+
+def test_ignored_alias_guest_reconciliation_and_manual_marking(clean_finances_env):
+    """Test that ignored aliases in match CSVs are properly reconciled as guests and can be marked paid."""
+    import csv
+    from pathlib import Path
+
+    matches_dir = Path(os.environ["RB48_MATCHES_DIR"])
+    match_csv = matches_dir / "2026-08-01-1.csv"
+    with open(match_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["match_id", "date", "team_a", "team_b", "score_a", "score_b"])
+        writer.writerow(["2026-08-01-1", "2026-08-01", "Stefan, Nik", "Micha+1, Calvin", "10", "8"])
+
+    r_conn = get_rb48_connection()
+    # Add Calvin to ignored_aliases as well
+    r_conn.execute("INSERT OR IGNORE INTO ignored_aliases (alias) VALUES ('Calvin')")
+    create_match(r_conn, "2026-08-01-1", "2026-08-01", "box", 2, 2, 10, 8)
+    add_match_player(r_conn, "2026-08-01-1", 1, "A")  # Stefan (member)
+    add_match_player(r_conn, "2026-08-01-1", 2, "A")  # Nik (guest)
+    r_conn.commit()
+    r_conn.close()
+
+    fin_conn = get_finances_connection()
+    set_player_membership_status(fin_conn, 1, "member")
+    set_player_membership_status(fin_conn, 2, "guest")
+    fin_conn.close()
+
+    # Match overview should show 3 guests: Nik (player 2), Micha+1 (ignored), Calvin (ignored)
+    overview = get_match_history_financial_overview()
+    match_ov = next((m for m in overview if m["match_date"] == "2026-08-01"), None)
+    assert match_ov is not None
+    assert match_ov["guest_count"] == 3
+    assert match_ov["unpaid_count"] == 3
+
+    # Date guest status should list the 3 guests
+    details = get_match_date_guest_status("2026-08-01")
+    assert len(details["guest_entries"]) == 3
+    guest_names = [g["name"] for g in details["guest_entries"]]
+    assert "Nik" in guest_names
+    assert "Micha+1" in guest_names
+    assert "Calvin" in guest_names
+
+    ignored_entry = next(g for g in details["guest_entries"] if g["name"] == "Micha+1")
+    assert ignored_entry.get("is_ignored_alias") is True
+    assert ignored_entry["player_id"] == "ignored:Micha+1"
+    assert ignored_entry["payment_status"] == "unpaid"
+
+    # All unpaid guest entries should include Micha+1 and Calvin
+    unpaid = get_all_unpaid_guest_entries()
+    unpaid_names = [u["name"] for u in unpaid if u["match_date"] == "2026-08-01"]
+    assert "Nik" in unpaid_names
+    assert "Micha+1" in unpaid_names
+    assert "Calvin" in unpaid_names
+
+    # Manually mark Micha+1 as paid
+    manual_mark_match_guest_payment("2026-08-01", "ignored:Micha+1", payment_method="paypal")
+
+    # Re-verify
+    details_after = get_match_date_guest_status("2026-08-01")
+    micha_after = next(g for g in details_after["guest_entries"] if g["name"] == "Micha+1")
+    assert micha_after["payment_status"] == "paid"
+
+    unpaid_after = get_all_unpaid_guest_entries()
+    unpaid_names_after = [u["name"] for u in unpaid_after if u["match_date"] == "2026-08-01"]
+    assert "Micha+1" not in unpaid_names_after
+    assert "Calvin" in unpaid_names_after
+    assert "Nik" in unpaid_names_after
+
+
+def test_third_party_settlement_for_ignored_alias_and_no_remember(clean_finances_env):
+    """Test settling a payment for an ignored alias beneficiary without storing identity."""
+    f_conn = get_finances_connection()
+    tx_id = insert_transaction(
+        f_conn,
+        source="paypal",
+        tx_code="JULIAN-PAY-CALVIN",
+        date="2026-08-02",
+        time="12:00:00",
+        raw_payer_name="Julian Korsch",
+        raw_payer_email="julian.korsch@example.com",
+        amount=3.50,
+        status="imported",
+        is_confirmed=0,
+    )
+    f_conn.close()
+
+    # Settle transaction: payer = Stefan (player 1), beneficiary = ignored:Calvin, remember=False
+    res = settle_transaction_and_debts(
+        transaction_id=tx_id,
+        payer_player_id=1,
+        beneficiary_player_id="ignored:Calvin",
+        remember=False,
+    )
+    assert res["success"] is True
+
+    f_conn = get_finances_connection()
+    tx = get_transaction_by_id(f_conn, tx_id)
+    assert tx["status"] == "assigned"
+    assert tx["is_confirmed"] == 1
+
+    allocs = f_conn.execute("SELECT * FROM payment_allocations WHERE transaction_id = ?", (tx_id,)).fetchall()
+    assert len(allocs) == 1
+    assert allocs[0]["guest_alias"] == "Calvin"
+    assert allocs[0]["player_id"] is None
+
+    # Check identities: no identity should be stored for Calvin or mapped erroneously
+    idents = get_identities(f_conn)
+    for ident in idents:
+        assert ident["player_id"] != "ignored:Calvin"
+    f_conn.close()
+
+
+def test_historical_kicks_guest_fee_when_now_member(clean_finances_env):
+    """Test that a player who became a member later is still tracked as a guest for kicks before member_since."""
+    r_conn = get_rb48_connection()
+    r_conn.execute("INSERT INTO players (player_id) VALUES (50)")
+    r_conn.execute("INSERT INTO aliases (alias, player_id) VALUES ('Malte', 50)")
+    # Match on 2026-07-01 (when Malte was a guest)
+    create_match(r_conn, "2026-07-01-1", "2026-07-01", "box", 1, 1, 5, 2)
+    add_match_player(r_conn, "2026-07-01-1", 50, "A")
+    # Match on 2026-09-15 (after Malte became a member)
+    create_match(r_conn, "2026-09-15-1", "2026-09-15", "box", 1, 1, 5, 4)
+    add_match_player(r_conn, "2026-09-15-1", 50, "A")
+    r_conn.commit()
+    r_conn.close()
+
+    fin_conn = get_finances_connection()
+    # Malte became a member on 2026-09-01
+    set_player_membership_status(fin_conn, 50, "member", member_since="2026-09-01")
+    fin_conn.close()
+
+    # As of 2026-07-01, Malte was a guest
+    f_conn = get_finances_connection()
+    status_jul = resolve_player_membership_status(50, finances_conn=f_conn, as_of_date="2026-07-01")
+    assert status_jul == "guest"
+
+    # As of 2026-09-15, Malte is a member
+    status_sep = resolve_player_membership_status(50, finances_conn=f_conn, as_of_date="2026-09-15")
+    assert status_sep == "member"
+    f_conn.close()
+
+    # Unpaid guest entries should include Malte for 2026-07-01, but NOT for 2026-09-15
+    unpaid = get_all_unpaid_guest_entries()
+    malte_unpaid_dates = [u["match_date"] for u in unpaid if u["player_id"] == 50]
+    assert "2026-07-01" in malte_unpaid_dates
+    assert "2026-09-15" not in malte_unpaid_dates
 
 
 

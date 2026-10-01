@@ -74,6 +74,14 @@ def create_finance_tables(connection):
         connection.execute("ALTER TABLE payment_allocations ADD COLUMN paid_by_user_id INTEGER DEFAULT NULL")
     except Exception:
         pass
+    try:
+        connection.execute("ALTER TABLE payment_allocations ADD COLUMN guest_alias TEXT DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        connection.execute("ALTER TABLE player_membership_status ADD COLUMN member_since TEXT DEFAULT NULL")
+    except Exception:
+        pass
 
     connection.execute("""
         CREATE TABLE IF NOT EXISTS payment_identities (
@@ -352,6 +360,7 @@ def add_payment_allocation(
     note: str | None = None,
     paid_by_player_id: int | None = None,
     paid_by_user_id: int | None = None,
+    guest_alias: str | None = None,
 ) -> int:
     """Record a payment allocation linking transaction/cash to a debt/event."""
     now = datetime.now(timezone.utc).isoformat()
@@ -360,8 +369,8 @@ def add_payment_allocation(
         INSERT INTO payment_allocations (
             transaction_id, fee_type, event_id, match_date, player_id,
             attendee_id, period, allocated_amount, payment_method, note,
-            paid_by_player_id, paid_by_user_id, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            paid_by_player_id, paid_by_user_id, guest_alias, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             transaction_id,
@@ -376,6 +385,7 @@ def add_payment_allocation(
             note.strip() if note else None,
             paid_by_player_id,
             paid_by_user_id,
+            guest_alias.strip() if guest_alias else None,
             now,
         ),
     )
@@ -431,6 +441,16 @@ def get_all_player_membership_statuses(connection) -> dict[int, str]:
     return {row["player_id"]: row["status"] for row in cursor.fetchall()}
 
 
+def get_all_player_membership_records(connection) -> dict[int, dict]:
+    """Return dictionary mapping player_id -> {'status': str, 'member_since': str|None, 'updated_at': str}."""
+    try:
+        cursor = connection.execute("SELECT player_id, status, member_since, updated_at FROM player_membership_status")
+        return {row["player_id"]: dict(row) for row in cursor.fetchall()}
+    except Exception:
+        cursor = connection.execute("SELECT player_id, status, updated_at FROM player_membership_status")
+        return {row["player_id"]: {"player_id": row["player_id"], "status": row["status"], "member_since": None, "updated_at": row["updated_at"]} for row in cursor.fetchall()}
+
+
 def get_player_membership_status(connection, player_id: int, default: str = "guest") -> str:
     """Return membership status for a single player."""
     row = connection.execute(
@@ -440,18 +460,24 @@ def get_player_membership_status(connection, player_id: int, default: str = "gue
     return row["status"] if row else default
 
 
-def set_player_membership_status(connection, player_id: int, status: str):
-    """Set or update player membership status ('member' or 'guest')."""
+def set_player_membership_status(connection, player_id: int, status: str, member_since: str | None = None):
+    """Set or update player membership status ('member' or 'guest'), optionally with member_since date."""
     if status not in ("member", "guest"):
         status = "guest"
     now = datetime.now(timezone.utc).isoformat()
+    if status == "guest":
+        member_since = None
+
     connection.execute(
         """
-        INSERT INTO player_membership_status (player_id, status, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(player_id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at
+        INSERT INTO player_membership_status (player_id, status, member_since, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(player_id) DO UPDATE SET
+            status = excluded.status,
+            member_since = excluded.member_since,
+            updated_at = excluded.updated_at
         """,
-        (player_id, status, now),
+        (player_id, status, member_since, now),
     )
     connection.commit()
 

@@ -246,9 +246,12 @@
                                     </thead>
                                     <tbody>
                                         {% for g in selected_date_details.guest_entries %}
-                                            <tr id="guest-row-{{ g.player_id }}" data-name="{{ g.name }}" data-unpaid="{% if g.payment_status in ('unpaid', 'partial') %}1{% else %}0{% endif %}" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                            <tr id="guest-row-{{ g.id_slug }}" data-name="{{ g.name }}" data-unpaid="{% if g.payment_status in ('unpaid', 'partial') %}1{% else %}0{% endif %}" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
                                                 <td style="padding: 12px 8px;">
                                                     <strong style="color: #ffffff;">{{ g.name }}</strong>
+                                                    {% if g.is_ignored_alias %}
+                                                        <span style="font-size: 10px; background: rgba(255, 193, 7, 0.15); color: #ffe082; padding: 1px 5px; border-radius: 3px; margin-left: 4px;">Extern</span>
+                                                    {% endif %}
                                                 </td>
                                                 <td style="padding: 12px 8px; color: var(--text-muted); font-size: 12px;">
                                                     {{ g.aliases_str }}
@@ -256,7 +259,7 @@
                                                 <td style="padding: 12px 8px; font-weight: 600; color: #80deea;">
                                                     {{ "%.2f"|format(g.fee_required)|replace(".", ",") }} €
                                                 </td>
-                                                <td style="padding: 12px 8px;" id="status-match-{{ g.player_id }}">
+                                                <td style="padding: 12px 8px;" id="status-match-{{ g.id_slug }}">
                                                     {% if g.payment_status == 'paid' %}
                                                         <span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟢 Bezahlt (PayPal)</span>
                                                     {% elif g.payment_status == 'cash' %}
@@ -274,16 +277,16 @@
                                                 </td>
                                                 <td style="padding: 12px 8px; text-align: right;">
                                                     <div style="display: inline-flex; gap: 4px;">
-                                                        <button type="button" class="secondary" onclick="markMatchGuest('{{ selected_date_details.match_date }}', {{ g.player_id }}, 'cash')" style="font-size: 11px; padding: 3px 8px;" title="Als bar bezahlt markieren">
+                                                        <button type="button" class="secondary" onclick="markMatchGuest('{{ selected_date_details.match_date }}', '{{ g.player_id }}', '{{ g.id_slug }}', 'cash')" style="font-size: 11px; padding: 3px 8px;" title="Als bar bezahlt markieren">
                                                             💵 Bar
                                                         </button>
-                                                        <button type="button" class="secondary" onclick="markMatchGuest('{{ selected_date_details.match_date }}', {{ g.player_id }}, 'paypal')" style="font-size: 11px; padding: 3px 8px;" title="Als bezahlt markieren">
+                                                        <button type="button" class="secondary" onclick="markMatchGuest('{{ selected_date_details.match_date }}', '{{ g.player_id }}', '{{ g.id_slug }}', 'paypal')" style="font-size: 11px; padding: 3px 8px;" title="Als bezahlt markieren">
                                                             ✅ Bezahlt
                                                         </button>
-                                                        <button type="button" class="secondary" onclick="markMatchGuest('{{ selected_date_details.match_date }}', {{ g.player_id }}, 'waived')" style="font-size: 11px; padding: 3px 8px; color: var(--text-muted);" title="Beitrag erlassen">
+                                                        <button type="button" class="secondary" onclick="markMatchGuest('{{ selected_date_details.match_date }}', '{{ g.player_id }}', '{{ g.id_slug }}', 'waived')" style="font-size: 11px; padding: 3px 8px; color: var(--text-muted);" title="Beitrag erlassen">
                                                             ⚪ Erlassen
                                                         </button>
-                                                        <button type="button" class="secondary" onclick="markMatchGuest('{{ selected_date_details.match_date }}', {{ g.player_id }}, 'unpaid')" style="font-size: 11px; padding: 3px 8px; color: #ff8888;" title="Als offen zurücksetzen">
+                                                        <button type="button" class="secondary" onclick="markMatchGuest('{{ selected_date_details.match_date }}', '{{ g.player_id }}', '{{ g.id_slug }}', 'unpaid')" style="font-size: 11px; padding: 3px 8px; color: #ff8888;" title="Als offen zurücksetzen">
                                                             🔴 Offen
                                                         </button>
                                                     </div>
@@ -753,13 +756,13 @@
                                                     </div>
 
                                                     <details style="font-size: 11px; width: 100%; text-align: left;">
-                                                        <summary style="cursor: pointer; color: #80deea; font-size: 10.5px;">Für anderen Gast bezahlt? (z. B. Paul) →</summary>
+                                                        <summary style="cursor: pointer; color: #80deea; font-size: 10.5px;">Für wen anders bezahlt? (z. B. Malte, Paul) →</summary>
                                                         <div style="margin-top: 4px; display: flex; gap: 4px; align-items: center;">
-                                                            <span style="font-size: 10.5px; color: var(--text-muted); white-space: nowrap;">Begleicht:</span>
-                                                            <select name="beneficiary_player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; width: 100%;">
-                                                                <option value="">-- Für sich selbst --</option>
-                                                                <optgroup label="Gäste & Spieler">
-                                                                    {% for p in player_list %}
+                                                            <span style="font-size: 10.5px; color: var(--text-muted); white-space: nowrap;">Begleicht für:</span>
+                                                            <select name="beneficiary_player_id" onchange="const rem = this.closest('form').querySelector('input[name=remember_identity]'); if (rem && this.value) { rem.checked = false; }" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; width: 100%;">
+                                                                <option value="">-- Für sich selbst (Zahler) --</option>
+                                                                <optgroup label="Gastspieler">
+                                                                    {% for p in player_list if p.status == 'guest' %}
                                                                         <option value="{{ p.player_id }}">{{ p.name }}</option>
                                                                     {% endfor %}
                                                                 </optgroup>
@@ -770,13 +773,18 @@
                                                                     {% endfor %}
                                                                 </optgroup>
                                                                 {% endif %}
+                                                                <optgroup label="Mitglieder (auch ehem. Gäste)">
+                                                                    {% for p in player_list if p.status == 'member' %}
+                                                                        <option value="{{ p.player_id }}">{{ p.name }}</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
                                                             </select>
                                                         </div>
                                                     </details>
 
                                                     <div style="display: flex; gap: 4px; align-items: center; margin-top: 2px;">
-                                                        <label style="font-size: 10.5px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;" title="Dauerhaft für zukünftige Uploads dieser E-Mail merken">
-                                                            <input type="checkbox" name="remember_identity" value="1" checked> 💾 Merken
+                                                        <label style="font-size: 10.5px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;" title="Nur den Zahler merken (nicht dauerhaft mit dem Begünstigten verknüpfen)">
+                                                            <input type="checkbox" name="remember_identity" value="1" checked> 💾 Zahler merken
                                                         </label>
                                                         <button type="submit" class="primary" style="font-size: 11px; padding: 3px 8px; cursor: pointer;">
                                                             ✓ Zuweisen & Begleichen
@@ -888,11 +896,13 @@
 </div>
 
 <script>
-function markMatchGuest(matchDate, playerId, method) {
+function markMatchGuest(matchDate, playerId, idSlug, method) {
     const formData = new FormData();
     formData.append('match_date', matchDate);
     formData.append('player_id', playerId);
     formData.append('payment_method', method);
+
+    const targetSlug = idSlug || playerId;
 
     fetch('{{ url_for("finances.mark_match_guest") }}', {
         method: 'POST',
@@ -902,9 +912,9 @@ function markMatchGuest(matchDate, playerId, method) {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            const col = document.getElementById('status-match-' + playerId);
+            const col = document.getElementById('status-match-' + targetSlug);
             if (col) {
-                const row = document.getElementById('guest-row-' + playerId);
+                const row = document.getElementById('guest-row-' + targetSlug);
                 if (method === 'cash') {
                     col.innerHTML = '<span style="background: rgba(128, 222, 234, 0.25); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">💵 Bar bezahlt</span>';
                     if (row) row.setAttribute('data-unpaid', '0');

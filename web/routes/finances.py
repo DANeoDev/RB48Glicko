@@ -237,16 +237,17 @@ def set_status():
     """Toggle or update a player's membership status ('member' or 'guest')."""
     player_id = request.form.get("player_id", type=int)
     status = request.form.get("status", "guest")
+    member_since = request.form.get("member_since")
 
     if not player_id:
         return jsonify({"success": False, "error": "Missing player ID"}), 400
 
     finances_conn = get_finances_connection()
     try:
-        set_player_membership_status(finances_conn, player_id, status)
+        set_player_membership_status(finances_conn, player_id, status, member_since=member_since)
         flash(f"Status für Spieler #{player_id} auf '{status}' aktualisiert.", "success")
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return jsonify({"success": True, "player_id": player_id, "status": status})
+            return jsonify({"success": True, "player_id": player_id, "status": status, "member_since": member_since})
         return redirect(url_for("finances.admin_finances", tab="players"))
     finally:
         finances_conn.close()
@@ -255,23 +256,23 @@ def set_status():
 @finances_bp.route("/mark-match-guest", methods=["POST"])
 @require_webmaster
 def mark_match_guest():
-    """AJAX action to mark match guest payment status for a specific date and player."""
+    """AJAX action to mark match guest payment status for a specific date and player/alias."""
     match_date = request.form.get("match_date")
-    player_id = request.form.get("player_id", type=int)
+    raw_player_id = request.form.get("player_id")
     payment_method = request.form.get("payment_method", "cash")
     note = request.form.get("note")
 
-    if not match_date or not player_id:
+    if not match_date or not raw_player_id:
         return jsonify({"success": False, "error": "Missing match date or player ID"}), 400
 
     manual_mark_match_guest_payment(
         match_date=match_date,
-        player_id=player_id,
+        player_id=raw_player_id,
         payment_method=payment_method,
         note=note,
     )
 
-    return jsonify({"success": True, "match_date": match_date, "player_id": player_id, "payment_method": payment_method})
+    return jsonify({"success": True, "match_date": match_date, "player_id": raw_player_id, "payment_method": payment_method})
 
 
 @finances_bp.route("/mark-membership-due", methods=["POST"])
@@ -485,39 +486,11 @@ def settle_transaction_route():
     remember = request.form.get("remember_identity") in ("1", "true", "on")
     match_date = request.form.get("match_date")
 
-    payer_pid = None
-    bene_pid = None
-    rb_conn = None
-    try:
-        if raw_payer_id:
-            if str(raw_payer_id).startswith("ignored:"):
-                rb_conn = get_rb48_connection()
-                payer_pid = ensure_ignored_alias_as_guest_player(rb_conn, str(raw_payer_id).split(":", 1)[1])
-            else:
-                try:
-                    payer_pid = int(raw_payer_id)
-                except (ValueError, TypeError):
-                    payer_pid = None
-
-        if raw_bene_id:
-            if str(raw_bene_id).startswith("ignored:"):
-                if rb_conn is None:
-                    rb_conn = get_rb48_connection()
-                bene_pid = ensure_ignored_alias_as_guest_player(rb_conn, str(raw_bene_id).split(":", 1)[1])
-            else:
-                try:
-                    bene_pid = int(raw_bene_id)
-                except (ValueError, TypeError):
-                    bene_pid = None
-    finally:
-        if rb_conn:
-            rb_conn.close()
-
     curr_user = get_current_user()
     res = settle_transaction_and_debts(
         transaction_id=tx_id,
-        payer_player_id=payer_pid,
-        beneficiary_player_id=bene_pid,
+        payer_player_id=raw_payer_id if raw_payer_id else None,
+        beneficiary_player_id=raw_bene_id if raw_bene_id else None,
         match_date=match_date,
         remember=remember,
         current_user_id=curr_user["id"] if curr_user else None,
