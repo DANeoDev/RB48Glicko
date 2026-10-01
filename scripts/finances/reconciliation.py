@@ -13,6 +13,7 @@ from scripts.finances.database import (
 from scripts.database.database import get_connection as get_rb48_connection
 from scripts.database.db_players import get_players
 from scripts.accounts.database import get_accounts_connection
+from scripts.finances.matcher import parse_guest_hints_from_note, normalize_text, find_player_match
 
 
 GUEST_FEE_PER_KICK = 3.50
@@ -280,6 +281,16 @@ def get_match_date_guest_status(match_date: str) -> dict:
                 else:
                     payment_status = "unpaid"
 
+                # Check if someone else paid for this guest (proxy payment)
+                paid_by_name = None
+                paid_by_pid = None
+                for a in p_allocs:
+                    if a.get("paid_by_player_id") and a["paid_by_player_id"] != pid:
+                        paid_by_pid = a["paid_by_player_id"]
+                        pb_pdata = players_dict.get(paid_by_pid, {})
+                        paid_by_name = pb_pdata.get("aliases", [f"Player #{paid_by_pid}"])[0]
+                        break
+
                 guest_entries.append({
                     "player_id": pid,
                     "name": name,
@@ -289,6 +300,8 @@ def get_match_date_guest_status(match_date: str) -> dict:
                     "amount_paid": paid_sum,
                     "payment_status": payment_status,
                     "allocations": p_allocs,
+                    "paid_by_name": paid_by_name,
+                    "paid_by_player_id": paid_by_pid,
                 })
             else:
                 member_entries.append({
@@ -503,7 +516,19 @@ def auto_allocate_transaction_to_debts(
                 remaining_amount -= MEMBERSHIP_DUE_PER_HALFYEAR
                 covered += 1
 
-        # Match history guest kicks (3.50 €)
+        # Check if this is a proxy payment (member paying for guests)
+        if remaining_amount >= GUEST_FEE_PER_KICK and status == 'member':
+            # Member paying 3.50€ multiples -> likely paying for guests
+            remainder_check = remaining_amount % GUEST_FEE_PER_KICK
+            is_guest_fee_multiple = remainder_check < 0.01 or (GUEST_FEE_PER_KICK - remainder_check) < 0.01
+            if is_guest_fee_multiple:
+                proxy_covered = auto_allocate_proxy_guest_payment(
+                    transaction_id, player_id,
+                )
+                covered += proxy_covered
+                return covered  # Proxy allocation handled the rest
+
+        # Match history guest kicks (3.50 €) -- for self-paying guests
         match_date_rows = rb48_conn.execute(
             """
             SELECT DISTINCT date
@@ -540,6 +565,368 @@ def auto_allocate_transaction_to_debts(
             covered += 1
 
         return covered
+    finally:
+        finances_conn.close()
+        rb48_conn.close()
+        accounts_conn.close()
+
+
+def find_member_guests_for_date(
+    payer_player_id: int,
+    match_date: str,
+    finances_conn=None,
+    rb48_conn=None,
+    accounts_conn=None,
+) -> list[dict]:
+    """Find unpaid guest players associated with a member for a given match date.
+    
+    Uses two strategies:
+    1. Planner data: guests registered by this member (via registered_by_user_id)
+    2. Match history: all guest players who played on that date with unpaid fees
+    
+    Returns list of dicts with player_id, name, source ('planner' or 'match_history').
+    """
+    from scripts.planner.database import get_planner_connection
+    from scripts.database.db_players import get_players
+    
+    close_fin = close_rb = close_acc = False
+    if finances_conn is None:
+        finances_conn = get_finances_connection()
+        close_fin = True
+    if rb48_conn is None:
+        rb48_conn = get_rb48_connection()
+        close_rb = True
+    if accounts_conn is None:
+        accounts_conn = get_accounts_connection()
+        close_acc = True
+    
+    try:
+        players_dict = get_players(rb48_conn)
+        explicit_statuses = get_all_player_membership_statuses(finances_conn)
+        user_rows = accounts_conn.execute(
+            "SELECT player_id FROM users WHERE player_id IS NOT NULL"
+        ).fetchall()
+        linked_player_ids = {u["player_id"] for u in user_rows}
+        
+        # Find payer's user_id
+        payer_user = accounts_conn.execute(
+            "SELECT id FROM users WHERE player_id = ?", (payer_player_id,)
+        ).fetchone()
+        payer_user_id = payer_user["id"] if payer_user else None
+        
+        results = []
+        seen_pids = set()
+        
+        # Strategy 1: Planner-based guest lookup
+        if payer_user_id:
+            try:
+                planner_conn = get_planner_connection()
+                # Find events on or near this date (within ±3 days)
+                events = planner_conn.execute(
+                    """
+                    SELECT id, event_date FROM events
+                    WHERE ABS(julianday(event_date) - julianday(?)) <= 3
+                    ORDER BY ABS(julianday(event_date) - julianday(?)) ASC
+                    """,
+                    (match_date, match_date),
+                ).fetchall()
+                
+                for event in events:
+                    guests = planner_conn.execute(
+                        """
+                        SELECT id, name, user_id FROM attendees
+                        WHERE event_id = ? AND registered_by_user_id = ? AND is_guest = 1 AND status = 'attending'
+                        ORDER BY guest_index ASC
+                        """,
+                        (event["id"], payer_user_id),
+                    ).fetchall()
+                    
+                    for g in guests:
+                        # Try to find the guest's player_id by matching their name against aliases
+                        guest_name = g["name"]
+                        # Strip the "(MemberName +N)" suffix from guest names
+                        import re as _re
+                        clean_guest_name = _re.sub(r'\s*\([^)]+\)\s*$', '', guest_name).strip()
+                        
+                        # Match guest name to player_id via aliases
+                        guest_match = _find_guest_player_id(clean_guest_name, rb48_conn, players_dict)
+                        if guest_match and guest_match not in seen_pids:
+                            # Check this player is actually a guest and has unpaid fees
+                            status = resolve_player_membership_status(
+                                guest_match, explicit_statuses=explicit_statuses,
+                                linked_player_ids=linked_player_ids,
+                            )
+                            if status == 'guest':
+                                allocs = get_allocations_for_match_date(finances_conn, match_date)
+                                paid = sum(
+                                    a["allocated_amount"] for a in allocs
+                                    if a.get("player_id") == guest_match and a["payment_method"] != "waived"
+                                )
+                                if paid < GUEST_FEE_PER_KICK:
+                                    pdata = players_dict.get(guest_match, {})
+                                    results.append({
+                                        "player_id": guest_match,
+                                        "name": pdata.get("aliases", [clean_guest_name])[0],
+                                        "source": "planner",
+                                        "attendee_id": g["id"],
+                                    })
+                                    seen_pids.add(guest_match)
+                planner_conn.close()
+            except Exception:
+                pass  # Planner DB may not exist
+        
+        # Strategy 2: All unpaid guests who played on this match date
+        prows = rb48_conn.execute(
+            """
+            SELECT DISTINCT player_id
+            FROM matches JOIN match_players USING(match_id)
+            WHERE date = ?
+            """,
+            (match_date,),
+        ).fetchall()
+        
+        for r in prows:
+            pid = r["player_id"]
+            if pid in seen_pids or pid == payer_player_id:
+                continue
+            
+            status = resolve_player_membership_status(
+                pid, explicit_statuses=explicit_statuses,
+                linked_player_ids=linked_player_ids,
+            )
+            if status != 'guest':
+                continue
+            
+            allocs = get_allocations_for_match_date(finances_conn, match_date)
+            paid = sum(
+                a["allocated_amount"] for a in allocs
+                if a.get("player_id") == pid and a["payment_method"] != "waived"
+            )
+            if paid < GUEST_FEE_PER_KICK:
+                pdata = players_dict.get(pid, {})
+                results.append({
+                    "player_id": pid,
+                    "name": pdata.get("aliases", [f"Player #{pid}"])[0],
+                    "source": "match_history",
+                })
+                seen_pids.add(pid)
+        
+        return results
+    finally:
+        if close_fin:
+            finances_conn.close()
+        if close_rb:
+            rb48_conn.close()
+        if close_acc:
+            accounts_conn.close()
+
+
+def _find_guest_player_id(guest_name: str, rb48_conn, players_dict: dict) -> int | None:
+    """Try to match a guest name string to a player_id using aliases."""
+    norm_guest = normalize_text(guest_name)
+    if not norm_guest:
+        return None
+    
+    alias_rows = rb48_conn.execute("SELECT alias, player_id FROM aliases").fetchall()
+    for row in alias_rows:
+        if normalize_text(row["alias"]) == norm_guest:
+            return row["player_id"]
+    
+    # Fuzzy: check if any alias is a substring or starts-with
+    guest_tokens = norm_guest.split()
+    for row in alias_rows:
+        norm_alias = normalize_text(row["alias"])
+        if not norm_alias:
+            continue
+        for token in guest_tokens:
+            if token == norm_alias or (len(token) >= 3 and token.startswith(norm_alias)):
+                return row["player_id"]
+    
+    return None
+
+
+def auto_allocate_proxy_guest_payment(
+    transaction_id: int,
+    payer_player_id: int,
+    guest_allocations: list[dict] | None = None,
+) -> int:
+    """Allocate a member's payment to guest debts.
+    
+    Args:
+        transaction_id: The finance_transactions.id
+        payer_player_id: The member who paid
+        guest_allocations: Optional pre-determined list of
+            [{'player_id': int, 'match_date': str, 'amount': float, 'attendee_id': int|None}]
+            If None, auto-detects guests based on payment date and amount.
+    
+    Returns number of guest debts covered.
+    """
+    finances_conn = get_finances_connection()
+    rb48_conn = get_rb48_connection()
+    accounts_conn = get_accounts_connection()
+    
+    try:
+        tx = get_transaction_by_id(finances_conn, transaction_id)
+        if not tx or tx["amount"] <= 0:
+            return 0
+        
+        remaining = float(tx["amount"])
+        covered = 0
+        
+        if guest_allocations:
+            # Use explicit allocations from admin
+            for alloc in guest_allocations:
+                amount = float(alloc.get("amount", GUEST_FEE_PER_KICK))
+                if remaining < amount:
+                    break
+                
+                add_payment_allocation(
+                    finances_conn,
+                    fee_type="match_guest",
+                    allocated_amount=amount,
+                    payment_method=tx["source"],
+                    transaction_id=transaction_id,
+                    match_date=alloc.get("match_date"),
+                    player_id=alloc["player_id"],
+                    attendee_id=alloc.get("attendee_id"),
+                    paid_by_player_id=payer_player_id,
+                    note=f"Stellvertreter-Zahlung von Spieler #{payer_player_id}",
+                )
+                remaining -= amount
+                covered += 1
+        else:
+            # Auto-detect: find match dates near the payment date
+            tx_date = tx["date"]
+            num_guests = int(remaining / GUEST_FEE_PER_KICK)
+            if num_guests <= 0:
+                return 0
+            
+            # Find nearby match dates (±3 days)
+            date_rows = rb48_conn.execute(
+                """
+                SELECT DISTINCT date
+                FROM matches
+                WHERE ABS(julianday(date) - julianday(?)) <= 3
+                ORDER BY ABS(julianday(date) - julianday(?)) ASC
+                """,
+                (tx_date, tx_date),
+            ).fetchall()
+            
+            for drow in date_rows:
+                if remaining < GUEST_FEE_PER_KICK:
+                    break
+                
+                mdate = drow["date"]
+                unpaid_guests = find_member_guests_for_date(
+                    payer_player_id, mdate,
+                    finances_conn=finances_conn,
+                    rb48_conn=rb48_conn,
+                    accounts_conn=accounts_conn,
+                )
+                
+                for guest in unpaid_guests:
+                    if remaining < GUEST_FEE_PER_KICK:
+                        break
+                    
+                    add_payment_allocation(
+                        finances_conn,
+                        fee_type="match_guest",
+                        allocated_amount=GUEST_FEE_PER_KICK,
+                        payment_method=tx["source"],
+                        transaction_id=transaction_id,
+                        match_date=mdate,
+                        player_id=guest["player_id"],
+                        attendee_id=guest.get("attendee_id"),
+                        paid_by_player_id=payer_player_id,
+                        note=f"Stellvertreter-Zahlung von Spieler #{payer_player_id}",
+                    )
+                    remaining -= GUEST_FEE_PER_KICK
+                    covered += 1
+        
+        return covered
+    finally:
+        finances_conn.close()
+        rb48_conn.close()
+        accounts_conn.close()
+
+
+def get_proxy_payment_suggestion(
+    transaction_id: int,
+    payer_player_id: int,
+) -> dict | None:
+    """Generate a smart-split suggestion for a member's guest fee payment.
+    
+    Returns None if this doesn't look like a proxy payment.
+    Returns dict with 'suggested_guests', 'match_date', 'num_kicks', 'total' if it does.
+    """
+    finances_conn = get_finances_connection()
+    rb48_conn = get_rb48_connection()
+    accounts_conn = get_accounts_connection()
+    
+    try:
+        tx = get_transaction_by_id(finances_conn, transaction_id)
+        if not tx or tx["amount"] <= 0:
+            return None
+        
+        amount = float(tx["amount"])
+        
+        # Check if amount is a multiple of guest fee
+        remainder = amount % GUEST_FEE_PER_KICK
+        if remainder > 0.01 and (GUEST_FEE_PER_KICK - remainder) > 0.01:
+            return None  # Not a clean multiple
+        
+        num_kicks = round(amount / GUEST_FEE_PER_KICK)
+        if num_kicks <= 0:
+            return None
+        
+        # Check if payer is a member
+        status = resolve_player_membership_status(payer_player_id, finances_conn, accounts_conn)
+        if status != 'member':
+            return None  # Not a member, standard self-payment flow
+        
+        # Find nearby match dates
+        tx_date = tx["date"]
+        date_rows = rb48_conn.execute(
+            """
+            SELECT DISTINCT date
+            FROM matches
+            WHERE ABS(julianday(date) - julianday(?)) <= 3
+            ORDER BY ABS(julianday(date) - julianday(?)) ASC
+            """,
+            (tx_date, tx_date),
+        ).fetchall()
+        
+        all_guests = []
+        best_date = None
+        for drow in date_rows:
+            mdate = drow["date"]
+            guests = find_member_guests_for_date(
+                payer_player_id, mdate,
+                finances_conn=finances_conn,
+                rb48_conn=rb48_conn,
+                accounts_conn=accounts_conn,
+            )
+            if guests:
+                if not best_date:
+                    best_date = mdate
+                all_guests.extend([{**g, 'match_date': mdate} for g in guests])
+        
+        # Also parse note hints
+        note_hints = []
+        tx_note = tx.get("note") or ""
+        if tx_note:
+            from scripts.finances.matcher import parse_guest_hints_from_note
+            note_hints = parse_guest_hints_from_note(tx_note)
+        
+        return {
+            "is_proxy_payment": True,
+            "num_kicks": num_kicks,
+            "total": amount,
+            "match_date": best_date,
+            "suggested_guests": all_guests[:num_kicks],  # Suggest up to num_kicks guests
+            "all_available_guests": all_guests,
+            "note_hints": note_hints,
+        }
     finally:
         finances_conn.close()
         rb48_conn.close()

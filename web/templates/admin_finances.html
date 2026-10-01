@@ -173,6 +173,9 @@
                                                     {% else %}
                                                         <span style="background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🔴 Offen</span>
                                                     {% endif %}
+                                                    {% if g.paid_by_name %}
+                                                        <div style="font-size: 10.5px; color: #ffe082; margin-top: 2px;">💳 bezahlt von {{ g.paid_by_name }}</div>
+                                                    {% endif %}
                                                 </td>
                                                 <td style="padding: 12px 8px; text-align: right;">
                                                     <div style="display: inline-flex; gap: 4px;">
@@ -439,6 +442,9 @@
                                 <td style="padding: 12px 8px;">
                                     {% if tx.is_confirmed and tx.matched_player_name %}
                                         <span style="color: #80deea; font-weight: 700;">✓ {{ tx.matched_player_name }}</span>
+                                        {% if tx.get('proxy_allocations_count') %}
+                                            <div style="font-size: 10.5px; color: #ffe082; margin-top: 2px;">🔀 {{ tx.proxy_allocations_count }}× Gastbeitrag (Stellvertreter)</div>
+                                        {% endif %}
                                     {% elif tx.suggestion and tx.suggestion.player_id %}
                                         <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                                             <strong style="color: #ffe082;">{{ tx.suggestion_player_name }}</strong>
@@ -464,23 +470,79 @@
                                 </td>
                                 <td style="padding: 12px 8px; text-align: right; white-space: nowrap;">
                                     {% if tx.status != 'expense' %}
-                                        <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: inline-flex; gap: 6px; align-items: center; margin: 0;">
-                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                            <select name="player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 12px; padding: 4px 6px; border-radius: 4px;">
-                                                <option value="">-- Spieler wählen --</option>
-                                                {% for p in player_list %}
-                                                    <option value="{{ p.player_id }}" {% if (tx.matched_player_id == p.player_id) or (not tx.matched_player_id and tx.suggestion and tx.suggestion.player_id == p.player_id) %}selected{% endif %}>
-                                                        {{ p.name }}
-                                                    </option>
-                                                {% endfor %}
-                                            </select>
-                                            <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;" title="Dauerhaft für zukünftige Uploads dieser E-Mail merken">
-                                                <input type="checkbox" name="remember_identity" value="1" checked> 💾 Merken
-                                            </label>
-                                            <button type="submit" class="primary" style="font-size: 11.5px; padding: 4px 8px; cursor: pointer;">
-                                                ✓ Zuweisen
-                                            </button>
-                                        </form>
+                                        {% if tx.get('is_proxy_candidate') and not tx.is_confirmed %}
+                                            {# Proxy payment split UI #}
+                                            <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
+                                                <div style="background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.4); border-radius: 6px; padding: 8px 10px; font-size: 11.5px; text-align: left; max-width: 320px;">
+                                                    <div style="color: #ffe082; font-weight: 700; margin-bottom: 4px;">🔀 Stellvertreter-Zahlung erkannt</div>
+                                                    <div style="color: var(--text-muted);">
+                                                        {{ tx.suggestion_player_name or tx.matched_player_name }} ist Mitglied → vermutlich {{ tx.proxy_num_kicks }}× Gastbeitrag ({{ "%.2f"|format(tx.proxy_num_kicks * 3.50)|replace(".", ",") }} €)
+                                                    </div>
+                                                </div>
+                                                <form method="post" action="{{ url_for('finances.split_assign_transaction') }}" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end; margin: 0;" id="split-form-{{ tx.id }}">
+                                                    <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                    <input type="hidden" name="paid_by_player_id" value="{{ tx.suggestion.player_id if tx.suggestion else tx.matched_player_id }}">
+                                                    <input type="hidden" name="allocations" id="split-allocs-{{ tx.id }}" value="[]">
+                                                    <div id="split-slots-{{ tx.id }}" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+                                                        {% for i in range(tx.proxy_num_kicks) %}
+                                                        <div style="display: flex; gap: 4px; align-items: center;">
+                                                            <select name="guest_{{ i }}" class="split-guest-select" data-form-id="{{ tx.id }}" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 3px 4px; border-radius: 4px; flex: 1;">
+                                                                <option value="">-- Gast {{ i + 1 }} --</option>
+                                                                {% for p in player_list if p.status == 'guest' %}
+                                                                    <option value="{{ p.player_id }}">{{ p.name }}</option>
+                                                                {% endfor %}
+                                                            </select>
+                                                            <span style="font-size: 11px; color: var(--text-muted); white-space: nowrap;">3,50 €</span>
+                                                        </div>
+                                                        {% endfor %}
+                                                    </div>
+                                                    <div style="display: flex; gap: 4px; align-items: center;">
+                                                        <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;">
+                                                            <input type="checkbox" name="remember_identity" value="1" checked> 💾
+                                                        </label>
+                                                        <button type="submit" class="primary" style="font-size: 11px; padding: 4px 10px; cursor: pointer;" onclick="return prepareSplitAllocations('{{ tx.id }}')">
+                                                            🔀 Aufteilen & Zuweisen
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                                {# Fallback: normal single assignment #}
+                                                <details style="width: 100%;">
+                                                    <summary style="font-size: 10.5px; color: var(--text-muted); cursor: pointer;">Oder: Einzelzuordnung →</summary>
+                                                    <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: inline-flex; gap: 6px; align-items: center; margin-top: 4px;">
+                                                        <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                        <select name="player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 12px; padding: 4px 6px; border-radius: 4px;">
+                                                            <option value="">-- Spieler --</option>
+                                                            {% for p in player_list %}
+                                                                <option value="{{ p.player_id }}" {% if tx.suggestion and tx.suggestion.player_id == p.player_id %}selected{% endif %}>{{ p.name }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                        <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;">
+                                                            <input type="checkbox" name="remember_identity" value="1" checked> 💾
+                                                        </label>
+                                                        <button type="submit" class="primary" style="font-size: 11.5px; padding: 4px 8px; cursor: pointer;">✓ Zuweisen</button>
+                                                    </form>
+                                                </details>
+                                            </div>
+                                        {% else %}
+                                            {# Standard single-player assignment #}
+                                            <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: inline-flex; gap: 6px; align-items: center; margin: 0;">
+                                                <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                <select name="player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 12px; padding: 4px 6px; border-radius: 4px;">
+                                                    <option value="">-- Spieler wählen --</option>
+                                                    {% for p in player_list %}
+                                                        <option value="{{ p.player_id }}" {% if (tx.matched_player_id == p.player_id) or (not tx.matched_player_id and tx.suggestion and tx.suggestion.player_id == p.player_id) %}selected{% endif %}>
+                                                            {{ p.name }}
+                                                        </option>
+                                                    {% endfor %}
+                                                </select>
+                                                <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;" title="Dauerhaft für zukünftige Uploads dieser E-Mail merken">
+                                                    <input type="checkbox" name="remember_identity" value="1" checked> 💾 Merken
+                                                </label>
+                                                <button type="submit" class="primary" style="font-size: 11.5px; padding: 4px 8px; cursor: pointer;">
+                                                    ✓ Zuweisen
+                                                </button>
+                                            </form>
+                                        {% endif %}
                                     {% endif %}
                                 </td>
                             </tr>
@@ -661,6 +723,43 @@ function markMembershipDue(period, playerId, method) {
         }
     })
     .catch(err => console.error('Error updating membership due:', err));
+}
+
+function prepareSplitAllocations(txId) {
+    const form = document.getElementById('split-form-' + txId);
+    const selects = form.querySelectorAll('.split-guest-select');
+    const allocations = [];
+    let hasEmpty = false;
+    
+    selects.forEach(function(sel) {
+        const playerId = parseInt(sel.value);
+        if (!playerId) {
+            hasEmpty = true;
+            sel.style.borderColor = '#ff4444';
+        } else {
+            sel.style.borderColor = '';
+            allocations.push({
+                player_id: playerId,
+                amount: 3.50,
+                match_date: null  // Will be auto-detected by backend
+            });
+        }
+    });
+    
+    if (hasEmpty) {
+        alert('Bitte alle Gast-Slots ausf\u00fcllen oder Einzelzuordnung verwenden.');
+        return false;
+    }
+    
+    // Check for duplicates
+    const ids = allocations.map(a => a.player_id);
+    if (new Set(ids).size !== ids.length) {
+        alert('Jeder Gast darf nur einmal ausgew\u00e4hlt werden.');
+        return false;
+    }
+    
+    document.getElementById('split-allocs-' + txId).value = JSON.stringify(allocations);
+    return true;
 }
 </script>
 {% endblock %}

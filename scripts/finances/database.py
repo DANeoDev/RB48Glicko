@@ -59,6 +59,22 @@ def create_finance_tables(connection):
         WHERE tx_code IS NOT NULL AND tx_code != ''
     """)
 
+    # Migration: add note column for PayPal payment notes
+    try:
+        connection.execute("ALTER TABLE finance_transactions ADD COLUMN note TEXT DEFAULT NULL")
+    except Exception:
+        pass  # Column already exists
+
+    # Migration: track who paid on behalf of whom
+    try:
+        connection.execute("ALTER TABLE payment_allocations ADD COLUMN paid_by_player_id INTEGER DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        connection.execute("ALTER TABLE payment_allocations ADD COLUMN paid_by_user_id INTEGER DEFAULT NULL")
+    except Exception:
+        pass
+
     connection.execute("""
         CREATE TABLE IF NOT EXISTS payment_identities (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,6 +156,7 @@ def insert_transaction(
     matched_user_id: int | None = None,
     is_confirmed: int = 0,
     raw_payload: dict | None = None,
+    note: str | None = None,
 ) -> int | None:
     """
     Insert a financial transaction. If source+tx_code already exists, it is ignored and returns None.
@@ -153,8 +170,8 @@ def insert_transaction(
             INSERT INTO finance_transactions (
                 source, tx_code, date, time, raw_payer_name, raw_payer_email,
                 amount, currency, description, status, matched_player_id,
-                matched_user_id, is_confirmed, raw_payload, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                matched_user_id, is_confirmed, raw_payload, note, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 source,
@@ -171,6 +188,7 @@ def insert_transaction(
                 matched_user_id,
                 int(is_confirmed),
                 raw_json,
+                note.strip() if note else None,
                 now,
             ),
         )
@@ -332,6 +350,8 @@ def add_payment_allocation(
     attendee_id: int | None = None,
     period: str | None = None,
     note: str | None = None,
+    paid_by_player_id: int | None = None,
+    paid_by_user_id: int | None = None,
 ) -> int:
     """Record a payment allocation linking transaction/cash to a debt/event."""
     now = datetime.now(timezone.utc).isoformat()
@@ -339,8 +359,9 @@ def add_payment_allocation(
         """
         INSERT INTO payment_allocations (
             transaction_id, fee_type, event_id, match_date, player_id,
-            attendee_id, period, allocated_amount, payment_method, note, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            attendee_id, period, allocated_amount, payment_method, note,
+            paid_by_player_id, paid_by_user_id, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             transaction_id,
@@ -353,6 +374,8 @@ def add_payment_allocation(
             round(float(allocated_amount), 2),
             payment_method,
             note.strip() if note else None,
+            paid_by_player_id,
+            paid_by_user_id,
             now,
         ),
     )
@@ -431,3 +454,12 @@ def set_player_membership_status(connection, player_id: int, status: str):
         (player_id, status, now),
     )
     connection.commit()
+
+
+def get_allocations_paid_by_player(connection, paid_by_player_id: int) -> list[dict]:
+    """Retrieve all payment allocations where a specific player paid on behalf of others."""
+    cursor = connection.execute(
+        "SELECT * FROM payment_allocations WHERE paid_by_player_id = ? ORDER BY created_at DESC",
+        (paid_by_player_id,),
+    )
+    return [dict(row) for row in cursor.fetchall()]

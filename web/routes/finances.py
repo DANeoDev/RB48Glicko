@@ -99,6 +99,19 @@ def admin_finances():
                     pinfo = players_dict.get(match_res["player_id"], {})
                     tx["suggestion_player_name"] = pinfo.get("aliases", [f"Player #{match_res['player_id']}"])[0]
 
+            # Check for proxy payment pattern (member + guest fee multiple)
+            if tx.get("matched_player_id") or (tx.get("suggestion") and tx["suggestion"].get("player_id")):
+                check_pid = tx.get("matched_player_id") or tx["suggestion"]["player_id"]
+                amount = float(tx.get("amount", 0))
+                if amount > 0:
+                    remainder = amount % GUEST_FEE_PER_KICK
+                    is_guest_multiple = remainder < 0.01 or (GUEST_FEE_PER_KICK - remainder) < 0.01
+                    # Check if suggested player is a member
+                    pstatus = next((p["status"] for p in players_with_status if p["player_id"] == check_pid), None)
+                    if is_guest_multiple and pstatus == "member" and not tx.get("is_confirmed"):
+                        tx["is_proxy_candidate"] = True
+                        tx["proxy_num_kicks"] = round(amount / GUEST_FEE_PER_KICK)
+
         # Learned identities
         identities = get_identities(finances_conn)
         for ident in identities:
@@ -263,6 +276,7 @@ def upload_csv():
                 matched_user_id=matched_uid if is_confirmed else None,
                 is_confirmed=is_confirmed,
                 raw_payload=tx.get("raw_payload"),
+                note=tx.get("note"),
             )
 
             if new_id:
@@ -382,3 +396,82 @@ def remove_identity(identity_id: int):
         return redirect(url_for("finances.admin_finances", tab="identities"))
     finally:
         finances_conn.close()
+
+
+@finances_bp.route("/split-assign", methods=["POST"])
+@require_webmaster
+def split_assign_transaction():
+    """Split-assign a proxy payment to multiple guest players."""
+    import json as _json
+    
+    tx_id = request.form.get("tx_id", type=int)
+    paid_by_player_id = request.form.get("paid_by_player_id", type=int)
+    remember = request.form.get("remember_identity") in ("1", "true", "on")
+    allocations_json = request.form.get("allocations", "[]")
+    
+    if not tx_id or not paid_by_player_id:
+        return jsonify({"success": False, "error": "Missing transaction or payer ID"}), 400
+    
+    try:
+        alloc_list = _json.loads(allocations_json)
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid allocations data"}), 400
+    
+    if not alloc_list:
+        return jsonify({"success": False, "error": "No allocations provided"}), 400
+    
+    finances_conn = get_finances_connection()
+    curr_user = get_current_user()
+    
+    try:
+        tx = get_transaction_by_id(finances_conn, tx_id)
+        if not tx:
+            return jsonify({"success": False, "error": "Transaction not found"}), 404
+        
+        # Mark transaction as assigned to the payer
+        update_transaction_assignment(
+            finances_conn, tx_id, paid_by_player_id, None,
+            status="assigned", is_confirmed=1,
+        )
+        
+        if remember:
+            save_or_update_identity(
+                finances_conn,
+                player_id=paid_by_player_id,
+                payer_email=tx.get("raw_payer_email"),
+                payer_name=tx.get("raw_payer_name"),
+                confidence=1.0,
+                created_by_user_id=curr_user["id"] if curr_user else None,
+            )
+        
+        # Import here to avoid circular import at module level
+        from scripts.finances.reconciliation import auto_allocate_proxy_guest_payment
+        
+        covered = auto_allocate_proxy_guest_payment(
+            tx_id, paid_by_player_id, guest_allocations=alloc_list,
+        )
+        
+        flash(
+            f"Stellvertreter-Zahlung #{tx_id} aufgeteilt: {covered} Gastbeiträge zugeordnet.",
+            "success",
+        )
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": True, "covered": covered})
+        return redirect(url_for("finances.admin_finances", tab="import"))
+    finally:
+        finances_conn.close()
+
+
+@finances_bp.route("/proxy-suggestion", methods=["GET"])
+@require_webmaster
+def proxy_suggestion():
+    """AJAX endpoint returning proxy payment split suggestion for a transaction."""
+    tx_id = request.args.get("tx_id", type=int)
+    player_id = request.args.get("player_id", type=int)
+    
+    if not tx_id or not player_id:
+        return jsonify({"suggestion": None})
+    
+    from scripts.finances.reconciliation import get_proxy_payment_suggestion
+    suggestion = get_proxy_payment_suggestion(tx_id, player_id)
+    return jsonify({"suggestion": suggestion})

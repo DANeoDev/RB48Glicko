@@ -17,6 +17,64 @@ def normalize_text(text: str | None) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
+def parse_guest_hints_from_note(note: str | None) -> list[str]:
+    """Extract potential guest names from PayPal payment notes.
+    
+    Examples:
+        'Gastbeitrag Max'           -> ['Max']
+        'Für Max und Tim'           -> ['Max', 'Tim']
+        'Gastbeitrag Max + Lisa'    -> ['Max', 'Lisa']
+        '2x Gastbeitrag'            -> []  (count but no names)
+        'Handyzahlung'              -> []
+        ''                          -> []
+    """
+    if not note:
+        return []
+    
+    clean = note.strip()
+    if not clean:
+        return []
+    
+    # Early check: full-string patterns like '2x Gastbeitrag', '3x Gast', '2 mal Gastbeitrag'
+    if re.match(r'^\d+\s*(x|mal)\s*(gast(beitrag)?|beitrag)?\s*$', clean, re.IGNORECASE):
+        return []
+    
+    # Remove leading multiplier prefix (e.g. '2x ', '3 mal ')
+    remainder = re.sub(r'^\d+\s*(x|mal)\s*', '', clean, flags=re.IGNORECASE).strip()
+    
+    # Remove common keyword prefixes
+    prefixes = [
+        r'gastbeitrag\s*',
+        r'gast[\-\s]*beitrag\s*',
+        r'gast\s*',
+        r'f(?:ue|[uü])r\s+',
+        r'beitrag\s+(f(?:ue|[uü])r\s+)?',
+    ]
+    for prefix in prefixes:
+        remainder = re.sub(f'^{prefix}', '', remainder, flags=re.IGNORECASE).strip()
+    
+    # If only a number pattern remains (e.g. '2x', '3 mal'), no names
+    if re.match(r'^\d+\s*(x|mal)?\s*$', remainder, re.IGNORECASE):
+        return []
+    
+    # If remainder is empty or same as original generic description, no hints
+    if not remainder or remainder.lower() in ('handyzahlung', 'zahlung', 'paypal', ''):
+        return []
+    
+    # Split by common delimiters: 'und', '+', '&', ',', '/'
+    parts = re.split(r'\s+und\s+|\s*[+&,/]\s*', remainder, flags=re.IGNORECASE)
+    
+    names = []
+    for part in parts:
+        name = part.strip()
+        # Filter out noise: pure numbers, very short tokens, common words
+        if name and len(name) >= 2 and not re.match(r'^\d+$', name):
+            if name.lower() not in ('gastbeitrag', 'beitrag', 'gast', 'handyzahlung', 'zahlung'):
+                names.append(name)
+    
+    return names
+
+
 def find_player_match(
     raw_payer_name: str | None,
     raw_payer_email: str | None,
