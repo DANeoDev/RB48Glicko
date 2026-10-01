@@ -343,6 +343,15 @@ TRANSLATIONS_EN = {
     "matches.mvp_submitting": "Saving...",
     "matches.mvp_vote_success": "Your votes were recorded successfully!",
     "matches.mvp_select_required": "Please select at least one player for the 1st place vote.",
+    "matches.mvp_results_title": "MVP Election Results",
+    "matches.mvp_results_badge": "MVP Results",
+    "matches.mvp_results_btn_title": "Show election results",
+    "matches.mvp_total_voters": "{count} participants voted",
+    "matches.mvp_results_no_votes": "No votes were cast for this match.",
+    "matches.mvp_results_votes_label": "Votes",
+    "matches.mvp_results_rank_label": "Rank",
+    "matches.mvp_results_player_label": "Player",
+    "matches.mvp_results_breakdown_label": "Breakdown",
 
     # Pagination
     "pagination.first": "First Page",
@@ -1092,6 +1101,21 @@ TRANSLATIONS_EN = {
     "admin.feedback_sub": "Submitted feedback regarding UX, mobile usability, and general ideas.",
     "admin.feedback_export_btn": "📋 Copy Logs for AI",
     "admin.feedback_export_success": "Logs copied to clipboard!",
+
+    # MVP Logs & Results
+    "admin.mvp_logs_title": "MVP Logs & Election Results",
+    "admin.mvp_logs_subtitle": "Chronological voting activity and aggregated match election results with strict voter ballot secrecy.",
+    "admin.mvp_activity_log_heading": "Voting Activity Logs (Who & When)",
+    "admin.mvp_election_results_heading": "Match Election Results & Medals",
+    "admin.mvp_col_datetime": "Date & Time",
+    "admin.mvp_col_user": "User",
+    "admin.mvp_col_player": "Player / Name",
+    "admin.mvp_col_match": "Match",
+    "admin.mvp_col_voters": "Voters",
+    "admin.mvp_col_results": "Results / Votes",
+    "admin.mvp_no_logs": "No MVP votes recorded yet.",
+    "admin.mvp_no_summaries": "No MVP election results available yet.",
+    "admin.mvp_secret_ballot_notice": "🔒 Secret Ballot Enforced: Only who voted when is logged. Selected candidates remain strictly anonymous.",
 
     # Finances & Payment Tracking
     "nav.finances": "💶 Finances & Dues",

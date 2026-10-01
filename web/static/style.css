@@ -911,6 +911,18 @@ a:hover { color: var(--accent-hover); }
     color: #dfc289;
 }
 
+.match-mvp-btn.results {
+    background: rgba(255, 215, 0, 0.08);
+    border-color: rgba(255, 215, 0, 0.25);
+    color: #ffd700;
+}
+
+.match-mvp-btn.results:hover {
+    background: rgba(255, 215, 0, 0.2);
+    border-color: #ffd700;
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.25);
+}
+
 .match-mvp-btn.pulse {
     animation: mvpBtnPulse 2.5s infinite;
 }

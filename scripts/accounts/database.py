@@ -1657,6 +1657,150 @@ def get_mvp_medal_table(
     return table
 
 
+def get_mvp_voter_activity_logs(connection, limit: int = 100) -> list[dict]:
+    """
+    Returns recent MVP voting activity logs for Webmaster auditing.
+    STRICT PRIVACY GUARANTEE: Does NOT query or return voted_player_id* columns under any circumstances.
+    """
+    query = """
+        SELECT v.id, v.match_id, v.voter_user_id, v.created_at,
+               u.username, u.attendance_name, u.player_id
+        FROM match_mvp_votes v
+        LEFT JOIN users u ON v.voter_user_id = u.id
+        ORDER BY v.created_at DESC, v.id DESC
+        LIMIT ?
+    """
+    rows = connection.execute(query, [int(limit)]).fetchall()
+    results = []
+    for r in rows:
+        results.append({
+            "id": r["id"],
+            "match_id": r["match_id"],
+            "voter_user_id": r["voter_user_id"],
+            "created_at": r["created_at"],
+            "username": r["username"] or f"User #{r['voter_user_id']}",
+            "attendance_name": r["attendance_name"] or "",
+            "player_id": r["player_id"],
+        })
+    return results
+
+
+def get_match_mvp_results(connection, match_id: str, players_dict: dict | None = None) -> dict:
+    """
+    Returns aggregated MVP election results for a single match:
+    {
+        "match_id": match_id,
+        "total_voters": int,
+        "candidates": [
+            {
+                "player_id": int,
+                "player_name": str,
+                "total_votes": int,
+                "rank1": int,
+                "rank2": int,
+                "rank3": int,
+                "medal": "gold" | "silver" | "bronze" | None,
+                "rank": int,
+            }
+        ]
+    }
+    STRICT PRIVACY GUARANTEE: Returns only candidate vote aggregates, never linking voters to candidates.
+    """
+    cnt_row = connection.execute(
+        "SELECT COUNT(*) as cnt FROM match_mvp_votes WHERE match_id = ?",
+        [str(match_id)]
+    ).fetchone()
+    total_voters = cnt_row["cnt"] if cnt_row else 0
+
+    podium_map = get_match_mvp_podium(connection, match_ids=[str(match_id)])
+    match_podium = podium_map.get(str(match_id), {})
+    details = match_podium.get("details", {})
+    gold_set = set(match_podium.get("gold", []))
+    silver_set = set(match_podium.get("silver", []))
+    bronze_set = set(match_podium.get("bronze", []))
+
+    candidates = []
+    for pid, s in details.items():
+        if s.get("total", 0) <= 0:
+            continue
+        medal = None
+        if pid in gold_set:
+            medal = "gold"
+        elif pid in silver_set:
+            medal = "silver"
+        elif pid in bronze_set:
+            medal = "bronze"
+
+        player_name = f"Player {pid}"
+        if players_dict and pid in players_dict:
+            p_aliases = players_dict[pid].get("aliases", [])
+            if p_aliases:
+                player_name = p_aliases[0]
+
+        candidates.append({
+            "player_id": pid,
+            "player_name": player_name,
+            "total_votes": s.get("total", 0),
+            "rank1": s.get("rank1", 0),
+            "rank2": s.get("rank2", 0),
+            "rank3": s.get("rank3", 0),
+            "medal": medal,
+        })
+
+    # Sort descending by total votes, rank 1, rank 2, rank 3
+    candidates.sort(
+        key=lambda c: (c["total_votes"], c["rank1"], c["rank2"], c["rank3"]),
+        reverse=True
+    )
+
+    # Assign competitive ranks (handling ties)
+    for i, c in enumerate(candidates):
+        if i > 0:
+            prev = candidates[i - 1]
+            if (c["total_votes"], c["rank1"], c["rank2"], c["rank3"]) == (prev["total_votes"], prev["rank1"], prev["rank2"], prev["rank3"]):
+                c["rank"] = prev["rank"]
+            else:
+                c["rank"] = i + 1
+        else:
+            c["rank"] = 1
+
+    return {
+        "match_id": str(match_id),
+        "total_voters": total_voters,
+        "candidates": candidates,
+    }
+
+
+def get_all_matches_mvp_summaries(connection, players_dict: dict | None = None) -> list[dict]:
+    """
+    Returns aggregated MVP election summaries across all matches with votes, ordered by most recent vote.
+    STRICT PRIVACY GUARANTEE: Never exposes individual voter choices.
+    """
+    rows = connection.execute("""
+        SELECT match_id, COUNT(*) as voter_count, MAX(created_at) as last_vote_at
+        FROM match_mvp_votes
+        GROUP BY match_id
+        ORDER BY last_vote_at DESC
+    """).fetchall()
+
+    summaries = []
+    for r in rows:
+        m_id = r["match_id"]
+        res = get_match_mvp_results(connection, m_id, players_dict=players_dict)
+        res["voter_count"] = r["voter_count"]
+        res["last_vote_at"] = r["last_vote_at"]
+        gold_names = [c["player_name"] for c in res["candidates"] if c["medal"] == "gold"]
+        silver_names = [c["player_name"] for c in res["candidates"] if c["medal"] == "silver"]
+        bronze_names = [c["player_name"] for c in res["candidates"] if c["medal"] == "bronze"]
+        res["gold_names"] = gold_names
+        res["silver_names"] = silver_names
+        res["bronze_names"] = bronze_names
+        summaries.append(res)
+
+    return summaries
+
+
+
 
 
 

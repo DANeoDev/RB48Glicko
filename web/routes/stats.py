@@ -24,6 +24,7 @@ from scripts.accounts.database import (
     get_user_match_mvp_votes,
     get_match_mvp_deadline,
     is_match_mvp_voting_open,
+    get_match_mvp_results,
 )
 from scripts.analysis.achievements import get_player_achievements
 from scripts.analysis.history_snapshots import (
@@ -275,7 +276,9 @@ def match_history():
         user_vote_1 = user_votes_list[0] if user_votes_list else None
 
         # MVP podium: shown once voting is closed
-        podium = all_mvp_podiums.get(mid, {}) if not is_open else {}
+        raw_podium = all_mvp_podiums.get(mid, {})
+        has_votes = bool(raw_podium.get("details"))
+        podium = raw_podium if not is_open else {}
         gold_ids = podium.get("gold", [])
         silver_ids = podium.get("silver", [])
         bronze_ids = podium.get("bronze", [])
@@ -283,6 +286,7 @@ def match_history():
         match_voting_status[mid] = {
             "is_open": is_open,
             "can_vote": can_vote,
+            "has_votes": has_votes,
             "user_vote": user_vote_1,
             "user_votes": user_votes_list,
             "mvp_player_ids": gold_ids,
@@ -493,6 +497,52 @@ def get_mvp_status(match_id):
         "bronze_player_ids": podium.get("bronze", []),
         "team_a_players": [player_info(pid) for pid in team_a],
         "team_b_players": [player_info(pid) for pid in team_b],
+    })
+
+
+@stats_bp.route("/api/matches/<match_id>/mvp-results", methods=["GET"])
+def get_mvp_results(match_id):
+    """
+    Returns aggregated MVP election results for a match once voting has concluded.
+    Strictly preserves voter ballot secrecy.
+    """
+    conn = get_connection()
+    try:
+        matches = get_matches(conn)
+        match = matches.get(match_id)
+        if not match:
+            return jsonify({"success": False, "error": f"Match '{match_id}' wurde nicht gefunden."}), 404
+        players = get_players(conn)
+    finally:
+        conn.close()
+
+    match_date = match["date"]
+    deadline = get_match_mvp_deadline(match_date)
+    tz = ZoneInfo("Europe/Berlin")
+    is_open = datetime.now(tz) <= deadline
+
+    acc_conn = get_accounts_connection()
+    try:
+        res = get_match_mvp_results(acc_conn, match_id, players_dict=players)
+    finally:
+        acc_conn.close()
+
+    if is_open:
+        return jsonify({
+            "success": False,
+            "error": f"Die MVP-Wahlergebnisse werden nach Fristende ({deadline.strftime('%d.%m.%Y um %H:%M Uhr')}) veröffentlicht.",
+            "is_open": True,
+            "deadline_formatted": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
+        }), 400
+
+    return jsonify({
+        "success": True,
+        "match_id": match_id,
+        "match_date": match_date,
+        "is_open": False,
+        "deadline_formatted": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
+        "total_voters": res["total_voters"],
+        "candidates": res["candidates"],
     })
 
 

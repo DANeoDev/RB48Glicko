@@ -188,6 +188,16 @@
                             >
                                 ⭐ {% if user_vote %}{{ t('matches.mvp_voted_badge', 'MVP gewählt') }}{% else %}{{ t('matches.mvp_vote_badge', 'MVP wählen') }}{% endif %}
                             </button>
+                        {% elif not v_status.get('is_open') and v_status.get('has_votes') %}
+                            <button
+                                type="button"
+                                class="match-mvp-btn results{% if user_vote %} voted{% endif %}"
+                                data-match-id="{{ match['match_id'] }}"
+                                title="{{ t('matches.mvp_results_btn_title', 'Wahlergebnisse anzeigen') }}"
+                                onclick="event.stopPropagation(); window.openMvpResultsModal && window.openMvpResultsModal('{{ match['match_id'] }}');"
+                            >
+                                ⭐ {% if user_vote %}{{ t('matches.mvp_voted_badge', 'MVP gewählt') }}{% else %}{{ t('matches.mvp_results_badge', 'MVP-Ergebnis') }}{% endif %}
+                            </button>
                         {% endif %}
                         {% if has_tier('admin') %}
                             <button
@@ -427,6 +437,33 @@
                 </div>
             </div>
         </form>
+    </div>
+</div>
+
+<div class="modal-bg" id="mvp-results-modal" style="display: none;">
+    <div class="modal mvp-modal-card" role="dialog" aria-modal="true" aria-labelledby="mvp-results-modal-title">
+        <div class="mvp-modal-header">
+            <h3 id="mvp-results-modal-title">🏆 {{ t('matches.mvp_results_title', 'MVP-Wahlergebnisse') }}</h3>
+            <button type="button" class="mvp-modal-close" id="btn-close-mvp-results" aria-label="{{ t('common.close', 'Schließen') }}">&times;</button>
+        </div>
+        <div class="mvp-modal-match-info" id="mvp-results-match-info"></div>
+        <div class="mvp-results-meta" id="mvp-results-meta" style="margin-bottom: 16px; font-size: 13px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <span id="mvp-results-voters-count"></span>
+            <span class="mvp-anonymous-tag">🔒 {{ t('matches.mvp_anonymous_tag', 'Anonyme Stimmabgabe') }}</span>
+        </div>
+
+        <div id="mvp-results-loading" style="text-align: center; padding: 24px; color: var(--text-muted);">
+            {{ t('common.loading', 'Lade Ergebnisse...') }}
+        </div>
+        <div id="mvp-results-error" style="display: none;" class="mvp-error-notice"></div>
+
+        <div id="mvp-results-content" style="display: none;">
+            <div id="mvp-results-candidates" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+
+        <div class="mvp-modal-footer" style="margin-top: 20px; display: flex; justify-content: flex-end;">
+            <button type="button" class="secondary" id="btn-cancel-mvp-results">{{ t('common.close', 'Schließen') }}</button>
+        </div>
     </div>
 </div>
 
@@ -827,20 +864,158 @@
     }
 })();
 
+(function() {
+    const modal = document.getElementById('mvp-results-modal');
+    const closeBtn = document.getElementById('btn-close-mvp-results');
+    const cancelBtn = document.getElementById('btn-cancel-mvp-results');
+    const matchInfoEl = document.getElementById('mvp-results-match-info');
+    const votersCountEl = document.getElementById('mvp-results-voters-count');
+    const loadingEl = document.getElementById('mvp-results-loading');
+    const errorEl = document.getElementById('mvp-results-error');
+    const contentEl = document.getElementById('mvp-results-content');
+    const candidatesEl = document.getElementById('mvp-results-candidates');
+
+    function closeModal() {
+        if (!modal) return;
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+    }
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal && (modal.classList.contains('active') || modal.style.display === 'flex')) {
+            closeModal();
+        }
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
+    async function openResultsModal(matchId) {
+        if (!modal) return;
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+
+        if (loadingEl) loadingEl.style.display = 'block';
+        if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+        if (contentEl) contentEl.style.display = 'none';
+        if (matchInfoEl) matchInfoEl.textContent = `Match ${matchId}`;
+        if (votersCountEl) votersCountEl.textContent = '';
+
+        try {
+            const resp = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mvp-results`);
+            const data = await resp.json();
+
+            if (loadingEl) loadingEl.style.display = 'none';
+
+            if (!resp.ok || !data.success) {
+                if (errorEl) {
+                    errorEl.textContent = data.error || 'Fehler beim Laden der Wahlergebnisse.';
+                    errorEl.style.display = 'block';
+                }
+                return;
+            }
+
+            if (matchInfoEl) {
+                matchInfoEl.textContent = `Match ${data.match_id} (${data.match_date})`;
+            }
+
+            if (votersCountEl) {
+                const count = data.total_voters || 0;
+                votersCountEl.textContent = `${count} Teilnehmer haben abgestimmt`;
+            }
+
+            if (candidatesEl) {
+                candidatesEl.innerHTML = '';
+                const candidates = data.candidates || [];
+
+                if (candidates.length === 0) {
+                    candidatesEl.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 16px;">{{ t('matches.mvp_results_no_votes', 'Für dieses Match wurden keine Stimmen abgegeben.') }}</div>`;
+                } else {
+                    candidates.forEach(c => {
+                        let rankIcon = `<span style="font-weight: 700; width: 28px; text-align: center; color: var(--text-muted); font-size: 13px;">${c.rank}.</span>`;
+                        let rowBorder = 'rgba(255, 255, 255, 0.08)';
+                        let rowBg = 'rgba(255, 255, 255, 0.03)';
+
+                        if (c.medal === 'gold') {
+                            rankIcon = `<span style="font-size: 20px; width: 28px; text-align: center;" title="Match MVP (Gold)">🥇</span>`;
+                            rowBorder = 'rgba(255, 215, 0, 0.45)';
+                            rowBg = 'rgba(255, 215, 0, 0.09)';
+                        } else if (c.medal === 'silver') {
+                            rankIcon = `<span style="font-size: 20px; width: 28px; text-align: center;" title="2. Platz (Silber)">🥈</span>`;
+                            rowBorder = 'rgba(192, 192, 192, 0.4)';
+                            rowBg = 'rgba(192, 192, 192, 0.07)';
+                        } else if (c.medal === 'bronze') {
+                            rankIcon = `<span style="font-size: 20px; width: 28px; text-align: center;" title="3. Platz (Bronze)">🥉</span>`;
+                            rowBorder = 'rgba(205, 127, 50, 0.4)';
+                            rowBg = 'rgba(205, 127, 50, 0.07)';
+                        }
+
+                        const row = document.createElement('div');
+                        row.style.cssText = `display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 8px; border: 1px solid ${rowBorder}; background: ${rowBg}; gap: 12px;`;
+                        row.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                                ${rankIcon}
+                                <div style="min-width: 0;">
+                                    <strong style="color: #ffffff; font-size: 14px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(c.player_name)}</strong>
+                                    <div style="font-size: 11px; color: var(--text-muted); display: flex; gap: 8px; margin-top: 2px;">
+                                        <span>🥇 ${c.rank1}</span>
+                                        <span>🥈 ${c.rank2}</span>
+                                        <span>🥉 ${c.rank3}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                                <span style="font-size: 16px; font-weight: 800; color: #ffd700;">${c.total_votes}</span>
+                                <span style="font-size: 11.5px; color: var(--text-muted);">{{ t('matches.mvp_results_votes_label', 'Stimmen') }}</span>
+                            </div>
+                        `;
+                        candidatesEl.appendChild(row);
+                    });
+                }
+            }
+
+            if (contentEl) contentEl.style.display = 'block';
+
+        } catch (err) {
+            console.error('Failed to load MVP results:', err);
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (errorEl) {
+                errorEl.textContent = 'Netzwerkfehler beim Abrufen der Ergebnisse.';
+                errorEl.style.display = 'block';
+            }
+        }
+    }
+
+    window.openMvpResultsModal = openResultsModal;
+})();
+
 document.querySelectorAll(".match").forEach(match => {
     match.addEventListener("click", (e) => {
         if (e.target.closest('button') || e.target.closest('a') || e.target.closest('.modal') || e.target.closest('.modal-bg')) return;
         
         const canVote = match.getAttribute('data-can-vote') === 'true';
         const userVoted = match.getAttribute('data-user-voted') === 'true';
+        const isHeaderOrBanner = !!e.target.closest('.match-header, .match-mvp-banner');
         
-        if (canVote && !userVoted) {
+        // Only clicking the upper card header or the MVP banner triggers acute MVP voting modal
+        if (isHeaderOrBanner && canVote && !userVoted) {
             const mid = match.getAttribute('data-match-id');
             if (mid && window.openMvpVoteModal) {
                 window.openMvpVoteModal(mid);
                 return;
             }
         }
+        // All other clicks (or clicks after voting) toggle the rating details
         match.classList.toggle("expanded");
     });
 });

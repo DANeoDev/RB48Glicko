@@ -356,6 +356,15 @@ TRANSLATIONS_DE = {
     "matches.mvp_submitting": "Wird gespeichert...",
     "matches.mvp_vote_success": "Deine Stimmen wurden erfolgreich gespeichert!",
     "matches.mvp_select_required": "Bitte wähle mindestens einen Spieler für die 1. Stimme aus.",
+    "matches.mvp_results_title": "MVP-Wahlergebnisse",
+    "matches.mvp_results_badge": "MVP-Ergebnis",
+    "matches.mvp_results_btn_title": "Wahlergebnisse anzeigen",
+    "matches.mvp_total_voters": "{count} Teilnehmer haben abgestimmt",
+    "matches.mvp_results_no_votes": "Für dieses Match wurden keine Stimmen abgegeben.",
+    "matches.mvp_results_votes_label": "Stimmen",
+    "matches.mvp_results_rank_label": "Platz",
+    "matches.mvp_results_player_label": "Spieler",
+    "matches.mvp_results_breakdown_label": "Aufteilung",
 
     # Pagination
     "pagination.first": "Erste Seite",
@@ -1114,6 +1123,21 @@ TRANSLATIONS_DE = {
     "admin.feedback_sub": "Eingegangene Meldungen zu Handhabung, mobiler Bedienung und allgemeinen Anregungen.",
     "admin.feedback_export_btn": "📋 Logs für KI kopieren",
     "admin.feedback_export_success": "Logs erfolgreich in die Zwischenablage kopiert!",
+
+    # MVP Logs & Results
+    "admin.mvp_logs_title": "MVP Logs & Wahlergebnisse",
+    "admin.mvp_logs_subtitle": "Chronologische Wahlaktivität und aggregierte Wahlergebnisse pro Match unter strikter Wahrung des Stimmgeheimnisses.",
+    "admin.mvp_activity_log_heading": "Abstimmungs-Aktivitäten (Wer & Wann)",
+    "admin.mvp_election_results_heading": "Match-Wahlergebnisse & Medaillen",
+    "admin.mvp_col_datetime": "Zeitpunkt",
+    "admin.mvp_col_user": "Benutzer",
+    "admin.mvp_col_player": "Spieler / Name",
+    "admin.mvp_col_match": "Match",
+    "admin.mvp_col_voters": "Wähler",
+    "admin.mvp_col_results": "Ergebnis / Stimmen",
+    "admin.mvp_no_logs": "Bisher wurden noch keine MVP-Stimmen vergeben.",
+    "admin.mvp_no_summaries": "Bisher liegen keine MVP-Wahlergebnisse vor.",
+    "admin.mvp_secret_ballot_notice": "🔒 Stimmgeheimnis gewahrt: Es wird ausschließlich geloggt, wer wann abgestimmt hat. Gewählte Kandidaten bleiben für alle anonym.",
 
     # Finances & Payment Tracking
     "nav.finances": "💶 Finanzen & Beiträge",
