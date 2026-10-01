@@ -512,15 +512,31 @@ def match_center():
             external_b = int(request.form.get("external_b", "0") or 0) if request.method == "POST" and action in ("save", "create_player") else 0
         except (ValueError, TypeError):
             external_a, external_b = 0, 0
-        goals_a = request.form.get("goals_a", "0") if request.method == "POST" else "0"
-        goals_b = request.form.get("goals_b", "0") if request.method == "POST" else "0"
+        goals_a = request.form.get("goals_a")
+        if goals_a is None or goals_a == "":
+            parsed_ga = request.form.get("parsed_goals_a")
+            if parsed_ga not in (None, ""):
+                goals_a = str(parsed_ga)
+            elif parse_result and parse_result.get("goals_a") is not None:
+                goals_a = str(parse_result["goals_a"])
+            else:
+                goals_a = "0"
+
+        goals_b = request.form.get("goals_b")
+        if goals_b is None or goals_b == "":
+            parsed_gb = request.form.get("parsed_goals_b")
+            if parsed_gb not in (None, ""):
+                goals_b = str(parsed_gb)
+            elif parse_result and parse_result.get("goals_b") is not None:
+                goals_b = str(parse_result["goals_b"])
+            else:
+                goals_b = "0"
+
         if parse_result and parse_result.get("kind") == "match" and not team_a and not team_b:
             team_a = parse_result.get("team_a_ids", [])
             team_b = parse_result.get("team_b_ids", [])
             external_a = parse_result.get("external_a", 0)
             external_b = parse_result.get("external_b", 0)
-            goals_a = parse_result.get("goals_a") if parse_result.get("goals_a") is not None else 0
-            goals_b = parse_result.get("goals_b") if parse_result.get("goals_b") is not None else 0
 
         player_names = {}
         for pid, data in players.items():

@@ -1240,8 +1240,21 @@
 
             const scoreAInput = document.getElementById('score-a') || matchForm?.querySelector('input[name="goals_a"]');
             const scoreBInput = document.getElementById('score-b') || matchForm?.querySelector('input[name="goals_b"]');
-            const parsedA = parseInt(scoreAInput?.value, 10);
-            const parsedB = parseInt(scoreBInput?.value, 10);
+            const parsedHiddenA = document.querySelector('input[name="parsed_goals_a"]');
+            const parsedHiddenB = document.querySelector('input[name="parsed_goals_b"]');
+
+            let parsedA = parseInt(scoreAInput?.value, 10);
+            let parsedB = parseInt(scoreBInput?.value, 10);
+
+            if ((isNaN(parsedA) || parsedA === 0) && parsedHiddenA && parsedHiddenA.value !== '') {
+                const hA = parseInt(parsedHiddenA.value, 10);
+                if (Number.isInteger(hA)) parsedA = hA;
+            }
+            if ((isNaN(parsedB) || parsedB === 0) && parsedHiddenB && parsedHiddenB.value !== '') {
+                const hB = parseInt(parsedHiddenB.value, 10);
+                if (Number.isInteger(hB)) parsedB = hB;
+            }
+
             const goalsAVal = Number.isInteger(parsedA) ? parsedA : 0;
             const goalsBVal = Number.isInteger(parsedB) ? parsedB : 0;
 
