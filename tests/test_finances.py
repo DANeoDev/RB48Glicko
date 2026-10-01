@@ -33,6 +33,9 @@ from scripts.finances.reconciliation import (
     manual_mark_membership_due,
     auto_allocate_transaction_to_debts,
     get_all_unpaid_guest_entries,
+    get_available_finance_periods,
+    get_period_display_label,
+    get_finance_summary_metrics,
     resolve_player_membership_status,
     GUEST_FEE_PER_KICK,
     MEMBERSHIP_DUE_PER_HALFYEAR,
@@ -330,6 +333,14 @@ def test_webmaster_finances_web_routes(clean_finances_env):
     assert "copyDayOpenDebts" in after_html
     assert "Die Liste kann unvollständig und/oder falsche Einträge beinhalten" in after_html
 
+    # Test presence of new cards and period filter
+    assert "Offene Kleckerbeträge" in after_html
+    assert "Offene Mitgliedsbeiträge" in after_html
+    assert "Paypaleinnahmen" in after_html
+    assert "Kontoeinnahmen" in after_html
+    assert "finance-period-select" in after_html
+    assert "changeFinancePeriod" in after_html
+
     # Test presence of ignored aliases in tab=identities dropdown
     resp_identities = client.get("/admin/finances?tab=identities")
     assert resp_identities.status_code == 200
@@ -362,4 +373,61 @@ def test_get_all_unpaid_guest_entries(clean_finances_env):
     assert entry["match_date"] == "2026-07-15"
     assert entry["fee_required"] == 3.50
     assert entry["payment_status"] == "unpaid"
+
+
+def test_finance_summary_metrics_and_period_filtering(clean_finances_env):
+    # Test available periods
+    periods = get_available_finance_periods()
+    assert len(periods) >= 3
+    values = [p["value"] for p in periods]
+    assert "2026-H2" in values
+    assert "2026" in values
+    assert "all" in values
+
+    # Test period labels
+    assert "2. Halbjahr" in get_period_display_label("2026-H2")
+    assert "Gesamtjahr 2026" == get_period_display_label("2026")
+    assert "Gesamter Zeitraum" in get_period_display_label("all")
+
+    # Initial metrics before payments
+    m_h2 = get_finance_summary_metrics("2026-H2")
+    assert "open_klecker_amount" in m_h2
+    assert "open_dues_amount" in m_h2
+    assert "total_paypal_income" in m_h2
+    assert "total_bank_income" in m_h2
+
+    # Add a PayPal allocation for guest fee and bank allocation for membership due
+    f_conn = get_finances_connection()
+    # 1. Guest fee paid via PayPal
+    add_payment_allocation(
+        f_conn,
+        fee_type="match_guest",
+        allocated_amount=3.50,
+        payment_method="paypal",
+        match_date="2026-07-15",
+        player_id=33,
+    )
+    # 2. Member due paid via Bank
+    add_payment_allocation(
+        f_conn,
+        fee_type="membership_due",
+        allocated_amount=48.00,
+        payment_method="bank",
+        period="2026-H2",
+        player_id=1,
+    )
+    f_conn.close()
+
+    # Recalculate metrics for 2026-H2
+    m_after = get_finance_summary_metrics("2026-H2")
+    assert m_after["paypal_guest_fees"] == 3.50
+    assert m_after["bank_membership_dues"] == 48.00
+    assert m_after["total_bank_income"] == 48.00
+    assert m_after["total_paypal_income"] >= 3.50
+
+    # For an unrelated period (e.g. 2025-H1), these 2026 allocations should NOT count
+    m_2025 = get_finance_summary_metrics("2025-H1")
+    assert m_2025["paypal_guest_fees"] == 0.0
+    assert m_2025["bank_membership_dues"] == 0.0
+
 

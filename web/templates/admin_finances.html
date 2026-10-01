@@ -36,51 +36,131 @@
             </div>
         </div>
 
+        <!-- Metrics Toolbar & Period Filter -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <h2 style="font-size: 16px; font-weight: 700; margin: 0; color: #ffffff;">📊 Finanz-Kennzahlen</h2>
+                <span style="font-size: 12px; color: var(--text-muted); background: rgba(255, 255, 255, 0.05); padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border);">
+                    {{ period_display_label }}
+                </span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <label for="finance-period-select" style="font-size: 13px; color: var(--text-muted); font-weight: 600;">📅 Zeitraum:</label>
+                <select id="finance-period-select" onchange="changeFinancePeriod(this.value)" style="background: var(--bg-surface-alt); border: 1px solid var(--border); color: #ffffff; padding: 7px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                    {% for opt in available_periods %}
+                        <option value="{{ opt.value }}" {% if opt.value == selected_period %}selected{% endif %}>{{ opt.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
         <!-- Metrics Overview Cards -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
-            <div style="background: rgba(123, 82, 197, 0.12); border: 1px solid rgba(123, 82, 197, 0.35); border-radius: 8px; padding: 16px;">
-                <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Gast-Beitrag / Kick</div>
-                <div style="font-size: 24px; font-weight: 800; color: #80deea; margin-top: 4px;">{{ "%.2f"|format(guest_fee_rate)|replace(".", ",") }} €</div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">für {{ total_guests_count }} Gastspieler</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px;">
+            <!-- Card 1: Offene Kleckerbeträge -->
+            <div style="background: {% if metrics.open_klecker_amount > 0 %}rgba(220, 53, 69, 0.12){% else %}rgba(40, 167, 69, 0.12){% endif %}; border: 1px solid {% if metrics.open_klecker_amount > 0 %}rgba(220, 53, 69, 0.35){% else %}rgba(40, 167, 69, 0.35){% endif %}; border-radius: 8px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">⚽ Offene Kleckerbeträge</div>
+                    <div style="font-size: 26px; font-weight: 800; color: {% if metrics.open_klecker_amount > 0 %}#ff8888{% else %}#88ff88{% endif %}; margin-top: 6px;">
+                        {{ "%.2f"|format(metrics.open_klecker_amount)|replace(".", ",") }} €
+                    </div>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 10px; line-height: 1.4;">
+                    {% if metrics.open_klecker_amount > 0 %}
+                        <span style="color: #ff8888; font-weight: 600;">🔴 {{ metrics.open_klecker_count }} Kicks offen</span> (à {{ "%.2f"|format(guest_fee_rate)|replace(".", ",") }} €)
+                    {% else %}
+                        <span style="color: #88ff88; font-weight: 600;">✓ Alle Kleckerbeträge bezahlt</span>
+                    {% endif %}
+                    <div style="font-size: 11px; opacity: 0.8; margin-top: 2px;">{{ "%.2f"|format(metrics.total_klecker_collected)|replace(".", ",") }} € von {{ "%.2f"|format(metrics.total_klecker_expected)|replace(".", ",") }} € bezahlt</div>
+                </div>
             </div>
 
-            <div style="background: rgba(128, 222, 234, 0.12); border: 1px solid rgba(128, 222, 234, 0.35); border-radius: 8px; padding: 16px;">
-                <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Mitgliedsbeitrag</div>
-                <div style="font-size: 24px; font-weight: 800; color: #ffffff; margin-top: 4px;">{{ "%.2f"|format(membership_due_rate)|replace(".", ",") }} €</div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">für {{ total_members_count }} Vereinsmitglieder</div>
+            <!-- Card 2: Offene Mitgliedsbeiträge -->
+            <div style="background: {% if metrics.open_dues_amount > 0 %}rgba(255, 193, 7, 0.12){% else %}rgba(40, 167, 69, 0.12){% endif %}; border: 1px solid {% if metrics.open_dues_amount > 0 %}rgba(255, 193, 7, 0.35){% else %}rgba(40, 167, 69, 0.35){% endif %}; border-radius: 8px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">🏛️ Offene Mitgliedsbeiträge</div>
+                    <div style="font-size: 26px; font-weight: 800; color: {% if metrics.open_dues_amount > 0 %}#ffe082{% else %}#88ff88{% endif %}; margin-top: 6px;">
+                        {{ "%.2f"|format(metrics.open_dues_amount)|replace(".", ",") }} €
+                    </div>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 10px; line-height: 1.4;">
+                    {% if metrics.open_dues_amount > 0 %}
+                        <span style="color: #ffe082; font-weight: 600;">🟡 {{ metrics.open_dues_count }} Beiträge offen</span> (à {{ "%.2f"|format(membership_due_rate)|replace(".", ",") }} €)
+                    {% else %}
+                        <span style="color: #88ff88; font-weight: 600;">✓ Alle Mitgliedsbeiträge bezahlt</span>
+                    {% endif %}
+                    <div style="font-size: 11px; opacity: 0.8; margin-top: 2px;">{{ "%.2f"|format(metrics.total_dues_collected)|replace(".", ",") }} € von {{ "%.2f"|format(metrics.total_dues_expected)|replace(".", ",") }} € bezahlt</div>
+                </div>
             </div>
 
-            <div style="background: rgba(40, 167, 69, 0.12); border: 1px solid rgba(40, 167, 69, 0.35); border-radius: 8px; padding: 16px;">
-                <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">PayPal Einnahmen</div>
-                <div style="font-size: 24px; font-weight: 800; color: #88ff88; margin-top: 4px;">{{ "%.2f"|format(total_income)|replace(".", ",") }} €</div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">aus importierten CSV-Zahlungen</div>
+            <!-- Card 3: Paypaleinnahmen (--> Mitgliedsbeiträge / Kleckerbeträge) -->
+            <div style="background: rgba(40, 167, 69, 0.12); border: 1px solid rgba(40, 167, 69, 0.35); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">💳 Paypaleinnahmen</div>
+                    <div style="font-size: 26px; font-weight: 800; color: #88ff88; margin-top: 6px;">
+                        {{ "%.2f"|format(metrics.total_paypal_income)|replace(".", ",") }} €
+                    </div>
+                </div>
+                <div style="font-size: 12px; margin-top: 10px; line-height: 1.5; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 6px;">
+                    <div style="display: flex; justify-content: space-between; color: #ffffff;">
+                        <span style="color: var(--text-muted);">↳ Mitgliedsbeiträge:</span>
+                        <strong style="color: #88ff88;">{{ "%.2f"|format(metrics.paypal_membership_dues)|replace(".", ",") }} €</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; color: #ffffff;">
+                        <span style="color: var(--text-muted);">↳ Kleckerbeträge:</span>
+                        <strong style="color: #80deea;">{{ "%.2f"|format(metrics.paypal_guest_fees)|replace(".", ",") }} €</strong>
+                    </div>
+                    {% if metrics.paypal_unassigned > 0.01 %}
+                    <div style="font-size: 11px; color: #ffe082; margin-top: 2px;">
+                        ({{ "%.2f"|format(metrics.paypal_unassigned)|replace(".", ",") }} € noch unzugeordnet)
+                    </div>
+                    {% endif %}
+                </div>
             </div>
 
-            <div style="background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); border-radius: 8px; padding: 16px;">
-                <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Ausstehende Zuordnungen</div>
-                <div style="font-size: 24px; font-weight: 800; color: #ffe082; margin-top: 4px;">{{ unassigned_count }}</div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">Zahlungen benötigen Bestätigung</div>
+            <!-- Card 4: Kontoeinnahmen ( --> Mitgliedsbeiträge) -->
+            <div style="background: rgba(0, 188, 212, 0.12); border: 1px solid rgba(0, 188, 212, 0.35); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">🏦 Kontoeinnahmen</div>
+                    <div style="font-size: 26px; font-weight: 800; color: #80deea; margin-top: 6px;">
+                        {{ "%.2f"|format(metrics.total_bank_income)|replace(".", ",") }} €
+                    </div>
+                </div>
+                <div style="font-size: 12px; margin-top: 10px; line-height: 1.5; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 6px;">
+                    <div style="display: flex; justify-content: space-between; color: #ffffff;">
+                        <span style="color: var(--text-muted);">↳ Mitgliedsbeiträge:</span>
+                        <strong style="color: #88ff88;">{{ "%.2f"|format(metrics.bank_membership_dues)|replace(".", ",") }} €</strong>
+                    </div>
+                    {% if metrics.bank_guest_fees > 0.01 %}
+                    <div style="display: flex; justify-content: space-between; color: #ffffff;">
+                        <span style="color: var(--text-muted);">↳ Kleckerbeträge:</span>
+                        <strong style="color: #80deea;">{{ "%.2f"|format(metrics.bank_guest_fees)|replace(".", ",") }} €</strong>
+                    </div>
+                    {% endif %}
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                        aus Banküberweisungen (Konto)
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Navigation Tabs -->
         <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 24px; flex-wrap: wrap;">
-            <a href="{{ url_for('finances.admin_finances', tab='matches') }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'matches' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+            <a href="{{ url_for('finances.admin_finances', tab='matches', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'matches' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
                 ⚽ Match-Historie & Gastbeiträge
             </a>
-            <a href="{{ url_for('finances.admin_finances', tab='players') }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'players' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+            <a href="{{ url_for('finances.admin_finances', tab='players', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'players' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
                 👥 Spieler-Status ({{ total_members_count }} Mitgl. / {{ total_guests_count }} Gäste)
             </a>
-            <a href="{{ url_for('finances.admin_finances', tab='dues') }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'dues' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+            <a href="{{ url_for('finances.admin_finances', tab='dues', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'dues' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
                 🏛️ Mitgliedsbeiträge (48 €)
             </a>
-            <a href="{{ url_for('finances.admin_finances', tab='import') }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; display: flex; align-items: center; gap: 6px; {% if active_tab == 'import' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+            <a href="{{ url_for('finances.admin_finances', tab='import', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; display: flex; align-items: center; gap: 6px; {% if active_tab == 'import' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
                 📥 PayPal CSV-Import
                 {% if unassigned_count > 0 %}
                     <span style="background: #ffc107; color: #140b28; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 10px;">{{ unassigned_count }}</span>
                 {% endif %}
             </a>
-            <a href="{{ url_for('finances.admin_finances', tab='identities') }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'identities' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+            <a href="{{ url_for('finances.admin_finances', tab='identities', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'identities' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
                 🧠 Lernendes Zahler-Gedächtnis ({{ identities|length }})
             </a>
         </div>
@@ -910,6 +990,12 @@ function copyDayOpenDebts(matchDate) {
 
     const text = buildHeaderText() + lines.join('\n');
     copyToClipboard(text, btn, '📋 Offene kopieren (' + matchDate + ')');
+}
+
+function changeFinancePeriod(period) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('period', period);
+    window.location.href = url.toString();
 }
 </script>
 {% endblock %}

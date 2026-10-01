@@ -38,6 +38,9 @@ from scripts.finances.reconciliation import (
     manual_mark_membership_due,
     auto_allocate_transaction_to_debts,
     get_all_unpaid_guest_entries,
+    get_available_finance_periods,
+    get_period_display_label,
+    get_finance_summary_metrics,
     GUEST_FEE_PER_KICK,
     MEMBERSHIP_DUE_PER_HALFYEAR,
 )
@@ -131,6 +134,16 @@ def admin_finances():
         total_guests_count = sum(1 for p in players_with_status if p["status"] == "guest")
         all_unpaid_entries = get_all_unpaid_guest_entries()
 
+        # Available periods and summary metrics for the selected period
+        available_periods = get_available_finance_periods(finances_conn=finances_conn, rb48_conn=rb48_conn)
+        period_display_label = get_period_display_label(selected_period)
+        metrics = get_finance_summary_metrics(
+            period=selected_period,
+            finances_conn=finances_conn,
+            rb48_conn=rb48_conn,
+            accounts_conn=accounts_conn,
+        )
+
         # Unassigned transaction payers (payers of positive unconfirmed transactions)
         unassigned_payers = []
         for t in transactions:
@@ -154,6 +167,9 @@ def admin_finances():
             players_with_status=players_with_status,
             dues_overview=dues_overview,
             selected_period=selected_period,
+            period_display_label=period_display_label,
+            available_periods=available_periods,
+            metrics=metrics,
             transactions=transactions,
             identities=identities,
             player_list=players_with_status,

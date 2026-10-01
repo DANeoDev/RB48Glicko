@@ -395,12 +395,27 @@ def get_membership_dues_overview(period: str = "2026-H2") -> dict:
     """
     Get membership dues breakdown (48 € / Half-year) for all club members.
     """
-    players = get_all_players_with_membership()
-    members = [p for p in players if p["status"] == "member"]
-
     finances_conn = get_finances_connection()
     try:
-        allocations = get_allocations_for_period(finances_conn, period)
+        players = get_all_players_with_membership()
+        members = [p for p in players if p["status"] == "member"]
+
+        is_full_year = len(str(period)) == 4 and str(period).isdigit()
+        fee_required_per_member = (2 * MEMBERSHIP_DUE_PER_HALFYEAR) if is_full_year else MEMBERSHIP_DUE_PER_HALFYEAR
+
+        if is_full_year:
+            target_periods = [f"{period}-H1", f"{period}-H2"]
+            allocations = []
+            for tp in target_periods:
+                allocations.extend(get_allocations_for_period(finances_conn, tp))
+        elif period == "all":
+            cursor = finances_conn.execute(
+                "SELECT * FROM payment_allocations WHERE fee_type = 'membership_due' ORDER BY id ASC"
+            )
+            allocations = [dict(row) for row in cursor.fetchall()]
+        else:
+            allocations = get_allocations_for_period(finances_conn, period)
+
         alloc_by_player: dict[int, list[dict]] = {}
         for a in allocations:
             pid = a.get("player_id")
@@ -408,7 +423,7 @@ def get_membership_dues_overview(period: str = "2026-H2") -> dict:
                 alloc_by_player.setdefault(pid, []).append(a)
 
         member_dues_list = []
-        total_expected = len(members) * MEMBERSHIP_DUE_PER_HALFYEAR
+        total_expected = len(members) * fee_required_per_member
         total_collected = 0.0
 
         for m in members:
@@ -421,7 +436,7 @@ def get_membership_dues_overview(period: str = "2026-H2") -> dict:
 
             if is_waived:
                 pstatus = "waived"
-            elif paid_sum >= MEMBERSHIP_DUE_PER_HALFYEAR:
+            elif paid_sum >= fee_required_per_member:
                 pmethods = {a["payment_method"] for a in p_allocs}
                 if "bank" in pmethods:
                     pstatus = "bank"
@@ -439,7 +454,7 @@ def get_membership_dues_overview(period: str = "2026-H2") -> dict:
                 "name": m["name"],
                 "aliases_str": m["aliases_str"],
                 "linked_user": m["linked_user"],
-                "fee_required": MEMBERSHIP_DUE_PER_HALFYEAR,
+                "fee_required": fee_required_per_member,
                 "amount_paid": paid_sum,
                 "payment_status": pstatus,
                 "allocations": p_allocs,
@@ -955,3 +970,227 @@ def get_proxy_payment_suggestion(
         finances_conn.close()
         rb48_conn.close()
         accounts_conn.close()
+
+
+def is_date_in_period(date_str: str, period: str) -> bool:
+    """Check if a YYYY-MM-DD date string belongs to a period filter (YYYY, YYYY-H1, YYYY-H2, or 'all')."""
+    if not date_str or period == "all":
+        return True
+    if len(period) == 4 and period.isdigit():
+        return date_str.startswith(period)
+    if period.endswith("-H1"):
+        year = period[:4]
+        return date_str.startswith(year) and "01-01" <= date_str[5:10] <= "06-30"
+    if period.endswith("-H2"):
+        year = period[:4]
+        return date_str.startswith(year) and "07-01" <= date_str[5:10] <= "12-31"
+    return True
+
+
+def get_available_finance_periods(finances_conn=None, rb48_conn=None) -> list[dict]:
+    """
+    Return available period filters (half-years and full years, plus all time).
+    Ordered descending by year.
+    """
+    current_year = datetime.now(timezone.utc).year
+    years = {current_year}
+
+    close_rb = False
+    if rb48_conn is None:
+        rb48_conn = get_rb48_connection()
+        close_rb = True
+
+    try:
+        m_rows = rb48_conn.execute("SELECT DISTINCT SUBSTR(date, 1, 4) FROM matches").fetchall()
+        for r in m_rows:
+            if r[0] and str(r[0]).isdigit():
+                years.add(int(r[0]))
+    except Exception:
+        pass
+    finally:
+        if close_rb:
+            rb48_conn.close()
+
+    close_fin = False
+    if finances_conn is None:
+        finances_conn = get_finances_connection()
+        close_fin = True
+
+    try:
+        t_rows = finances_conn.execute("SELECT DISTINCT SUBSTR(date, 1, 4) FROM finance_transactions").fetchall()
+        for r in t_rows:
+            if r[0] and str(r[0]).isdigit():
+                years.add(int(r[0]))
+        p_rows = finances_conn.execute("SELECT DISTINCT SUBSTR(period, 1, 4) FROM payment_allocations WHERE period IS NOT NULL").fetchall()
+        for r in p_rows:
+            if r[0] and str(r[0]).isdigit():
+                years.add(int(r[0]))
+    except Exception:
+        pass
+    finally:
+        if close_fin:
+            finances_conn.close()
+
+    sorted_years = sorted(list(years), reverse=True)
+    periods = []
+    for y in sorted_years:
+        periods.append({"value": f"{y}-H2", "label": f"2. Halbjahr {y} ({y}-H2)", "type": "halfyear"})
+        periods.append({"value": f"{y}-H1", "label": f"1. Halbjahr {y} ({y}-H1)", "type": "halfyear"})
+        periods.append({"value": f"{y}", "label": f"Gesamtjahr {y}", "type": "year"})
+
+    periods.append({"value": "all", "label": "Gesamter Zeitraum (Alle)", "type": "all"})
+    return periods
+
+
+def get_period_display_label(period: str) -> str:
+    """Return a human-friendly label for a period identifier."""
+    if period == "all":
+        return "Gesamter Zeitraum (Alle)"
+    if len(period) == 4 and period.isdigit():
+        return f"Gesamtjahr {period}"
+    if period.endswith("-H1"):
+        return f"1. Halbjahr {period[:4]} ({period})"
+    if period.endswith("-H2"):
+        return f"2. Halbjahr {period[:4]} ({period})"
+    return period
+
+
+def get_finance_summary_metrics(
+    period: str = "2026-H2",
+    finances_conn=None,
+    rb48_conn=None,
+    accounts_conn=None,
+) -> dict:
+    """
+    Compute financial overview metrics for the specified period:
+    1. Offene Kleckerbeträge
+    2. Offene Mitgliedsbeiträge
+    3. Paypaleinnahmen (mit Aufschlüsselung: Mitgliedsbeiträge / Kleckerbeträge)
+    4. Kontoeinnahmen (Aufschlüsselung: Mitgliedsbeiträge)
+    """
+    close_fin = False
+    close_rb = False
+    close_acc = False
+
+    if finances_conn is None:
+        finances_conn = get_finances_connection()
+        close_fin = True
+    if rb48_conn is None:
+        rb48_conn = get_rb48_connection()
+        close_rb = True
+    if accounts_conn is None:
+        accounts_conn = get_accounts_connection()
+        close_acc = True
+
+    try:
+        available_periods = get_available_finance_periods(finances_conn=finances_conn, rb48_conn=rb48_conn)
+        available_years = {int(p["value"][:4]) for p in available_periods if p["value"] != "all"}
+
+        # 1. Offene Kleckerbeträge
+        matches = get_match_history_financial_overview()
+        filtered_matches = [m for m in matches if is_date_in_period(m["match_date"], period)]
+        open_klecker_amount = sum(m.get("outstanding", 0.0) for m in filtered_matches)
+        open_klecker_count = sum(m.get("unpaid_count", 0) for m in filtered_matches)
+        total_klecker_expected = sum(m.get("total_expected", 0.0) for m in filtered_matches)
+        total_klecker_collected = sum(m.get("total_collected", 0.0) for m in filtered_matches)
+
+        # 2. Offene Mitgliedsbeiträge
+        due_periods = []
+        if period.endswith(("-H1", "-H2")):
+            due_periods = [period]
+        elif len(period) == 4 and period.isdigit():
+            due_periods = [f"{period}-H1", f"{period}-H2"]
+        elif period == "all":
+            for y in sorted(available_years, reverse=True):
+                due_periods.extend([f"{y}-H2", f"{y}-H1"])
+        else:
+            due_periods = [period]
+
+        open_dues_amount = 0.0
+        open_dues_count = 0
+        total_dues_expected = 0.0
+        total_dues_collected = 0.0
+
+        for dp in due_periods:
+            d_ov = get_membership_dues_overview(dp)
+            open_dues_amount += d_ov.get("outstanding", 0.0)
+            open_dues_count += sum(1 for mem in d_ov.get("members", []) if mem.get("payment_status") in ("unpaid", "partial"))
+            total_dues_expected += d_ov.get("total_expected", 0.0)
+            total_dues_collected += d_ov.get("total_collected", 0.0)
+
+        # 3. Paypaleinnahmen & 4. Kontoeinnahmen
+        tx_rows = finances_conn.execute(
+            "SELECT * FROM finance_transactions WHERE amount > 0 AND status != 'ignored'"
+        ).fetchall()
+        period_txs = [t for t in tx_rows if is_date_in_period(t["date"], period)]
+        paypal_tx_total = sum(t["amount"] for t in period_txs if (t["source"] == "paypal" or not t["source"]))
+
+        alloc_rows = finances_conn.execute("SELECT * FROM payment_allocations").fetchall()
+
+        paypal_membership_dues = 0.0
+        paypal_guest_fees = 0.0
+        bank_membership_dues = 0.0
+        bank_guest_fees = 0.0
+
+        for a in alloc_rows:
+            pm = a["payment_method"]
+            ftype = a["fee_type"]
+            amount = float(a["allocated_amount"] or 0.0)
+
+            in_period = False
+            if ftype == "membership_due":
+                in_period = (a["period"] in due_periods) or is_date_in_period(str(a["created_at"])[:10], period)
+            elif ftype == "match_guest":
+                in_period = is_date_in_period(a["match_date"], period)
+            else:
+                in_period = is_date_in_period(str(a["created_at"])[:10], period)
+
+            if not in_period:
+                continue
+
+            if pm == "paypal":
+                if ftype == "membership_due":
+                    paypal_membership_dues += amount
+                elif ftype == "match_guest":
+                    paypal_guest_fees += amount
+            elif pm == "bank":
+                if ftype == "membership_due":
+                    bank_membership_dues += amount
+                elif ftype == "match_guest":
+                    bank_guest_fees += amount
+
+        total_paypal_income = max(paypal_tx_total, paypal_membership_dues + paypal_guest_fees)
+        paypal_unassigned = max(0.0, total_paypal_income - (paypal_membership_dues + paypal_guest_fees))
+        total_bank_income = bank_membership_dues + bank_guest_fees
+
+        return {
+            "period": period,
+            "period_label": get_period_display_label(period),
+            # 1. Offene Kleckerbeträge
+            "open_klecker_amount": round(open_klecker_amount, 2),
+            "open_klecker_count": open_klecker_count,
+            "total_klecker_expected": round(total_klecker_expected, 2),
+            "total_klecker_collected": round(total_klecker_collected, 2),
+            # 2. Offene Mitgliedsbeiträge
+            "open_dues_amount": round(open_dues_amount, 2),
+            "open_dues_count": open_dues_count,
+            "total_dues_expected": round(total_dues_expected, 2),
+            "total_dues_collected": round(total_dues_collected, 2),
+            # 3. Paypaleinnahmen
+            "total_paypal_income": round(total_paypal_income, 2),
+            "paypal_membership_dues": round(paypal_membership_dues, 2),
+            "paypal_guest_fees": round(paypal_guest_fees, 2),
+            "paypal_unassigned": round(paypal_unassigned, 2),
+            # 4. Kontoeinnahmen
+            "total_bank_income": round(total_bank_income, 2),
+            "bank_membership_dues": round(bank_membership_dues, 2),
+            "bank_guest_fees": round(bank_guest_fees, 2),
+        }
+    finally:
+        if close_fin:
+            finances_conn.close()
+        if close_rb:
+            rb48_conn.close()
+        if close_acc:
+            accounts_conn.close()
+
