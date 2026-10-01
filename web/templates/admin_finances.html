@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('finances.title', 'Finanzen & Beitragsverwaltung · RB48') }}{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width: 1400px; width: 100%; margin: 30px auto; padding: 0 20px; box-sizing: border-box;">
+    <div class="account-card" style="padding: 28px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; box-sizing: border-box;">
+        
+        <!-- Header & Admin Nav -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <h1 style="margin: 0; color: #ffffff; display: flex; align-items: center; gap: 10px;">
+                    <span>💶</span> {{ t('finances.heading', 'Finanzen & Beitragsverwaltung') }}
+                </h1>
+                <p class="muted" style="margin-top: 4px;">{{ t('finances.subheading', 'Gastspieler-Beiträge (3,50 €), PayPal CSV-Kontoauszüge und lernfähige Spielerzuordnung.') }}</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div style="display: inline-flex; background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px;">
+                    <a href="{{ url_for('auth.admin_users') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
+                        👥 {{ t('auth.admin_users_heading', 'User Management') }}
+                    </a>
+                    <a href="{{ url_for('finances.admin_finances') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--accent); color: #ffffff; border-radius: 4px;">
+                        💶 {{ t('nav.finances', 'Finanzen & Beiträge') }}
+                    </a>
+                    <a href="{{ url_for('auth.admin_attendance_logs') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
+                        📋 {{ t('admin.nav_attendance_log', 'Anwesenheits-Log') }}
+                    </a>
+                    <a href="{{ url_for('auth.admin_player_positions') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
+                        ⚽ {{ t('admin.nav_player_positions', 'Spielerpositionen') }}
+                    </a>
+                </div>
+                <a href="{{ url_for('stats.home') }}" class="secondary" style="padding: 8px 16px; text-decoration: none;">← {{ t('nav.dashboard', 'Dashboard') }}</a>
+            </div>
+        </div>
+
+        <!-- Metrics Overview Cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
+            <div style="background: rgba(123, 82, 197, 0.12); border: 1px solid rgba(123, 82, 197, 0.35); border-radius: 8px; padding: 16px;">
+                <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Gast-Beitrag / Kick</div>
+                <div style="font-size: 24px; font-weight: 800; color: #80deea; margin-top: 4px;">{{ "%.2f"|format(guest_fee_rate)|replace(".", ",") }} €</div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">pro externem Gastspieler (+1)</div>
+            </div>
+
+            <div style="background: rgba(40, 167, 69, 0.12); border: 1px solid rgba(40, 167, 69, 0.35); border-radius: 8px; padding: 16px;">
+                <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">PayPal Einnahmen</div>
+                <div style="font-size: 24px; font-weight: 800; color: #88ff88; margin-top: 4px;">{{ "%.2f"|format(total_income)|replace(".", ",") }} €</div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">aus importierten CSV-Zahlungen</div>
+            </div>
+
+            <div style="background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); border-radius: 8px; padding: 16px;">
+                <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Ausstehende Zuordnungen</div>
+                <div style="font-size: 24px; font-weight: 800; color: #ffe082; margin-top: 4px;">{{ unassigned_count }}</div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">Zahlungen benötigen Bestätigung</div>
+            </div>
+
+            <div style="background: rgba(128, 222, 234, 0.12); border: 1px solid rgba(128, 222, 234, 0.35); border-radius: 8px; padding: 16px;">
+                <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Mitgliedsbeitrag (Zukunft)</div>
+                <div style="font-size: 24px; font-weight: 800; color: #ffffff; margin-top: 4px;">{{ "%.2f"|format(membership_due_rate)|replace(".", ",") }} €</div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">pro Halbjahr / Mitglied</div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 24px;">
+            <a href="{{ url_for('finances.admin_finances', tab='matchdays') }}" style="padding: 8px 18px; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'matchdays' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+                ⚽ {{ t('finances.tab_matchdays', 'Spieltage & Gastbeiträge') }}
+            </a>
+            <a href="{{ url_for('finances.admin_finances', tab='import') }}" style="padding: 8px 18px; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 6px; display: flex; align-items: center; gap: 6px; {% if active_tab == 'import' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+                📥 {{ t('finances.tab_import', 'PayPal CSV-Import & Zahlungen') }}
+                {% if unassigned_count > 0 %}
+                    <span style="background: #ffc107; color: #140b28; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 10px;">{{ unassigned_count }}</span>
+                {% endif %}
+            </a>
+            <a href="{{ url_for('finances.admin_finances', tab='identities') }}" style="padding: 8px 18px; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'identities' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+                🧠 {{ t('finances.tab_identities', 'Lernendes Zahler-Gedächtnis') }} ({{ identities|length }})
+            </a>
+        </div>
+
+        <!-- TAB 1: MATCHDAYS & GUEST PLAYERS -->
+        {% if active_tab == 'matchdays' %}
+        <div style="display: grid; grid-template-columns: 360px 1fr; gap: 24px; align-items: start;">
+            <!-- Left: Matchdays List -->
+            <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+                <h3 style="margin: 0 0 12px 0; font-size: 15px; color: #ffffff;">Spieltage mit Gastspielern</h3>
+                <div style="display: flex; flex-direction: column; gap: 8px; max-height: 600px; overflow-y: auto;">
+                    {% if events_overview %}
+                        {% for ev in events_overview %}
+                            <a href="{{ url_for('finances.admin_finances', tab='matchdays', event_id=ev.event_id) }}" style="text-decoration: none; display: block; padding: 12px; border-radius: 6px; border: 1px solid {% if ev.event_id == selected_event_id %}var(--accent){% else %}var(--border){% endif %}; background: {% if ev.event_id == selected_event_id %}rgba(123, 82, 197, 0.2){% else %}rgba(255, 255, 255, 0.02){% endif %}; transition: all .15s ease;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <strong style="color: #ffffff; font-size: 13.5px;">{{ ev.event_date }}</strong>
+                                    {% if ev.unpaid_count == 0 %}
+                                        <span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">🟢 Alle bezahlt</span>
+                                    {% else %}
+                                        <span style="background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.5); font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">🔴 {{ ev.unpaid_count }} offen</span>
+                                    {% endif %}
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 12px; color: var(--text-muted);">
+                                    <span>{{ ev.guest_count }} Gastspieler</span>
+                                    <span>{{ "%.2f"|format(ev.total_collected)|replace(".", ",") }} € / {{ "%.2f"|format(ev.total_expected)|replace(".", ",") }} €</span>
+                                </div>
+                            </a>
+                        {% endfor %}
+                    {% else %}
+                        <div class="muted" style="padding: 20px; text-align: center; font-size: 13px;">
+                            Keine Spieltage mit Gastanmeldungen gefunden.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Right: Event Attendees Detail -->
+            <div>
+                {% if selected_event_details and selected_event_details.guest_entries %}
+                    <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+                            <div>
+                                <h2 style="margin: 0; font-size: 18px; color: #ffffff;">
+                                    Gastspieler am {{ selected_event_details.event.event_date }}
+                                </h2>
+                                <p class="muted" style="margin: 4px 0 0 0; font-size: 13px;">
+                                    {{ selected_event_details.total_guests }} Gäste angemeldet · {{ "%.2f"|format(selected_event_details.total_collected)|replace(".", ",") }} € bezahlt · {{ "%.2f"|format(selected_event_details.outstanding)|replace(".", ",") }} € ausstehend
+                                </p>
+                            </div>
+                        </div>
+
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-muted); font-size: 12px;">
+                                        <th style="padding: 10px 8px;">Gastspieler</th>
+                                        <th style="padding: 10px 8px;">Mitgebracht von</th>
+                                        <th style="padding: 10px 8px;">Beitrag</th>
+                                        <th style="padding: 10px 8px;">Status</th>
+                                        <th style="padding: 10px 8px; text-align: right;">Aktionen</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for g in selected_event_details.guest_entries %}
+                                        <tr id="row-attendee-{{ g.attendee_id }}" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                            <td style="padding: 12px 8px;">
+                                                <strong style="color: #ffffff;">{{ g.name }}</strong>
+                                            </td>
+                                            <td style="padding: 12px 8px; color: var(--text-muted);">
+                                                {{ g.registered_by_name or '—' }}
+                                            </td>
+                                            <td style="padding: 12px 8px; font-weight: 600; color: #80deea;">
+                                                {{ "%.2f"|format(g.fee_required)|replace(".", ",") }} €
+                                            </td>
+                                            <td style="padding: 12px 8px;" id="status-col-{{ g.attendee_id }}">
+                                                {% if g.payment_status == 'paid' %}
+                                                    <span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟢 Bezahlt (PayPal)</span>
+                                                {% elif g.payment_status == 'cash' %}
+                                                    <span style="background: rgba(128, 222, 234, 0.25); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">💵 Bar bezahlt</span>
+                                                {% elif g.payment_status == 'waived' %}
+                                                    <span style="background: rgba(255, 255, 255, 0.1); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.2); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">⚪ Erlassen</span>
+                                                {% elif g.payment_status == 'partial' %}
+                                                    <span style="background: rgba(255, 193, 7, 0.25); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟡 Teilweise ({{ "%.2f"|format(g.amount_paid)|replace(".", ",") }} €)</span>
+                                                {% else %}
+                                                    <span style="background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🔴 Offen</span>
+                                                {% endif %}
+                                            </td>
+                                            <td style="padding: 12px 8px; text-align: right;">
+                                                <div style="display: inline-flex; gap: 4px;">
+                                                    <button type="button" class="secondary" onclick="markAttendee({{ selected_event_details.event.id }}, {{ g.attendee_id }}, 'cash')" style="font-size: 11px; padding: 3px 8px;" title="Als bar bezahlt markieren">
+                                                        💵 Bar
+                                                    </button>
+                                                    <button type="button" class="secondary" onclick="markAttendee({{ selected_event_details.event.id }}, {{ g.attendee_id }}, 'paypal')" style="font-size: 11px; padding: 3px 8px;" title="Als bezahlt markieren">
+                                                        ✅ Bezahlt
+                                                    </button>
+                                                    <button type="button" class="secondary" onclick="markAttendee({{ selected_event_details.event.id }}, {{ g.attendee_id }}, 'waived')" style="font-size: 11px; padding: 3px 8px; color: var(--text-muted);" title="Beitrag erlassen">
+                                                        ⚪ Erlassen
+                                                    </button>
+                                                    <button type="button" class="secondary" onclick="markAttendee({{ selected_event_details.event.id }}, {{ g.attendee_id }}, 'unpaid')" style="font-size: 11px; padding: 3px 8px; color: #ff8888;" title="Als unbezahlt/offen zurücksetzen">
+                                                        🔴 Offen
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {% else %}
+                    <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 40px; text-align: center;">
+                        <p class="muted" style="margin: 0;">Wähle links einen Spieltag aus, um die Gastspieler und Beitragszahlungen anzuzeigen.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- TAB 2: CSV IMPORT & TRANSACTIONS -->
+        {% if active_tab == 'import' %}
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- Upload Box -->
+            <div style="background: var(--bg-surface-alt); border: 1px dashed var(--accent); border-radius: 8px; padding: 24px;">
+                <h3 style="margin: 0 0 8px 0; color: #ffffff; font-size: 16px;">📥 PayPal CSV-Kontoauszug hochladen</h3>
+                <p class="muted" style="margin: 0 0 16px 0; font-size: 13px;">
+                    Lade hier den von PayPal exportierten CSV-Kontoauszug herunter (Aktivitäten ➔ Abrechnungen/Export ➔ CSV). Das System erkennt automatisch Gastbeiträge, ignoriert doppelte Zeilen und ordnet Absender intelligent zu.
+                </p>
+                <form method="post" action="{{ url_for('finances.upload_csv') }}" enctype="multipart/form-data" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                    <input type="file" name="csv_file" accept=".csv,text/csv" required style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: #ffffff; font-size: 13px;">
+                    <button type="submit" class="primary" style="padding: 9px 20px; font-weight: 600; cursor: pointer;">
+                        📤 Datei importieren & analysieren
+                    </button>
+                </form>
+            </div>
+
+            <!-- Transactions Table -->
+            <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+                <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #ffffff;">Importierte Zahlungen ({{ transactions|length }})</h3>
+
+                {% if transactions %}
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-muted); font-size: 12px;">
+                                <th style="padding: 10px 8px;">Datum</th>
+                                <th style="padding: 10px 8px;">Betrag</th>
+                                <th style="padding: 10px 8px;">Absender (Name / E-Mail)</th>
+                                <th style="padding: 10px 8px;">Zugeordneter Spieler / KI-Vorschlag</th>
+                                <th style="padding: 10px 8px;">Status</th>
+                                <th style="padding: 10px 8px; text-align: right;">Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tx in transactions %}
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); {% if tx.status == 'expense' %}opacity: 0.6;{% endif %}">
+                                <td style="padding: 12px 8px; white-space: nowrap;">
+                                    <strong style="color: #ffffff;">{{ tx.date }}</strong>
+                                    {% if tx.time %}<div style="font-size: 11px; color: var(--text-muted);">{{ tx.time }}</div>{% endif %}
+                                </td>
+                                <td style="padding: 12px 8px; font-weight: 700; white-space: nowrap;">
+                                    {% if tx.amount > 0 %}
+                                        <span style="color: #88ff88;">+{{ "%.2f"|format(tx.amount)|replace(".", ",") }} €</span>
+                                    {% else %}
+                                        <span style="color: #ff8888;">{{ "%.2f"|format(tx.amount)|replace(".", ",") }} €</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 12px 8px;">
+                                    <div style="color: #ffffff; font-weight: 600;">{{ tx.raw_payer_name or '—' }}</div>
+                                    <div style="font-size: 11.5px; color: var(--text-muted);">{{ tx.raw_payer_email or '' }}</div>
+                                    {% if tx.description %}<div style="font-size: 10.5px; color: var(--text-muted); font-style: italic;">{{ tx.description }}</div>{% endif %}
+                                </td>
+                                <td style="padding: 12px 8px;">
+                                    {% if tx.is_confirmed and tx.matched_player_name %}
+                                        <span style="color: #80deea; font-weight: 700;">✓ {{ tx.matched_player_name }}</span>
+                                    {% elif tx.suggestion and tx.suggestion.player_id %}
+                                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                            <strong style="color: #ffe082;">{{ tx.suggestion_player_name }}</strong>
+                                            <span style="background: rgba(255, 193, 7, 0.2); color: #ffe082; font-size: 10.5px; padding: 1px 6px; border-radius: 4px;" title="{{ tx.suggestion.reason }}">
+                                                {{ (tx.suggestion.confidence * 100)|int }}% Konfidenz
+                                            </span>
+                                        </div>
+                                        <div style="font-size: 11px; color: var(--text-muted);">{{ tx.suggestion.reason }}</div>
+                                    {% else %}
+                                        <span class="muted" style="font-size: 12px;">Kein Vorschlag</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 12px 8px;">
+                                    {% if tx.status == 'expense' %}
+                                        <span style="background: rgba(255, 255, 255, 0.1); color: var(--text-muted); font-size: 11px; padding: 2px 6px; border-radius: 4px;">Ausgabe</span>
+                                    {% elif tx.status == 'ignored' %}
+                                        <span style="background: rgba(220, 53, 69, 0.2); color: #ff8888; font-size: 11px; padding: 2px 6px; border-radius: 4px;">Ignoriert</span>
+                                    {% elif tx.is_confirmed %}
+                                        <span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">Bestätigt</span>
+                                    {% else %}
+                                        <span style="background: rgba(255, 193, 7, 0.25); color: #ffe082; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">Prüfung</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 12px 8px; text-align: right; white-space: nowrap;">
+                                    {% if tx.status != 'expense' %}
+                                        <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: inline-flex; gap: 6px; align-items: center; margin: 0;">
+                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                            <select name="player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 12px; padding: 4px 6px; border-radius: 4px;">
+                                                <option value="">-- Spieler wählen --</option>
+                                                {% for p in player_list %}
+                                                    <option value="{{ p.player_id }}" {% if (tx.matched_player_id == p.player_id) or (not tx.matched_player_id and tx.suggestion and tx.suggestion.player_id == p.player_id) %}selected{% endif %}>
+                                                        {{ p.name }}
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                            <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;" title="Dauerhaft für zukünftige Uploads dieser E-Mail merken">
+                                                <input type="checkbox" name="remember_identity" value="1" checked> 💾 Merken
+                                            </label>
+                                            <button type="submit" class="primary" style="font-size: 11.5px; padding: 4px 8px; cursor: pointer;">
+                                                ✓ Zuweisen
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                    <p class="muted" style="text-align: center; padding: 30px 0; margin: 0;">Noch keine Transaktionen vorhanden. Lade oben eine CSV-Datei hoch.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- TAB 3: LEARNED IDENTITIES -->
+        {% if active_tab == 'identities' %}
+        <div style="display: grid; grid-template-columns: 360px 1fr; gap: 24px; align-items: start;">
+            <!-- Left: Add New Identity -->
+            <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+                <h3 style="margin: 0 0 12px 0; color: #ffffff; font-size: 16px;">💾 Neue Zuordnung anlegen</h3>
+                <p class="muted" style="margin: 0 0 16px 0; font-size: 12.5px;">
+                    Verknüpfe eine E-Mail-Adresse oder einen PayPal-Namen dauerhaft mit einem Spieler.
+                </p>
+                <form method="post" action="{{ url_for('finances.save_identity') }}" style="display: flex; flex-direction: column; gap: 12px;">
+                    <div>
+                        <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Absender E-Mail</label>
+                        <input type="email" name="payer_email" placeholder="z. B. max.mustermann@gmx.de" style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 4px; font-size: 13px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Absender Name (PayPal)</label>
+                        <input type="text" name="payer_name" placeholder="z. B. Max Mustermann" style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 4px; font-size: 13px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Zugeordneter Spieler *</label>
+                        <select name="player_id" required style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 4px; font-size: 13px;">
+                            <option value="">-- Spieler wählen --</option>
+                            {% for p in player_list %}
+                                <option value="{{ p.player_id }}">{{ p.name }} ({{ p.aliases_str }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="primary" style="padding: 9px; font-weight: 600; cursor: pointer; margin-top: 6px;">
+                        💾 Zuordnung speichern
+                    </button>
+                </form>
+            </div>
+
+            <!-- Right: List of Identities -->
+            <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+                <h3 style="margin: 0 0 16px 0; color: #ffffff; font-size: 16px;">Bekannte Zahler-Identitäten ({{ identities|length }})</h3>
+                {% if identities %}
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-muted); font-size: 12px;">
+                                <th style="padding: 10px 8px;">Absender E-Mail</th>
+                                <th style="padding: 10px 8px;">Absender Name</th>
+                                <th style="padding: 10px 8px;">Zugeordneter Spieler</th>
+                                <th style="padding: 10px 8px; text-align: right;">Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ident in identities %}
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                <td style="padding: 12px 8px; color: #ffffff; font-family: monospace;">
+                                    {{ ident.payer_email or '—' }}
+                                </td>
+                                <td style="padding: 12px 8px; color: var(--text-muted);">
+                                    {{ ident.payer_name or '—' }}
+                                </td>
+                                <td style="padding: 12px 8px;">
+                                    <strong style="color: #80deea;">{{ ident.player_name }}</strong>
+                                </td>
+                                <td style="padding: 12px 8px; text-align: right;">
+                                    <form method="post" action="{{ url_for('finances.remove_identity', identity_id=ident.id) }}" onsubmit="return confirm('Zuordnung wirklich löschen?');" style="margin: 0;">
+                                        <button type="submit" class="secondary" style="font-size: 11px; padding: 3px 8px; color: #ff8888; cursor: pointer;">
+                                            🗑️ Löschen
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                    <p class="muted" style="text-align: center; padding: 30px 0; margin: 0;">Noch keine Zahler-Zuordnungen gespeichert.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+<script>
+function markAttendee(eventId, attendeeId, method) {
+    const formData = new FormData();
+    formData.append('event_id', eventId);
+    formData.append('attendee_id', attendeeId);
+    formData.append('payment_method', method);
+
+    fetch('{{ url_for("finances.mark_attendee") }}', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const col = document.getElementById('status-col-' + attendeeId);
+            if (col) {
+                if (method === 'cash') {
+                    col.innerHTML = '<span style="background: rgba(128, 222, 234, 0.25); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">💵 Bar bezahlt</span>';
+                } else if (method === 'paypal') {
+                    col.innerHTML = '<span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟢 Bezahlt (PayPal)</span>';
+                } else if (method === 'waived') {
+                    col.innerHTML = '<span style="background: rgba(255, 255, 255, 0.1); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.2); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">⚪ Erlassen</span>';
+                } else {
+                    col.innerHTML = '<span style="background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🔴 Offen</span>';
+                }
+            }
+        }
+    })
+    .catch(err => console.error('Error updating attendee payment:', err));
+}
+</script>
+{% endblock %}

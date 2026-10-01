@@ -1,0 +1,200 @@
+import re
+import difflib
+from scripts.database.database import get_connection as get_rb48_connection
+from scripts.accounts.database import get_accounts_connection
+from scripts.finances.database import get_finances_connection, get_identities
+
+
+def normalize_text(text: str | None) -> str:
+    """Normalize text for case-insensitive and punctuation-free comparison."""
+    if not text:
+        return ""
+    # Lowercase, replace umlauts/accents for robust matching
+    t = text.strip().lower()
+    t = t.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+    # Replace non-alphanumeric with space
+    t = re.sub(r"[^\w\s]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def find_player_match(
+    raw_payer_name: str | None,
+    raw_payer_email: str | None,
+    note: str | None = None,
+    finances_conn=None,
+    rb48_conn=None,
+    accounts_conn=None,
+) -> dict:
+    """
+    Smart matching engine that suggests a player_id, user_id, and confidence score (0.0 to 1.0)
+    based on learned identities, user accounts, and player aliases.
+    """
+    close_fin = False
+    close_rb48 = False
+    close_acc = False
+
+    if finances_conn is None:
+        finances_conn = get_finances_connection()
+        close_fin = True
+    if rb48_conn is None:
+        rb48_conn = get_rb48_connection()
+        close_rb48 = True
+    if accounts_conn is None:
+        accounts_conn = get_accounts_connection()
+        close_acc = True
+
+    try:
+        clean_email = (raw_payer_email or "").strip().lower()
+        clean_name = (raw_payer_name or "").strip()
+        norm_name = normalize_text(clean_name)
+        norm_email = normalize_text(clean_email)
+
+        # 1. Check persistent learned memory (payment_identities)
+        if clean_email:
+            row = finances_conn.execute(
+                "SELECT player_id, user_id, confidence FROM payment_identities WHERE LOWER(payer_email) = ?",
+                (clean_email,),
+            ).fetchone()
+            if row:
+                return {
+                    "player_id": row["player_id"],
+                    "user_id": row["user_id"],
+                    "confidence": float(row["confidence"] or 1.0),
+                    "match_type": "learned_email",
+                    "reason": "Gelerntes Profil (E-Mail)",
+                }
+
+        if clean_name:
+            row = finances_conn.execute(
+                "SELECT player_id, user_id, confidence FROM payment_identities WHERE LOWER(payer_name) = ?",
+                (clean_name.lower(),),
+            ).fetchone()
+            if row:
+                return {
+                    "player_id": row["player_id"],
+                    "user_id": row["user_id"],
+                    "confidence": min(float(row["confidence"] or 0.95), 0.95),
+                    "match_type": "learned_name",
+                    "reason": "Gelerntes Profil (Name)",
+                }
+
+        # 2. Check registered user accounts (accounts.db)
+        if clean_email:
+            user = accounts_conn.execute(
+                "SELECT id, username, email, player_id, attendance_name FROM users WHERE LOWER(email) = ?",
+                (clean_email,),
+            ).fetchone()
+            if user and user["player_id"]:
+                return {
+                    "player_id": user["player_id"],
+                    "user_id": user["id"],
+                    "confidence": 0.95,
+                    "match_type": "user_email",
+                    "reason": f"Benutzerkonto ({user['username']})",
+                }
+
+        # 3. Check aliases and players in rb48.db
+        alias_rows = rb48_conn.execute("SELECT alias, player_id FROM aliases").fetchall()
+        
+        # Exact alias match in name or email
+        best_match = None
+        best_score = 0.0
+        best_reason = ""
+
+        name_tokens = norm_name.split() if norm_name else []
+        email_prefix = clean_email.split("@")[0] if "@" in clean_email else clean_email
+        norm_email_prefix = normalize_text(email_prefix)
+
+        for row in alias_rows:
+            alias = row["alias"]
+            pid = row["player_id"]
+            norm_alias = normalize_text(alias)
+            
+            # Skip noise or generic aliases like "+1"
+            if not norm_alias or norm_alias in ("1", "gast", "guest"):
+                continue
+
+            # Exact match with whole name
+            if norm_alias == norm_name:
+                return {
+                    "player_id": pid,
+                    "user_id": None,
+                    "confidence": 0.95,
+                    "match_type": "alias_exact",
+                    "reason": f"Exakter Spieler-Name ('{alias}')",
+                }
+
+            # Alias is one of the tokens in the full name (e.g. "Kha" in "An-Kha Ha-Phuoc" or "Samuel" in "Samuel Schelp")
+            for token in name_tokens:
+                if token == norm_alias:
+                    score = 0.88
+                    if score > best_score:
+                        best_score = score
+                        best_match = pid
+                        best_reason = f"Alias-Treffer ('{alias}')"
+                elif token.startswith(norm_alias) and len(norm_alias) >= 3:
+                    # e.g. "Nik" in "Niklas"
+                    score = 0.80
+                    if score > best_score:
+                        best_score = score
+                        best_match = pid
+                        best_reason = f"Namens-Präfix ('{alias}' -> '{token}')"
+                elif norm_alias.startswith(token) and len(token) >= 3:
+                    score = 0.78
+                    if score > best_score:
+                        best_score = score
+                        best_match = pid
+                        best_reason = f"Namens-Ähnlichkeit ('{token}' -> '{alias}')"
+                else:
+                    # Check shared prefix (e.g. "konst" in "konsti" and "konstantin")
+                    prefix_len = 0
+                    for c1, c2 in zip(token, norm_alias):
+                        if c1 == c2:
+                            prefix_len += 1
+                        else:
+                            break
+                    if prefix_len >= 4:
+                        score = 0.75 + min(prefix_len - 4, 3) * 0.03
+                        if score > best_score:
+                            best_score = score
+                            best_match = pid
+                            best_reason = f"Namens-Ähnlichkeit ('{token}' ~ '{alias}')"
+
+            # Check email prefix
+            if norm_alias in norm_email_prefix:
+                score = 0.75
+                if score > best_score:
+                    best_score = score
+                    best_match = pid
+                    best_reason = f"E-Mail enthält Alias ('{alias}')"
+
+            # String similarity (difflib) on full name vs alias
+            sim = difflib.SequenceMatcher(None, norm_alias, norm_name).ratio()
+            if sim > 0.80 and sim > best_score:
+                best_score = sim * 0.85
+                best_match = pid
+                best_reason = f"Hohe Namensähnlichkeit ('{alias}')"
+
+        if best_match and best_score >= 0.70:
+            return {
+                "player_id": best_match,
+                "user_id": None,
+                "confidence": round(best_score, 2),
+                "match_type": "alias_fuzzy",
+                "reason": best_reason,
+            }
+
+        return {
+            "player_id": None,
+            "user_id": None,
+            "confidence": 0.0,
+            "match_type": "none",
+            "reason": "Keine automatische Zuordnung gefunden",
+        }
+    finally:
+        if close_fin:
+            finances_conn.close()
+        if close_rb48:
+            rb48_conn.close()
+        if close_acc:
+            accounts_conn.close()

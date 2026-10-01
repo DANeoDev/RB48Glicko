@@ -5,6 +5,7 @@ from .match_center import match_center_bp
 from .planner import planner_bp
 from .noise import noise_bp
 from .gallery import gallery_bp
+from .finances import finances_bp
 
 
 def register_routes(app):
@@ -15,4 +16,5 @@ def register_routes(app):
     app.register_blueprint(planner_bp)
     app.register_blueprint(noise_bp)
     app.register_blueprint(gallery_bp)
+    app.register_blueprint(finances_bp)
 

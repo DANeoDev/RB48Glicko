@@ -1079,4 +1079,13 @@ TRANSLATIONS_EN = {
     "admin.feedback_sub": "Submitted feedback regarding UX, mobile usability, and general ideas.",
     "admin.feedback_export_btn": "📋 Copy Logs for AI",
     "admin.feedback_export_success": "Logs copied to clipboard!",
+
+    # Finances & Payment Tracking
+    "nav.finances": "💶 Finances & Dues",
+    "finances.title": "Finances & Dues Management · RB48",
+    "finances.heading": "Finances & Dues Management",
+    "finances.subheading": "Guest match fees (3.50 €), PayPal CSV statement import, and smart player mapping.",
+    "finances.tab_matchdays": "Matchdays & Guest Fees",
+    "finances.tab_import": "PayPal CSV Import & Payments",
+    "finances.tab_identities": "Learned Payer Identities",
 }

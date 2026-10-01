@@ -1101,4 +1101,13 @@ TRANSLATIONS_DE = {
     "admin.feedback_sub": "Eingegangene Meldungen zu Handhabung, mobiler Bedienung und allgemeinen Anregungen.",
     "admin.feedback_export_btn": "📋 Logs für KI kopieren",
     "admin.feedback_export_success": "Logs erfolgreich in die Zwischenablage kopiert!",
+
+    # Finances & Payment Tracking
+    "nav.finances": "💶 Finanzen & Beiträge",
+    "finances.title": "Finanzen & Beitragsverwaltung · RB48",
+    "finances.heading": "Finanzen & Beitragsverwaltung",
+    "finances.subheading": "Gastspieler-Beiträge (3,50 €), PayPal CSV-Kontoauszüge und lernfähige Spielerzuordnung.",
+    "finances.tab_matchdays": "Spieltage & Gastbeiträge",
+    "finances.tab_import": "PayPal CSV-Import & Zahlungen",
+    "finances.tab_identities": "Lernendes Zahler-Gedächtnis",
 }
