@@ -247,9 +247,12 @@ def switch_view():
 
 @auth_bp.route("/admin/users")
 @require_webmaster
-def admin_users():
+def admin_users(default_tab="users"):
     """User management dashboard to review and approve registrations and player links."""
     curr_user = get_current_user()
+    active_tab = request.args.get("tab", default_tab).strip().lower()
+    if active_tab not in ("users", "mvp"):
+        active_tab = "users"
     connection = get_accounts_connection()
     main_conn = get_main_connection()
     try:
@@ -263,6 +266,7 @@ def admin_users():
         mvp_match_summaries = get_all_matches_mvp_summaries(connection, players_dict=players)
         return render_template(
             "admin_users.html",
+            active_tab=active_tab,
             users=users,
             players=players,
             notifications=notifications,
@@ -273,6 +277,13 @@ def admin_users():
     finally:
         connection.close()
         main_conn.close()
+
+
+@auth_bp.route("/admin/mvp-logs")
+@require_webmaster
+def admin_mvp_logs():
+    """Direct route to the MVP-Logs tab in User Management dashboard."""
+    return admin_users(default_tab="mvp")
 
 
 @auth_bp.route("/admin/attendance-logs")

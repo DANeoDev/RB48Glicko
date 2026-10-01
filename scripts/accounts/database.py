@@ -1369,7 +1369,10 @@ def get_match_mvp_deadline(match_date_str: str) -> datetime:
 def is_match_mvp_voting_open(match_date_str: str, now_dt: datetime | None = None) -> bool:
     """Check if MVP voting is currently open (now <= match_date + 1 day 20:00 Europe/Berlin)."""
     tz = ZoneInfo("Europe/Berlin")
-    now_dt = now_dt or datetime.now(tz)
+    if now_dt is None:
+        now_dt = datetime.now(tz)
+    elif now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=tz)
     deadline = get_match_mvp_deadline(match_date_str)
     return now_dt <= deadline
 
@@ -1605,8 +1608,21 @@ def get_mvp_medal_table(
     """
     podium_map = get_match_mvp_podium(connection, match_ids=filtered_match_ids)
 
-    # Filter by match_ids if provided, otherwise only include matches that exist in all_matches_dict
-    valid_mids = set(filtered_match_ids) if filtered_match_ids is not None else set(all_matches_dict.keys())
+    # Filter out matches where voting is still open (akute Abstimmungen nicht involvieren!)
+    valid_mids = set()
+    candidate_mids = filtered_match_ids if filtered_match_ids is not None else list(all_matches_dict.keys())
+    for mid in candidate_mids:
+        m = all_matches_dict.get(mid)
+        if m is None:
+            continue
+        m_date = m.get("date")
+        if m_date:
+            try:
+                if is_match_mvp_voting_open(m_date):
+                    continue
+            except Exception:
+                pass
+        valid_mids.add(mid)
 
     player_medals: dict[int, dict[str, int]] = {}
 

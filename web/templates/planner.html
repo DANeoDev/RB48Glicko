@@ -32,6 +32,13 @@
                 <button type="button" class="planner-btn-pill planner-btn-custom" id="open-schedule-modal-btn">
                     {{ t('planner.custom_matchday', '＋ Custom Matchday') }}
                 </button>
+                {% if past_events_count and past_events_count > 0 %}
+                <form method="post" action="{{ url_for('planner.archive_past_events') }}" onsubmit="return confirm('{{ t('planner.confirm_archive_past', 'Möchtest du wirklich alle zurückliegenden Spieltage vor dem heutigen Tag archivieren und aus der aktiven Liste entfernen? Ein automatisches Backup der Spieltage wird dabei erstellt.') }}');" style="margin: 0; display: inline;">
+                    <button type="submit" class="planner-btn-pill" style="background: rgba(255, 152, 0, 0.15); border: 1px solid rgba(255, 152, 0, 0.4); color: #ffb74d; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;" title="{{ t('planner.archive_past', 'Zurückliegende archivieren') }}">
+                        📦 {{ t('planner.archive_past', 'Zurückliegende archivieren') }} ({{ past_events_count }})
+                    </button>
+                </form>
+                {% endif %}
             {% endif %}
             {% if has_tier('webmaster') and events %}
                 <button type="button" class="planner-btn-pill planner-btn-danger" id="open-clear-all-modal-btn" title="{{ t('planner.clear_dates_title', 'Webmaster tool: Archive and clear match dates with 2-step verification') }}">

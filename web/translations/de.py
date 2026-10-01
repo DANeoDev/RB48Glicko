@@ -1138,6 +1138,11 @@ TRANSLATIONS_DE = {
     "admin.mvp_no_logs": "Bisher wurden noch keine MVP-Stimmen vergeben.",
     "admin.mvp_no_summaries": "Bisher liegen keine MVP-Wahlergebnisse vor.",
     "admin.mvp_secret_ballot_notice": "🔒 Stimmgeheimnis gewahrt: Es wird ausschließlich geloggt, wer wann abgestimmt hat. Gewählte Kandidaten bleiben für alle anonym.",
+    "admin.nav_mvp_logs": "MVP-Logs",
+    "planner.archive_past": "Zurückliegende archivieren",
+    "planner.confirm_archive_past": "Möchtest du wirklich alle zurückliegenden Spieltage vor dem heutigen Tag archivieren und aus der aktiven Liste entfernen? Ein automatisches Backup wird dabei erstellt.",
+    "planner.archive_past_success": "{count} vergangene Spieltage wurden erfolgreich archiviert.",
+    "planner.archive_past_none": "Keine zurückliegenden Spieltage zum Archivieren vorhanden.",
 
     # Finances & Payment Tracking
     "nav.finances": "💶 Finanzen & Beiträge",

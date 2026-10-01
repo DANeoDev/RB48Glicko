@@ -197,6 +197,18 @@ class GlickoOptOutTest(unittest.TestCase):
         self.assertIn("Profile Settings", html)
         self.assertIn("/settings", html)
 
+    def test_opted_out_user_default_sort_by_games(self):
+        """Users with Glicko opt-out must have default sorting set to number of games."""
+        user = self.create_user(role="user", psychology_passed=True, opt_out=1)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        resp = self.client.get("/stats")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("const userHasOptOut = true;", html)
+        self.assertIn('currentSortColumn = "games";', html)
+
 
 if __name__ == "__main__":
     unittest.main()

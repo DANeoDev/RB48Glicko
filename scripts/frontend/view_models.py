@@ -441,8 +441,15 @@ def calculate_match_details(
 
     team_a_rating = team_rating(team_a, total_players_a)
     team_b_rating = team_rating(team_b, total_players_b)
-    team_a_expected = expected_score(team_a_rating.rating, team_b_rating.rating, team_b_rating.rd)
-    team_b_expected = expected_score(team_b_rating.rating, team_a_rating.rating, team_a_rating.rd)
+    team_a_expected_raw = expected_score(team_a_rating.rating, team_b_rating.rating, team_b_rating.rd)
+    team_b_expected_raw = expected_score(team_b_rating.rating, team_a_rating.rating, team_a_rating.rd)
+    total_expected = team_a_expected_raw + team_b_expected_raw
+    if total_expected > 0:
+        team_a_expected = team_a_expected_raw / total_expected
+        team_b_expected = 1.0 - team_a_expected
+    else:
+        team_a_expected = 0.5
+        team_b_expected = 0.5
 
     if match["goals_a"] > match["goals_b"]:
         team_a_result, team_b_result = 1.0, 0.0

@@ -83,7 +83,12 @@ def stats():
     finally:
         acc_conn.close()
 
-    if not has_tier(Tier.WEBMASTER) and opted_out_player_ids:
+    curr_user = get_current_user()
+    user_has_opt_out = bool(curr_user and curr_user.get("glicko_opt_out"))
+
+    if user_has_opt_out:
+        leaderboard.sort(key=lambda p: -p["total"].get("games", 0))
+    elif not has_tier(Tier.WEBMASTER) and opted_out_player_ids:
         leaderboard.sort(key=lambda p: (p["player_id"] in opted_out_player_ids, -p["total"]["conservative"]))
 
     return render_template(

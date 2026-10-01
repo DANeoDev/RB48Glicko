@@ -19,6 +19,7 @@ from scripts.accounts.database import (
     get_mvp_voter_activity_logs,
     get_match_mvp_results,
     get_all_matches_mvp_summaries,
+    get_mvp_medal_table,
 )
 from scripts.database.database import get_connection, main as init_database
 from scripts.database.db_matches import get_matches
@@ -198,8 +199,8 @@ class MvpResultsAndLogsTests(unittest.TestCase):
         self.assertEqual(data["candidates"][0]["player_id"], 1)
         self.assertEqual(data["candidates"][0]["medal"], "gold")
 
-    def test_admin_users_mvp_card(self):
-        """Test that Webmasters see the MVP Logs card and non-webmasters are denied."""
+    def test_admin_users_mvp_tabs(self):
+        """Test that Webmasters see User Management on default tab and MVP Logs on mvp tab."""
         wm_id, wm_name = self.create_user(role="webmaster")
         u_id, u_name = self.create_user(role="user")
 
@@ -210,18 +211,77 @@ class MvpResultsAndLogsTests(unittest.TestCase):
         finally:
             conn.close()
 
-        # Regular user cannot access /admin/users
+        # Regular user cannot access /admin/users or /admin/mvp-logs
         self.login_user(u_id)
         res_user = self.client.get("/admin/users")
         self.assertIn(res_user.status_code, (302, 403))
+        res_user_mvp = self.client.get("/admin/mvp-logs")
+        self.assertIn(res_user_mvp.status_code, (302, 403))
 
-        # Webmaster can access /admin/users and see MVP Logs
+        # Webmaster on /admin/users sees User Management table
         self.login_user(wm_id)
-        res_wm = self.client.get("/admin/users")
-        self.assertEqual(res_wm.status_code, 200)
-        self.assertIn(b"MVP Logs", res_wm.data)
-        self.assertIn(b"2026-07-08-1", res_wm.data)
-        self.assertIn(u_name.encode("utf-8"), res_wm.data)
+        res_wm_users = self.client.get("/admin/users")
+        self.assertEqual(res_wm_users.status_code, 200)
+        self.assertIn(b"User Management", res_wm_users.data)
+        self.assertNotIn(b"Abstimmungs-Aktivit", res_wm_users.data)
+
+        # Webmaster on /admin/mvp-logs or /admin/users?tab=mvp sees MVP Logs and NO user table
+        res_wm_mvp = self.client.get("/admin/mvp-logs")
+        self.assertEqual(res_wm_mvp.status_code, 200)
+        self.assertIn(b"Abstimmungs-Aktivit", res_wm_mvp.data)
+        self.assertIn(u_name.encode("utf-8"), res_wm_mvp.data)
+        self.assertNotIn(b"confirm_delete", res_wm_mvp.data)
+
+        res_wm_mvp2 = self.client.get("/admin/users?tab=mvp")
+        self.assertEqual(res_wm_mvp2.status_code, 200)
+        self.assertIn(b"Abstimmungs-Aktivit", res_wm_mvp2.data)
+
+    def test_medaillenspiegel_excludes_open_voting_matches(self):
+        """Matches with voting currently open must NOT show up in MVP-Medaillenspiegel."""
+        u_id, _ = self.create_user(role="user")
+        today_str = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d")
+        conn = get_accounts_connection()
+        try:
+            # Active match (today)
+            record_match_mvp_votes(conn, "today-1", u_id, [10])
+            # Closed match (2026-07-08)
+            record_match_mvp_votes(conn, "closed-1", u_id, [20])
+
+            matches_dict = {
+                "today-1": {"date": today_str},
+                "closed-1": {"date": "2026-07-08"},
+            }
+
+            table = get_mvp_medal_table(conn, matches_dict)
+            pids = [entry["player_id"] for entry in table]
+            self.assertIn(20, pids)
+            self.assertNotIn(10, pids)
+        finally:
+            conn.close()
+
+    def test_win_probabilities_sum_to_100(self):
+        """Win probabilities in calculate_match_details must sum exactly to 1.0 (100%)."""
+        from scripts.frontend.view_models import calculate_match_details
+        from scripts.glicko.glicko2 import TOTAL
+        match = {
+            "date": "2026-07-08",
+            "goals_a": 5,
+            "goals_b": 3,
+            "players_a": 2,
+            "players_b": 2,
+        }
+        team_a = [1, 2]
+        team_b = [3, 4]
+        ratings = {
+            1: {TOTAL: {"rating": 1600.0, "rd": 80.0, "sigma": 0.06}},
+            2: {TOTAL: {"rating": 1550.0, "rd": 120.0, "sigma": 0.06}},
+            3: {TOTAL: {"rating": 1400.0, "rd": 300.0, "sigma": 0.06}},
+            4: {TOTAL: {"rating": 1350.0, "rd": 280.0, "sigma": 0.06}},
+        }
+        details = calculate_match_details(match, team_a, team_b, ratings, TOTAL)
+        self.assertIsNotNone(details["team_a_expected"])
+        self.assertIsNotNone(details["team_b_expected"])
+        self.assertAlmostEqual(details["team_a_expected"] + details["team_b_expected"], 1.0, places=6)
 
     def test_matches_page_shows_results_button_when_votes_exist(self):
         """Expired matches with votes must display the MVP results button."""

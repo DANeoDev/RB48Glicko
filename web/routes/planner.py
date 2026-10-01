@@ -182,10 +182,13 @@ def planner():
     if not next_upcoming_found and events_data:
         events_data[0]["is_next_upcoming"] = True
 
+    past_events_count = sum(1 for evt in events_data if evt["event_date"][:10] < today_str)
+
     user_attendance_name = (user.get("attendance_name") or user.get("username")) if user else ""
     return render_template(
         "planner.html",
         events=events_data,
+        past_events_count=past_events_count,
         user_attendance_name=user_attendance_name,
     )
 
@@ -490,6 +493,27 @@ def delete_event_route(event_id):
     try:
         delete_event(connection, event_id)
         flash("Match event has been cancelled and removed.", "info")
+    finally:
+        connection.close()
+
+    return redirect(url_for("planner.planner"))
+
+
+@planner_bp.route("/planner/events/archive-past", methods=["POST"])
+@require_admin
+def archive_past_events():
+    """Admin tool: Archive and remove past matchdays (event_date < today) with automatic backup."""
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    connection = get_planner_connection()
+    try:
+        events = get_upcoming_events(connection, limit=None)
+        past_ids = [ev["id"] for ev in events if ev["event_date"][:10] < today_str]
+        if not past_ids:
+            flash(t("planner.archive_past_none", "Keine zurückliegenden Spieltage zum Archivieren vorhanden."), "info")
+            return redirect(url_for("planner.planner"))
+
+        backup_name, cleared_count = backup_and_clear_events(connection, event_ids=past_ids)
+        flash(t("planner.archive_past_success", f"{cleared_count} vergangene Spieltage wurden erfolgreich archiviert (Backup: {backup_name}).", count=cleared_count), "success")
     finally:
         connection.close()
 

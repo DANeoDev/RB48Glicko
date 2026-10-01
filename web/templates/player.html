@@ -209,11 +209,13 @@
                 </div>
 
                 {% if show_player_glicko %}
+                {% set p_exp_a = (match["team_a_expected"] * 100) | round(1) %}
+                {% set p_exp_b = (100.0 - p_exp_a) | round(1) %}
                 <div class="match-details">
                     <div class="team-details team-a">
                         <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_a_rating"] | round | int }}</span></div>
                         <div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_a_rd"] | round(1) }}</span></div>
-                        <div class="team-stat"><span class="stat-label">{{ t('stats.win_rate', 'Win%') }}</span><span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span></div>
+                        <div class="team-stat"><span class="stat-label">{{ t('stats.win_rate', 'Win%') }}</span><span>{{ p_exp_a }}%</span></div>
                     </div>
                     <div class="rating-delta" title="{{ match['session_tooltip'] if match['session_tooltip'] else ('Shows ' ~ (player.aliases[0] if player.aliases else 'player') ~ ' specific change for the match') }}">
                     {% if match["is_session_pending"] %}
@@ -239,7 +241,7 @@
                     <div class="team-details team-b">
                         <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_b_rating"] | round | int }}</span></div>
                         <div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_b_rd"] | round | int }}</span></div>
-                        <div class="team-stat"><span class="stat-label">{{ t('stats.win_rate', 'Win%') }}</span><span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span></div>
+                        <div class="team-stat"><span class="stat-label">{{ t('stats.win_rate', 'Win%') }}</span><span>{{ p_exp_b }}%</span></div>
                     </div>
                 </div>
                 {% endif %}

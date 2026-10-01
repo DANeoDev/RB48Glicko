@@ -1116,6 +1116,11 @@ TRANSLATIONS_EN = {
     "admin.mvp_no_logs": "No MVP votes recorded yet.",
     "admin.mvp_no_summaries": "No MVP election results available yet.",
     "admin.mvp_secret_ballot_notice": "🔒 Secret Ballot Enforced: Only who voted when is logged. Selected candidates remain strictly anonymous.",
+    "admin.nav_mvp_logs": "MVP Logs",
+    "planner.archive_past": "Archive Past Matchdays",
+    "planner.confirm_archive_past": "Are you sure you want to archive and remove all past matchdays prior to today? An automatic backup will be created.",
+    "planner.archive_past_success": "{count} past matchdays were successfully archived.",
+    "planner.archive_past_none": "No past matchdays found to archive.",
 
     # Finances & Payment Tracking
     "nav.finances": "💶 Finances & Dues",

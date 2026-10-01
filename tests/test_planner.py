@@ -584,6 +584,67 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(res_filtered.status_code, 200)
         self.assertIn(u_name.encode("utf-8"), res_filtered.data)
 
+    def test_archive_past_events(self):
+        u_name = f"user_{int(time.time() * 1000000)}"
+        user_id, _ = register_user(u_name, f"{u_name}@example.com", "UserPass123!")
+        a_name = f"admin_{int(time.time() * 1000000)}"
+        admin_id, _ = register_user(a_name, f"{a_name}@example.com", "AdminPass123!")
+
+        acc_conn = get_accounts_connection()
+        try:
+            mark_email_verified(acc_conn, user_id)
+            approve_user(acc_conn, user_id, approved=True)
+            update_user_role(acc_conn, user_id, "user")
+
+            mark_email_verified(acc_conn, admin_id)
+            approve_user(acc_conn, admin_id, approved=True)
+            update_user_role(acc_conn, admin_id, "admin")
+        finally:
+            acc_conn.close()
+
+        p_conn = get_planner_connection()
+        try:
+            ev_past1 = create_event(p_conn, "2025-01-01 18:30", "box", 10, "Past 1")
+            ev_past2 = create_event(p_conn, "2025-01-08 18:30", "hf", 10, "Past 2")
+            ev_future = create_event(p_conn, "2099-01-01 18:30", "box", 10, "Future 1")
+        finally:
+            p_conn.close()
+
+        # Regular user cannot trigger archive
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        res_user = self.client.post("/planner/events/archive-past")
+        self.assertEqual(res_user.status_code, 302)
+
+        # Admin visits planner: past_events_count is 2 and button is present
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = admin_id
+        res_page = self.client.get("/planner")
+        self.assertEqual(res_page.status_code, 200)
+        self.assertIn(b"Zur\xc3\xbcckliegende archivieren", res_page.data)
+        self.assertIn(b"(2)", res_page.data)
+
+        # Admin triggers archive
+        res_archive = self.client.post("/planner/events/archive-past", follow_redirects=True)
+        self.assertEqual(res_archive.status_code, 200)
+        self.assertIn(b"2 vergangene Spieltage wurden erfolgreich archiviert", res_archive.data)
+
+        # Check DB: past events deleted, future event still exists
+        p_conn = get_planner_connection()
+        try:
+            remaining = get_upcoming_events(p_conn, limit=None)
+            rem_ids = [ev["id"] for ev in remaining]
+            self.assertNotIn(ev_past1, rem_ids)
+            self.assertNotIn(ev_past2, rem_ids)
+            self.assertIn(ev_future, rem_ids)
+        finally:
+            p_conn.close()
+
+        # Running again with 0 past events informs user
+        res_again = self.client.post("/planner/events/archive-past", follow_redirects=True)
+        self.assertEqual(res_again.status_code, 200)
+        self.assertIn(b"Keine zur\xc3\xbcckliegenden Spieltage", res_again.data)
+
 
 if __name__ == "__main__":
     unittest.main()

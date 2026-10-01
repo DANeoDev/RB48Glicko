@@ -273,10 +273,12 @@
                 {% if has_tier('glicko_user') %}
                     <div class="match-details">
                     {% if match["team_a_rating"] is not none %}
+                        {% set exp_a = (match["team_a_expected"] * 100) | round(1) %}
+                        {% set exp_b = (100.0 - exp_a) | round(1) %}
                         <div class="team-details team-a">
                             <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_a_rating"] | round | int }}</span></div>
                             <div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_a_rd"] | round(1) }}</span></div>
-                            <div class="team-stat"><span class="stat-label">{{ t('matches.expected', 'Expected') }}</span><span>{{ (match["team_a_expected"] * 100) | round(1) }}%</span></div>
+                            <div class="team-stat"><span class="stat-label">{{ t('matches.expected', 'Expected') }}</span><span>{{ exp_a }}%</span></div>
                         </div>
                         <div class="rating-delta" title="{{ match['session_tooltip'] if match['session_tooltip'] else 'Individual change varies from this depending on personal RD' }}">
                             {% if match["is_session_pending"] %}
@@ -302,7 +304,7 @@
                         <div class="team-details team-b">
                             <div class="team-stat"><span class="stat-label">⌀ Rating</span><span>{{ match["team_b_rating"] | round | int }}</span></div>
                             <div class="team-stat"><span class="stat-label">⌀ RD</span><span>{{ match["team_b_rd"] | round(1) }}</span></div>
-                            <div class="team-stat"><span class="stat-label">{{ t('matches.expected', 'Expected') }}</span><span>{{ (match["team_b_expected"] * 100) | round(1) }}%</span></div>
+                            <div class="team-stat"><span class="stat-label">{{ t('matches.expected', 'Expected') }}</span><span>{{ exp_b }}%</span></div>
                         </div>
                     {% else %}
                         <div class="team-details"><span>{{ t('matches.not_calculated', 'Ratings for this match have not been calculated yet.') }}</span></div>
