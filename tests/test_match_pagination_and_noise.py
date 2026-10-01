@@ -174,7 +174,8 @@ class TestMatchPaginationAndNoise(unittest.TestCase):
         if match_count > 12:
             # We expect pagination markup
             self.assertIn("class=\"match-pagination\"", html)
-            self.assertIn("class=\"pagination-indicator\"", html)
+            self.assertIn("class=\"pagination-page-selector\"", html)
+            self.assertIn("id=\"pagination-page-input\"", html)
             self.assertIn("class=\"pagination-btn pagination-next\"", html)
             self.assertIn("class=\"pagination-btn pagination-last\"", html)
             # Page 1 should NOT have prev or first

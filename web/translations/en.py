@@ -354,6 +354,8 @@ TRANSLATIONS_EN = {
     "pagination.last": "Last Page",
     "pagination.last_short": "Last",
     "pagination.page_x_of_max": "Page {page} / {max}",
+    "pagination.page_label": "Page",
+    "pagination.page_input_aria": "Enter page number",
 
     # MVP Medals Table
     "stats.mvp_medals_title": "MVP Medal Table",

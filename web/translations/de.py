@@ -367,6 +367,8 @@ TRANSLATIONS_DE = {
     "pagination.last": "Letzte Seite",
     "pagination.last_short": "Letzte",
     "pagination.page_x_of_max": "Seite {page} / {max}",
+    "pagination.page_label": "Seite",
+    "pagination.page_input_aria": "Seitennummer eingeben",
 
     # MVP Medaillenspiegel
     "stats.mvp_medals_title": "MVP-Medaillenspiegel",
