@@ -6,6 +6,8 @@ from scripts.finances.database import (
     get_allocations_for_period,
     get_allocations_for_player,
     get_transaction_by_id,
+    update_transaction_assignment,
+    save_or_update_identity,
     get_all_player_membership_statuses,
     get_player_membership_status,
     set_player_membership_status,
@@ -351,6 +353,59 @@ def get_match_date_guest_status(match_date: str) -> dict:
         accounts_conn.close()
 
 
+def find_unconfirmed_transaction_for_player(
+    finances_conn,
+    player_id: int,
+    match_date: str | None = None,
+    amount: float = GUEST_FEE_PER_KICK,
+) -> dict | None:
+    """Find an unconfirmed imported transaction matching a player or their aliases/email."""
+    # 1. Exact matched_player_id
+    row = finances_conn.execute(
+        """
+        SELECT * FROM finance_transactions
+        WHERE matched_player_id = ? AND status = 'imported' AND is_confirmed = 0 AND amount >= ?
+        ORDER BY ABS(julianday(date) - julianday(?)) ASC, id DESC
+        LIMIT 1
+        """,
+        (player_id, amount, match_date or "now"),
+    ).fetchone()
+    if row:
+        return dict(row)
+
+    # 2. Check unassigned transactions where find_player_match suggests this player
+    unmatched_rows = finances_conn.execute(
+        """
+        SELECT * FROM finance_transactions
+        WHERE matched_player_id IS NULL AND status = 'imported' AND is_confirmed = 0 AND amount >= ?
+        ORDER BY ABS(julianday(date) - julianday(?)) ASC, id DESC
+        """,
+        (amount, match_date or "now"),
+    ).fetchall()
+
+    if not unmatched_rows:
+        return None
+
+    rb48_conn = get_rb48_connection()
+    acc_conn = get_accounts_connection()
+    try:
+        for r in unmatched_rows:
+            match = find_player_match(
+                r["raw_payer_name"],
+                r["raw_payer_email"],
+                finances_conn=finances_conn,
+                rb48_conn=rb48_conn,
+                accounts_conn=acc_conn,
+            )
+            if match and match.get("player_id") == player_id and match.get("confidence", 0) >= 0.70:
+                return dict(r)
+    finally:
+        rb48_conn.close()
+        acc_conn.close()
+
+    return None
+
+
 def manual_mark_match_guest_payment(
     match_date: str,
     player_id: int,
@@ -360,10 +415,38 @@ def manual_mark_match_guest_payment(
 ) -> int:
     """
     Manually mark a player's guest fee for a match date as cash, paypal direct, waived, or unpaid.
+    Automatically links to an unconfirmed imported transaction (e.g. PayPal) if available.
     """
     finances_conn = get_finances_connection()
     try:
-        # Delete prior manual allocations for this player and date
+        # Find any existing allocation for this match date and player
+        existing_allocs = finances_conn.execute(
+            """
+            SELECT * FROM payment_allocations
+            WHERE match_date = ? AND player_id = ? AND fee_type = 'match_guest'
+            """,
+            (match_date, player_id),
+        ).fetchall()
+
+        # If payment_method is "unpaid", reset any linked transactions back to 'imported' and delete allocations
+        if payment_method == "unpaid":
+            for ea in existing_allocs:
+                if ea["transaction_id"]:
+                    finances_conn.execute(
+                        "UPDATE finance_transactions SET status = 'imported', is_confirmed = 0 WHERE id = ?",
+                        (ea["transaction_id"],),
+                    )
+            finances_conn.execute(
+                """
+                DELETE FROM payment_allocations
+                WHERE match_date = ? AND player_id = ? AND fee_type = 'match_guest'
+                """,
+                (match_date, player_id),
+            )
+            finances_conn.commit()
+            return 0
+
+        # Delete prior manual allocations (without transaction_id)
         finances_conn.execute(
             """
             DELETE FROM payment_allocations
@@ -373,8 +456,25 @@ def manual_mark_match_guest_payment(
         )
         finances_conn.commit()
 
-        if payment_method == "unpaid":
-            return 0
+        # Check if an allocation with transaction_id already existed
+        linked_tx_id = None
+        for ea in existing_allocs:
+            if ea["transaction_id"]:
+                linked_tx_id = ea["transaction_id"]
+                break
+
+        # If no linked transaction yet and method is paypal or bank, auto-link matching imported transaction
+        if not linked_tx_id and payment_method in ("paypal", "bank"):
+            cand = find_unconfirmed_transaction_for_player(finances_conn, player_id, match_date, amount=amount)
+            if cand:
+                linked_tx_id = cand["id"]
+                update_transaction_assignment(
+                    finances_conn,
+                    linked_tx_id,
+                    player_id=player_id,
+                    status="assigned",
+                    is_confirmed=1,
+                )
 
         alloc_amount = 0.0 if payment_method == "waived" else amount
         return add_payment_allocation(
@@ -382,10 +482,10 @@ def manual_mark_match_guest_payment(
             fee_type="match_guest",
             allocated_amount=alloc_amount,
             payment_method=payment_method,
-            transaction_id=None,
+            transaction_id=linked_tx_id,
             match_date=match_date,
             player_id=player_id,
-            note=note or f"Manuelle Erfassung ({payment_method})",
+            note=note or f"Erfassung ({payment_method})",
         )
     finally:
         finances_conn.close()
@@ -1193,4 +1293,219 @@ def get_finance_summary_metrics(
             rb48_conn.close()
         if close_acc:
             accounts_conn.close()
+
+
+def settle_transaction_and_debts(
+    transaction_id: int,
+    payer_player_id: int | None = None,
+    beneficiary_player_id: int | None = None,
+    match_date: str | None = None,
+    remember: bool = False,
+    current_user_id: int | None = None,
+    note: str | None = None,
+) -> dict:
+    """
+    Settle a transaction directly, covering debts for either the payer themselves
+    or on behalf of another guest player (e.g. Claudio paying for Paul).
+    Also links any existing manual allocations for this player/date (e.g. Martin).
+    """
+    finances_conn = get_finances_connection()
+    rb48_conn = get_rb48_connection()
+    accounts_conn = get_accounts_connection()
+
+    try:
+        tx = get_transaction_by_id(finances_conn, transaction_id)
+        if not tx:
+            return {"success": False, "error": "Transaktion nicht gefunden"}
+
+        # Resolve payer player ID
+        payer_pid = payer_player_id
+        if not payer_pid:
+            payer_pid = tx.get("matched_player_id")
+        if not payer_pid:
+            match = find_player_match(
+                tx.get("raw_payer_name"),
+                tx.get("raw_payer_email"),
+                finances_conn=finances_conn,
+                rb48_conn=rb48_conn,
+                accounts_conn=accounts_conn,
+            )
+            if match.get("player_id") and match.get("confidence", 0) >= 0.60:
+                payer_pid = match["player_id"]
+
+        # Beneficiary defaults to payer
+        bene_pid = beneficiary_player_id or payer_pid
+
+        # Remember identity if requested
+        if remember and payer_pid:
+            save_or_update_identity(
+                finances_conn,
+                player_id=payer_pid,
+                payer_email=tx.get("raw_payer_email"),
+                payer_name=tx.get("raw_payer_name"),
+                confidence=1.0,
+                created_by_user_id=current_user_id,
+            )
+
+        # Update transaction to assigned & confirmed
+        update_transaction_assignment(
+            finances_conn,
+            transaction_id,
+            player_id=payer_pid,
+            status="assigned",
+            is_confirmed=1,
+        )
+
+        remaining_amount = float(tx.get("amount", 0))
+        covered_count = 0
+
+        if bene_pid and remaining_amount > 0:
+            players_dict = get_players(rb48_conn)
+            payer_pdata = players_dict.get(payer_pid, {}) if payer_pid else {}
+            payer_name = payer_pdata.get("aliases", [f"Spieler #{payer_pid}"])[0] if payer_pid else (tx.get("raw_payer_name") or "Zahler")
+
+            alloc_note = note
+            if not alloc_note:
+                if payer_pid and bene_pid != payer_pid:
+                    alloc_note = f"Bezahlt von {payer_name}"
+                else:
+                    alloc_note = f"PayPal {tx['tx_code'] or ''}".strip()
+
+            # 1. Check existing manual allocations without transaction_id for the beneficiary
+            if match_date:
+                manual_rows = finances_conn.execute(
+                    """
+                    SELECT id, allocated_amount FROM payment_allocations
+                    WHERE match_date = ? AND player_id = ? AND transaction_id IS NULL AND fee_type = 'match_guest'
+                    """,
+                    (match_date, bene_pid),
+                ).fetchall()
+            else:
+                manual_rows = finances_conn.execute(
+                    """
+                    SELECT id, allocated_amount FROM payment_allocations
+                    WHERE player_id = ? AND transaction_id IS NULL AND fee_type = 'match_guest'
+                    ORDER BY match_date DESC
+                    """,
+                    (bene_pid,),
+                ).fetchall()
+
+            for mr in manual_rows:
+                if remaining_amount < GUEST_FEE_PER_KICK:
+                    break
+                finances_conn.execute(
+                    """
+                    UPDATE payment_allocations
+                    SET transaction_id = ?, payment_method = ?, paid_by_player_id = ?, note = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        transaction_id,
+                        tx["source"],
+                        payer_pid if payer_pid != bene_pid else None,
+                        alloc_note,
+                        mr["id"],
+                    ),
+                )
+                remaining_amount -= GUEST_FEE_PER_KICK
+                covered_count += 1
+
+            # 2. Check unpaid match guest fees for beneficiary
+            if remaining_amount >= GUEST_FEE_PER_KICK:
+                if match_date:
+                    dates_to_check = [match_date]
+                else:
+                    match_date_rows = rb48_conn.execute(
+                        """
+                        SELECT DISTINCT date FROM matches
+                        JOIN match_players USING(match_id)
+                        WHERE player_id = ?
+                        ORDER BY date ASC
+                        """,
+                        (bene_pid,),
+                    ).fetchall()
+                    dates_to_check = [r["date"] for r in match_date_rows]
+
+                for mdate in dates_to_check:
+                    if remaining_amount < GUEST_FEE_PER_KICK:
+                        break
+                    allocs = get_allocations_for_match_date(finances_conn, mdate)
+                    p_allocs = [a for a in allocs if a.get("player_id") == bene_pid]
+                    paid_sum = sum(a["allocated_amount"] for a in p_allocs if a["payment_method"] != "waived")
+                    if paid_sum >= GUEST_FEE_PER_KICK:
+                        continue
+
+                    add_payment_allocation(
+                        finances_conn,
+                        fee_type="match_guest",
+                        allocated_amount=GUEST_FEE_PER_KICK,
+                        payment_method=tx["source"],
+                        transaction_id=transaction_id,
+                        match_date=mdate,
+                        player_id=bene_pid,
+                        paid_by_player_id=payer_pid if payer_pid != bene_pid else None,
+                        note=alloc_note,
+                    )
+                    remaining_amount -= GUEST_FEE_PER_KICK
+                    covered_count += 1
+
+            # 3. If beneficiary is a member and remaining >= 48 €, allocate to membership dues
+            status = resolve_player_membership_status(bene_pid, finances_conn, accounts_conn)
+            if remaining_amount >= MEMBERSHIP_DUE_PER_HALFYEAR and status == "member":
+                for per in ("2026-H1", "2026-H2"):
+                    if remaining_amount < MEMBERSHIP_DUE_PER_HALFYEAR:
+                        break
+                    allocs = get_allocations_for_period(finances_conn, per)
+                    p_allocs = [a for a in allocs if a.get("player_id") == bene_pid]
+                    paid_sum = sum(a["allocated_amount"] for a in p_allocs if a["payment_method"] != "waived")
+                    if paid_sum >= MEMBERSHIP_DUE_PER_HALFYEAR:
+                        continue
+
+                    add_payment_allocation(
+                        finances_conn,
+                        fee_type="membership_due",
+                        allocated_amount=MEMBERSHIP_DUE_PER_HALFYEAR,
+                        payment_method=tx["source"],
+                        transaction_id=transaction_id,
+                        period=per,
+                        player_id=bene_pid,
+                        paid_by_player_id=payer_pid if payer_pid != bene_pid else None,
+                        note=alloc_note,
+                    )
+                    remaining_amount -= MEMBERSHIP_DUE_PER_HALFYEAR
+                    covered_count += 1
+
+        finances_conn.commit()
+        return {
+            "success": True,
+            "transaction_id": transaction_id,
+            "payer_player_id": payer_pid,
+            "beneficiary_player_id": bene_pid,
+            "covered_count": covered_count,
+        }
+    finally:
+        finances_conn.close()
+        rb48_conn.close()
+        accounts_conn.close()
+
+
+def reset_transaction_settlement(transaction_id: int):
+    """Reset a transaction back to 'imported' (unconfirmed) and remove/detach allocations."""
+    finances_conn = get_finances_connection()
+    try:
+        finances_conn.execute(
+            "DELETE FROM payment_allocations WHERE transaction_id = ?",
+            (transaction_id,),
+        )
+        finances_conn.execute(
+            """
+            UPDATE finance_transactions
+            SET status = 'imported', is_confirmed = 0, matched_player_id = NULL, matched_user_id = NULL
+            WHERE id = ?
+            """,
+            (transaction_id,),
+        )
+        finances_conn.commit()
+    finally:
+        finances_conn.close()
 

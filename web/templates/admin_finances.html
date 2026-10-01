@@ -535,10 +535,19 @@
                                     {% if tx.description %}<div style="font-size: 10.5px; color: var(--text-muted); font-style: italic;">{{ tx.description }}</div>{% endif %}
                                 </td>
                                 <td style="padding: 12px 8px;">
-                                    {% if tx.is_confirmed and tx.matched_player_name %}
-                                        <span style="color: #80deea; font-weight: 700;">✓ {{ tx.matched_player_name }}</span>
-                                        {% if tx.get('proxy_allocations_count') %}
-                                            <div style="font-size: 10.5px; color: #ffe082; margin-top: 2px;">🔀 {{ tx.proxy_allocations_count }}× Gastbeitrag (Stellvertreter)</div>
+                                    {% if tx.is_confirmed %}
+                                        {% if tx.matched_player_name %}
+                                            <div style="color: #80deea; font-weight: 700;">✓ {{ tx.matched_player_name }} <span style="font-size: 10.5px; color: var(--text-muted); font-weight: normal;">(Zahler)</span></div>
+                                            {% if tx.get('settled_summary') %}
+                                                <div style="font-size: 11px; color: #88ff88; margin-top: 3px; font-weight: 500;">
+                                                    ↳ {{ tx.settled_summary }}
+                                                </div>
+                                            {% endif %}
+                                        {% else %}
+                                            <strong style="color: #88ff88; font-size: 12px;">✓ Manuell beglichen</strong>
+                                            {% if tx.get('settled_summary') %}
+                                                <div style="font-size: 11px; color: #88ff88; margin-top: 2px;">↳ {{ tx.settled_summary }}</div>
+                                            {% endif %}
                                         {% endif %}
                                     {% elif tx.suggestion and tx.suggestion.player_id %}
                                         <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
@@ -558,29 +567,60 @@
                                     {% elif tx.status == 'ignored' %}
                                         <span style="background: rgba(220, 53, 69, 0.2); color: #ff8888; font-size: 11px; padding: 2px 6px; border-radius: 4px;">Ignoriert</span>
                                     {% elif tx.is_confirmed %}
-                                        <span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">Bestätigt</span>
+                                        <span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟢 Beglichen</span>
                                     {% else %}
-                                        <span style="background: rgba(255, 193, 7, 0.25); color: #ffe082; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">Prüfung</span>
+                                        <span style="background: rgba(255, 193, 7, 0.25); color: #ffe082; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">Prüfung</span>
                                     {% endif %}
                                 </td>
                                 <td style="padding: 12px 8px; text-align: right; white-space: nowrap;">
                                     {% if tx.status != 'expense' %}
-                                        {% if tx.get('is_proxy_candidate') and not tx.is_confirmed %}
+                                        {% if tx.is_confirmed %}
+                                            <div style="display: flex; gap: 8px; align-items: center; justify-content: flex-end;">
+                                                <span style="color: #88ff88; font-size: 11.5px; font-weight: 600;">✓ Erledigt</span>
+                                                <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
+                                                    <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                    <input type="hidden" name="action" value="reset">
+                                                    <button type="submit" class="secondary" style="font-size: 10.5px; padding: 2px 6px; color: var(--text-muted);" title="Status zurücksetzen (wieder auf 'Prüfung' stellen)">
+                                                        ↩ Zurücksetzen
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        {% elif tx.get('is_proxy_candidate') %}
                                             {# Proxy payment split UI #}
                                             <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
-                                                <div style="background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.4); border-radius: 6px; padding: 8px 10px; font-size: 11.5px; text-align: left; max-width: 320px;">
+                                                <div style="background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.4); border-radius: 6px; padding: 8px 10px; font-size: 11.5px; text-align: left; max-width: 340px;">
                                                     <div style="color: #ffe082; font-weight: 700; margin-bottom: 4px;">🔀 Stellvertreter-Zahlung erkannt</div>
                                                     <div style="color: var(--text-muted);">
-                                                        {{ tx.suggestion_player_name or tx.matched_player_name }} ist Mitglied → vermutlich {{ tx.proxy_num_kicks }}× Gastbeitrag ({{ "%.2f"|format(tx.proxy_num_kicks * 3.50)|replace(".", ",") }} €)
+                                                        Zahlung über {{ "%.2f"|format(tx.amount)|replace(".", ",") }} € ({{ tx.proxy_num_kicks }}× Gastbeitrag). Weise den Zahler und die begünstigten Gäste zu:
                                                     </div>
                                                 </div>
-                                                <form method="post" action="{{ url_for('finances.split_assign_transaction') }}" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end; margin: 0;" id="split-form-{{ tx.id }}">
+                                                <form method="post" action="{{ url_for('finances.split_assign_transaction') }}" style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end; margin: 0; width: 100%; max-width: 340px;" id="split-form-{{ tx.id }}">
                                                     <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                    <input type="hidden" name="paid_by_player_id" value="{{ tx.suggestion.player_id if tx.suggestion else tx.matched_player_id }}">
                                                     <input type="hidden" name="allocations" id="split-allocs-{{ tx.id }}" value="[]">
+
+                                                    <div style="width: 100%; display: flex; align-items: center; gap: 6px;">
+                                                        <span style="font-size: 11px; color: var(--text-muted); width: 60px;">Zahler:</span>
+                                                        <select name="paid_by_player_id" required style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 3px 4px; border-radius: 4px; flex: 1;">
+                                                            <option value="">-- Zahler wählen --</option>
+                                                            <optgroup label="Registrierte Spieler & Gäste">
+                                                                {% for p in player_list %}
+                                                                    <option value="{{ p.player_id }}" {% if (tx.suggestion and tx.suggestion.player_id == p.player_id) or (tx.matched_player_id == p.player_id) %}selected{% endif %}>{{ p.name }}</option>
+                                                                {% endfor %}
+                                                            </optgroup>
+                                                            {% if ignored_aliases %}
+                                                            <optgroup label="Ignorierte Aliase / Externe Gäste">
+                                                                {% for ign in ignored_aliases %}
+                                                                    <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                                                {% endfor %}
+                                                            </optgroup>
+                                                            {% endif %}
+                                                        </select>
+                                                    </div>
+
                                                     <div id="split-slots-{{ tx.id }}" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
                                                         {% for i in range(tx.proxy_num_kicks) %}
                                                         <div style="display: flex; gap: 4px; align-items: center;">
+                                                            <span style="font-size: 10.5px; color: var(--text-muted); width: 60px;">Gast {{ i + 1 }}:</span>
                                                             <select name="guest_{{ i }}" class="split-guest-select" data-form-id="{{ tx.id }}" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 3px 4px; border-radius: 4px; flex: 1;">
                                                                 <option value="">-- Gast {{ i + 1 }} --</option>
                                                                 <optgroup label="Reguläre Gäste">
@@ -595,30 +635,111 @@
                                                                     {% endfor %}
                                                                 </optgroup>
                                                                 {% endif %}
+                                                                <optgroup label="Mitglieder">
+                                                                    {% for p in player_list if p.status == 'member' %}
+                                                                        <option value="{{ p.player_id }}">{{ p.name }}</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
                                                             </select>
                                                             <span style="font-size: 11px; color: var(--text-muted); white-space: nowrap;">3,50 €</span>
                                                         </div>
                                                         {% endfor %}
                                                     </div>
-                                                    <div style="display: flex; gap: 4px; align-items: center;">
+                                                    <div style="display: flex; gap: 6px; align-items: center;">
                                                         <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;">
-                                                            <input type="checkbox" name="remember_identity" value="1" checked> 💾
+                                                            <input type="checkbox" name="remember_identity" value="1" checked> 💾 Merken
                                                         </label>
                                                         <button type="submit" class="primary" style="font-size: 11px; padding: 4px 10px; cursor: pointer;" onclick="return prepareSplitAllocations('{{ tx.id }}')">
-                                                            🔀 Aufteilen & Zuweisen
+                                                            🔀 Aufteilen & Begleichen
                                                         </button>
                                                     </div>
                                                 </form>
-                                                {# Fallback: normal single assignment #}
+                                                {# Fallback: direct settle or single assignment #}
                                                 <details style="width: 100%;">
-                                                    <summary style="font-size: 10.5px; color: var(--text-muted); cursor: pointer;">Oder: Einzelzuordnung →</summary>
-                                                    <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: inline-flex; gap: 6px; align-items: center; margin-top: 4px;">
+                                                    <summary style="font-size: 10.5px; color: var(--text-muted); cursor: pointer;">Oder: Einfache Einzelzuordnung →</summary>
+                                                    <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end; margin-top: 4px;">
                                                         <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                        <select name="player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 12px; padding: 4px 6px; border-radius: 4px;">
-                                                            <option value="">-- Spieler --</option>
-                                                            <optgroup label="Registrierte Spieler">
+                                                        <div style="display: flex; gap: 4px; align-items: center;">
+                                                            <span style="font-size: 10.5px; color: var(--text-muted);">Zahler:</span>
+                                                            <select name="player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11.5px; padding: 3px 6px; border-radius: 4px;">
+                                                                <option value="">-- Spieler wählen --</option>
+                                                                <optgroup label="Registrierte Spieler & Gäste">
+                                                                    {% for p in player_list %}
+                                                                        <option value="{{ p.player_id }}" {% if tx.suggestion and tx.suggestion.player_id == p.player_id %}selected{% endif %}>{{ p.name }}</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                {% if ignored_aliases %}
+                                                                <optgroup label="Ignorierte Aliase / Externe Gäste">
+                                                                    {% for ign in ignored_aliases %}
+                                                                        <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                {% endif %}
+                                                            </select>
+                                                        </div>
+                                                        <div style="display: flex; gap: 4px; align-items: center;">
+                                                            <span style="font-size: 10.5px; color: var(--text-muted);">Begleicht für:</span>
+                                                            <select name="beneficiary_player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px;">
+                                                                <option value="">-- Für sich selbst --</option>
+                                                                <optgroup label="Gäste & Spieler">
+                                                                    {% for p in player_list %}
+                                                                        <option value="{{ p.player_id }}">{{ p.name }}</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                {% if ignored_aliases %}
+                                                                <optgroup label="Ignorierte Aliase / Externe">
+                                                                    {% for ign in ignored_aliases %}
+                                                                        <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                {% endif %}
+                                                            </select>
+                                                        </div>
+                                                        <div style="display: flex; gap: 4px; align-items: center;">
+                                                            <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;">
+                                                                <input type="checkbox" name="remember_identity" value="1" checked> 💾
+                                                            </label>
+                                                            <button type="submit" class="primary" style="font-size: 11px; padding: 3px 8px; cursor: pointer;">✓ Zuweisen & Begleichen</button>
+                                                        </div>
+                                                    </form>
+                                                </details>
+                                            </div>
+                                        {% else %}
+                                            {# Standard single-player assignment with 1-click Beglichen and third-party beneficiary support #}
+                                            <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
+                                                <div style="display: flex; gap: 6px; align-items: center;">
+                                                    {% if tx.suggestion and tx.suggestion.player_id %}
+                                                        {# 1-Click Beglichen Button for suggested player #}
+                                                        <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
+                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                            <input type="hidden" name="payer_player_id" value="{{ tx.suggestion.player_id }}">
+                                                            <input type="hidden" name="remember_identity" value="1">
+                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Direkt für {{ tx.suggestion_player_name }} als beglichen markieren">
+                                                                ✓ Beglichen ({{ tx.suggestion_player_name }})
+                                                            </button>
+                                                        </form>
+                                                    {% else %}
+                                                        <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
+                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer;" title="Manuell als beglichen/erledigt markieren">
+                                                                ✓ Beglichen
+                                                            </button>
+                                                        </form>
+                                                    {% endif %}
+                                                </div>
+
+                                                {# Detailed assignment form (who paid + who does it settle for) #}
+                                                <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end; margin: 0;">
+                                                    <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                    <div style="display: flex; gap: 4px; align-items: center;">
+                                                        <span style="font-size: 11px; color: var(--text-muted);">Zahler:</span>
+                                                        <select name="player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11.5px; padding: 3px 6px; border-radius: 4px;">
+                                                            <option value="">-- Zahler wählen --</option>
+                                                            <optgroup label="Registrierte Spieler & Gäste">
                                                                 {% for p in player_list %}
-                                                                    <option value="{{ p.player_id }}" {% if tx.suggestion and tx.suggestion.player_id == p.player_id %}selected{% endif %}>{{ p.name }}</option>
+                                                                    <option value="{{ p.player_id }}" {% if (tx.matched_player_id == p.player_id) or (not tx.matched_player_id and tx.suggestion and tx.suggestion.player_id == p.player_id) %}selected{% endif %}>
+                                                                        {{ p.name }}
+                                                                    </option>
                                                                 {% endfor %}
                                                             </optgroup>
                                                             {% if ignored_aliases %}
@@ -629,41 +750,40 @@
                                                             </optgroup>
                                                             {% endif %}
                                                         </select>
-                                                        <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;">
-                                                            <input type="checkbox" name="remember_identity" value="1" checked> 💾
+                                                    </div>
+
+                                                    <details style="font-size: 11px; width: 100%; text-align: left;">
+                                                        <summary style="cursor: pointer; color: #80deea; font-size: 10.5px;">Für anderen Gast bezahlt? (z. B. Paul) →</summary>
+                                                        <div style="margin-top: 4px; display: flex; gap: 4px; align-items: center;">
+                                                            <span style="font-size: 10.5px; color: var(--text-muted); white-space: nowrap;">Begleicht:</span>
+                                                            <select name="beneficiary_player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; width: 100%;">
+                                                                <option value="">-- Für sich selbst --</option>
+                                                                <optgroup label="Gäste & Spieler">
+                                                                    {% for p in player_list %}
+                                                                        <option value="{{ p.player_id }}">{{ p.name }}</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                {% if ignored_aliases %}
+                                                                <optgroup label="Ignorierte Aliase / Externe Gäste">
+                                                                    {% for ign in ignored_aliases %}
+                                                                        <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                {% endif %}
+                                                            </select>
+                                                        </div>
+                                                    </details>
+
+                                                    <div style="display: flex; gap: 4px; align-items: center; margin-top: 2px;">
+                                                        <label style="font-size: 10.5px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;" title="Dauerhaft für zukünftige Uploads dieser E-Mail merken">
+                                                            <input type="checkbox" name="remember_identity" value="1" checked> 💾 Merken
                                                         </label>
-                                                        <button type="submit" class="primary" style="font-size: 11.5px; padding: 4px 8px; cursor: pointer;">✓ Zuweisen</button>
-                                                    </form>
-                                                </details>
+                                                        <button type="submit" class="primary" style="font-size: 11px; padding: 3px 8px; cursor: pointer;">
+                                                            ✓ Zuweisen & Begleichen
+                                                        </button>
+                                                    </div>
+                                                </form>
                                             </div>
-                                        {% else %}
-                                            {# Standard single-player assignment #}
-                                            <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: inline-flex; gap: 6px; align-items: center; margin: 0;">
-                                                <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                <select name="player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 12px; padding: 4px 6px; border-radius: 4px;">
-                                                    <option value="">-- Spieler wählen --</option>
-                                                    <optgroup label="Registrierte Spieler">
-                                                        {% for p in player_list %}
-                                                            <option value="{{ p.player_id }}" {% if (tx.matched_player_id == p.player_id) or (not tx.matched_player_id and tx.suggestion and tx.suggestion.player_id == p.player_id) %}selected{% endif %}>
-                                                                {{ p.name }}
-                                                            </option>
-                                                        {% endfor %}
-                                                    </optgroup>
-                                                    {% if ignored_aliases %}
-                                                    <optgroup label="Ignorierte Aliase / Externe Gäste">
-                                                        {% for ign in ignored_aliases %}
-                                                            <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
-                                                        {% endfor %}
-                                                    </optgroup>
-                                                    {% endif %}
-                                                </select>
-                                                <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;" title="Dauerhaft für zukünftige Uploads dieser E-Mail merken">
-                                                    <input type="checkbox" name="remember_identity" value="1" checked> 💾 Merken
-                                                </label>
-                                                <button type="submit" class="primary" style="font-size: 11.5px; padding: 4px 8px; cursor: pointer;">
-                                                    ✓ Zuweisen
-                                                </button>
-                                            </form>
                                         {% endif %}
                                     {% endif %}
                                 </td>

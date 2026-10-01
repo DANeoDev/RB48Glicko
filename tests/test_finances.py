@@ -32,6 +32,8 @@ from scripts.finances.reconciliation import (
     manual_mark_match_guest_payment,
     manual_mark_membership_due,
     auto_allocate_transaction_to_debts,
+    settle_transaction_and_debts,
+    reset_transaction_settlement,
     get_all_unpaid_guest_entries,
     get_available_finance_periods,
     get_period_display_label,
@@ -449,6 +451,141 @@ def test_mask_payer_name():
     # Fallback string
     assert mask_payer_name("Transaktion #42") == "Transaktion #42"
     assert mask_payer_name("") == ""
+
+
+def test_third_party_external_proxy_payment(clean_finances_env):
+    """
+    Test scenario: Sarah Lago pays via PayPal.
+    Sender is actually Claudio (external guest), who pays on behalf of Paul (another external guest).
+    """
+    r_conn = get_rb48_connection()
+    # Claudio (player 50) and Paul (player 51) are both guests
+    r_conn.execute("INSERT INTO players (player_id) VALUES (50), (51)")
+    r_conn.execute("INSERT INTO aliases (alias, player_id) VALUES ('Claudio', 50), ('Paul', 51)")
+    # Paul played in match on 2026-07-15
+    add_match_player(r_conn, "2026-07-15-1", 51, "B")
+    r_conn.commit()
+    r_conn.close()
+
+    f_conn = get_finances_connection()
+    set_player_membership_status(f_conn, 50, "guest")
+    set_player_membership_status(f_conn, 51, "guest")
+
+    # Transaction from Sarah Lago
+    tx_id = insert_transaction(
+        f_conn,
+        source="paypal",
+        tx_code="SL-12345",
+        date="2026-07-16",
+        time="10:00:00",
+        raw_payer_name="Sarah Lago",
+        raw_payer_email="sarah.lago@example.com",
+        amount=3.50,
+        status="imported",
+        is_confirmed=0,
+    )
+    f_conn.close()
+
+    # Settle: Claudio (payer) pays for Paul (beneficiary), and remember identity (Sarah Lago = Claudio)
+    res = settle_transaction_and_debts(
+        transaction_id=tx_id,
+        payer_player_id=50,
+        beneficiary_player_id=51,
+        match_date="2026-07-15",
+        remember=True,
+    )
+    assert res["success"] is True
+    assert res["covered_count"] == 1
+
+    f_conn = get_finances_connection()
+    # 1. Transaction is confirmed and assigned to Claudio
+    tx = get_transaction_by_id(f_conn, tx_id)
+    assert tx["is_confirmed"] == 1
+    assert tx["status"] == "assigned"
+    assert tx["matched_player_id"] == 50
+
+    # 2. Identity mapping Sarah Lago -> Claudio (50) was saved
+    identities = get_identities(f_conn)
+    matching_ident = [i for i in identities if i["player_id"] == 50 and i["payer_name"] == "Sarah Lago"]
+    assert len(matching_ident) == 1
+
+    # 3. Paul's debt is cleared and attributed to Claudio as payer
+    paul_status = get_match_date_guest_status("2026-07-15")
+    paul_entry = next(g for g in paul_status["guest_entries"] if g["player_id"] == 51)
+    assert paul_entry["payment_status"] == "paid"
+    assert paul_entry["paid_by_player_id"] == 50
+    assert paul_entry["paid_by_name"] == "Claudio"
+
+    f_conn.close()
+
+
+def test_settle_transaction_direct_and_manual_linking(clean_finances_env):
+    """
+    Test scenario: Martin (player 60, guest) had an open kick and was already
+    marked as paid manually on the match day. Then an imported transaction is settled:
+    it should link to that manual payment, confirm the transaction, and update status.
+    """
+    r_conn = get_rb48_connection()
+    r_conn.execute("INSERT INTO players (player_id) VALUES (60)")
+    r_conn.execute("INSERT INTO aliases (alias, player_id) VALUES ('Martin', 60)")
+    add_match_player(r_conn, "2026-07-15-1", 60, "B")
+    r_conn.commit()
+    r_conn.close()
+
+    f_conn = get_finances_connection()
+    set_player_membership_status(f_conn, 60, "guest")
+
+    # User manually marked Martin as paid (without transaction_id)
+    manual_mark_match_guest_payment("2026-07-15", 60, payment_method="cash")
+
+    # Imported transaction from Martin
+    tx_id = insert_transaction(
+        f_conn,
+        source="paypal",
+        tx_code="MART-777",
+        date="2026-07-16",
+        time="11:00:00",
+        raw_payer_name="Martin Meier",
+        raw_payer_email="martin.meier@example.com",
+        amount=3.50,
+        status="imported",
+        is_confirmed=0,
+    )
+    f_conn.close()
+
+    # Settle transaction for Martin directly
+    res = settle_transaction_and_debts(
+        transaction_id=tx_id,
+        payer_player_id=60,
+        beneficiary_player_id=60,
+    )
+    assert res["success"] is True
+
+    f_conn = get_finances_connection()
+    tx = get_transaction_by_id(f_conn, tx_id)
+    assert tx["is_confirmed"] == 1
+    assert tx["status"] == "assigned"
+
+    # Allocation is now linked to this transaction
+    allocs = f_conn.execute(
+        "SELECT * FROM payment_allocations WHERE match_date = '2026-07-15' AND player_id = 60"
+    ).fetchall()
+    assert len(allocs) == 1
+    assert allocs[0]["transaction_id"] == tx_id
+
+    # Reset transaction
+    reset_transaction_settlement(tx_id)
+    tx_reset = get_transaction_by_id(f_conn, tx_id)
+    assert tx_reset["is_confirmed"] == 0
+    assert tx_reset["status"] == "imported"
+    assert tx_reset["matched_player_id"] is None
+
+    allocs_after_reset = f_conn.execute(
+        "SELECT * FROM payment_allocations WHERE transaction_id = ?", (tx_id,)
+    ).fetchall()
+    assert len(allocs_after_reset) == 0
+
+    f_conn.close()
 
 
 

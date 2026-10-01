@@ -37,6 +37,8 @@ from scripts.finances.reconciliation import (
     manual_mark_match_guest_payment,
     manual_mark_membership_due,
     auto_allocate_transaction_to_debts,
+    settle_transaction_and_debts,
+    reset_transaction_settlement,
     get_all_unpaid_guest_entries,
     get_available_finance_periods,
     get_period_display_label,
@@ -88,9 +90,49 @@ def admin_finances():
 
         # Transactions
         transactions = get_transactions(finances_conn, limit=200)
-        
-        # Attach match suggestions & player names to transactions
+
+        # Attach allocations and human-readable settlement summary to transactions
+        tx_ids = [tx["id"] for tx in transactions]
+        allocs_by_tx = {}
+        if tx_ids:
+            placeholders = ",".join("?" for _ in tx_ids)
+            arows = finances_conn.execute(
+                f"SELECT * FROM payment_allocations WHERE transaction_id IN ({placeholders})",
+                tx_ids,
+            ).fetchall()
+            for ar in arows:
+                allocs_by_tx.setdefault(ar["transaction_id"], []).append(dict(ar))
+
+        # Attach match suggestions, player names, and allocations to transactions
         for tx in transactions:
+            tx_allocs = allocs_by_tx.get(tx["id"], [])
+            tx["allocations"] = tx_allocs
+            tx["proxy_allocations_count"] = len([a for a in tx_allocs if a.get("paid_by_player_id")])
+
+            settled_labels = []
+            for a in tx_allocs:
+                bene_name = None
+                if a.get("player_id"):
+                    bene_pdata = players_dict.get(a["player_id"], {})
+                    bene_name = bene_pdata.get("aliases", [f"Spieler #{a['player_id']}"])[0]
+
+                if a.get("fee_type") == "match_guest":
+                    date_part = f" ({a['match_date']})" if a.get("match_date") else ""
+                    if bene_name:
+                        if a.get("paid_by_player_id") and a["paid_by_player_id"] != a.get("player_id"):
+                            settled_labels.append(f"Gastbeitrag für {bene_name}{date_part}")
+                        else:
+                            settled_labels.append(f"Gastbeitrag {bene_name}{date_part}")
+                    else:
+                        settled_labels.append(f"Gastbeitrag{date_part}")
+                elif a.get("fee_type") == "membership_due":
+                    per_part = f" ({a['period']})" if a.get("period") else ""
+                    settled_labels.append(f"Mitgliedsbeitrag{per_part}")
+                else:
+                    settled_labels.append(a.get("note") or "Beglichen")
+
+            tx["settled_summary"] = ", ".join(settled_labels)
+
             if tx.get("matched_player_id"):
                 pinfo = players_dict.get(tx["matched_player_id"], {})
                 tx["matched_player_name"] = pinfo.get("aliases", [f"Player #{tx['matched_player_id']}"])[0]
@@ -107,18 +149,19 @@ def admin_finances():
                     pinfo = players_dict.get(match_res["player_id"], {})
                     tx["suggestion_player_name"] = pinfo.get("aliases", [f"Player #{match_res['player_id']}"])[0]
 
-            # Check for proxy payment pattern (member + guest fee multiple)
-            if tx.get("matched_player_id") or (tx.get("suggestion") and tx["suggestion"].get("player_id")):
-                check_pid = tx.get("matched_player_id") or tx["suggestion"]["player_id"]
-                amount = float(tx.get("amount", 0))
-                if amount > 0:
-                    remainder = amount % GUEST_FEE_PER_KICK
-                    is_guest_multiple = remainder < 0.01 or (GUEST_FEE_PER_KICK - remainder) < 0.01
-                    # Check if suggested player is a member
-                    pstatus = next((p["status"] for p in players_with_status if p["player_id"] == check_pid), None)
-                    if is_guest_multiple and pstatus == "member" and not tx.get("is_confirmed"):
+            # Check for proxy payment pattern (multiple of guest fee or member paying guest fee)
+            amount = float(tx.get("amount", 0))
+            if amount > 0:
+                remainder = amount % GUEST_FEE_PER_KICK
+                is_guest_multiple = remainder < 0.01 or (GUEST_FEE_PER_KICK - remainder) < 0.01
+                check_pid = tx.get("matched_player_id") or (tx.get("suggestion") and tx["suggestion"].get("player_id"))
+                pstatus = next((p["status"] for p in players_with_status if p["player_id"] == check_pid), None) if check_pid else None
+
+                if is_guest_multiple and not tx.get("is_confirmed"):
+                    num_kicks = round(amount / GUEST_FEE_PER_KICK)
+                    if num_kicks >= 2 or (num_kicks >= 1 and pstatus == "member"):
                         tx["is_proxy_candidate"] = True
-                        tx["proxy_num_kicks"] = round(amount / GUEST_FEE_PER_KICK)
+                        tx["proxy_num_kicks"] = num_kicks
 
         # Learned identities
         identities = get_identities(finances_conn)
@@ -341,26 +384,43 @@ def upload_csv():
 @finances_bp.route("/assign-transaction", methods=["POST"])
 @require_webmaster
 def assign_transaction():
-    """Assign or confirm a player for a transaction and optionally learn the mapping."""
+    """Assign or confirm a player for a transaction, optionally settling on behalf of another guest."""
     tx_id = request.form.get("tx_id", type=int)
     raw_player_id = request.form.get("player_id", "")
+    raw_beneficiary_id = request.form.get("beneficiary_player_id", "")
     remember = request.form.get("remember_identity") in ("1", "true", "on")
     ignore = request.form.get("ignore") in ("1", "true", "on")
 
     player_id = None
-    if raw_player_id:
-        if str(raw_player_id).startswith("ignored:"):
-            ignored_alias = str(raw_player_id).split(":", 1)[1]
-            rb_conn = get_rb48_connection()
-            try:
+    beneficiary_player_id = None
+    rb_conn = None
+
+    try:
+        if raw_player_id:
+            if str(raw_player_id).startswith("ignored:"):
+                ignored_alias = str(raw_player_id).split(":", 1)[1]
+                rb_conn = get_rb48_connection()
                 player_id = ensure_ignored_alias_as_guest_player(rb_conn, ignored_alias)
-            finally:
-                rb_conn.close()
-        else:
-            try:
-                player_id = int(raw_player_id)
-            except (ValueError, TypeError):
-                player_id = None
+            else:
+                try:
+                    player_id = int(raw_player_id)
+                except (ValueError, TypeError):
+                    player_id = None
+
+        if raw_beneficiary_id:
+            if str(raw_beneficiary_id).startswith("ignored:"):
+                ign_alias = str(raw_beneficiary_id).split(":", 1)[1]
+                if rb_conn is None:
+                    rb_conn = get_rb48_connection()
+                beneficiary_player_id = ensure_ignored_alias_as_guest_player(rb_conn, ign_alias)
+            else:
+                try:
+                    beneficiary_player_id = int(raw_beneficiary_id)
+                except (ValueError, TypeError):
+                    beneficiary_player_id = None
+    finally:
+        if rb_conn:
+            rb_conn.close()
 
     if not tx_id:
         return jsonify({"success": False, "error": "Missing transaction ID"}), 400
@@ -383,22 +443,17 @@ def assign_transaction():
         if not player_id:
             return jsonify({"success": False, "error": "Bitte einen Spieler auswählen"}), 400
 
-        update_transaction_assignment(finances_conn, tx_id, player_id, None, status="assigned", is_confirmed=1)
+        res = settle_transaction_and_debts(
+            transaction_id=tx_id,
+            payer_player_id=player_id,
+            beneficiary_player_id=beneficiary_player_id,
+            remember=remember,
+            current_user_id=curr_user["id"] if curr_user else None,
+        )
 
-        if remember:
-            save_or_update_identity(
-                finances_conn,
-                player_id=player_id,
-                payer_email=tx.get("raw_payer_email"),
-                payer_name=tx.get("raw_payer_name"),
-                confidence=1.0,
-                created_by_user_id=curr_user["id"] if curr_user else None,
-            )
-
-        kicks_covered = auto_allocate_transaction_to_debts(tx_id, player_id)
-
+        kicks_covered = res.get("covered_count", 0)
         flash(
-            f"Transaktion #{tx_id} erfolgreich zugeordnet ({kicks_covered} offene Kicks/Beiträge automatisch ausgeglichen).",
+            f"Transaktion #{tx_id} erfolgreich zugeordnet & beglichen ({kicks_covered} offene Posten ausgeglichen).",
             "success",
         )
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
@@ -406,6 +461,81 @@ def assign_transaction():
         return redirect(url_for("finances.admin_finances", tab="import"))
     finally:
         finances_conn.close()
+
+
+@finances_bp.route("/settle-transaction", methods=["POST"])
+@require_webmaster
+def settle_transaction_route():
+    """Directly mark an imported transaction as settled, or reset it to unconfirmed/Prüfung."""
+    tx_id = request.form.get("tx_id", type=int)
+    action = request.form.get("action", "settle")
+
+    if not tx_id:
+        return jsonify({"success": False, "error": "Missing transaction ID"}), 400
+
+    if action == "reset":
+        reset_transaction_settlement(tx_id)
+        flash(f"Transaktion #{tx_id} zurückgesetzt auf 'Prüfung'.", "info")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": True, "action": "reset"})
+        return redirect(url_for("finances.admin_finances", tab="import"))
+
+    raw_payer_id = request.form.get("payer_player_id") or request.form.get("player_id", "")
+    raw_bene_id = request.form.get("beneficiary_player_id", "")
+    remember = request.form.get("remember_identity") in ("1", "true", "on")
+    match_date = request.form.get("match_date")
+
+    payer_pid = None
+    bene_pid = None
+    rb_conn = None
+    try:
+        if raw_payer_id:
+            if str(raw_payer_id).startswith("ignored:"):
+                rb_conn = get_rb48_connection()
+                payer_pid = ensure_ignored_alias_as_guest_player(rb_conn, str(raw_payer_id).split(":", 1)[1])
+            else:
+                try:
+                    payer_pid = int(raw_payer_id)
+                except (ValueError, TypeError):
+                    payer_pid = None
+
+        if raw_bene_id:
+            if str(raw_bene_id).startswith("ignored:"):
+                if rb_conn is None:
+                    rb_conn = get_rb48_connection()
+                bene_pid = ensure_ignored_alias_as_guest_player(rb_conn, str(raw_bene_id).split(":", 1)[1])
+            else:
+                try:
+                    bene_pid = int(raw_bene_id)
+                except (ValueError, TypeError):
+                    bene_pid = None
+    finally:
+        if rb_conn:
+            rb_conn.close()
+
+    curr_user = get_current_user()
+    res = settle_transaction_and_debts(
+        transaction_id=tx_id,
+        payer_player_id=payer_pid,
+        beneficiary_player_id=bene_pid,
+        match_date=match_date,
+        remember=remember,
+        current_user_id=curr_user["id"] if curr_user else None,
+    )
+
+    if not res.get("success"):
+        flash(res.get("error", "Fehler beim Begleichen"), "danger")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify(res), 400
+        return redirect(url_for("finances.admin_finances", tab="import"))
+
+    flash(
+        f"Transaktion #{tx_id} als beglichen markiert ({res.get('covered_count', 0)} offene Posten ausgeglichen).",
+        "success",
+    )
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify(res)
+    return redirect(url_for("finances.admin_finances", tab="import"))
 
 
 @finances_bp.route("/identity/save", methods=["POST"])
@@ -472,10 +602,24 @@ def split_assign_transaction():
     import json as _json
     
     tx_id = request.form.get("tx_id", type=int)
-    paid_by_player_id = request.form.get("paid_by_player_id", type=int)
+    raw_paid_by = request.form.get("paid_by_player_id", "")
+    paid_by_player_id = None
+    if raw_paid_by:
+        if str(raw_paid_by).startswith("ignored:"):
+            rb_c = get_rb48_connection()
+            try:
+                paid_by_player_id = ensure_ignored_alias_as_guest_player(rb_c, str(raw_paid_by).split(":", 1)[1])
+            finally:
+                rb_c.close()
+        else:
+            try:
+                paid_by_player_id = int(raw_paid_by)
+            except (ValueError, TypeError):
+                paid_by_player_id = None
+
     remember = request.form.get("remember_identity") in ("1", "true", "on")
     allocations_json = request.form.get("allocations", "[]")
-    
+
     if not tx_id or not paid_by_player_id:
         return jsonify({"success": False, "error": "Missing transaction or payer ID"}), 400
     
