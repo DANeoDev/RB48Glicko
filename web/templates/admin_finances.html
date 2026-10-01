@@ -224,9 +224,14 @@
                         <div style="margin-bottom: 24px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
                                 <h4 style="margin: 0; color: #80deea; font-size: 14px;">Gastspieler (Beitragspflichtig: 3,50 €)</h4>
-                                <button type="button" class="secondary" id="btn-copy-day-open" onclick="copyDayOpenDebts('{{ selected_date_details.match_date }}')" style="font-size: 11px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;" title="Offene Gastbeiträge dieses Spieltags (Name und Datum) in die Zwischenablage kopieren">
-                                    📋 Offene kopieren ({{ selected_date_details.match_date }})
-                                </button>
+                                <div style="display: inline-flex; gap: 6px; flex-wrap: wrap;">
+                                    <button type="button" class="secondary" id="btn-copy-month-open" onclick="copyMonthOpenDebts('{{ selected_date_details.match_date[:7] }}')" style="font-size: 11px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;" title="Alle offenen Gastbeiträge dieses Monats in die Zwischenablage kopieren">
+                                        📋 Monat kopieren
+                                    </button>
+                                    <button type="button" class="secondary" id="btn-copy-day-open" onclick="copyDayOpenDebts('{{ selected_date_details.match_date }}')" style="font-size: 11px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;" title="Offene Gastbeiträge dieses Spieltags (Name und Datum) in die Zwischenablage kopieren">
+                                        📋 Spieltag kopieren ({{ selected_date_details.match_date }})
+                                    </button>
+                                </div>
                             </div>
                             <div style="overflow-x: auto;">
                                 <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
@@ -897,6 +902,32 @@ function prepareSplitAllocations(txId) {
 const ALL_UNPAID_DEBTS = {{ all_unpaid_entries|tojson if all_unpaid_entries is defined else '[]' }};
 const UNASSIGNED_PAYERS = {{ unassigned_payers|tojson if unassigned_payers is defined else '[]' }};
 
+const GERMAN_MONTHS = [
+    'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
+];
+
+function formatShortDate(isoDate) {
+    if (!isoDate) return '';
+    const parts = isoDate.split('-');
+    if (parts.length === 3) {
+        const y = parts[0].slice(-2);
+        const m = parts[1];
+        const d = parts[2];
+        return d + '.' + m + '.' + y;
+    }
+    return isoDate;
+}
+
+function getGermanMonthYear(isoDateOrYearMonth) {
+    if (!isoDateOrYearMonth) return '';
+    const parts = isoDateOrYearMonth.split('-');
+    const year = parts[0];
+    const monthIdx = parseInt(parts[1], 10) - 1;
+    const monthName = (monthIdx >= 0 && monthIdx < 12) ? GERMAN_MONTHS[monthIdx] : parts[1];
+    return monthName + ' ' + year;
+}
+
 function maskWord(w) {
     const s = w.trim();
     if (s.length <= 4) return s.slice(0, 2) + '..';
@@ -928,7 +959,7 @@ function buildFooterText() {
     if (UNASSIGNED_PAYERS && UNASSIGNED_PAYERS.length > 0) {
         unassignedText = UNASSIGNED_PAYERS.map(maskPayerName).join(', ');
     }
-    return '\n\nDie Liste kann unvollständig und/oder falsche Einträge beinhalten. Ich konnte bspw. ' + unassignedText + ' nicht einem Spieler zuordnen. Bitte die Beträge begleichen oder PN an mich zur Klärung. (automatisch erstellt)';
+    return '\n\nDie Liste kann unvollständig sein und/oder falsche Einträge beinhalten. Ich konnte bspw. ' + unassignedText + ' nicht einem Spieler zuordnen. Bitte die Beträge begleichen oder PN an mich zur Klärung.\n(automatisch erstellt)';
 }
 
 function copyToClipboard(text, buttonElement, defaultText) {
@@ -975,12 +1006,46 @@ function copyAllOpenDebts() {
         alert('Keine offenen Beiträge vorhanden.');
         return;
     }
-    // Format: Name - Datum
+
+    // Find oldest date for header: "Offene Beträge seit DD.MM.YY:"
+    let oldestDate = null;
+    ALL_UNPAID_DEBTS.forEach(function(item) {
+        if (item.match_date) {
+            if (!oldestDate || item.match_date < oldestDate) {
+                oldestDate = item.match_date;
+            }
+        }
+    });
+
+    const header = oldestDate ? ('Offene Beträge seit ' + formatShortDate(oldestDate) + ':\n\n') : 'Offene Beträge:\n\n';
     const lines = ALL_UNPAID_DEBTS.map(function(item) {
         return item.name + ' - ' + item.match_date;
     });
-    const text = 'Offene Beträge:\n\n' + lines.join('\n') + buildFooterText();
+    const text = header + lines.join('\n') + buildFooterText();
     copyToClipboard(text, btn, '📋 Alle offenen kopieren');
+}
+
+function copyMonthOpenDebts(yearMonth) {
+    const btn = document.getElementById('btn-copy-month-open');
+    const monthYearStr = getGermanMonthYear(yearMonth);
+    const lines = [];
+
+    if (ALL_UNPAID_DEBTS && ALL_UNPAID_DEBTS.length > 0) {
+        ALL_UNPAID_DEBTS.forEach(function(item) {
+            if (item.match_date && item.match_date.startsWith(yearMonth)) {
+                lines.push(item.name + ' - ' + item.match_date);
+            }
+        });
+    }
+
+    if (lines.length === 0) {
+        alert('Keine offenen Beiträge im ' + monthYearStr + ' vorhanden.');
+        return;
+    }
+
+    const header = 'Offene Beträge ' + monthYearStr + ':\n\n';
+    const text = header + lines.join('\n') + buildFooterText();
+    copyToClipboard(text, btn, '📋 Monat kopieren');
 }
 
 function copyDayOpenDebts(matchDate) {
@@ -1014,8 +1079,10 @@ function copyDayOpenDebts(matchDate) {
         return;
     }
 
-    const text = 'Offene Beträge:\n\n' + lines.join('\n') + buildFooterText();
-    copyToClipboard(text, btn, '📋 Offene kopieren (' + matchDate + ')');
+    const monthYearStr = getGermanMonthYear(matchDate);
+    const header = 'Offene Beträge ' + monthYearStr + ':\n\n';
+    const text = header + lines.join('\n') + buildFooterText();
+    copyToClipboard(text, btn, '📋 Spieltag kopieren (' + matchDate + ')');
 }
 
 function changeFinancePeriod(period) {

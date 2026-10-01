@@ -329,11 +329,13 @@ def test_webmaster_finances_web_routes(clean_finances_env):
     assert resp_after.status_code == 200
     after_html = resp_after.get_data(as_text=True)
     assert "btn-copy-all-open" in after_html
+    assert "btn-copy-month-open" in after_html
     assert "copyAllOpenDebts" in after_html
+    assert "copyMonthOpenDebts" in after_html
     assert "copyDayOpenDebts" in after_html
-    assert "Offene Beträge:" in after_html
+    assert "Offene Beträge seit" in after_html
     assert "buildFooterText" in after_html
-    assert "Die Liste kann unvollständig und/oder falsche Einträge beinhalten" in after_html
+    assert "Die Liste kann unvollständig sein und/oder falsche Einträge beinhalten" in after_html
     assert "(automatisch erstellt)" in after_html
 
     # Test presence of new cards and period filter
