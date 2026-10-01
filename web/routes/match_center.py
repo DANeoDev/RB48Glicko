@@ -442,10 +442,6 @@ def match_center():
         pitch = pitch if pitch in ("box", "hf") else "box"
         rating_type = "total" if mode == "total" else pitch
 
-        engine = request.form.get("engine", request.args.get("engine", session.get("active_model", "glicko"))).lower()
-        if engine not in ("glicko", "whr"):
-            engine = "glicko"
-
         raw_players = request.form.getlist("players") or request.args.getlist("players")
         if len(raw_players) == 1 and "," in raw_players[0]:
             raw_players = [p.strip() for p in raw_players[0].split(",") if p.strip()]
@@ -503,12 +499,7 @@ def match_center():
                 except ValueError:
                     seed = None
                 if len(selected_ids) >= 2:
-                    if engine == "whr":
-                        from scripts.analysis.whr import get_whr_ratings_dict
-                        ratings_to_use = get_whr_ratings_dict(connection)
-                    else:
-                        ratings_to_use = ratings
-                    result = generate_match(selected_ids, players, ratings_to_use, rating_type, seed=seed)
+                    result = generate_match(selected_ids, players, ratings, rating_type, seed=seed)
 
         match_date = imported_planner_date or request.form.get("date", request.args.get("date", request.form.get("parsed_match_date", date.today().isoformat())))
         if parse_result and parse_result.get("match_date"):
@@ -521,15 +512,31 @@ def match_center():
             external_b = int(request.form.get("external_b", "0") or 0) if request.method == "POST" and action in ("save", "create_player") else 0
         except (ValueError, TypeError):
             external_a, external_b = 0, 0
-        goals_a = request.form.get("goals_a", "0") if request.method == "POST" else "0"
-        goals_b = request.form.get("goals_b", "0") if request.method == "POST" else "0"
+        goals_a = request.form.get("goals_a")
+        if goals_a is None or goals_a == "":
+            parsed_ga = request.form.get("parsed_goals_a")
+            if parsed_ga not in (None, ""):
+                goals_a = str(parsed_ga)
+            elif parse_result and parse_result.get("goals_a") is not None:
+                goals_a = str(parse_result["goals_a"])
+            else:
+                goals_a = "0"
+
+        goals_b = request.form.get("goals_b")
+        if goals_b is None or goals_b == "":
+            parsed_gb = request.form.get("parsed_goals_b")
+            if parsed_gb not in (None, ""):
+                goals_b = str(parsed_gb)
+            elif parse_result and parse_result.get("goals_b") is not None:
+                goals_b = str(parse_result["goals_b"])
+            else:
+                goals_b = "0"
+
         if parse_result and parse_result.get("kind") == "match" and not team_a and not team_b:
             team_a = parse_result.get("team_a_ids", [])
             team_b = parse_result.get("team_b_ids", [])
             external_a = parse_result.get("external_a", 0)
             external_b = parse_result.get("external_b", 0)
-            goals_a = parse_result.get("goals_a") if parse_result.get("goals_a") is not None else 0
-            goals_b = parse_result.get("goals_b") if parse_result.get("goals_b") is not None else 0
 
         player_names = {}
         for pid, data in players.items():
@@ -574,7 +581,7 @@ def match_center():
             certainty_levels=CERTAINTY_LEVELS,
             player_search_data=player_search_data,
             planner_events=planner_events,
-            active_engine=engine,
+            active_engine="glicko",
         )
     finally:
         connection.close()

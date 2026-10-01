@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
 import time
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from scripts.accounts.auth import (
@@ -18,9 +18,13 @@ from scripts.accounts.database import (
     approve_user,
     backup_and_delete_user,
     clear_all_webmaster_notifications,
+    create_feedback_entry,
+    delete_feedback_entry,
     delete_webmaster_notification,
     get_accounts_connection,
+    get_all_feedback,
     get_all_users,
+    get_feedback_counts,
     get_unseen_webmaster_notifications_count,
     get_user_authored_noise_bubbles,
     get_user_by_email,
@@ -34,6 +38,7 @@ from scripts.accounts.database import (
     set_user_access_level,
     set_user_persona,
     unlink_player,
+    update_feedback_status,
     update_user_password,
     update_user_profile,
 )
@@ -43,7 +48,9 @@ from scripts.accounts.psychology import (
     get_psychology_personas,
 )
 from scripts.database.database import get_connection as get_main_connection
-from scripts.database.db_players import get_players
+from scripts.database.db_players import get_players, set_player_positions
+from scripts.planner.database import get_planner_connection, get_attendance_logs, get_attendance_logs_count, get_all_events
+from web.services.cache import invalidate_stats_cache
 from web.services.email_service import is_smtp_configured, send_verification_email
 from web.services.translations import get_current_lang
 from web.services.security import (
@@ -259,6 +266,132 @@ def admin_users():
         )
     finally:
         connection.close()
+        main_conn.close()
+
+
+@auth_bp.route("/admin/attendance-logs")
+@require_tier(Tier.ADMIN)
+def admin_attendance_logs():
+    """Admin & Webmaster audit log dashboard showing attendee registrations and cancellations."""
+    p_conn = get_planner_connection()
+    try:
+        page = max(1, request.args.get("page", 1, type=int))
+        per_page = 40
+        offset = (page - 1) * per_page
+        action_filter = request.args.get("action", "").strip().lower() or None
+        if action_filter not in ("registered", "cancelled", "declined"):
+            action_filter = None
+
+        event_id_filter = request.args.get("event_id", type=int)
+
+        raw_logs = get_attendance_logs(p_conn, limit=per_page, offset=offset, event_id=event_id_filter, action=action_filter)
+        total_logs = get_attendance_logs_count(p_conn, event_id=event_id_filter, action=action_filter)
+        total_pages = max(1, (total_logs + per_page - 1) // per_page)
+
+        reg_count = get_attendance_logs_count(p_conn, event_id=event_id_filter, action="registered")
+        cancel_count = get_attendance_logs_count(p_conn, event_id=event_id_filter, action="cancelled")
+        decline_count = get_attendance_logs_count(p_conn, event_id=event_id_filter, action="declined")
+
+        # Fetch all events for the filter dropdown
+        raw_events = get_all_events(p_conn)
+        events_list = []
+        selected_event_title = None
+        for ev in raw_events:
+            ev_dict = dict(ev)
+            custom = f" ({ev_dict['title']})" if ev_dict.get("title") else ""
+            title = f"{ev_dict.get('event_date', '')} · {ev_dict.get('pitch', '').upper()}{custom}"
+            ev_dict["display_title"] = title
+            events_list.append(ev_dict)
+            if event_id_filter and ev_dict["id"] == event_id_filter:
+                selected_event_title = title
+
+        logs = []
+        for row in raw_logs:
+            r = dict(row)
+            try:
+                dt = datetime.fromisoformat(r["created_at"])
+                r["formatted_time"] = dt.strftime("%d.%m.%Y %H:%M:%S")
+            except Exception:
+                r["formatted_time"] = r["created_at"]
+            logs.append(r)
+
+        return render_template(
+            "admin_attendance_log.html",
+            logs=logs,
+            page=page,
+            total_pages=total_pages,
+            total_logs=total_logs,
+            action_filter=action_filter or "",
+            event_id_filter=event_id_filter,
+            selected_event_title=selected_event_title,
+            events_list=events_list,
+            reg_count=reg_count,
+            cancel_count=cancel_count,
+            decline_count=decline_count,
+        )
+    finally:
+        p_conn.close()
+
+
+@auth_bp.route("/admin/player-positions", methods=["GET", "POST"])
+@require_webmaster
+def admin_player_positions():
+    """Webmaster tool: View and update player positions for all players in the database."""
+    main_conn = get_main_connection()
+    try:
+        if request.method == "POST":
+            if request.is_json:
+                data = request.get_json(silent=True) or {}
+                player_id = data.get("player_id")
+                positions = data.get("positions", [])
+                primary_position = data.get("primary_position")
+            else:
+                player_id = request.form.get("player_id", type=int)
+                positions = request.form.getlist("positions")
+                primary_position = request.form.get("primary_position")
+
+            if not player_id:
+                if request.is_json:
+                    return jsonify({"success": False, "error": "Invalid player ID."}), 400
+                flash("Invalid player ID.", "danger")
+                return redirect(url_for("auth.admin_player_positions"))
+
+            set_player_positions(main_conn, player_id, positions, primary_position)
+            invalidate_stats_cache()
+
+            if request.is_json:
+                return jsonify({
+                    "success": True,
+                    "player_id": player_id,
+                    "positions": positions,
+                    "primary_position": primary_position,
+                })
+            flash("Player positions updated successfully.", "success")
+            return redirect(url_for("auth.admin_player_positions"))
+
+        # GET: List all players with their positions
+        raw_players = get_players(main_conn)
+        player_list = []
+        for pid, pdata in raw_players.items():
+            name = pdata["aliases"][0] if pdata["aliases"] else f"Player {pid}"
+            clean_positions = [pos.replace("*", "").strip().upper() for pos in pdata.get("positions", [])]
+            primary_position = next((pos.replace("*", "").strip().upper() for pos in pdata.get("positions", []) if "*" in pos), "")
+            player_list.append({
+                "player_id": pid,
+                "name": name,
+                "aliases": pdata.get("aliases", []),
+                "raw_positions": pdata.get("positions", []),
+                "clean_positions": clean_positions,
+                "primary_position": primary_position,
+            })
+
+        player_list.sort(key=lambda p: p["name"].lower())
+
+        return render_template(
+            "admin_player_positions.html",
+            players=player_list,
+        )
+    finally:
         main_conn.close()
 
 
@@ -639,4 +772,112 @@ def set_language(lang):
     if next_url.startswith("//") or (not next_url.startswith("/") and not next_url.startswith(request.host_url)):
         next_url = url_for("stats.home")
     return redirect(next_url)
+
+
+# =========================================================================
+# Feedback System Routes
+# =========================================================================
+
+@auth_bp.route("/api/feedback", methods=["POST"])
+def submit_feedback():
+    """Submit user/visitor feedback with categorized diagnostics."""
+    data = request.get_json(silent=True) or request.form
+    category = (data.get("category") or "general").strip()
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify({"success": False, "error": "Bitte gib eine Beschreibung ein."}), 400
+    if category not in ("mobile_handling", "general"):
+        category = "general"
+
+    user = get_current_user()
+    user_id = user["id"] if user else None
+    username = (user["username"] if user else (data.get("username") or "Gast")).strip()
+    page_url = (data.get("page_url") or "").strip()
+    viewport = (data.get("viewport") or "").strip()
+    screen_res = (data.get("screen_res") or "").strip()
+    touch_support = 1 if data.get("touch_support") in (1, True, "1", "true") else 0
+    user_agent = (data.get("user_agent") or request.headers.get("User-Agent") or "").strip()
+
+    conn = get_accounts_connection()
+    try:
+        feedback_id = create_feedback_entry(
+            conn,
+            category=category,
+            message=message,
+            user_id=user_id,
+            username=username,
+            page_url=page_url,
+            viewport=viewport,
+            screen_res=screen_res,
+            touch_support=touch_support,
+            user_agent=user_agent,
+        )
+    finally:
+        conn.close()
+
+    return jsonify({
+        "success": True,
+        "feedback_id": feedback_id,
+        "message": "Feedback erfolgreich übermittelt. Vielen Dank!"
+    })
+
+
+@auth_bp.route("/admin/feedback", methods=["GET"])
+@require_tier(Tier.ADMIN)
+def admin_feedback():
+    """Admin & Webmaster dashboard to review and manage user feedback."""
+    category = request.args.get("category", "all")
+    status = request.args.get("status", "all")
+    conn = get_accounts_connection()
+    try:
+        entries = get_all_feedback(conn, category=category, status=status)
+        counts = get_feedback_counts(conn)
+    finally:
+        conn.close()
+
+    return render_template(
+        "admin_feedback.html",
+        entries=entries,
+        counts=counts,
+        active_category=category,
+        active_status=status,
+    )
+
+
+@auth_bp.route("/admin/feedback/<int:feedback_id>/status", methods=["POST"])
+@require_tier(Tier.ADMIN)
+def admin_feedback_status(feedback_id):
+    """Toggle or update status of a feedback entry ('open', 'resolved', 'archived')."""
+    data = request.get_json(silent=True) or request.form
+    new_status = data.get("status", "resolved")
+    if new_status not in ("open", "resolved", "archived"):
+        new_status = "resolved"
+
+    conn = get_accounts_connection()
+    try:
+        success = update_feedback_status(conn, feedback_id, new_status)
+    finally:
+        conn.close()
+
+    if request.is_json:
+        return jsonify({"success": success})
+    flash("Feedback-Status aktualisiert.", "success")
+    return redirect(url_for("auth.admin_feedback"))
+
+
+@auth_bp.route("/admin/feedback/<int:feedback_id>/delete", methods=["POST"])
+@require_tier(Tier.ADMIN)
+def admin_feedback_delete(feedback_id):
+    """Delete a feedback entry."""
+    conn = get_accounts_connection()
+    try:
+        success = delete_feedback_entry(conn, feedback_id)
+    finally:
+        conn.close()
+
+    if request.is_json:
+        return jsonify({"success": success})
+    flash("Feedback-Eintrag gelöscht.", "success")
+    return redirect(url_for("auth.admin_feedback"))
+
 

@@ -1101,8 +1101,8 @@
                 team_b: [...baseMatch.team_b],
                 external_a: baseMatch.external_a,
                 external_b: baseMatch.external_b,
-                goals_a: 0,
-                goals_b: 0,
+                goals_a: baseMatch.goals_a !== undefined ? baseMatch.goals_a : 0,
+                goals_b: baseMatch.goals_b !== undefined ? baseMatch.goals_b : 0,
             });
             renderBatchModal();
             setTimeout(() => {
@@ -1238,10 +1238,25 @@
             const pitchSelect = document.getElementById('pitch');
             const pitchVal = pitchSelect?.value || 'box';
 
-            const scoreAInput = document.getElementById('score-a');
-            const scoreBInput = document.getElementById('score-b');
-            const goalsAVal = parseInt(scoreAInput?.value, 10) || 0;
-            const goalsBVal = parseInt(scoreBInput?.value, 10) || 0;
+            const scoreAInput = document.getElementById('score-a') || matchForm?.querySelector('input[name="goals_a"]');
+            const scoreBInput = document.getElementById('score-b') || matchForm?.querySelector('input[name="goals_b"]');
+            const parsedHiddenA = document.querySelector('input[name="parsed_goals_a"]');
+            const parsedHiddenB = document.querySelector('input[name="parsed_goals_b"]');
+
+            let parsedA = parseInt(scoreAInput?.value, 10);
+            let parsedB = parseInt(scoreBInput?.value, 10);
+
+            if ((isNaN(parsedA) || parsedA === 0) && parsedHiddenA && parsedHiddenA.value !== '') {
+                const hA = parseInt(parsedHiddenA.value, 10);
+                if (Number.isInteger(hA)) parsedA = hA;
+            }
+            if ((isNaN(parsedB) || parsedB === 0) && parsedHiddenB && parsedHiddenB.value !== '') {
+                const hB = parseInt(parsedHiddenB.value, 10);
+                if (Number.isInteger(hB)) parsedB = hB;
+            }
+
+            const goalsAVal = Number.isInteger(parsedA) ? parsedA : 0;
+            const goalsBVal = Number.isInteger(parsedB) ? parsedB : 0;
 
             const teamAIds = Array.from(teamAInputs).map(inp => parseInt(inp.value, 10)).filter(Boolean);
             const teamBIds = Array.from(teamBInputs).map(inp => parseInt(inp.value, 10)).filter(Boolean);

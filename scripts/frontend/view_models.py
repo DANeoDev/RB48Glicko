@@ -77,8 +77,85 @@ def _compute_single_game_delta(
     curr_r: float,
     curr_rd: float,
     curr_c: float,
+    last_matchday_date: str | None = None,
+    base_match_ratings: dict | None = None,
+    pid: int | None = None,
 ) -> dict:
-    """Compute rating delta for the most recent match in the events list."""
+    """Compute rating delta for the most recent matchday session."""
+    if last_matchday_date is not None and base_match_ratings is not None:
+        if not evts:
+            return {
+                "conservative": 0.0,
+                "rating": 0.0,
+                "rd": 0.0,
+                "games": 0,
+                "wins": 0,
+                "losses": 0,
+                "win_percent": 0.0,
+                "is_inactivity": False,
+                "tooltip": "",
+            }
+
+        day_evts = [e for e in evts if e["date"] == last_matchday_date]
+        base_p = base_match_ratings.get(pid, {}).get(pitch_const) if pid is not None else None
+
+        if base_p is not None:
+            b_r = base_p["rating"]
+            b_rd = base_p["rd"]
+        elif day_evts:
+            first_e = day_evts[0]
+            b_r = first_e["rating_before_total"] if pitch_const == TOTAL else first_e["rating_before_pitch"]
+            b_rd = first_e["rd_before_total"] if pitch_const == TOTAL else first_e["rd_before_pitch"]
+        else:
+            b_r = curr_r
+            b_rd = curr_rd
+
+        b_c = b_r - 3 * b_rd
+        delta_r = curr_r - b_r
+        delta_rd = curr_rd - b_rd
+        delta_c = curr_c - b_c
+
+        try:
+            dt = datetime.strptime(last_matchday_date, "%Y-%m-%d")
+            date_fmt = dt.strftime("%d.%m.%Y")
+        except Exception:
+            date_fmt = last_matchday_date
+
+        if day_evts:
+            g = len(day_evts)
+            w = sum(1 for e in day_evts if e["is_win"])
+            losses = sum(1 for e in day_evts if e["is_loss"])
+            wp = (w / g * 100) if g > 0 else 0.0
+            return {
+                "conservative": delta_c,
+                "rating": delta_r,
+                "rd": delta_rd,
+                "games": g,
+                "wins": w,
+                "losses": losses,
+                "win_percent": wp,
+                "is_inactivity": False,
+                "tooltip": "",
+            }
+        else:
+            rd_sign = "+" if delta_rd >= 0 else ""
+            c_sign = "+" if delta_c >= 0 else ""
+            tooltip = (
+                f"Inaktivitätsanpassung: Am letzten Spieltag ({date_fmt}) nicht teilgenommen "
+                f"(RD {rd_sign}{delta_rd:.1f}, C {c_sign}{delta_c:.1f})"
+            )
+            return {
+                "conservative": delta_c,
+                "rating": delta_r,
+                "rd": delta_rd,
+                "games": 0,
+                "wins": 0,
+                "losses": 0,
+                "win_percent": 0.0,
+                "is_inactivity": True,
+                "tooltip": tooltip,
+            }
+
     if not evts:
         return {
             "conservative": 0.0,
@@ -88,6 +165,8 @@ def _compute_single_game_delta(
             "wins": 0,
             "losses": 0,
             "win_percent": 0.0,
+            "is_inactivity": False,
+            "tooltip": "",
         }
 
     last_evt = evts[-1]
@@ -113,6 +192,8 @@ def _compute_single_game_delta(
         "wins": 1 if is_win else 0,
         "losses": 1 if is_loss else 0,
         "win_percent": 100.0 if is_win else 0.0,
+        "is_inactivity": False,
+        "tooltip": "",
     }
 
 
@@ -185,6 +266,26 @@ def compute_leaderboard_deltas(connection, ratings: dict, players: dict) -> dict
     post_y = [m for m in sorted_matches if m["date"] >= cutoff_year]
     base_mr_y = all_mr.get(post_y[0]["match_id"], {}) if post_y else None
 
+    # Pre-session snapshots for the last matchday of each pitch category
+    last_matchday_dates: dict[str, str | None] = {}
+    last_matchday_base_mr: dict[str, dict] = {}
+
+    for pitch_key, pitch_const in [("total", TOTAL), ("box", BOX), ("hf", HF)]:
+        if pitch_const == TOTAL:
+            p_matches = sorted_matches
+        else:
+            p_matches = [m for m in sorted_matches if m["pitch"].lower() == pitch_const.lower()]
+
+        if p_matches:
+            last_d = p_matches[-1]["date"]
+            session_matches = [m for m in p_matches if m["date"] == last_d]
+            first_mid = session_matches[0]["match_id"]
+            last_matchday_dates[pitch_key] = last_d
+            last_matchday_base_mr[pitch_key] = all_mr.get(first_mid, {})
+        else:
+            last_matchday_dates[pitch_key] = None
+            last_matchday_base_mr[pitch_key] = {}
+
     player_events = _collect_player_match_events(connection, sorted_matches, players)
 
     deltas: dict[int, dict[str, dict]] = {}
@@ -202,7 +303,16 @@ def compute_leaderboard_deltas(connection, ratings: dict, players: dict) -> dict
             base_p_y = base_mr_y.get(pid, {}).get(pitch_const) if base_mr_y else None
 
             deltas[pid][pitch_key] = {
-                "game": _compute_single_game_delta(evts, pitch_const, curr_r, curr_rd, curr_c),
+                "game": _compute_single_game_delta(
+                    evts,
+                    pitch_const,
+                    curr_r,
+                    curr_rd,
+                    curr_c,
+                    last_matchday_date=last_matchday_dates.get(pitch_key),
+                    base_match_ratings=last_matchday_base_mr.get(pitch_key),
+                    pid=pid,
+                ),
                 "month": _compute_period_delta(
                     evts, cutoff_month, pitch_const, curr_r, curr_rd, curr_c,
                     baseline_r=base_p_m.get("rating") if base_p_m else None,
@@ -231,10 +341,10 @@ def build_leaderboard(
 ) -> list[dict]:
     deltas = deltas or {}
     default_deltas = {
-        "game": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
-        "month": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
-        "quarter": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
-        "year": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0},
+        "game": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
+        "month": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
+        "quarter": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
+        "year": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
     }
     leaderboard = []
     for player_id, rating in ratings.items():

@@ -69,8 +69,8 @@ def create_app():
             except Exception:
                 unseen_webmaster_notifications_count = 0
 
-        can_switch_model = has_tier(Tier.GLICKO_USER)
-        active_model = session.get("active_model", "glicko") if can_switch_model else "glicko"
+        can_switch_model = False
+        active_model = "glicko"
 
         return {
             "current_user": user,

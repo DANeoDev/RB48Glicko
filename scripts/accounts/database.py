@@ -1,7 +1,8 @@
 import os
 from pathlib import Path
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -137,6 +138,37 @@ def create_account_tables(connection):
             FOREIGN KEY (webmaster_user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (notification_id) REFERENCES webmaster_notifications(id) ON DELETE CASCADE
         )
+    """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            username TEXT,
+            category TEXT NOT NULL,
+            message TEXT NOT NULL,
+            page_url TEXT,
+            viewport TEXT,
+            screen_res TEXT,
+            touch_support INTEGER NOT NULL DEFAULT 0,
+            user_agent TEXT,
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+    """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS match_mvp_votes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            match_id TEXT NOT NULL,
+            voter_user_id INTEGER NOT NULL,
+            voted_player_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(match_id, voter_user_id),
+            FOREIGN KEY (voter_user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
+    connection.execute("""
+        CREATE INDEX IF NOT EXISTS idx_match_mvp_votes_match ON match_mvp_votes(match_id)
     """)
 
     # Column migrations for existing tables
@@ -1102,6 +1134,199 @@ def clear_all_webmaster_notifications(connection):
     connection.execute("DELETE FROM webmaster_seen_notifications")
     connection.execute("DELETE FROM webmaster_notifications")
     connection.commit()
+
+
+# =========================================================================
+# Feedback System Helpers
+# =========================================================================
+
+def create_feedback_entry(
+    connection,
+    category: str,
+    message: str,
+    user_id: int | None = None,
+    username: str | None = None,
+    page_url: str | None = None,
+    viewport: str | None = None,
+    screen_res: str | None = None,
+    touch_support: int = 0,
+    user_agent: str | None = None,
+) -> int:
+    """Insert a new user/visitor feedback entry into the database."""
+    now_iso = datetime.now().isoformat()
+    cursor = connection.execute("""
+        INSERT INTO feedback (
+            user_id, username, category, message, page_url,
+            viewport, screen_res, touch_support, user_agent, status, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
+    """, (
+        user_id, username, category, message, page_url,
+        viewport, screen_res, int(touch_support), user_agent, now_iso
+    ))
+    connection.commit()
+    return cursor.lastrowid
+
+
+def get_all_feedback(
+    connection,
+    category: str | None = None,
+    status: str | None = None,
+    limit: int = 150,
+) -> list[dict]:
+    """Retrieve feedback entries with optional filtering by category and status."""
+    query = "SELECT * FROM feedback WHERE 1=1"
+    params = []
+    if category and category != "all":
+        query += " AND category = ?"
+        params.append(category)
+    if status and status != "all":
+        query += " AND status = ?"
+        params.append(status)
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+
+    rows = connection.execute(query, params).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_feedback_counts(connection) -> dict:
+    """Return count of open and total feedback items per category."""
+    rows = connection.execute("""
+        SELECT category, status, COUNT(*) AS count
+        FROM feedback
+        GROUP BY category, status
+    """).fetchall()
+
+    counts = {
+        "total": 0,
+        "open": 0,
+        "resolved": 0,
+        "mobile_handling": 0,
+        "general": 0,
+    }
+    for row in rows:
+        c = row["category"]
+        s = row["status"]
+        cnt = int(row["count"])
+        counts["total"] += cnt
+        if s == "open":
+            counts["open"] += cnt
+            if c in counts:
+                counts[c] += cnt
+        elif s == "resolved":
+            counts["resolved"] += cnt
+    return counts
+
+
+def update_feedback_status(connection, feedback_id: int, status: str) -> bool:
+    """Update status of a feedback item ('open', 'resolved', 'archived')."""
+    cursor = connection.execute(
+        "UPDATE feedback SET status = ? WHERE id = ?",
+        (status, feedback_id)
+    )
+    connection.commit()
+    return cursor.rowcount > 0
+
+
+def delete_feedback_entry(connection, feedback_id: int) -> bool:
+    """Delete a single feedback entry."""
+    cursor = connection.execute("DELETE FROM feedback WHERE id = ?", (feedback_id,))
+    connection.commit()
+    return cursor.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# Match MVP Voting
+# ---------------------------------------------------------------------------
+
+def get_match_mvp_deadline(match_date_str: str) -> datetime:
+    """Return the deadline for MVP voting: match_date + 1 day at 20:00 Europe/Berlin."""
+    tz = ZoneInfo("Europe/Berlin")
+    match_d = datetime.strptime(str(match_date_str)[:10], "%Y-%m-%d").date()
+    deadline_date = match_d + timedelta(days=1)
+    return datetime(deadline_date.year, deadline_date.month, deadline_date.day, 20, 0, 0, tzinfo=tz)
+
+
+def is_match_mvp_voting_open(match_date_str: str, now_dt: datetime | None = None) -> bool:
+    """Check if MVP voting is currently open (now <= match_date + 1 day 20:00 Europe/Berlin)."""
+    tz = ZoneInfo("Europe/Berlin")
+    now_dt = now_dt or datetime.now(tz)
+    deadline = get_match_mvp_deadline(match_date_str)
+    return now_dt <= deadline
+
+
+def record_match_mvp_vote(connection, match_id: str, voter_user_id: int, voted_player_id: int) -> bool:
+    """Record or update an anonymous MVP vote for a match."""
+    now_iso = datetime.now().isoformat()
+    connection.execute("""
+        INSERT INTO match_mvp_votes (match_id, voter_user_id, voted_player_id, created_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(match_id, voter_user_id) DO UPDATE SET
+            voted_player_id = excluded.voted_player_id,
+            created_at = excluded.created_at
+    """, (str(match_id), int(voter_user_id), int(voted_player_id), now_iso))
+    connection.commit()
+    return True
+
+
+def get_user_match_mvp_vote(connection, match_id: str, voter_user_id: int) -> int | None:
+    """Return the voted_player_id for a specific user and match, or None."""
+    row = connection.execute("""
+        SELECT voted_player_id FROM match_mvp_votes
+        WHERE match_id = ? AND voter_user_id = ?
+    """, (str(match_id), int(voter_user_id))).fetchone()
+    return int(row["voted_player_id"]) if row else None
+
+
+def get_user_mvp_votes_for_matches(connection, voter_user_id: int, match_ids: list[str]) -> dict[str, int]:
+    """Return {match_id: voted_player_id} for a user across multiple matches."""
+    if not voter_user_id or not match_ids:
+        return {}
+    placeholders = ",".join("?" for _ in match_ids)
+    rows = connection.execute(f"""
+        SELECT match_id, voted_player_id FROM match_mvp_votes
+        WHERE voter_user_id = ? AND match_id IN ({placeholders})
+    """, [int(voter_user_id), *[str(m) for m in match_ids]]).fetchall()
+    return {row["match_id"]: int(row["voted_player_id"]) for row in rows}
+
+
+def get_match_mvp_winners(connection, match_ids: list[str] | None = None) -> dict[str, list[int]]:
+    """
+    Calculate and return the MVP winning player IDs for matches: {match_id: [winning_player_ids]}.
+    If multiple players tie for the top vote count, all of them are returned in the list.
+    """
+    query = """
+        SELECT match_id, voted_player_id, COUNT(*) as vote_count
+        FROM match_mvp_votes
+    """
+    params = []
+    if match_ids:
+        placeholders = ",".join("?" for _ in match_ids)
+        query += f" WHERE match_id IN ({placeholders})"
+        params.extend([str(m) for m in match_ids])
+    query += " GROUP BY match_id, voted_player_id ORDER BY match_id, vote_count DESC"
+
+    rows = connection.execute(query, params).fetchall()
+
+    match_votes: dict[str, dict[int, int]] = {}
+    for r in rows:
+        m_id = r["match_id"]
+        p_id = int(r["voted_player_id"])
+        cnt = int(r["vote_count"])
+        match_votes.setdefault(m_id, {})[p_id] = cnt
+
+    winners: dict[str, list[int]] = {}
+    for m_id, player_counts in match_votes.items():
+        if not player_counts:
+            continue
+        max_votes = max(player_counts.values())
+        if max_votes > 0:
+            winners[m_id] = [pid for pid, cnt in player_counts.items() if cnt == max_votes]
+
+    return winners
+
+
 
 
 

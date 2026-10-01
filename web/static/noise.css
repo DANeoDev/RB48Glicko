@@ -2,6 +2,10 @@
    Make Some Noise — Spatial Banter Bubbles CSS
    ========================================================================== */
 
+main {
+    position: relative;
+}
+
 #noise-overlay-container {
     position: absolute;
     top: 0;

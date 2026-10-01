@@ -243,13 +243,6 @@ class BackupAndRecalcTests(unittest.TestCase):
         self.assertIn("btn-open-recalc-modal", res_stats_wm.get_data(as_text=True))
         self.assertIn("recalc-glicko-modal", res_stats_wm.get_data(as_text=True))
 
-        # 3. Stats page with WHR active model in session must NOT have Glicko recalculate button
-        with self.client.session_transaction() as sess:
-            sess["active_model"] = "whr"
-        res_stats_whr = self.client.get("/stats")
-        self.assertNotIn("btn-open-recalc-modal", res_stats_whr.get_data(as_text=True))
-        self.assertNotIn("recalc-glicko-modal", res_stats_whr.get_data(as_text=True))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -254,7 +254,7 @@ def _build_analysis_result(observations, count, excluded, mode, pitch):
     """Aggregate raw observations into standard calibration metrics, LOWESS trendlines, and bins."""
     goal_diff_reference, goal_diff_pitch_totals = _goal_diff_distribution(observations)
 
-    is_box_or_total = mode == TOTAL or pitch == BOX or (mode == "whr" and pitch in ("total", None, BOX))
+    is_box_or_total = mode == TOTAL or pitch == BOX
     if count:
         min_obs = min(item["goal_diff"] for item in observations)
         max_obs = max(item["goal_diff"] for item in observations)
@@ -332,83 +332,3 @@ def _build_analysis_result(observations, count, excluded, mode, pitch):
         "goal_diff_max": goal_diff_max,
         "goal_diff_ticks": goal_diff_ticks,
     }
-
-
-def analyze_whr_model(connection, mode="whr", pitch=None, whr_models=None):
-    """Analyse historical match predictions using retrospective WHR rating trajectories."""
-    from scripts.analysis.whr import get_whr_models
-
-    if whr_models is None:
-        whr_models = get_whr_models(connection)
-
-    if pitch in ("total", None):
-        target_pitch = None
-        rating_type = TOTAL
-    elif pitch.lower() == "box":
-        target_pitch = BOX
-        rating_type = BOX
-    elif pitch.lower() == "hf":
-        target_pitch = HF
-        rating_type = HF
-    else:
-        raise ValueError("pitch must be None, 'total', 'box', or 'hf'")
-
-    whr_model = whr_models.get(rating_type, whr_models[TOTAL])
-    matches = get_matches(connection)
-    observations = []
-    excluded = 0
-
-    for match in matches.values():
-        if target_pitch is not None and match["pitch"] != target_pitch:
-            continue
-
-        team_a_ids, team_b_ids = get_match_teams(connection, match["match_id"])
-        if not team_a_ids or not team_b_ids:
-            excluded += 1
-            continue
-
-        match_date = match["date"]
-        r_a = [whr_model.get_player_rating_at(p, match_date) for p in team_a_ids]
-        r_b = [whr_model.get_player_rating_at(p, match_date) for p in team_b_ids]
-        tot_a = match["players_a"]
-        tot_b = match["players_b"]
-        mean_a = (sum(r_a) + (tot_a - len(r_a)) * DEFAULT_RATING) / max(tot_a, 1)
-        mean_b = (sum(r_b) + (tot_b - len(r_b)) * DEFAULT_RATING) / max(tot_b, 1)
-
-        diff = (mean_a - mean_b) / GLICKO2_SCALE
-        raw_prediction = 1.0 / (1.0 + math.exp(-max(-35, min(35, diff))))
-
-        if math.isclose(raw_prediction, 0.5, abs_tol=1e-12):
-            excluded += 1
-            continue
-
-        goals_a = match["goals_a"]
-        goals_b = match["goals_b"]
-        if raw_prediction > 0.5:
-            fav_goals, und_goals = goals_a, goals_b
-        else:
-            fav_goals, und_goals = goals_b, goals_a
-
-        raw_diff = fav_goals - und_goals
-        winner_goals = max(goals_a, goals_b)
-
-        if (target_pitch is None or rating_type == TOTAL) and match["pitch"] == HF:
-            if winner_goals > 0:
-                goal_diff = 10.0 * (fav_goals - und_goals) / winner_goals
-            else:
-                goal_diff = 0.0
-        else:
-            goal_diff = float(raw_diff)
-
-        prediction, actual = _favourite_observation(raw_prediction, _actual_score(match))
-        observations.append({
-            "prediction": prediction,
-            "actual": actual,
-            "pitch": match["pitch"],
-            "goal_diff": goal_diff,
-            "raw_goal_diff": raw_diff,
-        })
-
-    count = len(observations)
-    display_pitch = pitch if pitch in ("box", "hf") else "total"
-    return _build_analysis_result(observations, count, excluded, mode="whr", pitch=display_pitch)

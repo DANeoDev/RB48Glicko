@@ -8,21 +8,29 @@ from flask import (
     session,
     url_for,
 )
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from scripts.accounts.database import (
     get_accounts_connection,
     get_opted_out_player_ids,
     get_user_by_player_id,
     get_user_seen_achievements,
     mark_user_achievements_seen,
+    get_match_mvp_winners,
+    get_user_mvp_votes_for_matches,
+    record_match_mvp_vote,
+    get_user_match_mvp_vote,
+    get_match_mvp_deadline,
+    is_match_mvp_voting_open,
 )
 from scripts.analysis.achievements import get_player_achievements
 from scripts.analysis.history_snapshots import (
     get_matchday_metadata_map,
 )
-from scripts.analysis.model_analysis import analyze_model, analyze_whr_model
+from scripts.analysis.model_analysis import analyze_model
 from scripts.analysis.synergies import get_community_synergies
 from scripts.database.database import get_connection
-from scripts.database.db_matches import get_player_stats
+from scripts.database.db_matches import get_player_stats, get_matches, get_match_teams
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_player_rating_history, get_ratings
 from scripts.frontend.view_models import (
@@ -32,8 +40,6 @@ from scripts.glicko.glicko2 import BOX, HF, TOTAL
 from web.services.cache import (
     get_cached_stats_data,
     get_cached_match_history,
-    get_cached_whr_stats_data,
-    get_cached_whr_match_history,
 )
 from web.services.security import (
     Tier,
@@ -61,11 +67,7 @@ def dashboard():
 @stats_bp.route("/stats")
 @require_tier(Tier.USER)
 def stats():
-    active_model = session.get("active_model", "glicko") if has_tier(Tier.GLICKO_USER) else "glicko"
-    if active_model == "whr":
-        cached = get_cached_whr_stats_data()
-    else:
-        cached = get_cached_stats_data()
+    cached = get_cached_stats_data()
 
     leaderboard = [dict(p) for p in cached["leaderboard_base"]]
     synergies = cached["synergies"]
@@ -88,7 +90,6 @@ def stats():
         streaks=streaks,
         opted_out_player_ids=opted_out_player_ids,
         historical_snapshots=historical_snapshots,
-        active_model=active_model,
     )
 
 
@@ -238,20 +239,51 @@ def player_profile(player_id):
 def match_history():
     selected_rating_type = request.args.get("rating_type", "total").lower()
     selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
-    active_model = session.get("active_model", "glicko") if has_tier(Tier.GLICKO_USER) else "glicko"
-    if active_model == "whr":
-        cached = get_cached_whr_match_history(rating_type=selected_rating_type)
-    else:
-        cached = get_cached_match_history(rating_type=selected_rating_type)
+    cached = get_cached_match_history(rating_type=selected_rating_type)
     matches = cached["matches"]
     months_grouped = cached["months_grouped"]
     timeline_data = cached["timeline_data"]
 
+    curr_user = get_current_user()
+    curr_user_player_id = curr_user.get("player_id") if curr_user else None
+
     acc_conn = get_accounts_connection()
     try:
         opted_out_player_ids = get_opted_out_player_ids(acc_conn)
+        match_ids = [m["match_id"] for m in matches]
+        all_mvp_winners = get_match_mvp_winners(acc_conn, match_ids=match_ids)
+        user_mvp_votes = {}
+        if curr_user and curr_user.get("id"):
+            user_mvp_votes = get_user_mvp_votes_for_matches(acc_conn, curr_user["id"], match_ids=match_ids)
     finally:
         acc_conn.close()
+
+    tz = ZoneInfo("Europe/Berlin")
+    now_dt = datetime.now(tz)
+    match_voting_status = {}
+    for m in matches:
+        mid = m["match_id"]
+        m_date = m.get("date", "")
+        deadline = get_match_mvp_deadline(m_date)
+        is_open = now_dt <= deadline
+
+        participant_ids = m.get("team_a_ids", []) + m.get("team_b_ids", [])
+        can_vote = bool(is_open and curr_user_player_id and curr_user_player_id in participant_ids)
+        user_vote = user_mvp_votes.get(mid)
+
+        # MVP winners: shown once voting is closed
+        mvp_ids = []
+        if not is_open:
+            mvp_ids = all_mvp_winners.get(mid, [])
+
+        match_voting_status[mid] = {
+            "is_open": is_open,
+            "can_vote": can_vote,
+            "user_vote": user_vote,
+            "mvp_player_ids": mvp_ids,
+            "deadline_str": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
+            "deadline_short": deadline.strftime("%d.%m., %H:%M"),
+        }
 
     return render_template(
         "matches.html",
@@ -260,8 +292,117 @@ def match_history():
         timeline_data=timeline_data,
         opted_out_player_ids=opted_out_player_ids,
         is_webmaster=has_tier(Tier.WEBMASTER),
-        active_model=active_model,
+        match_voting_status=match_voting_status,
+        curr_user=curr_user,
     )
+
+
+@stats_bp.route("/api/matches/<match_id>/mvp-vote", methods=["POST"])
+def cast_mvp_vote(match_id):
+    user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Bitte melde dich an, um abzustimmen."}), 401
+
+    player_id = user.get("player_id")
+    if not player_id:
+        return jsonify({"success": False, "error": "Dein Benutzerkonto muss mit einem Spieler verknüpft sein, um abzustimmen."}), 403
+
+    data = request.get_json(silent=True) or request.form
+    voted_player_id = data.get("voted_player_id")
+    if not voted_player_id:
+        return jsonify({"success": False, "error": "Bitte wähle einen Spieler für den MVP-Vote aus."}), 400
+    try:
+        voted_player_id = int(voted_player_id)
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Ungültige Spieler-ID."}), 400
+
+    conn = get_connection()
+    try:
+        matches = get_matches(conn)
+        match = matches.get(match_id)
+        if not match:
+            return jsonify({"success": False, "error": f"Match '{match_id}' wurde nicht gefunden."}), 404
+
+        team_a, team_b = get_match_teams(conn, match_id)
+        participants = set(team_a + team_b)
+    finally:
+        conn.close()
+
+    if player_id not in participants:
+        return jsonify({"success": False, "error": "Nur Spieler, die an diesem Match teilgenommen haben, dürfen für den MVP stimmen."}), 403
+
+    match_date = match["date"]
+    if not is_match_mvp_voting_open(match_date):
+        deadline_str = get_match_mvp_deadline(match_date).strftime("%d.%m.%Y um %H:%M Uhr")
+        return jsonify({"success": False, "error": f"Die Abstimmung für dieses Match ist seit dem {deadline_str} beendet."}), 400
+
+    if voted_player_id not in participants:
+        return jsonify({"success": False, "error": "Der gewählte Spieler hat nicht an diesem Match teilgenommen."}), 400
+
+    acc_conn = get_accounts_connection()
+    try:
+        record_match_mvp_vote(acc_conn, match_id, user["id"], voted_player_id)
+    finally:
+        acc_conn.close()
+
+    return jsonify({
+        "success": True,
+        "match_id": match_id,
+        "voted_player_id": voted_player_id,
+        "message": "Deine Stimme wurde erfolgreich und anonym gespeichert!",
+    })
+
+
+@stats_bp.route("/api/matches/<match_id>/mvp-status", methods=["GET"])
+def get_mvp_status(match_id):
+    user = get_current_user()
+    curr_user_player_id = user.get("player_id") if user else None
+
+    conn = get_connection()
+    try:
+        matches = get_matches(conn)
+        match = matches.get(match_id)
+        if not match:
+            return jsonify({"success": False, "error": f"Match '{match_id}' wurde nicht gefunden."}), 404
+
+        team_a, team_b = get_match_teams(conn, match_id)
+        players = get_players(conn)
+    finally:
+        conn.close()
+
+    participants = team_a + team_b
+    match_date = match["date"]
+    deadline = get_match_mvp_deadline(match_date)
+    tz = ZoneInfo("Europe/Berlin")
+    is_open = datetime.now(tz) <= deadline
+
+    acc_conn = get_accounts_connection()
+    try:
+        user_vote = get_user_match_mvp_vote(acc_conn, match_id, user["id"]) if user and user.get("id") else None
+        winners_map = get_match_mvp_winners(acc_conn, match_ids=[match_id])
+        winners = winners_map.get(match_id, []) if not is_open else []
+    finally:
+        acc_conn.close()
+
+    can_vote = bool(is_open and curr_user_player_id and curr_user_player_id in participants)
+
+    def player_info(pid):
+        aliases = players.get(pid, {}).get("aliases", [])
+        return {"id": pid, "name": aliases[0] if aliases else f"Player {pid}"}
+
+    return jsonify({
+        "success": True,
+        "match_id": match_id,
+        "match_date": match_date,
+        "is_open": is_open,
+        "deadline_iso": deadline.isoformat(),
+        "deadline_formatted": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
+        "can_vote": can_vote,
+        "user_vote": user_vote,
+        "mvp_player_ids": winners,
+        "team_a_players": [player_info(pid) for pid in team_a],
+        "team_b_players": [player_info(pid) for pid in team_b],
+    })
 
 
 @stats_bp.route("/matches/delete", methods=["POST"])
@@ -350,92 +491,25 @@ def recalculate_glicko_endpoint():
 @stats_bp.route("/model-analysis")
 @require_tier(Tier.GLICKO_USER)
 def model_analysis():
-    active_model = session.get("active_model", "glicko") if has_tier(Tier.GLICKO_USER) else "glicko"
-    default_mode = "whr" if active_model == "whr" else "total"
-    mode = request.args.get("mode", default_mode)
-    mode = mode if mode in ("total", "pitch", "whr") else default_mode
     pitch = request.args.get("pitch", "total").lower()
-    pitch = pitch if pitch in ("total", "box", "hf") else "total"
+    if pitch not in ("total", "box", "hf"):
+        pitch = "total"
+
+    mode = "total" if pitch == "total" else "pitch"
     connection = get_connection()
     try:
-        if mode == "whr":
-            whr_pitch = pitch if pitch != "total" else "total"
-            analysis = analyze_whr_model(connection, mode="whr", pitch=whr_pitch)
-            # Companion comparison series: Glicko for the matching pitch
-            if whr_pitch == "total":
-                comparison = analyze_model(connection, mode=TOTAL)
-            elif whr_pitch == "box":
-                comparison = analyze_model(connection, mode="pitch", pitch=BOX)
-            else:
-                comparison = analyze_model(connection, mode="pitch", pitch=HF)
-            active_model_name = "WHR"
-            comparison_model_name = "Glicko-2"
-        elif mode == "pitch":
-            pitch_choice = request.args.get("pitch", "box").lower()
-            pitch_choice = "box" if pitch_choice not in ("box", "hf") else pitch_choice
-            pitch = pitch_choice
-            pitch_const = BOX if pitch_choice == "box" else HF
-            analysis = analyze_model(connection, mode="pitch", pitch=pitch_const)
-            comparison = analyze_whr_model(connection, mode="whr", pitch=pitch_choice)
-            active_model_name = "Glicko-2"
-            comparison_model_name = "WHR"
-        else:
+        if pitch == "total":
             analysis = analyze_model(connection, mode=TOTAL)
-            comparison = analyze_whr_model(connection, mode="whr", pitch="total")
-            active_model_name = "Glicko-2"
-            comparison_model_name = "WHR"
-
-        if comparison and "goal_diff_min" in analysis and "goal_diff_min" in comparison:
-            y_min = min(analysis["goal_diff_min"], comparison["goal_diff_min"])
-            y_max = max(analysis["goal_diff_max"], comparison["goal_diff_max"])
-            is_box_or_total = (mode == "total" or pitch in ("total", "box"))
-            step = 2 if is_box_or_total else (1 if (y_max - y_min) <= 8 else 2)
-            unified_ticks = list(range(y_min, y_max + 1, step))
-            analysis["goal_diff_min"] = y_min
-            analysis["goal_diff_max"] = y_max
-            analysis["goal_diff_ticks"] = unified_ticks
+        elif pitch == "box":
+            analysis = analyze_model(connection, mode="pitch", pitch=BOX)
+        else:
+            analysis = analyze_model(connection, mode="pitch", pitch=HF)
 
         return render_template(
             "model_analysis.html",
             analysis=analysis,
-            comparison=comparison,
             mode=mode,
             pitch=pitch,
-            active_model_name=active_model_name,
-            comparison_model_name=comparison_model_name,
-        )
-    finally:
-        connection.close()
-
-
-@stats_bp.route("/model-comparison")
-@stats_bp.route("/rating-comparison")
-@require_tier(Tier.GLICKO_USER)
-def rating_comparison():
-    """Dedicated player-by-player rating comparison table between Glicko-2 and WHR."""
-    from scripts.analysis.whr import compute_whr_ratings
-    pitch = request.args.get("pitch", "total").lower()
-    pitch = pitch if pitch in ("total", "box", "hf") else "total"
-    pitch_const = BOX if pitch == "box" else (HF if pitch == "hf" else TOTAL)
-
-    connection = get_connection()
-    try:
-        whr_data = compute_whr_ratings(connection, pitch_filter=pitch_const)
-        players = whr_data.get("players", [])
-
-        deltas = [p["delta"] for p in players if p.get("delta") is not None]
-        max_gain = max(players, key=lambda p: p["delta"]) if players else None
-        max_drop = min(players, key=lambda p: p["delta"]) if players else None
-        avg_abs_delta = round(sum(abs(d) for d in deltas) / len(deltas), 1) if deltas else 0.0
-
-        return render_template(
-            "rating_comparison.html",
-            whr_data=whr_data,
-            players=players,
-            pitch=pitch,
-            max_gain=max_gain,
-            max_drop=max_drop,
-            avg_abs_delta=avg_abs_delta,
         )
     finally:
         connection.close()
@@ -469,40 +543,6 @@ def model_documentation_raw():
         from scripts.docs.generate_model_docs import update_docs_file
         update_docs_file()
     content = docs_file.read_text(encoding="utf-8")
-    return Response(content, mimetype="text/markdown; charset=utf-8")
-
-
-@stats_bp.route("/whr-documentation")
-def whr_documentation():
-    """Detailed technical and conceptual documentation of the team-based Whole-History Rating model."""
-    from pathlib import Path
-    from scripts.docs.generate_model_docs import markdown_to_html
-    docs_file = Path(__file__).resolve().parent.parent.parent / "docs" / "WHR_TEAM_MODEL.md"
-    if docs_file.exists():
-        md_content = docs_file.read_text(encoding="utf-8")
-    else:
-        md_content = "# Whole-History Rating (WHR) Modell-Dokumentation\n\nDokumentation wird geladen..."
-    content_html = markdown_to_html(md_content)
-    return render_template(
-        "model_docs.html",
-        content_html=content_html,
-        doc_title="The RB48 Team-Based Whole-History Rating (WHR) Engine",
-        doc_subtitle="Retrospective Bayesian Global MAP Optimization & Newton-Raphson Solver",
-        raw_url=url_for("stats.whr_documentation_raw"),
-        back_faq_url=url_for("stats.glicko_explainer") + "#faq-whr",
-    )
-
-
-@stats_bp.route("/whr-documentation/raw")
-def whr_documentation_raw():
-    """Serve the raw markdown file of the WHR model documentation."""
-    from pathlib import Path
-    from flask import Response
-    docs_file = Path(__file__).resolve().parent.parent.parent / "docs" / "WHR_TEAM_MODEL.md"
-    if docs_file.exists():
-        content = docs_file.read_text(encoding="utf-8")
-    else:
-        content = "# Whole-History Rating (WHR) Modell-Dokumentation"
     return Response(content, mimetype="text/markdown; charset=utf-8")
 
 
@@ -648,19 +688,3 @@ def player_achievements(player_id: int):
         total_count=total_count,
         is_webmaster=is_webmaster,
     )
-
-
-@stats_bp.route("/set-model")
-def set_model():
-    """Switch active rating model between Glicko-2 and WHR for Glicko-tier users."""
-    model = request.args.get("model", "glicko").lower()
-    if model not in ("glicko", "whr"):
-        model = "glicko"
-
-    if has_tier(Tier.GLICKO_USER):
-        session["active_model"] = model
-
-    next_url = request.args.get("next") or request.referrer
-    if not next_url or not next_url.startswith("/") or next_url.startswith("//"):
-        next_url = url_for("stats.dashboard")
-    return redirect(next_url)

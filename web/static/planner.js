@@ -186,4 +186,139 @@ document.addEventListener("DOMContentLoaded", () => {
             openModal("edit-attendee-modal");
         });
     });
+
+    // Admin & Webmaster Matchday Attendance Log Modal
+    let currentMatchdayLogs = [];
+    let currentLogFilter = "all";
+
+    const renderMatchdayLogs = () => {
+        const tbody = document.getElementById("log-modal-tbody");
+        const emptyBox = document.getElementById("log-modal-empty");
+        if (!tbody || !emptyBox) return;
+
+        const filtered = currentLogFilter === "all"
+            ? currentMatchdayLogs
+            : currentMatchdayLogs.filter((l) => l.action === currentLogFilter);
+
+        tbody.innerHTML = "";
+        if (filtered.length === 0) {
+            emptyBox.style.display = "block";
+            return;
+        }
+        emptyBox.style.display = "none";
+
+        filtered.forEach((log) => {
+            const tr = document.createElement("tr");
+            tr.style.borderBottom = "1px solid rgba(255,255,255,0.06)";
+
+            let badgeStyle = "background: rgba(255,255,255,0.06); color: var(--text-muted);";
+            if (log.action === "registered") {
+                badgeStyle = "background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.4);";
+            } else if (log.action === "cancelled") {
+                badgeStyle = "background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.4);";
+            } else if (log.action === "declined") {
+                badgeStyle = "background: rgba(255, 193, 7, 0.25); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.4);";
+            }
+
+            let typeBadge = "";
+            if (log.attendee_type === "visitor") {
+                typeBadge = `<span style="font-size: 10.5px; background: rgba(128, 222, 234, 0.15); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.3); padding: 1px 6px; border-radius: 8px;">Besucher</span>`;
+            } else if (log.attendee_type === "member_guest") {
+                typeBadge = `<span style="font-size: 10.5px; background: rgba(255, 193, 7, 0.15); color: #ffd54f; border: 1px solid rgba(255, 193, 7, 0.3); padding: 1px 6px; border-radius: 8px;">Gast</span>`;
+            } else {
+                typeBadge = `<span style="font-size: 10.5px; background: rgba(123, 82, 197, 0.15); color: #c9c2d8; border: 1px solid rgba(123, 82, 197, 0.3); padding: 1px 6px; border-radius: 8px;">Mitglied</span>`;
+            }
+
+            tr.innerHTML = `
+                <td style="padding: 9px 12px; color: var(--text-muted); font-size: 11.5px; white-space: nowrap;">${log.formatted_time}</td>
+                <td style="padding: 9px 12px; font-weight: 600; color: #ffffff;">${log.name}</td>
+                <td style="padding: 9px 12px;">${typeBadge}</td>
+                <td style="padding: 9px 12px;">
+                    <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; ${badgeStyle}">
+                        ${log.action_icon || ""} ${log.action_label || log.action}
+                    </span>
+                </td>
+                <td style="padding: 9px 12px; color: var(--text-muted); font-size: 12px;">${log.actor_name || "System"}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    };
+
+    document.querySelectorAll(".btn-matchday-log").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const eventId = btn.dataset.eventId;
+            const eventTitle = btn.dataset.eventTitle || `Spieltag #${eventId}`;
+
+            const titleEl = document.getElementById("log-modal-event-title");
+            const dashboardLink = document.getElementById("log-modal-dashboard-link");
+            const tbody = document.getElementById("log-modal-tbody");
+            const emptyBox = document.getElementById("log-modal-empty");
+            const loadingBox = document.getElementById("log-modal-loading");
+
+            if (titleEl) titleEl.textContent = eventTitle;
+            if (dashboardLink) dashboardLink.href = `/admin/attendance-logs?event_id=${eventId}`;
+            if (tbody) tbody.innerHTML = "";
+            if (emptyBox) emptyBox.style.display = "none";
+            if (loadingBox) loadingBox.style.display = "block";
+
+            // Reset filter buttons
+            currentLogFilter = "all";
+            document.querySelectorAll(".log-filter-btn").forEach((fb) => {
+                const isAll = fb.dataset.action === "all";
+                fb.style.background = isAll ? "var(--accent)" : "var(--bg-surface-alt)";
+                fb.style.borderColor = isAll ? "var(--accent)" : "var(--border)";
+                fb.style.color = isAll ? "#ffffff" : (fb.dataset.action === "registered" ? "#88ff88" : (fb.dataset.action === "cancelled" ? "#ff8888" : "#ffe082"));
+            });
+
+            openModal("matchday-log-modal");
+
+            try {
+                const resp = await fetch(`/planner/${eventId}/logs`);
+                const data = await resp.json();
+                if (loadingBox) loadingBox.style.display = "none";
+
+                if (data.success) {
+                    currentMatchdayLogs = data.logs || [];
+                    const counts = data.counts || {};
+                    const countAll = document.getElementById("log-count-all");
+                    const countReg = document.getElementById("log-count-registered");
+                    const countCan = document.getElementById("log-count-cancelled");
+                    const countDec = document.getElementById("log-count-declined");
+
+                    if (countAll) countAll.textContent = counts.total || 0;
+                    if (countReg) countReg.textContent = counts.registered || 0;
+                    if (countCan) countCan.textContent = counts.cancelled || 0;
+                    if (countDec) countDec.textContent = counts.declined || 0;
+
+                    renderMatchdayLogs();
+                } else {
+                    if (emptyBox) {
+                        emptyBox.textContent = data.error || "Fehler beim Laden der Logdaten.";
+                        emptyBox.style.display = "block";
+                    }
+                }
+            } catch (err) {
+                if (loadingBox) loadingBox.style.display = "none";
+                if (emptyBox) {
+                    emptyBox.textContent = "Netzwerkfehler beim Abrufen der Logs.";
+                    emptyBox.style.display = "block";
+                }
+            }
+        });
+    });
+
+    // In-modal filter button clicks
+    document.querySelectorAll(".log-filter-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            currentLogFilter = btn.dataset.action;
+            document.querySelectorAll(".log-filter-btn").forEach((fb) => {
+                const isActive = fb === btn;
+                fb.style.background = isActive ? "var(--accent)" : "var(--bg-surface-alt)";
+                fb.style.borderColor = isActive ? "var(--accent)" : "var(--border)";
+                fb.style.color = isActive ? "#ffffff" : (fb.dataset.action === "registered" ? "#88ff88" : (fb.dataset.action === "cancelled" ? "#ff8888" : (fb.dataset.action === "declined" ? "#ffe082" : "var(--text-muted)")));
+            });
+            renderMatchdayLogs();
+        });
+    });
 });

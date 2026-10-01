@@ -9,8 +9,8 @@
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='images/RB48_logo.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/RB48_logo.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='footer.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2.3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='footer.css') }}?v=2.2">
     <link rel="stylesheet" href="{{ url_for('static', filename='noise.css') }}">
     {% block head %}{% endblock %}
     <style>
@@ -268,7 +268,7 @@
         <a class="logo" href="{{ url_for('stats.home') }}" aria-label="RB48 home">
             <img src="{{ url_for('static', filename='images/RB48_logo.png') }}" alt="RB48">
         </a>
-        <div class="nav-links">
+        <div class="nav-links" id="nav-links">
             <a href="{{ url_for('stats.dashboard') }}" class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}active{% endif %}">{{ t('nav.dashboard', 'Dashboard') }}</a>
             
             <a href="{{ url_for('planner.planner') }}" class="{% if request.endpoint == 'planner.planner' %}active{% endif %}">{{ t('nav.planner', 'Planner') }}</a>
@@ -345,6 +345,11 @@
                                 {% endif %}
                             </a>
                         {% endif %}
+                        {% if has_tier('admin') %}
+                            <a href="{{ url_for('auth.admin_attendance_logs') }}" style="color: #80deea; font-size: 13px;">
+                                <span>📋 {{ t('admin.nav_attendance_log', 'Anwesenheits-Log') }}</span>
+                            </a>
+                        {% endif %}
                         {% if current_user.get('player_id') %}
                             <a href="{{ url_for('stats.player_profile', player_id=current_user['player_id']) }}">📊 {{ t('nav.my_stats', 'Meine Statistiken') }}</a>
                         {% else %}
@@ -368,18 +373,6 @@
                     {% endif %}
                 </div>
             </div>
-            {% if can_switch_model %}
-                <div class="model-toggle-group" role="group" aria-label="{{ t('nav.model_toggle_aria', 'Rating-Modell auswählen') }}">
-                    <a href="{{ url_for('stats.set_model', model='glicko', next=request.full_path) }}" 
-                       class="model-toggle-btn {% if active_model == 'glicko' %}active{% endif %}" 
-                       data-model="glicko"
-                       title="{{ t('nav.model_glicko_title', 'Glicko-2 Modell (Offizielles Live-Rating)') }}">Glicko-2</a>
-                    <a href="{{ url_for('stats.set_model', model='whr', next=request.full_path) }}" 
-                       class="model-toggle-btn {% if active_model == 'whr' %}active{% endif %}" 
-                       data-model="whr"
-                       title="{{ t('nav.model_whr_title', 'Whole-History Rating (Bayesianische Rückschau)') }}">WHR</a>
-                </div>
-            {% endif %}
             <div class="lang-toggle-group" role="group" aria-label="Language selection">
                 <a href="{{ url_for('auth.set_language', lang='de', next=request.full_path) }}" 
                    class="lang-toggle-btn {% if current_lang == 'de' %}active{% endif %}" 
@@ -388,6 +381,11 @@
                    class="lang-toggle-btn {% if current_lang == 'en' %}active{% endif %}" 
                    title="English">EN</a>
             </div>
+            <button type="button" class="nav-mobile-toggle" id="nav-mobile-toggle" aria-label="Menü umschalten" aria-expanded="false" style="display: none;">
+                <span class="nav-hamburger-bar"></span>
+                <span class="nav-hamburger-bar"></span>
+                <span class="nav-hamburger-bar"></span>
+            </button>
         </div>
     </nav>
 </header>
@@ -416,6 +414,10 @@
         <nav class="site-footer-links" aria-label="Footer navigation">
             <a href="{{ url_for('stats.about') }}">{{ t('nav.footer_about', 'About') }}</a>
             <a href="{{ url_for('stats.glicko_explainer') }}">{{ t('nav.footer_faq', 'FAQ') }}</a>
+            <button type="button" id="footer-feedback-btn" class="footer-feedback-btn" onclick="window.RB48Feedback && window.RB48Feedback.open()" title="{{ t('nav.feedback_title', 'Feedback oder Mobile-Problem melden') }}">
+                <span>💬</span>
+                <span class="footer-feedback-label">{{ t('nav.feedback', 'Feedback') }}</span>
+            </button>
             <a href="https://github.com/DANeoDev/RB48Glicko" target="_blank" rel="noopener noreferrer">{{ t('nav.footer_github', 'GitHub') }}</a>
         </nav>
     </div>
@@ -600,6 +602,34 @@ if (document.getElementById("leaderboard")) {
         playerLink.title = `How can the ratings diverge even though ${player} only has games in ${pitch}? Well, this is a good question, but it works as intended. If you can figure out the reason, send a Mail to the webmaster — he will grant you a reward.`;
     });
 }
+
+// Mobile navigation drawer toggle
+const navToggle = document.getElementById("nav-mobile-toggle");
+const navLinks = document.getElementById("nav-links");
+if (navToggle && navLinks) {
+    navToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = navLinks.classList.toggle("nav-links-open");
+        navToggle.classList.toggle("active", isOpen);
+        navToggle.setAttribute("aria-expanded", String(isOpen));
+    });
+
+    document.addEventListener("click", (e) => {
+        if (!navLinks.contains(e.target) && !navToggle.contains(e.target)) {
+            navLinks.classList.remove("nav-links-open");
+            navToggle.classList.remove("active");
+            navToggle.setAttribute("aria-expanded", "false");
+        }
+    });
+
+    navLinks.querySelectorAll("a").forEach(link => {
+        link.addEventListener("click", () => {
+            navLinks.classList.remove("nav-links-open");
+            navToggle.classList.remove("active");
+            navToggle.setAttribute("aria-expanded", "false");
+        });
+    });
+}
 </script>
 
 <!-- Global Search Modal & Backdrop -->
@@ -613,7 +643,69 @@ if (document.getElementById("leaderboard")) {
     <div class="global-search-results" id="global-search-results"></div>
 </div>
 
+<!-- Universal Feedback Modal & Backdrop -->
+<div class="feedback-modal-backdrop" id="feedback-modal-backdrop" onclick="window.RB48Feedback && window.RB48Feedback.close()"></div>
+<div class="feedback-modal" id="feedback-modal" role="dialog" aria-modal="true" aria-labelledby="feedback-modal-title">
+    <div class="feedback-modal-header">
+        <h3 id="feedback-modal-title" style="margin: 0; font-size: 18px; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+            <span>💬</span> {{ t('feedback.modal_title', 'Feedback & Meldung') }}
+        </h3>
+        <button type="button" class="feedback-modal-close" onclick="window.RB48Feedback && window.RB48Feedback.close()" aria-label="Schließen">✕</button>
+    </div>
+    <form id="feedback-form" onsubmit="window.RB48Feedback && window.RB48Feedback.submit(event)">
+        <div style="margin-bottom: 14px;">
+            <label style="display: block; font-size: 12.5px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px;">
+                {{ t('feedback.cat_label', 'Kategorie auswählen:') }}
+            </label>
+            <div class="feedback-category-group" style="display: flex; gap: 8px;">
+                <label id="label-cat-mobile" class="feedback-cat-label active" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: center;">
+                    <input type="radio" name="feedback_category" value="mobile_handling" id="cat-mobile" checked style="display: none;">
+                    <span>{{ t('feedback.cat_mobile', '📱 Mobile Handling Probleme') }}</span>
+                </label>
+                <label id="label-cat-general" class="feedback-cat-label" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: center;">
+                    <input type="radio" name="feedback_category" value="general" id="cat-general" style="display: none;">
+                    <span>{{ t('feedback.cat_general', '💬 Allgemein') }}</span>
+                </label>
+            </div>
+        </div>
+
+        <div id="feedback-group-mobile" style="margin-bottom: 14px;">
+            <label for="feedback-message-mobile" style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">
+                {{ t('feedback.mobile_desc_label', 'Welches Problem tritt auf Mobilgeräten auf?') }}
+            </label>
+            <textarea id="feedback-message-mobile" rows="4" placeholder="{{ t('feedback.mobile_placeholder', 'Was hakt beim mobilen Handling? (z. B. Button schwer anzutippen, Scrollen stockt, Layout verzerrt, etc.)...') }}" style="width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; border-radius: 8px; border: 1px solid var(--border); background: #211553; color: #ffffff; resize: vertical; min-height: 100px;"></textarea>
+        </div>
+
+        <div id="feedback-group-general" style="margin-bottom: 14px; display: none;">
+            <label for="feedback-message-general" style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">
+                {{ t('feedback.general_desc_label', 'Allgemeines Feedback, Anmerkung oder Verbesserungsvorschlag:') }}
+            </label>
+            <textarea id="feedback-message-general" rows="4" placeholder="{{ t('feedback.general_placeholder', 'Deine Ideen, Anregungen oder Wünsche für RB48...') }}" style="width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; border-radius: 8px; border: 1px solid var(--border); background: #211553; color: #ffffff; resize: vertical; min-height: 100px;"></textarea>
+        </div>
+
+        <!-- Automatic telemetry / metadata preview -->
+        <div id="feedback-telemetry-preview" style="font-size: 11px; color: var(--text-muted); margin-bottom: 16px; background: rgba(0,0,0,0.25); padding: 9px 12px; border-radius: 6px; display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                <div><strong>Seite:</strong> <span id="telemetry-page">-</span></div>
+                <div><strong>Viewport:</strong> <span id="telemetry-vp">-</span></div>
+                <div><strong>Touch:</strong> <span id="telemetry-touch">-</span></div>
+            </div>
+            <div style="font-size: 10.5px; opacity: 0.85; line-height: 1.35; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 5px;">
+                🔒 {{ t('feedback.privacy_hint', 'Hinweis: Beim Absenden werden diese technischen Diagnosedaten (Gerät/Browser) zusammen mit deiner Nachricht ausschließlich zur Fehleranalyse und Optimierung gespeichert.') }}
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" class="secondary" onclick="window.RB48Feedback && window.RB48Feedback.close()" style="padding: 9px 16px; font-size: 13px; border-radius: 6px; cursor: pointer;">Abbrechen</button>
+            <button type="submit" id="feedback-submit-btn" class="primary" style="padding: 9px 20px; font-size: 13px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                {{ t('feedback.submit_btn', 'Feedback absenden') }}
+            </button>
+        </div>
+    </form>
+</div>
+
 <div id="toast-container" class="toast-container"></div>
 <script src="{{ url_for('static', filename='global_search.js') }}"></script>
+<script src="{{ url_for('static', filename='feedback.js') }}?v=2.2"></script>
 </body>
 </html>

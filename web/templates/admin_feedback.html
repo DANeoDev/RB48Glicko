@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('admin.feedback_title', 'Feedback-Logs · RB48') }}{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width: 1360px; width: 100%; margin: 30px auto; padding: 0 20px; box-sizing: border-box;">
+    <div class="account-card" style="padding: 28px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; box-sizing: border-box;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 14px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
+                    <h1 style="margin: 0; color: #ffffff; font-size: 24px;">💬 {{ t('admin.feedback_heading', 'Benutzer- & Mobile-Feedback') }}</h1>
+                    <span style="background: rgba(123, 82, 197, 0.25); color: #c9c2d8; border: 1px solid rgba(123, 82, 197, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px;">Admin & Webmaster</span>
+                </div>
+                <p class="muted" style="margin: 0; font-size: 13.5px;">{{ t('admin.feedback_sub', 'Eingegangene Meldungen zu Handhabung, mobiler Bedienung und allgemeinen Anregungen.') }}</p>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div style="display: inline-flex; background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px;">
+                    {% if has_tier('webmaster') %}
+                        <a href="{{ url_for('auth.admin_users') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
+                            👥 {{ t('auth.admin_users_heading', 'User Management') }}
+                        </a>
+                    {% endif %}
+                    <a href="{{ url_for('auth.admin_attendance_logs') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
+                        📋 {{ t('admin.nav_attendance_log', 'Anwesenheits-Log') }}
+                    </a>
+                    {% if has_tier('webmaster') %}
+                        <a href="{{ url_for('auth.admin_player_positions') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
+                            ⚽ {{ t('admin.nav_player_positions', 'Spielerpositionen') }}
+                        </a>
+                    {% endif %}
+                    <a href="{{ url_for('auth.admin_feedback') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--accent); color: #ffffff; border-radius: 4px;">
+                        💬 {{ t('admin.nav_feedback', 'Feedback-Logs') }}
+                    </a>
+                </div>
+                <a href="{{ url_for('stats.home') }}" class="secondary" style="padding: 7px 14px; font-size: 13px; text-decoration: none;">← {{ t('nav.dashboard', 'Dashboard') }}</a>
+            </div>
+        </div>
+
+        <!-- Filter bar & AI Export Button -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; background: var(--bg-surface-alt); padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border);">
+            <!-- Category & Status Filter Pills -->
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-right: 4px;">Kategorie:</span>
+                <a href="{{ url_for('auth.admin_feedback', category='all', status=active_status) }}" 
+                   style="padding: 4px 10px; font-size: 12px; border-radius: 14px; text-decoration: none; font-weight: 600; {% if active_category == 'all' %}background: var(--accent); color: #fff;{% else %}background: rgba(255,255,255,0.06); color: var(--text-muted);{% endif %}">
+                    Alle ({{ counts.total }})
+                </a>
+                <a href="{{ url_for('auth.admin_feedback', category='mobile_handling', status=active_status) }}" 
+                   style="padding: 4px 10px; font-size: 12px; border-radius: 14px; text-decoration: none; font-weight: 600; {% if active_category == 'mobile_handling' %}background: #7B52C5; color: #fff;{% else %}background: rgba(255,255,255,0.06); color: var(--text-muted);{% endif %}">
+                    📱 Mobile Handling ({{ counts.mobile_handling }})
+                </a>
+                <a href="{{ url_for('auth.admin_feedback', category='general', status=active_status) }}" 
+                   style="padding: 4px 10px; font-size: 12px; border-radius: 14px; text-decoration: none; font-weight: 600; {% if active_category == 'general' %}background: #0288d1; color: #fff;{% else %}background: rgba(255,255,255,0.06); color: var(--text-muted);{% endif %}">
+                    💬 Allgemein ({{ counts.general }})
+                </a>
+
+                <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-left: 12px; margin-right: 4px;">Status:</span>
+                <a href="{{ url_for('auth.admin_feedback', category=active_category, status='all') }}" 
+                   style="padding: 4px 10px; font-size: 12px; border-radius: 14px; text-decoration: none; font-weight: 600; {% if active_status == 'all' %}background: rgba(255,255,255,0.2); color: #fff;{% else %}background: rgba(255,255,255,0.06); color: var(--text-muted);{% endif %}">
+                    Alle
+                </a>
+                <a href="{{ url_for('auth.admin_feedback', category=active_category, status='open') }}" 
+                   style="padding: 4px 10px; font-size: 12px; border-radius: 14px; text-decoration: none; font-weight: 600; {% if active_status == 'open' %}background: #ff9800; color: #140b28;{% else %}background: rgba(255,255,255,0.06); color: var(--text-muted);{% endif %}">
+                    Offen ({{ counts.open }})
+                </a>
+                <a href="{{ url_for('auth.admin_feedback', category=active_category, status='resolved') }}" 
+                   style="padding: 4px 10px; font-size: 12px; border-radius: 14px; text-decoration: none; font-weight: 600; {% if active_status == 'resolved' %}background: #28a745; color: #fff;{% else %}background: rgba(255,255,255,0.06); color: var(--text-muted);{% endif %}">
+                    Erledigt ({{ counts.resolved }})
+                </a>
+            </div>
+
+            <!-- Export Button -->
+            <div>
+                <button type="button" id="copy-ai-logs-btn" class="primary" style="padding: 6px 14px; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 6px;">
+                    <span>📋</span>
+                    <span>{{ t('admin.feedback_export_btn', 'Logs für KI kopieren') }}</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Feedback Entries List -->
+        {% if entries %}
+            <div style="display: flex; flex-direction: column; gap: 14px;" id="feedback-entries-container">
+                {% for item in entries %}
+                <div class="feedback-card" style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; transition: border-color .15s ease;"
+                     data-id="{{ item.id }}"
+                     data-category="{{ item.category }}"
+                     data-status="{{ item.status }}"
+                     data-user="{{ item.username or 'Gast' }}"
+                     data-url="{{ item.page_url or '-' }}"
+                     data-viewport="{{ item.viewport or '-' }}"
+                     data-screen="{{ item.screen_res or '-' }}"
+                     data-touch="{{ 'Ja' if item.touch_support else 'Nein' }}"
+                     data-created="{{ item.created_at }}"
+                     data-msg="{{ item.message | e }}">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <span style="font-family: monospace; font-size: 12px; color: var(--text-muted);">#{{ item.id }}</span>
+                            
+                            {% if item.category == 'mobile_handling' %}
+                                <span style="background: rgba(123, 82, 197, 0.25); color: #d1bbf8; border: 1px solid rgba(123, 82, 197, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px;">
+                                    📱 Mobile Handling
+                                </span>
+                            {% else %}
+                                <span style="background: rgba(2, 136, 209, 0.25); color: #81d4fa; border: 1px solid rgba(2, 136, 209, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px;">
+                                    💬 Allgemein
+                                </span>
+                            {% endif %}
+
+                            {% if item.status == 'open' %}
+                                <span style="background: rgba(255, 152, 0, 0.2); color: #ffb74d; border: 1px solid rgba(255, 152, 0, 0.4); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px;">
+                                    Offen
+                                </span>
+                            {% else %}
+                                <span style="background: rgba(40, 167, 69, 0.2); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.4); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px;">
+                                    ✓ Erledigt
+                                </span>
+                            {% endif %}
+
+                            <span style="font-size: 12.5px; font-weight: 600; color: #ffffff;">
+                                {{ item.username or 'Gast' }}
+                            </span>
+                            <span style="font-size: 11.5px; color: var(--text-muted);">
+                                {{ item.created_at[:19].replace('T', ' ') }}
+                            </span>
+                        </div>
+
+                        <!-- Actions -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <form method="post" action="{{ url_for('auth.admin_feedback_status', feedback_id=item.id) }}" style="display: inline; margin: 0;">
+                                <input type="hidden" name="status" value="{{ 'resolved' if item.status == 'open' else 'open' }}">
+                                <button type="submit" class="secondary" style="padding: 4px 10px; font-size: 12px; cursor: pointer;">
+                                    {% if item.status == 'open' %}✓ Als erledigt markieren{% else %}↺ Wiedereröffnen{% endif %}
+                                </button>
+                            </form>
+                            <form method="post" action="{{ url_for('auth.admin_feedback_delete', feedback_id=item.id) }}" style="display: inline; margin: 0;" onsubmit="return confirm('Möchtest du dieses Feedback wirklich löschen?');">
+                                <button type="submit" style="background: transparent; border: 1px solid rgba(220, 53, 69, 0.4); color: #ff8888; padding: 4px 8px; font-size: 12px; border-radius: 4px; cursor: pointer;">
+                                    🗑️
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Message Body -->
+                    <div style="background: var(--bg-surface); padding: 12px 14px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 12px; font-size: 14px; line-height: 1.5; color: #ffffff; white-space: pre-wrap; word-break: break-word;">{{ item.message }}</div>
+
+                    <!-- Diagnostics Metadata -->
+                    <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-muted); background: rgba(0,0,0,0.15); padding: 8px 12px; border-radius: 4px;">
+                        <div><strong style="color: var(--text-main);">Seite:</strong> <code style="color: #80deea;">{{ item.page_url or '-' }}</code></div>
+                        <div><strong style="color: var(--text-main);">Viewport:</strong> {{ item.viewport or '-' }}</div>
+                        <div><strong style="color: var(--text-main);">Screen:</strong> {{ item.screen_res or '-' }}</div>
+                        <div><strong style="color: var(--text-main);">Touch:</strong> {{ 'Ja' if item.touch_support else 'Nein' }}</div>
+                        {% if item.user_agent %}
+                            <div style="max-width: 350px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ item.user_agent }}">
+                                <strong style="color: var(--text-main);">UA:</strong> {{ item.user_agent }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+                <div style="font-size: 42px; margin-bottom: 12px;">🎉</div>
+                <h3 style="color: #ffffff; margin-bottom: 6px;">Keine Feedback-Meldungen vorhanden</h3>
+                <p style="font-size: 13.5px; margin: 0;">Es liegen aktuell keine Meldungen für die gewählten Filter vor.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.getElementById('copy-ai-logs-btn')?.addEventListener('click', () => {
+    const cards = document.querySelectorAll('.feedback-card');
+    if (!cards.length) {
+        alert('Keine Feedback-Einträge zum Kopieren vorhanden.');
+        return;
+    }
+
+    let markdown = '# RB48 User & Mobile Feedback Logs\n\n';
+    markdown += `*Generiert am: ${new Date().toLocaleString('de-DE')}*\n\n`;
+    markdown += '| ID | Kategorie | Status | Nutzer | Seite | Viewport | Touch | Meldung |\n';
+    markdown += '|---|---|---|---|---|---|---|---|\n';
+
+    cards.forEach(card => {
+        const id = card.dataset.id;
+        const cat = card.dataset.category === 'mobile_handling' ? 'Mobile' : 'Allgemein';
+        const status = card.dataset.status;
+        const user = card.dataset.user;
+        const url = card.dataset.url;
+        const vp = card.dataset.viewport;
+        const touch = card.dataset.touch;
+        const msg = card.dataset.msg.replace(/\n+/g, ' ').replace(/\|/g, '\\|');
+        markdown += `| #${id} | ${cat} | ${status} | ${user} | \`${url}\` | ${vp} | ${touch} | ${msg} |\n`;
+    });
+
+    markdown += '\n\n## Detaillierte Liste\n\n';
+    cards.forEach(card => {
+        const id = card.dataset.id;
+        const cat = card.dataset.category === 'mobile_handling' ? '📱 Mobile Handling' : '💬 Allgemein';
+        const status = card.dataset.status;
+        const user = card.dataset.user;
+        const url = card.dataset.url;
+        const vp = card.dataset.viewport;
+        const screen = card.dataset.screen;
+        const touch = card.dataset.touch;
+        const created = card.dataset.created;
+        const msg = card.dataset.msg;
+
+        markdown += `### Feedback #${id} (${cat}) - Status: ${status}\n`;
+        markdown += `- **Nutzer**: ${user}\n`;
+        markdown += `- **Datum**: ${created}\n`;
+        markdown += `- **Seite**: \`${url}\`\n`;
+        markdown += `- **Viewport**: ${vp} | **Screen**: ${screen} | **Touch**: ${touch}\n`;
+        markdown += `- **Meldung**:\n> ${msg.replace(/\n/g, '\n> ')}\n\n`;
+    });
+
+    navigator.clipboard.writeText(markdown).then(() => {
+        const btn = document.getElementById('copy-ai-logs-btn');
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<span>✓</span> <span>Kopiert!</span>';
+        btn.style.background = '#28a745';
+        setTimeout(() => {
+            btn.innerHTML = origHtml;
+            btn.style.background = '';
+        }, 2500);
+    }).catch(err => {
+        alert('Fehler beim Kopieren in die Zwischenablage: ' + err);
+    });
+});
+</script>
+{% endblock %}
