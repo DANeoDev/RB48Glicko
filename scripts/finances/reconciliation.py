@@ -2,163 +2,196 @@ from datetime import datetime, timezone
 from scripts.finances.database import (
     get_finances_connection,
     add_payment_allocation,
-    get_allocations_for_event,
+    get_allocations_for_match_date,
+    get_allocations_for_period,
     get_allocations_for_player,
     get_transaction_by_id,
+    get_all_player_membership_statuses,
+    get_player_membership_status,
+    set_player_membership_status,
 )
-from scripts.planner.database import get_planner_connection
-from scripts.accounts.database import get_accounts_connection
 from scripts.database.database import get_connection as get_rb48_connection
 from scripts.database.db_players import get_players
+from scripts.accounts.database import get_accounts_connection
 
 
 GUEST_FEE_PER_KICK = 3.50
 MEMBERSHIP_DUE_PER_HALFYEAR = 48.00
 
 
-def get_event_guest_status(event_id: int) -> dict:
+def resolve_player_membership_status(
+    player_id: int,
+    finances_conn=None,
+    accounts_conn=None,
+    explicit_statuses=None,
+    linked_player_ids=None,
+) -> str:
     """
-    Get financial guest fee breakdown for a specific planner event/matchday.
+    Determine if a player is 'member' or 'guest'.
+    Rule:
+    1. If explicitly set in `player_membership_status`, use that.
+    2. Else if player is linked to an approved user account, default to 'member'.
+    3. Else default to 'guest'.
     """
-    planner_conn = get_planner_connection()
+    if explicit_statuses is not None:
+        if player_id in explicit_statuses:
+            return explicit_statuses[player_id]
+    elif finances_conn:
+        exp = get_player_membership_status(finances_conn, player_id, default=None)
+        if exp:
+            return exp
+
+    if linked_player_ids is not None:
+        if player_id in linked_player_ids:
+            return "member"
+    elif accounts_conn:
+        row = accounts_conn.execute(
+            "SELECT 1 FROM users WHERE player_id = ?", (player_id,)
+        ).fetchone()
+        if row:
+            return "member"
+
+    return "guest"
+
+
+def get_all_players_with_membership(
+    finances_conn=None,
+    rb48_conn=None,
+    accounts_conn=None,
+) -> list[dict]:
+    """
+    Get all players with their aliases, linked user accounts, and membership status ('member' | 'guest').
+    """
+    close_fin = False
+    close_rb = False
+    close_acc = False
+
+    if finances_conn is None:
+        finances_conn = get_finances_connection()
+        close_fin = True
+    if rb48_conn is None:
+        rb48_conn = get_rb48_connection()
+        close_rb = True
+    if accounts_conn is None:
+        accounts_conn = get_accounts_connection()
+        close_acc = True
+
+    try:
+        players_dict = get_players(rb48_conn)
+        explicit_statuses = get_all_player_membership_statuses(finances_conn)
+
+        user_rows = accounts_conn.execute(
+            "SELECT id, username, email, player_id, attendance_name FROM users WHERE player_id IS NOT NULL"
+        ).fetchall()
+        users_by_player_id = {u["player_id"]: dict(u) for u in user_rows}
+        linked_player_ids = set(users_by_player_id.keys())
+
+        result = []
+        for pid, pdata in players_dict.items():
+            primary_alias = pdata["aliases"][0] if pdata["aliases"] else f"Player #{pid}"
+            all_aliases = ", ".join(pdata["aliases"])
+            linked_user = users_by_player_id.get(pid)
+            has_explicit = pid in explicit_statuses
+
+            status = resolve_player_membership_status(
+                pid,
+                explicit_statuses=explicit_statuses,
+                linked_player_ids=linked_player_ids,
+            )
+
+            result.append({
+                "player_id": pid,
+                "name": primary_alias,
+                "aliases_str": all_aliases,
+                "linked_user": linked_user,
+                "status": status,
+                "has_explicit": has_explicit,
+            })
+
+        result.sort(key=lambda x: (0 if x["status"] == "member" else 1, x["name"].lower()))
+        return result
+    finally:
+        if close_fin:
+            finances_conn.close()
+        if close_rb:
+            rb48_conn.close()
+        if close_acc:
+            accounts_conn.close()
+
+
+def get_match_history_financial_overview() -> list[dict]:
+    """
+    Return all distinct match dates from Match History (`rb48.db`) with guest fee metrics.
+    """
+    rb48_conn = get_rb48_connection()
     finances_conn = get_finances_connection()
     accounts_conn = get_accounts_connection()
 
     try:
-        event = planner_conn.execute(
-            "SELECT * FROM events WHERE id = ?", (event_id,)
-        ).fetchone()
-        if not event:
-            return {}
-
-        attendees = planner_conn.execute(
+        # Query distinct match dates
+        date_rows = rb48_conn.execute(
             """
-            SELECT id, event_id, user_id, name, status, is_guest,
-                   registered_by_user_id, guest_index, created_at
-            FROM attendees
-            WHERE event_id = ? AND status = 'attending'
-            ORDER BY is_guest ASC, id ASC
-            """,
-            (event_id,),
+            SELECT date, COUNT(DISTINCT match_id) as match_count, COUNT(DISTINCT player_id) as total_players
+            FROM matches
+            JOIN match_players USING(match_id)
+            GROUP BY date
+            ORDER BY date DESC
+            """
         ).fetchall()
 
-        allocations = get_allocations_for_event(finances_conn, event_id)
-        alloc_by_attendee: dict[int, list[dict]] = {}
-        for a in allocations:
-            att_id = a.get("attendee_id")
-            if att_id:
-                alloc_by_attendee.setdefault(att_id, []).append(a)
-
-        # Users cache for registered_by
-        users_cache = {}
-        user_rows = accounts_conn.execute("SELECT id, username, attendance_name, player_id FROM users").fetchall()
-        for u in user_rows:
-            users_cache[u["id"]] = dict(u)
-
-        guest_entries = []
-        total_guest_fees_expected = 0.0
-        total_guest_fees_collected = 0.0
-
-        for att in attendees:
-            # We treat guests (is_guest=1) or visitors (user_id is None and not a known club member) as fee-relevant
-            is_guest = bool(att["is_guest"])
-            user_id = att["user_id"]
-            reg_user_id = att["registered_by_user_id"]
-            reg_user_name = users_cache.get(reg_user_id, {}).get("attendance_name") or users_cache.get(reg_user_id, {}).get("username") if reg_user_id else None
-
-            # Check if this attendee is subject to guest fee
-            is_fee_relevant = is_guest or (user_id is None)
-
-            att_allocs = alloc_by_attendee.get(att["id"], [])
-            paid_sum = sum(a["allocated_amount"] for a in att_allocs if a["payment_method"] != "waived")
-            is_waived = any(a["payment_method"] == "waived" for a in att_allocs)
-
-            if is_fee_relevant:
-                total_guest_fees_expected += GUEST_FEE_PER_KICK
-                total_guest_fees_collected += paid_sum
-
-                if is_waived:
-                    payment_status = "waived"
-                elif paid_sum >= GUEST_FEE_PER_KICK:
-                    payment_methods = {a["payment_method"] for a in att_allocs}
-                    if "cash" in payment_methods and "paypal" not in payment_methods:
-                        payment_status = "cash"
-                    elif "bank" in payment_methods and "paypal" not in payment_methods:
-                        payment_status = "bank"
-                    else:
-                        payment_status = "paid"
-                elif paid_sum > 0:
-                    payment_status = "partial"
-                else:
-                    payment_status = "unpaid"
-
-                guest_entries.append({
-                    "attendee_id": att["id"],
-                    "name": att["name"],
-                    "is_guest": is_guest,
-                    "registered_by_user_id": reg_user_id,
-                    "registered_by_name": reg_user_name,
-                    "guest_index": att["guest_index"],
-                    "fee_required": GUEST_FEE_PER_KICK,
-                    "amount_paid": paid_sum,
-                    "payment_status": payment_status,
-                    "allocations": att_allocs,
-                })
-
-        return {
-            "event": dict(event),
-            "guest_entries": guest_entries,
-            "total_guests": len(guest_entries),
-            "total_expected": total_guest_fees_expected,
-            "total_collected": total_guest_fees_collected,
-            "outstanding": max(0.0, total_guest_fees_expected - total_guest_fees_collected),
-        }
-    finally:
-        planner_conn.close()
-        finances_conn.close()
-        accounts_conn.close()
-
-
-def get_all_events_financial_overview() -> list[dict]:
-    """
-    Return all planner events with summarized guest payment stats.
-    """
-    planner_conn = get_planner_connection()
-    finances_conn = get_finances_connection()
-
-    try:
-        events = planner_conn.execute(
-            "SELECT * FROM events ORDER BY event_date DESC, id DESC"
+        explicit_statuses = get_all_player_membership_statuses(finances_conn)
+        user_rows = accounts_conn.execute(
+            "SELECT player_id FROM users WHERE player_id IS NOT NULL"
         ).fetchall()
+        linked_player_ids = {u["player_id"] for u in user_rows}
 
         results = []
-        for ev in events:
-            attendees = planner_conn.execute(
+        for drow in date_rows:
+            mdate = drow["date"]
+
+            # Fetch distinct players for this date
+            prows = rb48_conn.execute(
                 """
-                SELECT id, is_guest, user_id FROM attendees
-                WHERE event_id = ? AND status = 'attending' AND (is_guest = 1 OR user_id IS NULL)
+                SELECT DISTINCT player_id
+                FROM matches
+                JOIN match_players USING(match_id)
+                WHERE date = ?
                 """,
-                (ev["id"],),
+                (mdate,),
             ).fetchall()
 
-            guest_count = len(attendees)
-            if guest_count == 0:
-                continue
+            guest_pids = [
+                r["player_id"]
+                for r in prows
+                if resolve_player_membership_status(
+                    r["player_id"],
+                    explicit_statuses=explicit_statuses,
+                    linked_player_ids=linked_player_ids,
+                ) == "guest"
+            ]
 
-            allocations = get_allocations_for_event(finances_conn, ev["id"])
-            paid_att_ids = {a["attendee_id"] for a in allocations if a.get("attendee_id") and (a["payment_method"] == "waived" or a["allocated_amount"] >= GUEST_FEE_PER_KICK)}
-            
-            paid_count = len(paid_att_ids.intersection({att["id"] for att in attendees}))
+            guest_count = len(guest_pids)
+            allocations = get_allocations_for_match_date(finances_conn, mdate)
+
+            paid_pids = {
+                a["player_id"]
+                for a in allocations
+                if a.get("player_id") and (a["payment_method"] == "waived" or a["allocated_amount"] >= GUEST_FEE_PER_KICK)
+            }
+
+            paid_count = len(set(guest_pids).intersection(paid_pids))
             unpaid_count = max(0, guest_count - paid_count)
             total_expected = guest_count * GUEST_FEE_PER_KICK
-            total_collected = sum(a["allocated_amount"] for a in allocations if a["payment_method"] != "waived")
+            total_collected = sum(
+                a["allocated_amount"]
+                for a in allocations
+                if a.get("player_id") in guest_pids and a["payment_method"] != "waived"
+            )
 
             results.append({
-                "event_id": ev["id"],
-                "event_date": ev["event_date"],
-                "pitch": ev["pitch"],
-                "title": ev["title"] or f"Kick am {ev['event_date']}",
-                "status": ev["status"],
+                "match_date": mdate,
+                "match_count": drow["match_count"],
+                "total_players": drow["total_players"],
                 "guest_count": guest_count,
                 "paid_count": paid_count,
                 "unpaid_count": unpaid_count,
@@ -169,56 +202,258 @@ def get_all_events_financial_overview() -> list[dict]:
 
         return results
     finally:
-        planner_conn.close()
+        rb48_conn.close()
         finances_conn.close()
+        accounts_conn.close()
 
 
-def manual_mark_attendee_payment(
-    event_id: int,
-    attendee_id: int,
+def get_match_date_guest_status(match_date: str) -> dict:
+    """
+    Get financial breakdown for all players on a specific match date from Match History.
+    """
+    rb48_conn = get_rb48_connection()
+    finances_conn = get_finances_connection()
+    accounts_conn = get_accounts_connection()
+
+    try:
+        players_dict = get_players(rb48_conn)
+        explicit_statuses = get_all_player_membership_statuses(finances_conn)
+        user_rows = accounts_conn.execute(
+            "SELECT player_id, username, attendance_name FROM users WHERE player_id IS NOT NULL"
+        ).fetchall()
+        users_by_player_id = {u["player_id"]: dict(u) for u in user_rows}
+        linked_player_ids = set(users_by_player_id.keys())
+
+        prows = rb48_conn.execute(
+            """
+            SELECT DISTINCT player_id
+            FROM matches
+            JOIN match_players USING(match_id)
+            WHERE date = ?
+            ORDER BY player_id ASC
+            """,
+            (match_date,),
+        ).fetchall()
+
+        allocations = get_allocations_for_match_date(finances_conn, match_date)
+        alloc_by_player: dict[int, list[dict]] = {}
+        for a in allocations:
+            pid = a.get("player_id")
+            if pid:
+                alloc_by_player.setdefault(pid, []).append(a)
+
+        guest_entries = []
+        member_entries = []
+        total_guest_fees_expected = 0.0
+        total_guest_fees_collected = 0.0
+
+        for r in prows:
+            pid = r["player_id"]
+            pdata = players_dict.get(pid, {})
+            name = pdata.get("aliases", [f"Player #{pid}"])[0]
+            status = resolve_player_membership_status(
+                pid,
+                explicit_statuses=explicit_statuses,
+                linked_player_ids=linked_player_ids,
+            )
+
+            p_allocs = alloc_by_player.get(pid, [])
+            paid_sum = sum(a["allocated_amount"] for a in p_allocs if a["payment_method"] != "waived")
+            is_waived = any(a["payment_method"] == "waived" for a in p_allocs)
+
+            if status == "guest":
+                total_guest_fees_expected += GUEST_FEE_PER_KICK
+                total_guest_fees_collected += paid_sum
+
+                if is_waived:
+                    payment_status = "waived"
+                elif paid_sum >= GUEST_FEE_PER_KICK:
+                    pmethods = {a["payment_method"] for a in p_allocs}
+                    if "cash" in pmethods and "paypal" not in pmethods:
+                        payment_status = "cash"
+                    elif "bank" in pmethods and "paypal" not in pmethods:
+                        payment_status = "bank"
+                    else:
+                        payment_status = "paid"
+                elif paid_sum > 0:
+                    payment_status = "partial"
+                else:
+                    payment_status = "unpaid"
+
+                guest_entries.append({
+                    "player_id": pid,
+                    "name": name,
+                    "aliases_str": ", ".join(pdata.get("aliases", [])),
+                    "status": status,
+                    "fee_required": GUEST_FEE_PER_KICK,
+                    "amount_paid": paid_sum,
+                    "payment_status": payment_status,
+                    "allocations": p_allocs,
+                })
+            else:
+                member_entries.append({
+                    "player_id": pid,
+                    "name": name,
+                    "aliases_str": ", ".join(pdata.get("aliases", [])),
+                    "status": status,
+                })
+
+        return {
+            "match_date": match_date,
+            "guest_entries": guest_entries,
+            "member_entries": member_entries,
+            "total_guests": len(guest_entries),
+            "total_members": len(member_entries),
+            "total_expected": total_guest_fees_expected,
+            "total_collected": total_guest_fees_collected,
+            "outstanding": max(0.0, total_guest_fees_expected - total_guest_fees_collected),
+        }
+    finally:
+        rb48_conn.close()
+        finances_conn.close()
+        accounts_conn.close()
+
+
+def manual_mark_match_guest_payment(
+    match_date: str,
+    player_id: int,
     payment_method: str,
-    player_id: int | None = None,
     note: str | None = None,
     amount: float = GUEST_FEE_PER_KICK,
 ) -> int:
     """
-    Manually mark an attendee's guest fee as cash, paypal direct, or waived.
+    Manually mark a player's guest fee for a match date as cash, paypal direct, waived, or unpaid.
     """
-    planner_conn = get_planner_connection()
     finances_conn = get_finances_connection()
-
     try:
-        event = planner_conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
-        match_date = event["event_date"] if event else None
-
-        # Remove previous manual/cash allocations for this attendee to avoid duplicates
+        # Delete prior manual allocations for this player and date
         finances_conn.execute(
-            "DELETE FROM payment_allocations WHERE event_id = ? AND attendee_id = ? AND transaction_id IS NULL",
-            (event_id, attendee_id),
+            """
+            DELETE FROM payment_allocations
+            WHERE match_date = ? AND player_id = ? AND transaction_id IS NULL AND fee_type = 'match_guest'
+            """,
+            (match_date, player_id),
         )
         finances_conn.commit()
 
         if payment_method == "unpaid":
-            # Just cleared previous allocations
             return 0
 
         alloc_amount = 0.0 if payment_method == "waived" else amount
-
-        alloc_id = add_payment_allocation(
+        return add_payment_allocation(
             finances_conn,
             fee_type="match_guest",
             allocated_amount=alloc_amount,
             payment_method=payment_method,
             transaction_id=None,
-            event_id=event_id,
             match_date=match_date,
             player_id=player_id,
-            attendee_id=attendee_id,
             note=note or f"Manuelle Erfassung ({payment_method})",
         )
-        return alloc_id
     finally:
-        planner_conn.close()
+        finances_conn.close()
+
+
+def get_membership_dues_overview(period: str = "2026-H2") -> dict:
+    """
+    Get membership dues breakdown (48 € / Half-year) for all club members.
+    """
+    players = get_all_players_with_membership()
+    members = [p for p in players if p["status"] == "member"]
+
+    finances_conn = get_finances_connection()
+    try:
+        allocations = get_allocations_for_period(finances_conn, period)
+        alloc_by_player: dict[int, list[dict]] = {}
+        for a in allocations:
+            pid = a.get("player_id")
+            if pid:
+                alloc_by_player.setdefault(pid, []).append(a)
+
+        member_dues_list = []
+        total_expected = len(members) * MEMBERSHIP_DUE_PER_HALFYEAR
+        total_collected = 0.0
+
+        for m in members:
+            pid = m["player_id"]
+            p_allocs = alloc_by_player.get(pid, [])
+            paid_sum = sum(a["allocated_amount"] for a in p_allocs if a["payment_method"] != "waived")
+            is_waived = any(a["payment_method"] == "waived" for a in p_allocs)
+
+            total_collected += paid_sum
+
+            if is_waived:
+                pstatus = "waived"
+            elif paid_sum >= MEMBERSHIP_DUE_PER_HALFYEAR:
+                pmethods = {a["payment_method"] for a in p_allocs}
+                if "bank" in pmethods:
+                    pstatus = "bank"
+                elif "cash" in pmethods:
+                    pstatus = "cash"
+                else:
+                    pstatus = "paid"
+            elif paid_sum > 0:
+                pstatus = "partial"
+            else:
+                pstatus = "unpaid"
+
+            member_dues_list.append({
+                "player_id": pid,
+                "name": m["name"],
+                "aliases_str": m["aliases_str"],
+                "linked_user": m["linked_user"],
+                "fee_required": MEMBERSHIP_DUE_PER_HALFYEAR,
+                "amount_paid": paid_sum,
+                "payment_status": pstatus,
+                "allocations": p_allocs,
+            })
+
+        return {
+            "period": period,
+            "members": member_dues_list,
+            "total_members": len(members),
+            "total_expected": total_expected,
+            "total_collected": total_collected,
+            "outstanding": max(0.0, total_expected - total_collected),
+        }
+    finally:
+        finances_conn.close()
+
+
+def manual_mark_membership_due(
+    period: str,
+    player_id: int,
+    payment_method: str,
+    note: str | None = None,
+    amount: float = MEMBERSHIP_DUE_PER_HALFYEAR,
+) -> int:
+    """Manually mark membership dues for a player and period."""
+    finances_conn = get_finances_connection()
+    try:
+        finances_conn.execute(
+            """
+            DELETE FROM payment_allocations
+            WHERE period = ? AND player_id = ? AND transaction_id IS NULL AND fee_type = 'membership_due'
+            """,
+            (period, player_id),
+        )
+        finances_conn.commit()
+
+        if payment_method == "unpaid":
+            return 0
+
+        alloc_amount = 0.0 if payment_method == "waived" else amount
+        return add_payment_allocation(
+            finances_conn,
+            fee_type="membership_due",
+            allocated_amount=alloc_amount,
+            payment_method=payment_method,
+            transaction_id=None,
+            period=period,
+            player_id=player_id,
+            note=note or f"Mitgliedsbeitrag ({payment_method})",
+        )
+    finally:
         finances_conn.close()
 
 
@@ -227,96 +462,85 @@ def auto_allocate_transaction_to_debts(
     player_id: int,
 ) -> int:
     """
-    Allocate a confirmed transaction amount to the player's oldest unpaid guest attendances.
-    Returns number of guest kicks covered.
+    Allocate a confirmed transaction amount to the player's oldest unpaid match history guest kicks
+    or membership dues. Returns number of debts/kicks covered.
     """
     finances_conn = get_finances_connection()
-    planner_conn = get_planner_connection()
-    accounts_conn = get_accounts_connection()
     rb48_conn = get_rb48_connection()
+    accounts_conn = get_accounts_connection()
 
     try:
         tx = get_transaction_by_id(finances_conn, transaction_id)
         if not tx or tx["amount"] <= 0:
             return 0
 
-        # Get player aliases and possible names
-        player_aliases = [row["alias"] for row in rb48_conn.execute(
-            "SELECT alias FROM aliases WHERE player_id = ?", (player_id,)
-        ).fetchall()]
+        status = resolve_player_membership_status(player_id, finances_conn, accounts_conn)
+        remaining_amount = float(tx["amount"])
+        covered = 0
 
-        # Also get linked user
-        user = accounts_conn.execute(
-            "SELECT id, username, attendance_name FROM users WHERE player_id = ?", (player_id,)
-        ).fetchone()
+        # If 48.00 € (membership due), check membership dues first
+        if remaining_amount >= MEMBERSHIP_DUE_PER_HALFYEAR and status == "member":
+            # Check 2026-H2 and 2026-H1
+            for per in ("2026-H1", "2026-H2"):
+                if remaining_amount < MEMBERSHIP_DUE_PER_HALFYEAR:
+                    break
+                allocs = get_allocations_for_period(finances_conn, per)
+                p_allocs = [a for a in allocs if a.get("player_id") == player_id]
+                paid_sum = sum(a["allocated_amount"] for a in p_allocs if a["payment_method"] != "waived")
+                if paid_sum >= MEMBERSHIP_DUE_PER_HALFYEAR:
+                    continue
 
-        search_names = set(player_aliases)
-        if user:
-            if user["username"]:
-                search_names.add(user["username"])
-            if user["attendance_name"]:
-                search_names.add(user["attendance_name"])
+                add_payment_allocation(
+                    finances_conn,
+                    fee_type="membership_due",
+                    allocated_amount=MEMBERSHIP_DUE_PER_HALFYEAR,
+                    payment_method=tx["source"],
+                    transaction_id=tx["id"],
+                    period=per,
+                    player_id=player_id,
+                    note=f"PayPal {tx['tx_code'] or ''}".strip(),
+                )
+                remaining_amount -= MEMBERSHIP_DUE_PER_HALFYEAR
+                covered += 1
 
-        # Find all guest attendances by or associated with this player/user
-        attendee_rows = planner_conn.execute(
+        # Match history guest kicks (3.50 €)
+        match_date_rows = rb48_conn.execute(
             """
-            SELECT a.id, a.event_id, a.name, a.user_id, a.registered_by_user_id, e.event_date
-            FROM attendees a
-            JOIN events e ON a.event_id = e.id
-            WHERE a.status = 'attending' AND (a.is_guest = 1 OR a.user_id IS NULL)
-            ORDER BY e.event_date ASC, a.id ASC
-            """
+            SELECT DISTINCT date
+            FROM matches
+            JOIN match_players USING(match_id)
+            WHERE player_id = ?
+            ORDER BY date ASC
+            """,
+            (player_id,),
         ).fetchall()
 
-        # Filter attendances relevant to this player
-        relevant_attendances = []
-        for att in attendee_rows:
-            # Check if name matches any alias or if registered by this user
-            att_name = att["name"]
-            matched = False
-            for sname in search_names:
-                if sname.lower() in att_name.lower():
-                    matched = True
-                    break
-            if user and att["registered_by_user_id"] == user["id"]:
-                matched = True
-
-            if matched:
-                relevant_attendances.append(att)
-
-        remaining_amount = float(tx["amount"])
-        kicks_covered = 0
-
-        for att in relevant_attendances:
+        for drow in match_date_rows:
             if remaining_amount < GUEST_FEE_PER_KICK:
                 break
 
-            # Check if already paid
-            allocs = get_allocations_for_event(finances_conn, att["event_id"])
-            att_allocs = [a for a in allocs if a.get("attendee_id") == att["id"]]
-            already_paid = sum(a["allocated_amount"] for a in att_allocs if a["payment_method"] != "waived")
-            if already_paid >= GUEST_FEE_PER_KICK:
+            mdate = drow["date"]
+            allocs = get_allocations_for_match_date(finances_conn, mdate)
+            p_allocs = [a for a in allocs if a.get("player_id") == player_id]
+            paid_sum = sum(a["allocated_amount"] for a in p_allocs if a["payment_method"] != "waived")
+            if paid_sum >= GUEST_FEE_PER_KICK:
                 continue
 
-            # Allocate 3.50 for this kick
             add_payment_allocation(
                 finances_conn,
                 fee_type="match_guest",
                 allocated_amount=GUEST_FEE_PER_KICK,
                 payment_method=tx["source"],
                 transaction_id=tx["id"],
-                event_id=att["event_id"],
-                match_date=att["event_date"],
+                match_date=mdate,
                 player_id=player_id,
-                attendee_id=att["id"],
                 note=f"PayPal {tx['tx_code'] or ''}".strip(),
             )
             remaining_amount -= GUEST_FEE_PER_KICK
-            kicks_covered += 1
+            covered += 1
 
-        return kicks_covered
+        return covered
     finally:
         finances_conn.close()
-        planner_conn.close()
-        accounts_conn.close()
         rb48_conn.close()
+        accounts_conn.close()

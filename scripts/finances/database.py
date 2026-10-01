@@ -108,6 +108,18 @@ def create_finance_tables(connection):
         CREATE INDEX IF NOT EXISTS idx_allocations_player
         ON payment_allocations(player_id)
     """)
+    connection.execute("""
+        CREATE INDEX IF NOT EXISTS idx_allocations_match_date
+        ON payment_allocations(match_date)
+    """)
+
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS player_membership_status (
+            player_id INTEGER PRIMARY KEY,
+            status TEXT NOT NULL DEFAULT 'guest' CHECK (status IN ('member', 'guest')),
+            updated_at TEXT NOT NULL
+        )
+    """)
 
     connection.commit()
 
@@ -357,6 +369,15 @@ def get_allocations_for_event(connection, event_id: int) -> list[dict]:
     return [dict(row) for row in cursor.fetchall()]
 
 
+def get_allocations_for_match_date(connection, match_date: str) -> list[dict]:
+    """Retrieve all payment allocations for a match date (YYYY-MM-DD)."""
+    cursor = connection.execute(
+        "SELECT * FROM payment_allocations WHERE match_date = ? ORDER BY id ASC",
+        (match_date,),
+    )
+    return [dict(row) for row in cursor.fetchall()]
+
+
 def get_allocations_for_player(connection, player_id: int) -> list[dict]:
     """Retrieve all payment allocations for a player."""
     cursor = connection.execute(
@@ -366,7 +387,47 @@ def get_allocations_for_player(connection, player_id: int) -> list[dict]:
     return [dict(row) for row in cursor.fetchall()]
 
 
+def get_allocations_for_period(connection, period: str) -> list[dict]:
+    """Retrieve all payment allocations for a membership due period (e.g. '2026-H2')."""
+    cursor = connection.execute(
+        "SELECT * FROM payment_allocations WHERE period = ? AND fee_type = 'membership_due' ORDER BY id ASC",
+        (period,),
+    )
+    return [dict(row) for row in cursor.fetchall()]
+
+
 def delete_allocation(connection, allocation_id: int):
     """Delete a payment allocation."""
     connection.execute("DELETE FROM payment_allocations WHERE id = ?", (allocation_id,))
+    connection.commit()
+
+
+def get_all_player_membership_statuses(connection) -> dict[int, str]:
+    """Return dictionary mapping player_id -> status ('member' | 'guest')."""
+    cursor = connection.execute("SELECT player_id, status FROM player_membership_status")
+    return {row["player_id"]: row["status"] for row in cursor.fetchall()}
+
+
+def get_player_membership_status(connection, player_id: int, default: str = "guest") -> str:
+    """Return membership status for a single player."""
+    row = connection.execute(
+        "SELECT status FROM player_membership_status WHERE player_id = ?",
+        (player_id,),
+    ).fetchone()
+    return row["status"] if row else default
+
+
+def set_player_membership_status(connection, player_id: int, status: str):
+    """Set or update player membership status ('member' or 'guest')."""
+    if status not in ("member", "guest"):
+        status = "guest"
+    now = datetime.now(timezone.utc).isoformat()
+    connection.execute(
+        """
+        INSERT INTO player_membership_status (player_id, status, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(player_id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at
+        """,
+        (player_id, status, now),
+    )
     connection.commit()

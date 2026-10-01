@@ -21,13 +21,17 @@ from scripts.finances.database import (
     get_identities,
     save_or_update_identity,
     delete_identity,
+    set_player_membership_status,
 )
 from scripts.finances.paypal_parser import parse_paypal_csv
 from scripts.finances.matcher import find_player_match
 from scripts.finances.reconciliation import (
-    get_all_events_financial_overview,
-    get_event_guest_status,
-    manual_mark_attendee_payment,
+    get_match_history_financial_overview,
+    get_match_date_guest_status,
+    get_all_players_with_membership,
+    get_membership_dues_overview,
+    manual_mark_match_guest_payment,
+    manual_mark_membership_due,
     auto_allocate_transaction_to_debts,
     GUEST_FEE_PER_KICK,
     MEMBERSHIP_DUE_PER_HALFYEAR,
@@ -41,38 +45,38 @@ finances_bp = Blueprint("finances", __name__, url_prefix="/admin/finances")
 @require_webmaster
 def admin_finances():
     """Main Webmaster Finances & Payment Management Dashboard."""
-    active_tab = request.args.get("tab", "matchdays")
-    selected_event_id = request.args.get("event_id", type=int)
+    active_tab = request.args.get("tab", "matches")
+    selected_date = request.args.get("date")
+    selected_period = request.args.get("period", "2026-H2")
 
     finances_conn = get_finances_connection()
     rb48_conn = get_rb48_connection()
     accounts_conn = get_accounts_connection()
 
     try:
-        # Load players for dropdowns
+        # Load players with membership status
+        players_with_status = get_all_players_with_membership(
+            finances_conn=finances_conn,
+            rb48_conn=rb48_conn,
+            accounts_conn=accounts_conn,
+        )
         players_dict = get_players(rb48_conn)
-        player_list = []
-        for pid, pdata in players_dict.items():
-            primary_alias = pdata["aliases"][0] if pdata["aliases"] else f"Player #{pid}"
-            all_aliases = ", ".join(pdata["aliases"])
-            player_list.append({
-                "player_id": pid,
-                "name": primary_alias,
-                "aliases_str": all_aliases,
-            })
-        player_list.sort(key=lambda x: x["name"].lower())
 
-        # Matchdays overview
-        events_overview = get_all_events_financial_overview()
+        # Match history financial overview
+        matches_overview = get_match_history_financial_overview()
 
-        # Selected event details
-        selected_event_details = None
-        if selected_event_id:
-            selected_event_details = get_event_guest_status(selected_event_id)
-        elif events_overview:
-            # Default to first event with guests
-            selected_event_id = events_overview[0]["event_id"]
-            selected_event_details = get_event_guest_status(selected_event_id)
+        # Selected date details
+        selected_date_details = None
+        if selected_date:
+            selected_date_details = get_match_date_guest_status(selected_date)
+        elif matches_overview:
+            # Default to first match date with guests, or latest date
+            guest_dates = [m for m in matches_overview if m["guest_count"] > 0]
+            selected_date = guest_dates[0]["match_date"] if guest_dates else matches_overview[0]["match_date"]
+            selected_date_details = get_match_date_guest_status(selected_date)
+
+        # Membership dues overview
+        dues_overview = get_membership_dues_overview(selected_period)
 
         # Transactions
         transactions = get_transactions(finances_conn, limit=200)
@@ -83,7 +87,6 @@ def admin_finances():
                 pinfo = players_dict.get(tx["matched_player_id"], {})
                 tx["matched_player_name"] = pinfo.get("aliases", [f"Player #{tx['matched_player_id']}"])[0]
             else:
-                # Calculate real-time suggestion
                 match_res = find_player_match(
                     tx.get("raw_payer_name"),
                     tx.get("raw_payer_email"),
@@ -106,19 +109,26 @@ def admin_finances():
         total_income = sum(t["amount"] for t in transactions if t["amount"] > 0)
         total_expenses = sum(abs(t["amount"]) for t in transactions if t["amount"] < 0)
         unassigned_count = sum(1 for t in transactions if not t.get("is_confirmed") and t["status"] == "imported")
+        total_members_count = sum(1 for p in players_with_status if p["status"] == "member")
+        total_guests_count = sum(1 for p in players_with_status if p["status"] == "guest")
 
         return render_template(
             "admin_finances.html",
             active_tab=active_tab,
-            events_overview=events_overview,
-            selected_event_id=selected_event_id,
-            selected_event_details=selected_event_details,
+            matches_overview=matches_overview,
+            selected_date=selected_date,
+            selected_date_details=selected_date_details,
+            players_with_status=players_with_status,
+            dues_overview=dues_overview,
+            selected_period=selected_period,
             transactions=transactions,
             identities=identities,
-            player_list=player_list,
+            player_list=players_with_status,
             total_income=total_income,
             total_expenses=total_expenses,
             unassigned_count=unassigned_count,
+            total_members_count=total_members_count,
+            total_guests_count=total_guests_count,
             guest_fee_rate=GUEST_FEE_PER_KICK,
             membership_due_rate=MEMBERSHIP_DUE_PER_HALFYEAR,
         )
@@ -128,12 +138,69 @@ def admin_finances():
         accounts_conn.close()
 
 
-@finances_bp.route("/event-details/<int:event_id>", methods=["GET"])
+@finances_bp.route("/set-player-status", methods=["POST"])
 @require_webmaster
-def event_details(event_id: int):
-    """JSON API to fetch guest payment status for a single event."""
-    data = get_event_guest_status(event_id)
-    return jsonify(data)
+def set_status():
+    """Toggle or update a player's membership status ('member' or 'guest')."""
+    player_id = request.form.get("player_id", type=int)
+    status = request.form.get("status", "guest")
+
+    if not player_id:
+        return jsonify({"success": False, "error": "Missing player ID"}), 400
+
+    finances_conn = get_finances_connection()
+    try:
+        set_player_membership_status(finances_conn, player_id, status)
+        flash(f"Status für Spieler #{player_id} auf '{status}' aktualisiert.", "success")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": True, "player_id": player_id, "status": status})
+        return redirect(url_for("finances.admin_finances", tab="players"))
+    finally:
+        finances_conn.close()
+
+
+@finances_bp.route("/mark-match-guest", methods=["POST"])
+@require_webmaster
+def mark_match_guest():
+    """AJAX action to mark match guest payment status for a specific date and player."""
+    match_date = request.form.get("match_date")
+    player_id = request.form.get("player_id", type=int)
+    payment_method = request.form.get("payment_method", "cash")
+    note = request.form.get("note")
+
+    if not match_date or not player_id:
+        return jsonify({"success": False, "error": "Missing match date or player ID"}), 400
+
+    manual_mark_match_guest_payment(
+        match_date=match_date,
+        player_id=player_id,
+        payment_method=payment_method,
+        note=note,
+    )
+
+    return jsonify({"success": True, "match_date": match_date, "player_id": player_id, "payment_method": payment_method})
+
+
+@finances_bp.route("/mark-membership-due", methods=["POST"])
+@require_webmaster
+def mark_due():
+    """AJAX action to mark membership due for a player and period."""
+    period = request.form.get("period", "2026-H2")
+    player_id = request.form.get("player_id", type=int)
+    payment_method = request.form.get("payment_method", "bank")
+    note = request.form.get("note")
+
+    if not period or not player_id:
+        return jsonify({"success": False, "error": "Missing period or player ID"}), 400
+
+    manual_mark_membership_due(
+        period=period,
+        player_id=player_id,
+        payment_method=payment_method,
+        note=note,
+    )
+
+    return jsonify({"success": True, "period": period, "player_id": player_id, "payment_method": payment_method})
 
 
 @finances_bp.route("/upload", methods=["POST"])
@@ -148,7 +215,6 @@ def upload_csv():
     finances_conn = get_finances_connection()
     rb48_conn = get_rb48_connection()
     accounts_conn = get_accounts_connection()
-    curr_user = get_current_user()
 
     try:
         content = file.read()
@@ -163,7 +229,6 @@ def upload_csv():
         auto_confirmed_count = 0
 
         for tx in parsed_txs:
-            # Find smart match
             match = find_player_match(
                 tx.get("raw_payer_name"),
                 tx.get("raw_payer_email"),
@@ -176,7 +241,6 @@ def upload_csv():
             matched_pid = match.get("player_id")
             matched_uid = match.get("user_id")
 
-            # High confidence auto-confirm
             if match.get("confidence", 0.0) >= 0.95 and matched_pid:
                 is_confirmed = 1
                 status = "assigned"
@@ -205,7 +269,6 @@ def upload_csv():
                 imported_count += 1
                 if is_confirmed and matched_pid:
                     auto_confirmed_count += 1
-                    # Auto-allocate to oldest debts
                     auto_allocate_transaction_to_debts(new_id, matched_pid)
             else:
                 skipped_duplicates += 1
@@ -254,10 +317,8 @@ def assign_transaction():
         if not player_id:
             return jsonify({"success": False, "error": "Bitte einen Spieler auswählen"}), 400
 
-        # Save assignment
         update_transaction_assignment(finances_conn, tx_id, player_id, None, status="assigned", is_confirmed=1)
 
-        # Learn mapping if requested
         if remember:
             save_or_update_identity(
                 finances_conn,
@@ -268,11 +329,10 @@ def assign_transaction():
                 created_by_user_id=curr_user["id"] if curr_user else None,
             )
 
-        # Allocate to unpaid kicks
         kicks_covered = auto_allocate_transaction_to_debts(tx_id, player_id)
 
         flash(
-            f"Transaktion #{tx_id} erfolgreich zugeordnet ({kicks_covered} offene Kicks automatisch ausgeglichen).",
+            f"Transaktion #{tx_id} erfolgreich zugeordnet ({kicks_covered} offene Kicks/Beiträge automatisch ausgeglichen).",
             "success",
         )
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
@@ -280,30 +340,6 @@ def assign_transaction():
         return redirect(url_for("finances.admin_finances", tab="import"))
     finally:
         finances_conn.close()
-
-
-@finances_bp.route("/mark-attendee", methods=["POST"])
-@require_webmaster
-def mark_attendee():
-    """Quick AJAX action to mark guest payment status on a matchday."""
-    event_id = request.form.get("event_id", type=int)
-    attendee_id = request.form.get("attendee_id", type=int)
-    payment_method = request.form.get("payment_method", "cash")
-    player_id = request.form.get("player_id", type=int)
-    note = request.form.get("note")
-
-    if not event_id or not attendee_id:
-        return jsonify({"success": False, "error": "Missing event or attendee ID"}), 400
-
-    manual_mark_attendee_payment(
-        event_id=event_id,
-        attendee_id=attendee_id,
-        payment_method=payment_method,
-        player_id=player_id,
-        note=note,
-    )
-
-    return jsonify({"success": True, "event_id": event_id, "attendee_id": attendee_id, "payment_method": payment_method})
 
 
 @finances_bp.route("/identity/save", methods=["POST"])

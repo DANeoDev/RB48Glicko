@@ -14,7 +14,9 @@ from scripts.finances.database import (
     get_identities,
     delete_identity,
     add_payment_allocation,
-    get_allocations_for_event,
+    set_player_membership_status,
+    get_player_membership_status,
+    get_all_player_membership_statuses,
 )
 from scripts.finances.paypal_parser import (
     parse_german_amount,
@@ -23,19 +25,27 @@ from scripts.finances.paypal_parser import (
 )
 from scripts.finances.matcher import find_player_match, normalize_text
 from scripts.finances.reconciliation import (
-    get_event_guest_status,
-    manual_mark_attendee_payment,
+    get_match_history_financial_overview,
+    get_match_date_guest_status,
+    get_all_players_with_membership,
+    get_membership_dues_overview,
+    manual_mark_match_guest_payment,
+    manual_mark_membership_due,
     auto_allocate_transaction_to_debts,
+    resolve_player_membership_status,
     GUEST_FEE_PER_KICK,
+    MEMBERSHIP_DUE_PER_HALFYEAR,
 )
 from scripts.database.database import (
     get_connection as get_rb48_connection,
     create_players_table,
     create_aliases_table,
     create_positions_table,
+    create_matches_table,
+    create_match_players_table,
 )
+from scripts.database.db_matches import create_match, add_match_player
 from scripts.accounts.database import get_accounts_connection, create_account_tables, approve_user
-from scripts.planner.database import get_planner_connection, create_planner_tables, create_event, add_guest_rsvp
 from scripts.accounts.auth import register_user, pass_psychology_test
 from web.app import create_app
 
@@ -62,18 +72,24 @@ def clean_finances_env(tmp_path, monkeypatch):
     create_players_table(r_conn)
     create_aliases_table(r_conn)
     create_positions_table(r_conn)
+    create_matches_table(r_conn)
+    create_match_players_table(r_conn)
+
     r_conn.execute("INSERT INTO players (player_id) VALUES (1), (2), (33)")
     r_conn.execute("INSERT INTO aliases (alias, player_id) VALUES ('Stefan', 1), ('Nik', 2), ('Kha', 33)")
+    
+    # Create sample match
+    create_match(r_conn, "2026-07-15-1", "2026-07-15", "box", 2, 1, 5, 3)
+    add_match_player(r_conn, "2026-07-15-1", 1, "A")
+    add_match_player(r_conn, "2026-07-15-1", 2, "A")
+    add_match_player(r_conn, "2026-07-15-1", 33, "B")
+
     r_conn.commit()
     r_conn.close()
 
     a_conn = get_accounts_connection()
     create_account_tables(a_conn)
     a_conn.close()
-
-    p_conn = get_planner_connection()
-    create_planner_tables(p_conn)
-    p_conn.close()
 
     return {
         "fin_db": fin_db,
@@ -125,7 +141,6 @@ def test_transactions_crud_and_deduplication(clean_finances_env):
     )
     assert tx_id_1 is not None
 
-    # Duplicate should return None
     tx_id_dup = insert_transaction(
         conn,
         source="paypal",
@@ -154,7 +169,6 @@ def test_smart_matcher_and_learning(clean_finances_env):
     rb_conn = get_rb48_connection()
     acc_conn = get_accounts_connection()
 
-    # Match by alias token "Kha" in "An-Kha Ha-Phuoc"
     match1 = find_player_match(
         raw_payer_name="An-Kha Ha-Phuoc",
         raw_payer_email="ying.yang89@hotmail.de",
@@ -165,7 +179,6 @@ def test_smart_matcher_and_learning(clean_finances_env):
     assert match1["player_id"] == 33
     assert match1["confidence"] >= 0.80
 
-    # Save learned identity for a completely new email
     save_or_update_identity(
         fin_conn,
         player_id=1,
@@ -174,7 +187,6 @@ def test_smart_matcher_and_learning(clean_finances_env):
         confidence=1.0,
     )
 
-    # Next match should return 100% learned profile match
     match2 = find_player_match(
         raw_payer_name="Random Name",
         raw_payer_email="unknown.custom@provider.de",
@@ -191,44 +203,78 @@ def test_smart_matcher_and_learning(clean_finances_env):
     acc_conn.close()
 
 
-def test_reconciliation_and_manual_marking(clean_finances_env):
-    plan_conn = get_planner_connection()
-    event_id = create_event(
-        plan_conn,
-        event_date="2026-08-01",
-        pitch="box",
-        max_players=10,
-        title="Samstags-Kick",
-    )
-    # Add guest RSVP
-    add_guest_rsvp(plan_conn, event_id, guest_name="Gastspieler 1")
-    attendees = plan_conn.execute("SELECT id FROM attendees WHERE event_id = ?", (event_id,)).fetchall()
-    att_id = attendees[0]["id"]
-    plan_conn.close()
+def test_player_membership_status_resolution(clean_finances_env):
+    fin_conn = get_finances_connection()
+    acc_conn = get_accounts_connection()
 
-    # Check initial status (should be unpaid)
-    status_before = get_event_guest_status(event_id)
-    assert status_before["total_guests"] == 1
-    assert status_before["guest_entries"][0]["payment_status"] == "unpaid"
-    assert status_before["outstanding"] == 3.50
+    # Player 1 is linked to an approved user -> should default to 'member'
+    user_id, _ = register_user("stefan_user", "stefan@rb48.de", "Password123!", role="user")
+    acc_conn.execute("UPDATE users SET player_id = ? WHERE id = ?", (1, user_id))
+    acc_conn.commit()
 
-    # Mark as cash paid
-    manual_mark_attendee_payment(event_id, att_id, payment_method="cash")
-    status_after_cash = get_event_guest_status(event_id)
-    assert status_after_cash["guest_entries"][0]["payment_status"] == "cash"
-    assert status_after_cash["outstanding"] == 0.0
+    assert resolve_player_membership_status(1, fin_conn, acc_conn) == "member"
+    # Player 2 has no linked user and no override -> should default to 'guest'
+    assert resolve_player_membership_status(2, fin_conn, acc_conn) == "guest"
 
-    # Reset to unpaid
-    manual_mark_attendee_payment(event_id, att_id, payment_method="unpaid")
-    status_reset = get_event_guest_status(event_id)
-    assert status_reset["guest_entries"][0]["payment_status"] == "unpaid"
+    # Override player 2 to member
+    set_player_membership_status(fin_conn, 2, "member")
+    assert resolve_player_membership_status(2, fin_conn, acc_conn) == "member"
+
+    # Override player 1 to guest
+    set_player_membership_status(fin_conn, 1, "guest")
+    assert resolve_player_membership_status(1, fin_conn, acc_conn) == "guest"
+
+    fin_conn.close()
+    acc_conn.close()
+
+
+def test_match_history_reconciliation_and_marking(clean_finances_env):
+    fin_conn = get_finances_connection()
+    # Player 1 is member, Player 2 is guest, Player 33 is guest
+    set_player_membership_status(fin_conn, 1, "member")
+    set_player_membership_status(fin_conn, 2, "guest")
+    set_player_membership_status(fin_conn, 33, "guest")
+    fin_conn.close()
+
+    overview = get_match_history_financial_overview()
+    assert len(overview) == 1
+    assert overview[0]["match_date"] == "2026-07-15"
+    assert overview[0]["guest_count"] == 2  # Player 2 & 33
+    assert overview[0]["unpaid_count"] == 2
+    assert overview[0]["total_expected"] == 7.00
+    assert overview[0]["outstanding"] == 7.00
+
+    # Mark player 2 as cash paid
+    manual_mark_match_guest_payment("2026-07-15", 2, payment_method="cash")
+    status_date = get_match_date_guest_status("2026-07-15")
+    assert status_date["total_guests"] == 2
+    assert status_date["total_collected"] == 3.50
+    assert status_date["outstanding"] == 3.50
+
+    p2_entry = [g for g in status_date["guest_entries"] if g["player_id"] == 2][0]
+    assert p2_entry["payment_status"] == "cash"
+
+
+def test_membership_dues_reconciliation(clean_finances_env):
+    fin_conn = get_finances_connection()
+    set_player_membership_status(fin_conn, 1, "member")
+    fin_conn.close()
+
+    dues = get_membership_dues_overview("2026-H2")
+    assert dues["total_members"] >= 1
+    assert dues["total_expected"] >= 48.00
+
+    manual_mark_membership_due("2026-H2", 1, payment_method="bank")
+    dues_after = get_membership_dues_overview("2026-H2")
+    p1_due = [m for m in dues_after["members"] if m["player_id"] == 1][0]
+    assert p1_due["payment_status"] == "bank"
+    assert p1_due["amount_paid"] == 48.00
 
 
 def test_webmaster_finances_web_routes(clean_finances_env):
     app = create_app()
     client = app.test_client()
 
-    # Create webmaster user
     user_id, _ = register_user("master", "master@rb48.de", "Password123!", role="webmaster")
     acc_conn = get_accounts_connection()
     from scripts.accounts.database import mark_email_verified, update_user_role
@@ -253,22 +299,20 @@ def test_webmaster_finances_web_routes(clean_finances_env):
     assert "Finanzen" in html
     assert "Beitragsverwaltung" in html
 
-    # Upload CSV statement
-    csv_bytes = """\"Datum\",\"Uhrzeit\",\"Zeitzone\",\"Beschreibung\",\"Währung\",\"Brutto\",\"Entgelt\",\"Netto\",\"Guthaben\",\"Transaktionscode\",\"Absender E-Mail-Adresse\",\"Name\",\"Name der Bank\",\"Bankkonto\",\"Versand- und Bearbeitungsgebühr\",\"Umsatzsteuer\",\"Rechnungsnummer\",\"Zugehöriger Transaktionscode\"
-\"10.07.2026\",\"12:09:12\",\"Europe/Berlin\",\"Handyzahlung\",\"EUR\",\"3,50\",\"0,00\",\"3,50\",\"732,06\",\"TEST_TX_999\",\"stefan@rb48.de\",\"Stefan Metzger\",\"\",\"\",\"0,00\",\"0,00\",\"\",\"\"
-""".encode("utf-8")
-    upload_resp = client.post(
-        "/admin/finances/upload",
-        data={"csv_file": (io.BytesIO(csv_bytes), "paypal.csv")},
-        content_type="multipart/form-data",
-        follow_redirects=True,
+    # Test toggling player status via AJAX
+    resp_status = client.post(
+        "/admin/finances/set-player-status",
+        data={"player_id": 2, "status": "member"},
+        headers={"X-Requested-With": "XMLHttpRequest"},
     )
-    assert upload_resp.status_code == 200
-    assert "CSV-Import erfolgreich" in upload_resp.get_data(as_text=True)
+    assert resp_status.status_code == 200
+    assert resp_status.json["success"] is True
 
-    # Verify transaction in db
-    fin_conn = get_finances_connection()
-    txs = get_transactions(fin_conn)
-    assert len(txs) == 1
-    assert txs[0]["tx_code"] == "TEST_TX_999"
-    fin_conn.close()
+    # Test marking match guest via AJAX
+    resp_mark = client.post(
+        "/admin/finances/mark-match-guest",
+        data={"match_date": "2026-07-15", "player_id": 33, "payment_method": "cash"},
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert resp_mark.status_code == 200
+    assert resp_mark.json["success"] is True
