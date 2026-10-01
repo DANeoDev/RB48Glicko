@@ -22,6 +22,9 @@
                     <a href="{{ url_for('auth.admin_attendance_logs') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
                         📋 {{ t('admin.nav_attendance_log', 'Anwesenheits-Log') }}
                     </a>
+                    <a href="{{ url_for('finances.admin_finances') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
+                        💶 {{ t('nav.finances', 'Finanzen & Beiträge') }}
+                    </a>
                     <a href="{{ url_for('auth.admin_player_positions') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--accent); color: #ffffff; border-radius: 4px;">
                         ⚽ {{ t('admin.nav_player_positions', 'Spielerpositionen') }}
                     </a>
