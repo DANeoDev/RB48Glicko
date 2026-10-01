@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}
+    RB48 — {{ t('stats.mvp_medals_title', 'MVP-Medaillenspiegel') }}
+{% endblock %}
+
+{% block head %}
+<style>
+.medals-filter-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    background: var(--bg-surface, #1e1338);
+    border: 1px solid var(--border, #3A403C);
+    border-radius: var(--radius, 12px);
+    padding: 14px 18px;
+    margin-bottom: 24px;
+}
+
+.medals-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.medals-filter-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.filter-chip-group {
+    display: inline-flex;
+    background: var(--bg-surface-alt, #130a2a);
+    border: 1px solid var(--border, #3A403C);
+    border-radius: 8px;
+    overflow: hidden;
+    padding: 2px;
+}
+
+.filter-chip {
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+
+.filter-chip:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.filter-chip.active {
+    background: var(--accent, #7B52C5);
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(123, 82, 197, 0.4);
+}
+
+.medals-table-container {
+    background: var(--bg-surface, #1e1338);
+    border: 1px solid var(--border, #3A403C);
+    border-radius: var(--radius, 12px);
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.medals-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.medals-table th {
+    background: rgba(20, 11, 40, 0.95);
+    padding: 12px 16px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    border-bottom: 1px solid var(--border, #3A403C);
+}
+
+.medals-table td {
+    padding: 12px 16px;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    vertical-align: middle;
+}
+
+.medals-table tr:last-child td {
+    border-bottom: none;
+}
+
+.medals-table tr:hover td {
+    background: rgba(123, 82, 197, 0.08);
+}
+
+.player-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+}
+
+.player-cell a {
+    color: var(--text-main, #ffffff);
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+
+.player-cell a:hover {
+    color: #80deea;
+    text-decoration: underline;
+}
+
+.num-cell {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}
+
+.gold-val { color: #ffd700; font-size: 15px; }
+.silver-val { color: #e2e8f0; font-size: 15px; }
+.bronze-val { color: #e29d62; font-size: 15px; }
+.total-val { color: #80deea; font-size: 15px; }
+.points-val { color: var(--text-nav-gold, #dfc289); font-size: 13.5px; }
+
+.empty-medals-notice {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-muted);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width: 960px; margin: 20px auto 60px; padding: 0 16px;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 10px;">
+        <a href="{{ url_for('stats.stats') }}" style="color: #80deea; text-decoration: none; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+            ← {{ t('stats.back_to_stats', 'Zurück zur Rangliste') }}
+        </a>
+        <a href="{{ url_for('stats.match_history') }}" style="color: var(--text-muted); text-decoration: none; font-size: 13px; font-weight: 600;">
+            {{ t('nav.match_history', 'Match History') }} →
+        </a>
+    </div>
+
+    <div class="page-header" style="text-align: center; margin-bottom: 24px;">
+        <h1 style="display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 0 6px 0;">
+            <span>🏅</span> {{ t('stats.mvp_medals_title', 'MVP-Medaillenspiegel') }}
+        </h1>
+        <p class="muted" style="margin: 0; font-size: 14.5px;">
+            {{ t('stats.mvp_medals_subtitle', 'Die erfolgreichsten und meistgewählten Spieler nach Gold-, Silber- und Bronzemedaillen') }}
+        </p>
+    </div>
+
+    <!-- Filter Bar (Years & Periods) -->
+    <div class="medals-filter-container">
+        <!-- Year Selection -->
+        <div class="medals-filter-group">
+            <span class="medals-filter-label">📅 {{ t('stats.filter_year', 'Jahr') }}:</span>
+            <div class="filter-chip-group">
+                <a href="{{ url_for('stats.mvp_medals', year='all', period=selected_period) }}" class="filter-chip {% if selected_year == 'all' %}active{% endif %}">
+                    {{ t('stats.filter_all_time', 'Alle') }}
+                </a>
+                {% for y in available_years %}
+                <a href="{{ url_for('stats.mvp_medals', year=y, period=selected_period) }}" class="filter-chip {% if selected_year == y %}active{% endif %}">
+                    {{ y }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Period Selection (Quarters & Half-Years) -->
+        <div class="medals-filter-group">
+            <span class="medals-filter-label">⏱️ {{ t('stats.filter_period', 'Zeitraum') }}:</span>
+            <div class="filter-chip-group">
+                <a href="{{ url_for('stats.mvp_medals', year=selected_year, period='all') }}" class="filter-chip {% if selected_period == 'ALL' %}active{% endif %}" title="{{ t('stats.period_all_title', 'Gesamtes Jahr / Allzeit') }}">
+                    {{ t('stats.period_all', 'Gesamt') }}
+                </a>
+                <a href="{{ url_for('stats.mvp_medals', year=selected_year, period='H1') }}" class="filter-chip {% if selected_period == 'H1' %}active{% endif %}" title="1. Halbjahr (Januar – Juni)">
+                    H1
+                </a>
+                <a href="{{ url_for('stats.mvp_medals', year=selected_year, period='H2') }}" class="filter-chip {% if selected_period == 'H2' %}active{% endif %}" title="2. Halbjahr (Juli – Dezember)">
+                    H2
+                </a>
+                <a href="{{ url_for('stats.mvp_medals', year=selected_year, period='Q1') }}" class="filter-chip {% if selected_period == 'Q1' %}active{% endif %}" title="1. Quartal (Januar – März)">
+                    Q1
+                </a>
+                <a href="{{ url_for('stats.mvp_medals', year=selected_year, period='Q2') }}" class="filter-chip {% if selected_period == 'Q2' %}active{% endif %}" title="2. Quartal (April – Juni)">
+                    Q2
+                </a>
+                <a href="{{ url_for('stats.mvp_medals', year=selected_year, period='Q3') }}" class="filter-chip {% if selected_period == 'Q3' %}active{% endif %}" title="3. Quartal (Juli – September)">
+                    Q3
+                </a>
+                <a href="{{ url_for('stats.mvp_medals', year=selected_year, period='Q4') }}" class="filter-chip {% if selected_period == 'Q4' %}active{% endif %}" title="4. Quartal (Oktober – Dezember)">
+                    Q4
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Overview Cards -->
+    <div class="medals-summary-grid">
+        <div class="medals-summary-card gold-card">
+            <div class="medals-summary-label">🥇 Gold (MVP)</div>
+            <div class="medals-summary-val" style="color: #ffd700;">{{ total_gold_awarded }}</div>
+        </div>
+        <div class="medals-summary-card silver-card">
+            <div class="medals-summary-label">🥈 Silber</div>
+            <div class="medals-summary-val" style="color: #e2e8f0;">{{ total_silver_awarded }}</div>
+        </div>
+        <div class="medals-summary-card bronze-card">
+            <div class="medals-summary-label">🥉 Bronze</div>
+            <div class="medals-summary-val" style="color: #e29d62;">{{ total_bronze_awarded }}</div>
+        </div>
+        <div class="medals-summary-card">
+            <div class="medals-summary-label">⚽ {{ t('stats.filtered_matches', 'Spiele') }}</div>
+            <div class="medals-summary-val" style="color: #80deea;">{{ filtered_matches_count }}</div>
+        </div>
+    </div>
+
+    <!-- Medals Leaderboard Table -->
+    <div class="medals-table-container">
+        {% if medal_table %}
+        <table class="medals-table">
+            <thead>
+                <tr>
+                    <th style="width: 50px; text-align: center;">#</th>
+                    <th>{{ t('stats.th_player', 'Spieler') }}</th>
+                    <th class="num-cell" style="width: 80px;" title="{{ t('stats.th_gold_title', '1. Platz / MVP Goldmedaillen') }}">🥇 Gold</th>
+                    <th class="num-cell" style="width: 80px;" title="{{ t('stats.th_silver_title', '2. Platz Silbermedaillen') }}">🥈 Silber</th>
+                    <th class="num-cell" style="width: 80px;" title="{{ t('stats.th_bronze_title', '3. Platz Bronzemedaillen') }}">🥉 Bronze</th>
+                    <th class="num-cell" style="width: 90px;" title="{{ t('stats.th_total_medals_title', 'Medaillen insgesamt') }}">🏅 {{ t('stats.th_total_medals', 'Gesamt') }}</th>
+                    <th class="num-cell" style="width: 100px;" title="{{ t('stats.th_medal_points_title', 'Medaillenpunkte: Gold=3, Silber=2, Bronze=1') }}">⭐ {{ t('stats.th_points', 'Punkte') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in medal_table %}
+                <tr class="{% if row.rank == 1 %}medal-table-rank-1{% elif row.rank == 2 %}medal-table-rank-2{% elif row.rank == 3 %}medal-table-rank-3{% endif %}">
+                    <td class="num-cell">
+                        {% if row.rank == 1 %}
+                            <span class="rank-badge rank-1">1</span>
+                        {% elif row.rank == 2 %}
+                            <span class="rank-badge rank-2">2</span>
+                        {% elif row.rank == 3 %}
+                            <span class="rank-badge rank-3">3</span>
+                        {% else %}
+                            <span class="rank-badge rank-other">{{ row.rank }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="player-cell">
+                            <a href="{{ url_for('stats.player_profile', player_id=row.player_id) }}">
+                                {{ row.player_name }}
+                            </a>
+                        </div>
+                    </td>
+                    <td class="num-cell gold-val">{{ row.gold }}</td>
+                    <td class="num-cell silver-val">{{ row.silver }}</td>
+                    <td class="num-cell bronze-val">{{ row.bronze }}</td>
+                    <td class="num-cell total-val">{{ row.total_medals }}</td>
+                    <td class="num-cell points-val">{{ row.medal_score }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-medals-notice">
+            <div style="font-size: 36px; margin-bottom: 12px;">🏅</div>
+            <h3 style="color: #ffffff; margin-bottom: 6px;">{{ t('stats.no_medals_found', 'Keine MVP-Medaillen gefunden') }}</h3>
+            <p style="margin: 0; font-size: 14px;">{{ t('stats.no_medals_period_desc', 'In diesem gewählten Zeitraum wurden keine MVP-Stimmen oder Medaillen vergeben.') }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

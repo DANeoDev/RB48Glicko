@@ -1,6 +1,6 @@
 import json
 from datetime import date
-from flask import Blueprint, render_template, request, jsonify, session
+from flask import Blueprint, render_template, request, jsonify
 
 from scripts.accounts.database import get_accounts_connection
 from scripts.database.database import get_connection

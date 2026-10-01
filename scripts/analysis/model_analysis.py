@@ -8,7 +8,6 @@ from scripts.database.db_matches import get_match_teams, get_matches
 from scripts.database.db_ratings import get_match_ratings
 from scripts.glicko.glicko2 import (
     BOX,
-    DEFAULT_RATING,
     DEFAULT_SIGMA,
     GLICKO2_SCALE,
     HF,

@@ -159,6 +159,16 @@
         </div>
 
         <div class="faq-item">
+            <h3>{{ t('faq.q_mvp_voting', 'Wie funktioniert das MVP-Voting und der Medaillenspiegel?') }}</h3>
+            <p>
+                {{ t('faq.a_mvp_voting_p1', 'Nach jedem Spieltag können alle teilnehmenden Spieler bis zum Folgetag um 20:00 Uhr anonym ihre Stimme für die wertvollsten Spieler (MVP) der Partie abgeben. Jeder Stimmberechtigte kann bis zu 3 Stimmen vergeben (1. Platz 🥇, 2. Platz 🥈, 3. Platz 🥉 für 3 verschiedene Personen; optional auch nur 1 oder 2 Stimmen).') | safe }}
+            </p>
+            <p>
+                {{ t('faq.a_mvp_voting_p2', medals_url=url_for('stats.mvp_medals'), default='MVP (Gold) wird der Spieler mit den meisten Stimmen insgesamt. Bei Stimmengleichstand entscheiden die meisten 1.-Platz-Stimmen, danach 2.-Platz-Stimmen usw. Die Plätze 2 (Silber) und 3 (Bronze) werden ebenfalls auf den Matchkarten und im <a href="{medals_url}" style="color: #80deea; font-weight: 600;">MVP-Medaillenspiegel</a> prämiert, der nach Quartalen, Halbjahren und Jahren gefiltert werden kann.') | safe }}
+            </p>
+        </div>
+
+        <div class="faq-item">
             <h3>{{ t('faq.q_opt_out', 'Kann ich meine Performance-Analyse und mein Rating verbergen? (Glicko Opt-Out)') }}</h3>
             <p>
                 {{ t('faq.a_opt_out_members', settings_url=url_for('auth.settings')) | safe }}

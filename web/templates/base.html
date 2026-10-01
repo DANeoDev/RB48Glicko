@@ -355,6 +355,7 @@
                         {% else %}
                             <a href="{{ url_for('auth.settings') }}" title="{{ t('nav.link_player_tooltip', 'Verknüpfe dein Spielerprofil in den Einstellungen') }}">📊 {{ t('nav.my_stats', 'Meine Statistiken') }}</a>
                         {% endif %}
+                        <a href="{{ url_for('stats.mvp_medals') }}">🏅 {{ t('stats.mvp_medals_title', 'MVP-Medaillenspiegel') }}</a>
                         <a href="{{ url_for('stats.achievements_overview') }}" class="{% if unseen_achievements_count > 0 %}glowing-nav-achievement{% endif %}" style="display: flex; align-items: center; justify-content: space-between;">
                             <span>🏆 {{ t('nav.achievements', 'Auszeichnungen') }}</span>
                             {% if unseen_achievements_count > 0 %}
