@@ -8,12 +8,20 @@ from flask import (
     session,
     url_for,
 )
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from scripts.accounts.database import (
     get_accounts_connection,
     get_opted_out_player_ids,
     get_user_by_player_id,
     get_user_seen_achievements,
     mark_user_achievements_seen,
+    get_match_mvp_winners,
+    get_user_mvp_votes_for_matches,
+    record_match_mvp_vote,
+    get_user_match_mvp_vote,
+    get_match_mvp_deadline,
+    is_match_mvp_voting_open,
 )
 from scripts.analysis.achievements import get_player_achievements
 from scripts.analysis.history_snapshots import (
@@ -22,7 +30,7 @@ from scripts.analysis.history_snapshots import (
 from scripts.analysis.model_analysis import analyze_model
 from scripts.analysis.synergies import get_community_synergies
 from scripts.database.database import get_connection
-from scripts.database.db_matches import get_player_stats
+from scripts.database.db_matches import get_player_stats, get_matches, get_match_teams
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_player_rating_history, get_ratings
 from scripts.frontend.view_models import (
@@ -236,11 +244,46 @@ def match_history():
     months_grouped = cached["months_grouped"]
     timeline_data = cached["timeline_data"]
 
+    curr_user = get_current_user()
+    curr_user_player_id = curr_user.get("player_id") if curr_user else None
+
     acc_conn = get_accounts_connection()
     try:
         opted_out_player_ids = get_opted_out_player_ids(acc_conn)
+        match_ids = [m["match_id"] for m in matches]
+        all_mvp_winners = get_match_mvp_winners(acc_conn, match_ids=match_ids)
+        user_mvp_votes = {}
+        if curr_user and curr_user.get("id"):
+            user_mvp_votes = get_user_mvp_votes_for_matches(acc_conn, curr_user["id"], match_ids=match_ids)
     finally:
         acc_conn.close()
+
+    tz = ZoneInfo("Europe/Berlin")
+    now_dt = datetime.now(tz)
+    match_voting_status = {}
+    for m in matches:
+        mid = m["match_id"]
+        m_date = m.get("date", "")
+        deadline = get_match_mvp_deadline(m_date)
+        is_open = now_dt <= deadline
+
+        participant_ids = m.get("team_a_ids", []) + m.get("team_b_ids", [])
+        can_vote = bool(is_open and curr_user_player_id and curr_user_player_id in participant_ids)
+        user_vote = user_mvp_votes.get(mid)
+
+        # MVP winners: shown once voting is closed
+        mvp_ids = []
+        if not is_open:
+            mvp_ids = all_mvp_winners.get(mid, [])
+
+        match_voting_status[mid] = {
+            "is_open": is_open,
+            "can_vote": can_vote,
+            "user_vote": user_vote,
+            "mvp_player_ids": mvp_ids,
+            "deadline_str": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
+            "deadline_short": deadline.strftime("%d.%m., %H:%M"),
+        }
 
     return render_template(
         "matches.html",
@@ -249,7 +292,117 @@ def match_history():
         timeline_data=timeline_data,
         opted_out_player_ids=opted_out_player_ids,
         is_webmaster=has_tier(Tier.WEBMASTER),
+        match_voting_status=match_voting_status,
+        curr_user=curr_user,
     )
+
+
+@stats_bp.route("/api/matches/<match_id>/mvp-vote", methods=["POST"])
+def cast_mvp_vote(match_id):
+    user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": "Bitte melde dich an, um abzustimmen."}), 401
+
+    player_id = user.get("player_id")
+    if not player_id:
+        return jsonify({"success": False, "error": "Dein Benutzerkonto muss mit einem Spieler verknüpft sein, um abzustimmen."}), 403
+
+    data = request.get_json(silent=True) or request.form
+    voted_player_id = data.get("voted_player_id")
+    if not voted_player_id:
+        return jsonify({"success": False, "error": "Bitte wähle einen Spieler für den MVP-Vote aus."}), 400
+    try:
+        voted_player_id = int(voted_player_id)
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Ungültige Spieler-ID."}), 400
+
+    conn = get_connection()
+    try:
+        matches = get_matches(conn)
+        match = matches.get(match_id)
+        if not match:
+            return jsonify({"success": False, "error": f"Match '{match_id}' wurde nicht gefunden."}), 404
+
+        team_a, team_b = get_match_teams(conn, match_id)
+        participants = set(team_a + team_b)
+    finally:
+        conn.close()
+
+    if player_id not in participants:
+        return jsonify({"success": False, "error": "Nur Spieler, die an diesem Match teilgenommen haben, dürfen für den MVP stimmen."}), 403
+
+    match_date = match["date"]
+    if not is_match_mvp_voting_open(match_date):
+        deadline_str = get_match_mvp_deadline(match_date).strftime("%d.%m.%Y um %H:%M Uhr")
+        return jsonify({"success": False, "error": f"Die Abstimmung für dieses Match ist seit dem {deadline_str} beendet."}), 400
+
+    if voted_player_id not in participants:
+        return jsonify({"success": False, "error": "Der gewählte Spieler hat nicht an diesem Match teilgenommen."}), 400
+
+    acc_conn = get_accounts_connection()
+    try:
+        record_match_mvp_vote(acc_conn, match_id, user["id"], voted_player_id)
+    finally:
+        acc_conn.close()
+
+    return jsonify({
+        "success": True,
+        "match_id": match_id,
+        "voted_player_id": voted_player_id,
+        "message": "Deine Stimme wurde erfolgreich und anonym gespeichert!",
+    })
+
+
+@stats_bp.route("/api/matches/<match_id>/mvp-status", methods=["GET"])
+def get_mvp_status(match_id):
+    user = get_current_user()
+    curr_user_player_id = user.get("player_id") if user else None
+
+    conn = get_connection()
+    try:
+        matches = get_matches(conn)
+        match = matches.get(match_id)
+        if not match:
+            return jsonify({"success": False, "error": f"Match '{match_id}' wurde nicht gefunden."}), 404
+
+        team_a, team_b = get_match_teams(conn, match_id)
+        players = get_players(conn)
+    finally:
+        conn.close()
+
+    participants = team_a + team_b
+    match_date = match["date"]
+    deadline = get_match_mvp_deadline(match_date)
+    tz = ZoneInfo("Europe/Berlin")
+    is_open = datetime.now(tz) <= deadline
+
+    acc_conn = get_accounts_connection()
+    try:
+        user_vote = get_user_match_mvp_vote(acc_conn, match_id, user["id"]) if user and user.get("id") else None
+        winners_map = get_match_mvp_winners(acc_conn, match_ids=[match_id])
+        winners = winners_map.get(match_id, []) if not is_open else []
+    finally:
+        acc_conn.close()
+
+    can_vote = bool(is_open and curr_user_player_id and curr_user_player_id in participants)
+
+    def player_info(pid):
+        aliases = players.get(pid, {}).get("aliases", [])
+        return {"id": pid, "name": aliases[0] if aliases else f"Player {pid}"}
+
+    return jsonify({
+        "success": True,
+        "match_id": match_id,
+        "match_date": match_date,
+        "is_open": is_open,
+        "deadline_iso": deadline.isoformat(),
+        "deadline_formatted": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
+        "can_vote": can_vote,
+        "user_vote": user_vote,
+        "mvp_player_ids": winners,
+        "team_a_players": [player_info(pid) for pid in team_a],
+        "team_b_players": [player_info(pid) for pid in team_b],
+    })
 
 
 @stats_bp.route("/matches/delete", methods=["POST"])

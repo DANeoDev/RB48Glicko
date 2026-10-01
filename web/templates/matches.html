@@ -139,30 +139,58 @@
         <div class="month-matches-list">
             {% set prev_date = namespace(val=None) %}
             {% for match in month_group.matches %}
-            <div class="match" {% if match.date != prev_date.val %}id="d-{{ match.date }}" data-match-date="{{ match.date }}"{% set prev_date.val = match.date %}{% endif %}>
+            {% set v_status = match_voting_status.get(match["match_id"], {}) if match_voting_status else {} %}
+            {% set mvp_ids = v_status.get("mvp_player_ids", []) %}
+            {% set can_vote = v_status.get("can_vote", False) %}
+            {% set user_vote = v_status.get("user_vote") %}
+            <div class="match" {% if match.date != prev_date.val %}id="d-{{ match.date }}" data-match-date="{{ match.date }}"{% set prev_date.val = match.date %}{% endif %} data-match-id="{{ match['match_id'] }}" data-can-vote="{{ 'true' if can_vote else 'false' }}" data-user-voted="{{ 'true' if user_vote else 'false' }}">
                 <div class="match-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <span>{{ match["match_id"] }} — {{ match["pitch"] | upper }}</span>
                         <span style="font-size: 11px; opacity: 0.8; font-weight: normal; margin-left: 8px;">{{ match.get("date_formatted", match["date"]) }} · {{ match.get("short_label", "") }}</span>
                     </div>
-                    {% if has_tier('admin') %}
-                        <button
-                            type="button"
-                            class="match-delete-btn"
-                            data-match-id="{{ match['match_id'] }}"
-                            title="{{ t('matches.delete_match_title', 'Match löschen & Glicko neu berechnen') }}"
-                            onclick="event.stopPropagation(); window.confirmDeleteMatch && window.confirmDeleteMatch('{{ match['match_id'] }}');"
-                        >
-                            🗑️ {{ t('matches.delete', 'Löschen') }}
-                        </button>
-                    {% endif %}
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        {% if can_vote %}
+                            <button
+                                type="button"
+                                class="match-mvp-btn{% if user_vote %} voted{% else %} pulse{% endif %}"
+                                data-match-id="{{ match['match_id'] }}"
+                                title="{% if user_vote %}{{ t('matches.mvp_btn_title_voted', deadline=v_status.get('deadline_short', '')) }}{% else %}{{ t('matches.mvp_btn_title', deadline=v_status.get('deadline_short', '')) }}{% endif %}"
+                                onclick="event.stopPropagation(); window.openMvpVoteModal && window.openMvpVoteModal('{{ match['match_id'] }}');"
+                            >
+                                ⭐ {% if user_vote %}{{ t('matches.mvp_voted_badge', 'MVP gewählt') }}{% else %}{{ t('matches.mvp_vote_badge', 'MVP wählen') }}{% endif %}
+                            </button>
+                        {% endif %}
+                        {% if has_tier('admin') %}
+                            <button
+                                type="button"
+                                class="match-delete-btn"
+                                data-match-id="{{ match['match_id'] }}"
+                                title="{{ t('matches.delete_match_title', 'Match löschen & Glicko neu berechnen') }}"
+                                onclick="event.stopPropagation(); window.confirmDeleteMatch && window.confirmDeleteMatch('{{ match['match_id'] }}');"
+                            >
+                                🗑️ {{ t('matches.delete', 'Löschen') }}
+                            </button>
+                        {% endif %}
+                    </div>
                 </div>
+                {% if can_vote %}
+                    <div class="match-mvp-banner" onclick="event.stopPropagation(); window.openMvpVoteModal && window.openMvpVoteModal('{{ match['match_id'] }}');">
+                        {% if user_vote %}
+                            <span>⭐ {{ t('matches.mvp_banner_voted', deadline=v_status.get('deadline_short', '')) }}</span>
+                        {% else %}
+                            <span>⭐ <strong>{{ t('matches.mvp_banner_open_title', 'MVP-Wahl offen:') }}</strong> {{ t('matches.mvp_banner_open_desc', deadline=v_status.get('deadline_short', '')) }}</span>
+                        {% endif %}
+                    </div>
+                {% endif %}
                 <div class="match-info">
                     <div class="team team-a">
                         <strong>{{ t('matches.team_a', 'Team A') }}</strong>
                         <div class="players">
                             {% for player in match["team_a_players"] %}
-                                <span class="match-player">
+                                {% set is_mvp = player["player_id"] in mvp_ids %}
+                                <span class="match-player{% if is_mvp %} match-player-mvp{% endif %}">
+                                    {% if is_mvp %}<span class="mvp-star" title="{{ t('matches.mvp_title', 'Match MVP') }}">⭐</span>{% endif %}
                                     {% if has_tier('user') %}
                                         {{ player["name"] }}
                                     {% else %}
@@ -182,7 +210,9 @@
                         <strong>{{ t('matches.team_b', 'Team B') }}</strong>
                         <div class="players">
                             {% for player in match["team_b_players"] %}
-                                <span class="match-player">
+                                {% set is_mvp = player["player_id"] in mvp_ids %}
+                                <span class="match-player{% if is_mvp %} match-player-mvp{% endif %}">
+                                    {% if is_mvp %}<span class="mvp-star" title="{{ t('matches.mvp_title', 'Match MVP') }}">⭐</span>{% endif %}
                                     {% if has_tier('user') %}
                                         {{ player["name"] }}
                                     {% else %}
@@ -264,6 +294,37 @@
     </div>
 </div>
 {% endif %}
+
+<div class="modal-bg" id="mvp-vote-modal" style="display: none;">
+    <div class="modal mvp-modal-card" role="dialog" aria-modal="true" aria-labelledby="mvp-modal-title">
+        <div class="mvp-modal-header">
+            <h3 id="mvp-modal-title">⭐ {{ t('matches.mvp_modal_title', 'Match MVP wählen') }}</h3>
+            <button type="button" class="mvp-modal-close" id="btn-close-mvp" aria-label="{{ t('common.close', 'Schließen') }}">&times;</button>
+        </div>
+        <div class="mvp-modal-match-info" id="mvp-modal-match-info"></div>
+        <p class="mvp-modal-desc">{{ t('matches.mvp_modal_desc', 'Wähle anonym den wertvollsten Spieler dieser Partie. Die Abstimmung läuft bis zum Folgetag um 20:00 Uhr.') }}</p>
+        
+        <div id="mvp-vote-status-msg" style="display: none;" class="mvp-status-notice"></div>
+        <div id="mvp-vote-error" style="display: none;" class="mvp-error-notice"></div>
+
+        <form id="mvp-vote-form">
+            <input type="hidden" id="mvp-target-match-id" value="">
+            <div class="mvp-teams-grid" id="mvp-players-container">
+                <!-- Dynamically loaded -->
+            </div>
+
+            <div class="mvp-modal-footer">
+                <span class="mvp-anonymous-tag">🔒 {{ t('matches.mvp_anonymous_tag', 'Anonyme Stimmabgabe') }}</span>
+                <div class="modal-actions" style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" class="secondary" id="btn-cancel-mvp">{{ t('common.cancel', 'Abbrechen') }}</button>
+                    <button type="submit" class="primary" id="btn-submit-mvp" style="background: linear-gradient(135deg, #dfc289, #ffd700); color: #161818; font-weight: bold; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">
+                        ⭐ {{ t('matches.mvp_submit_btn', 'Stimme abgeben') }}
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
 
 {% endblock %}
 
@@ -387,8 +448,253 @@
 
 <script src="{{ url_for('static', filename='time_scrollbar.js', v='20260908_1') }}"></script>
 <script>
+(function() {
+    const modal = document.getElementById('mvp-vote-modal');
+    const closeBtn = document.getElementById('btn-close-mvp');
+    const cancelBtn = document.getElementById('btn-cancel-mvp');
+    const submitBtn = document.getElementById('btn-submit-mvp');
+    const form = document.getElementById('mvp-vote-form');
+    const matchInfoEl = document.getElementById('mvp-modal-match-info');
+    const playersContainer = document.getElementById('mvp-players-container');
+    const statusMsg = document.getElementById('mvp-vote-status-msg');
+    const errorMsg = document.getElementById('mvp-vote-error');
+    const targetMatchIdInput = document.getElementById('mvp-target-match-id');
+
+    let currentMatchId = null;
+
+    function closeModal() {
+        if (!modal) return;
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+        currentMatchId = null;
+        if (playersContainer) playersContainer.innerHTML = '';
+        if (statusMsg) {
+            statusMsg.style.display = 'none';
+            statusMsg.textContent = '';
+        }
+        if (errorMsg) {
+            errorMsg.style.display = 'none';
+            errorMsg.textContent = '';
+        }
+    }
+
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal && (modal.classList.contains('active') || modal.style.display === 'flex')) {
+            closeModal();
+        }
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
+    async function openModal(matchId) {
+        currentMatchId = matchId;
+        if (targetMatchIdInput) targetMatchIdInput.value = matchId;
+        if (matchInfoEl) matchInfoEl.textContent = `Match: ${matchId}`;
+        if (statusMsg) {
+            statusMsg.style.display = 'none';
+            statusMsg.textContent = '';
+        }
+        if (errorMsg) {
+            errorMsg.style.display = 'none';
+            errorMsg.textContent = '';
+        }
+        if (playersContainer) {
+            playersContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--text-muted);">Lade Spieler...</div>';
+        }
+
+        if (modal) {
+            modal.classList.add('active');
+            modal.style.display = 'flex';
+        }
+
+        try {
+            const resp = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mvp-status`);
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                if (errorMsg) {
+                    errorMsg.textContent = data.error || 'Fehler beim Laden der Abstimmung.';
+                    errorMsg.style.display = 'block';
+                }
+                return;
+            }
+
+            if (matchInfoEl) {
+                matchInfoEl.textContent = `${matchId} (${data.match_date}) · Frist: ${data.deadline_formatted}`;
+            }
+
+            const teamA = data.team_a_players || [];
+            const teamB = data.team_b_players || [];
+            const currentUserVote = data.user_vote;
+
+            if (currentUserVote && statusMsg) {
+                const votedPlayer = [...teamA, ...teamB].find(p => p.id === currentUserVote);
+                const playerName = votedPlayer ? votedPlayer.name : 'Spieler';
+                statusMsg.textContent = `Du hast aktuell für "${playerName}" gestimmt. Du kannst deine Stimme jederzeit bis zum Ende der Frist ändern.`;
+                statusMsg.style.display = 'block';
+            }
+
+            let html = '';
+            
+            // Team A
+            html += '<div class="mvp-team-col">';
+            html += `<div class="mvp-team-title">{{ t('matches.team_a', 'Team A') }}</div>`;
+            teamA.forEach(p => {
+                const isSelected = p.id === currentUserVote;
+                html += `
+                    <label class="mvp-player-option${isSelected ? ' selected' : ''}">
+                        <input type="radio" name="voted_player_id" value="${p.id}" ${isSelected ? 'checked' : ''} required>
+                        <span class="mvp-player-label">${escapeHtml(p.name)}</span>
+                    </label>
+                `;
+            });
+            html += '</div>';
+
+            // Team B
+            html += '<div class="mvp-team-col">';
+            html += `<div class="mvp-team-title">{{ t('matches.team_b', 'Team B') }}</div>`;
+            teamB.forEach(p => {
+                const isSelected = p.id === currentUserVote;
+                html += `
+                    <label class="mvp-player-option${isSelected ? ' selected' : ''}">
+                        <input type="radio" name="voted_player_id" value="${p.id}" ${isSelected ? 'checked' : ''} required>
+                        <span class="mvp-player-label">${escapeHtml(p.name)}</span>
+                    </label>
+                `;
+            });
+            html += '</div>';
+
+            if (playersContainer) {
+                playersContainer.innerHTML = html;
+                const options = playersContainer.querySelectorAll('.mvp-player-option');
+                options.forEach(opt => {
+                    opt.addEventListener('click', () => {
+                        options.forEach(o => o.classList.remove('selected'));
+                        opt.classList.add('selected');
+                        const radio = opt.querySelector('input[type="radio"]');
+                        if (radio) radio.checked = true;
+                    });
+                });
+            }
+
+        } catch (err) {
+            console.error('Failed to load MVP status:', err);
+            if (errorMsg) {
+                errorMsg.textContent = 'Netzwerkfehler beim Laden der Matchdaten.';
+                errorMsg.style.display = 'block';
+            }
+        }
+    }
+
+    window.openMvpVoteModal = openModal;
+
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const selectedRadio = form.querySelector('input[name="voted_player_id"]:checked');
+            if (!selectedRadio) {
+                if (errorMsg) {
+                    errorMsg.textContent = '{{ t('matches.mvp_select_required', 'Bitte wähle einen Spieler aus.') }}';
+                    errorMsg.style.display = 'block';
+                }
+                return;
+            }
+
+            const votedPlayerId = parseInt(selectedRadio.value, 10);
+            const matchId = currentMatchId || targetMatchIdInput.value;
+            if (!matchId) return;
+
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = '{{ t('matches.mvp_submitting', 'Wird gespeichert...') }}';
+            }
+            if (errorMsg) errorMsg.style.display = 'none';
+
+            try {
+                const resp = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mvp-vote`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ voted_player_id: votedPlayerId })
+                });
+
+                const result = await resp.json();
+                if (resp.ok && result.success) {
+                    if (statusMsg) {
+                        statusMsg.textContent = result.message || '{{ t('matches.mvp_vote_success', 'Deine Stimme wurde erfolgreich gespeichert!') }}';
+                        statusMsg.style.display = 'block';
+                    }
+
+                    // Update UI on match card without page reload
+                    const matchCard = document.querySelector(`.match[data-match-id="${matchId}"]`);
+                    if (matchCard) {
+                        matchCard.setAttribute('data-user-voted', 'true');
+                        const btn = matchCard.querySelector('.match-mvp-btn');
+                        if (btn) {
+                            btn.classList.remove('pulse');
+                            btn.classList.add('voted');
+                            btn.innerHTML = '⭐ {{ t('matches.mvp_voted_badge', 'MVP gewählt') }}';
+                        }
+                        const banner = matchCard.querySelector('.match-mvp-banner');
+                        if (banner) {
+                            banner.innerHTML = '<span>⭐ {{ t('matches.mvp_banner_voted_short', 'Du hast für den MVP gestimmt. Klicke hier, um deine Wahl zu ändern.') }}</span>';
+                        }
+                    }
+
+                    setTimeout(() => {
+                        closeModal();
+                    }, 1200);
+                } else {
+                    if (errorMsg) {
+                        errorMsg.textContent = result.error || 'Fehler beim Speichern der Stimme.';
+                        errorMsg.style.display = 'block';
+                    }
+                }
+            } catch (err) {
+                console.error('MVP vote submission error:', err);
+                if (errorMsg) {
+                    errorMsg.textContent = 'Netzwerkfehler beim Übertragen der Stimme.';
+                    errorMsg.style.display = 'block';
+                }
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '⭐ {{ t('matches.mvp_submit_btn', 'Stimme abgeben') }}';
+                }
+            }
+        });
+    }
+})();
+
 document.querySelectorAll(".match").forEach(match => {
-    match.addEventListener("click", () => match.classList.toggle("expanded"));
+    match.addEventListener("click", (e) => {
+        if (e.target.closest('button') || e.target.closest('a') || e.target.closest('.modal') || e.target.closest('.modal-bg')) return;
+        
+        const canVote = match.getAttribute('data-can-vote') === 'true';
+        const userVoted = match.getAttribute('data-user-voted') === 'true';
+        
+        if (canVote && !userVoted) {
+            const mid = match.getAttribute('data-match-id');
+            if (mid && window.openMvpVoteModal) {
+                window.openMvpVoteModal(mid);
+                return;
+            }
+        }
+        match.classList.toggle("expanded");
+    });
 });
 
 const timelineData = {{ timeline_data | tojson }};

@@ -650,6 +650,255 @@ a:hover { color: var(--accent-hover); }
     background: rgba(100, 108, 255, 0.1);
 }
 
+/* =========================================================================
+   Match MVP & Voting Styles
+   ========================================================================= */
+.match-player-mvp {
+    color: #ffd700 !important;
+    font-weight: 700;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.match-player-mvp .player-rating {
+    color: #dfc289;
+    text-shadow: none;
+}
+
+.mvp-star {
+    display: inline-block;
+    color: #ffd700;
+    font-size: 13px;
+    margin-right: 3px;
+    vertical-align: baseline;
+    filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
+}
+
+.match-mvp-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 215, 0, 0.12);
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    color: #ffd700;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    line-height: 1.4;
+}
+
+.match-mvp-btn:hover {
+    background: rgba(255, 215, 0, 0.22);
+    border-color: #ffd700;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+}
+
+.match-mvp-btn.voted {
+    background: rgba(223, 194, 137, 0.15);
+    border-color: rgba(223, 194, 137, 0.45);
+    color: #dfc289;
+}
+
+.match-mvp-btn.pulse {
+    animation: mvpBtnPulse 2.5s infinite;
+}
+
+@keyframes mvpBtnPulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4); }
+    70% { box-shadow: 0 0 0 7px rgba(255, 215, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
+}
+
+.match-mvp-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.08) 0%, rgba(88, 45, 161, 0.18) 100%);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 6px;
+    padding: 6px 12px;
+    margin: 8px 0 14px 0;
+    font-size: 12.5px;
+    color: #ffd700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.match-mvp-banner:hover {
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.16) 0%, rgba(88, 45, 161, 0.28) 100%);
+    border-color: #ffd700;
+    box-shadow: 0 2px 10px rgba(255, 215, 0, 0.2);
+}
+
+/* MVP Vote Modal */
+.mvp-modal-card {
+    max-width: 480px;
+    background: var(--bg-surface, #19113C);
+    border: 1px solid #7B52C5;
+    border-radius: var(--radius, 12px);
+    padding: 24px;
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.9);
+}
+
+.mvp-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.mvp-modal-header h3 {
+    margin: 0;
+    font-size: 19px;
+    color: #ffd700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mvp-modal-close {
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    line-height: 1;
+    color: var(--text-muted, #9E9A94);
+    cursor: pointer;
+    padding: 0 4px;
+    transition: color 0.15s ease;
+}
+
+.mvp-modal-close:hover {
+    color: #ffffff;
+}
+
+.mvp-modal-match-info {
+    font-size: 13.5px;
+    color: var(--text-nav-gold, #dfc289);
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.mvp-modal-desc {
+    font-size: 13px;
+    color: var(--text-muted, #9E9A94);
+    line-height: 1.45;
+    margin-bottom: 16px;
+}
+
+.mvp-teams-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 16px 0;
+}
+
+@media (max-width: 480px) {
+    .mvp-teams-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+}
+
+.mvp-team-col {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mvp-team-title {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted, #9E9A94);
+    margin-bottom: 4px;
+    font-weight: 700;
+}
+
+.mvp-player-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border, #3A403C);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.mvp-player-option input[type="radio"] {
+    margin: 0;
+    accent-color: #ffd700;
+    cursor: pointer;
+}
+
+.mvp-player-option .mvp-player-label {
+    font-size: 14px;
+    color: var(--text-main, #bbb09d);
+    flex: 1;
+}
+
+.mvp-player-option:hover {
+    background: rgba(255, 215, 0, 0.08);
+    border-color: rgba(255, 215, 0, 0.4);
+}
+
+.mvp-player-option.selected {
+    background: rgba(255, 215, 0, 0.15);
+    border-color: #ffd700;
+}
+
+.mvp-player-option.selected .mvp-player-label {
+    color: #ffd700;
+    font-weight: 700;
+}
+
+.mvp-status-notice {
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 12px;
+    background: rgba(123, 82, 197, 0.2);
+    border: 1px solid rgba(123, 82, 197, 0.5);
+    color: #dfc289;
+    line-height: 1.4;
+}
+
+.mvp-error-notice {
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 12px;
+    background: rgba(255, 100, 100, 0.15);
+    border: 1px solid rgba(255, 100, 100, 0.4);
+    color: #ff8888;
+    line-height: 1.4;
+}
+
+.mvp-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.mvp-anonymous-tag {
+    font-size: 12px;
+    color: var(--text-muted, #9E9A94);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
 /* =========================
    Responsive & Mobile Optimization
    ========================= */

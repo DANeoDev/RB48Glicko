@@ -333,6 +333,22 @@ TRANSLATIONS_DE = {
     "matches.expected": "Erwartet",
     "matches.not_calculated": "Ratings für dieses Spiel wurden noch nicht berechnet.",
     "matches.game_session": "⏳ Spiel {current}/{total}",
+    "matches.mvp_title": "Match MVP",
+    "matches.mvp_vote_badge": "MVP wählen",
+    "matches.mvp_voted_badge": "MVP gewählt",
+    "matches.mvp_btn_title": "Stimme für den MVP ab (bis {deadline})",
+    "matches.mvp_btn_title_voted": "Klicken, um deine MVP-Stimme zu bearbeiten (bis {deadline})",
+    "matches.mvp_banner_open_title": "MVP-Wahl offen:",
+    "matches.mvp_banner_open_desc": "Du hast mitgespielt! Klicke hier, um bis morgen ({deadline}) anonym abzustimmen.",
+    "matches.mvp_banner_voted": "Du hast für den MVP gestimmt. Klicke hier, um deine Wahl zu ändern (Frist: {deadline}).",
+    "matches.mvp_banner_voted_short": "Du hast für den MVP gestimmt. Klicke hier, um deine Wahl zu ändern.",
+    "matches.mvp_modal_title": "Match MVP wählen",
+    "matches.mvp_modal_desc": "Wähle anonym den wertvollsten Spieler dieser Partie. Die Abstimmung läuft bis zum Folgetag um 20:00 Uhr.",
+    "matches.mvp_anonymous_tag": "Anonyme Stimmabgabe",
+    "matches.mvp_submit_btn": "Stimme abgeben",
+    "matches.mvp_submitting": "Wird gespeichert...",
+    "matches.mvp_vote_success": "Deine Stimme wurde erfolgreich gespeichert!",
+    "matches.mvp_select_required": "Bitte wähle einen Spieler aus.",
 
     # =========================================================================
     # Player Profile
