@@ -15,7 +15,6 @@ from scripts.planner.database import (
     create_event,
     delete_event,
     get_attendance_logs,
-    get_attendance_logs_count,
     get_attendee_by_id,
     get_event_attendees,
     get_event_by_id,
@@ -382,9 +381,9 @@ def event_attendance_logs(event_id):
             "logs": logs,
             "counts": {
                 "total": len(logs),
-                "registered": sum(1 for l in logs if l["action"] == "registered"),
-                "cancelled": sum(1 for l in logs if l["action"] == "cancelled"),
-                "declined": sum(1 for l in logs if l["action"] == "declined"),
+                "registered": sum(1 for entry in logs if entry["action"] == "registered"),
+                "cancelled": sum(1 for entry in logs if entry["action"] == "cancelled"),
+                "declined": sum(1 for entry in logs if entry["action"] == "declined"),
             },
         })
     finally:

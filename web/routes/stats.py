@@ -16,10 +16,11 @@ from scripts.accounts.database import (
     get_user_by_player_id,
     get_user_seen_achievements,
     mark_user_achievements_seen,
-    get_match_mvp_winners,
+    get_match_mvp_podium,
+    get_mvp_medal_table,
     get_user_mvp_votes_for_matches,
-    record_match_mvp_vote,
-    get_user_match_mvp_vote,
+    record_match_mvp_votes,
+    get_user_match_mvp_votes,
     get_match_mvp_deadline,
     is_match_mvp_voting_open,
 )
@@ -251,7 +252,7 @@ def match_history():
     try:
         opted_out_player_ids = get_opted_out_player_ids(acc_conn)
         match_ids = [m["match_id"] for m in matches]
-        all_mvp_winners = get_match_mvp_winners(acc_conn, match_ids=match_ids)
+        all_mvp_podiums = get_match_mvp_podium(acc_conn, match_ids=match_ids)
         user_mvp_votes = {}
         if curr_user and curr_user.get("id"):
             user_mvp_votes = get_user_mvp_votes_for_matches(acc_conn, curr_user["id"], match_ids=match_ids)
@@ -269,18 +270,24 @@ def match_history():
 
         participant_ids = m.get("team_a_ids", []) + m.get("team_b_ids", [])
         can_vote = bool(is_open and curr_user_player_id and curr_user_player_id in participant_ids)
-        user_vote = user_mvp_votes.get(mid)
+        user_votes_list = user_mvp_votes.get(mid, [])
+        user_vote_1 = user_votes_list[0] if user_votes_list else None
 
-        # MVP winners: shown once voting is closed
-        mvp_ids = []
-        if not is_open:
-            mvp_ids = all_mvp_winners.get(mid, [])
+        # MVP podium: shown once voting is closed
+        podium = all_mvp_podiums.get(mid, {}) if not is_open else {}
+        gold_ids = podium.get("gold", [])
+        silver_ids = podium.get("silver", [])
+        bronze_ids = podium.get("bronze", [])
 
         match_voting_status[mid] = {
             "is_open": is_open,
             "can_vote": can_vote,
-            "user_vote": user_vote,
-            "mvp_player_ids": mvp_ids,
+            "user_vote": user_vote_1,
+            "user_votes": user_votes_list,
+            "mvp_player_ids": gold_ids,
+            "gold_player_ids": gold_ids,
+            "silver_player_ids": silver_ids,
+            "bronze_player_ids": bronze_ids,
             "deadline_str": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
             "deadline_short": deadline.strftime("%d.%m., %H:%M"),
         }
@@ -308,13 +315,43 @@ def cast_mvp_vote(match_id):
         return jsonify({"success": False, "error": "Dein Benutzerkonto muss mit einem Spieler verknüpft sein, um abzustimmen."}), 403
 
     data = request.get_json(silent=True) or request.form
-    voted_player_id = data.get("voted_player_id")
-    if not voted_player_id:
-        return jsonify({"success": False, "error": "Bitte wähle einen Spieler für den MVP-Vote aus."}), 400
-    try:
-        voted_player_id = int(voted_player_id)
-    except (ValueError, TypeError):
-        return jsonify({"success": False, "error": "Ungültige Spieler-ID."}), 400
+    voted_player_ids = []
+
+    # Support multiple ballot formats: array 'voted_player_ids' or single 'voted_player_id' or distinct slots 'voted_player_id_1', etc.
+    if "voted_player_ids" in data:
+        raw_list = data.get("voted_player_ids")
+        if isinstance(raw_list, list):
+            for v in raw_list:
+                if v is not None and str(v).strip():
+                    try:
+                        voted_player_ids.append(int(v))
+                    except (ValueError, TypeError):
+                        pass
+    elif "voted_player_id" in data:
+        raw_v = data.get("voted_player_id")
+        if raw_v is not None and str(raw_v).strip():
+            try:
+                voted_player_ids.append(int(raw_v))
+            except (ValueError, TypeError):
+                pass
+    else:
+        for slot in ("voted_player_id_1", "voted_player_id_2", "voted_player_id_3"):
+            raw_v = data.get(slot)
+            if raw_v is not None and str(raw_v).strip():
+                try:
+                    voted_player_ids.append(int(raw_v))
+                except (ValueError, TypeError):
+                    pass
+
+    if not voted_player_ids:
+        return jsonify({"success": False, "error": "Bitte wähle mindestens einen Spieler für deinen MVP-Vote aus."}), 400
+
+    if len(voted_player_ids) > 3:
+        return jsonify({"success": False, "error": "Du kannst maximal 3 Stimmen vergeben."}), 400
+
+    # Ensure all votes are for distinct players
+    if len(voted_player_ids) != len(set(voted_player_ids)):
+        return jsonify({"success": False, "error": "Die Stimmen müssen an verschiedene Spieler vergeben werden."}), 400
 
     conn = get_connection()
     try:
@@ -336,20 +373,22 @@ def cast_mvp_vote(match_id):
         deadline_str = get_match_mvp_deadline(match_date).strftime("%d.%m.%Y um %H:%M Uhr")
         return jsonify({"success": False, "error": f"Die Abstimmung für dieses Match ist seit dem {deadline_str} beendet."}), 400
 
-    if voted_player_id not in participants:
-        return jsonify({"success": False, "error": "Der gewählte Spieler hat nicht an diesem Match teilgenommen."}), 400
+    for pid in voted_player_ids:
+        if pid not in participants:
+            return jsonify({"success": False, "error": "Alle gewählten Spieler müssen an diesem Match teilgenommen haben."}), 400
 
     acc_conn = get_accounts_connection()
     try:
-        record_match_mvp_vote(acc_conn, match_id, user["id"], voted_player_id)
+        record_match_mvp_votes(acc_conn, match_id, user["id"], voted_player_ids)
     finally:
         acc_conn.close()
 
     return jsonify({
         "success": True,
         "match_id": match_id,
-        "voted_player_id": voted_player_id,
-        "message": "Deine Stimme wurde erfolgreich und anonym gespeichert!",
+        "voted_player_ids": voted_player_ids,
+        "voted_player_id": voted_player_ids[0] if voted_player_ids else None,
+        "message": "Deine Stimmen wurden erfolgreich und anonym gespeichert!",
     })
 
 
@@ -378,9 +417,9 @@ def get_mvp_status(match_id):
 
     acc_conn = get_accounts_connection()
     try:
-        user_vote = get_user_match_mvp_vote(acc_conn, match_id, user["id"]) if user and user.get("id") else None
-        winners_map = get_match_mvp_winners(acc_conn, match_ids=[match_id])
-        winners = winners_map.get(match_id, []) if not is_open else []
+        user_votes = get_user_match_mvp_votes(acc_conn, match_id, user["id"]) if user and user.get("id") else []
+        podium_map = get_match_mvp_podium(acc_conn, match_ids=[match_id])
+        podium = podium_map.get(match_id, {}) if not is_open else {}
     finally:
         acc_conn.close()
 
@@ -398,11 +437,100 @@ def get_mvp_status(match_id):
         "deadline_iso": deadline.isoformat(),
         "deadline_formatted": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
         "can_vote": can_vote,
-        "user_vote": user_vote,
-        "mvp_player_ids": winners,
+        "user_vote": user_votes[0] if user_votes else None,
+        "user_votes": user_votes,
+        "mvp_player_ids": podium.get("gold", []),
+        "gold_player_ids": podium.get("gold", []),
+        "silver_player_ids": podium.get("silver", []),
+        "bronze_player_ids": podium.get("bronze", []),
         "team_a_players": [player_info(pid) for pid in team_a],
         "team_b_players": [player_info(pid) for pid in team_b],
     })
+
+
+@stats_bp.route("/stats/mvp-medals")
+@require_tier(Tier.USER)
+def mvp_medals():
+    """MVP Medal table filtered by year and time period (Quarters, Half-years, All-time)."""
+    selected_year = request.args.get("year", "all").strip()
+    selected_period = request.args.get("period", "all").strip().upper()
+
+    conn = get_connection()
+    try:
+        matches = get_matches(conn)
+        players = get_players(conn)
+    finally:
+        conn.close()
+
+    # Extract all distinct years from recorded matches
+    available_years = sorted(
+        list({m["date"][:4] for m in matches.values() if m.get("date") and len(m["date"]) >= 4}),
+        reverse=True,
+    )
+
+    # Filter match IDs by year and period
+    filtered_match_ids = []
+    for mid, m in matches.items():
+        m_date = m.get("date", "")
+        if not m_date or len(m_date) < 7:
+            continue
+        m_year = m_date[:4]
+        m_month = m_date[5:7]
+
+        # Year check
+        if selected_year != "all" and m_year != selected_year:
+            continue
+
+        # Period check
+        if selected_period == "Q1" and m_month not in ("01", "02", "03"):
+            continue
+        elif selected_period == "Q2" and m_month not in ("04", "05", "06"):
+            continue
+        elif selected_period == "Q3" and m_month not in ("07", "08", "09"):
+            continue
+        elif selected_period == "Q4" and m_month not in ("10", "11", "12"):
+            continue
+        elif selected_period == "H1" and m_month not in ("01", "02", "03", "04", "05", "06"):
+            continue
+        elif selected_period == "H2" and m_month not in ("07", "08", "09", "10", "11", "12"):
+            continue
+
+        filtered_match_ids.append(mid)
+
+    acc_conn = get_accounts_connection()
+    try:
+        opted_out_player_ids = get_opted_out_player_ids(acc_conn)
+        medal_table = get_mvp_medal_table(acc_conn, matches, filtered_match_ids=filtered_match_ids)
+    finally:
+        acc_conn.close()
+
+    # Enrich medal table with player details
+    total_gold_awarded = 0
+    total_silver_awarded = 0
+    total_bronze_awarded = 0
+
+    for row in medal_table:
+        pid = row["player_id"]
+        p = players.get(pid, {})
+        aliases = p.get("aliases", [])
+        row["player_name"] = aliases[0] if aliases else f"Player {pid}"
+        total_gold_awarded += row["gold"]
+        total_silver_awarded += row["silver"]
+        total_bronze_awarded += row["bronze"]
+
+    return render_template(
+        "mvp_medals.html",
+        medal_table=medal_table,
+        available_years=available_years,
+        selected_year=selected_year,
+        selected_period=selected_period,
+        filtered_matches_count=len(filtered_match_ids),
+        total_gold_awarded=total_gold_awarded,
+        total_silver_awarded=total_silver_awarded,
+        total_bronze_awarded=total_bronze_awarded,
+        opted_out_player_ids=opted_out_player_ids,
+        is_webmaster=has_tier(Tier.WEBMASTER),
+    )
 
 
 @stats_bp.route("/matches/delete", methods=["POST"])

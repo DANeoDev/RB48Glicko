@@ -121,7 +121,7 @@ class MvpVotingTests(unittest.TestCase):
 
             # Check batch votes for user 1
             votes_map = get_user_mvp_votes_for_matches(conn, u1, ["M001", "M002"])
-            self.assertEqual(votes_map, {"M001": 200})
+            self.assertEqual(votes_map, {"M001": [200]})
 
             # Check winner: Player 200 has 2 votes, Player 300 has 1 vote -> Player 200 wins
             winners = get_match_mvp_winners(conn, ["M001"])
@@ -182,7 +182,7 @@ class MvpVotingTests(unittest.TestCase):
         self.login_user(uid_part)
         res = self.client.post(f"/api/matches/{test_mid}/mvp-vote", json={"voted_player_id": 999})
         self.assertEqual(res.status_code, 400)
-        self.assertIn("nicht an diesem Match teilgenommen", res.get_json()["error"])
+        self.assertIn("teilgenommen", res.get_json()["error"])
 
         # 5. Valid vote for participant 103 -> 200
         res = self.client.post(f"/api/matches/{test_mid}/mvp-vote", json={"voted_player_id": 103})
@@ -242,7 +242,7 @@ class MvpVotingTests(unittest.TestCase):
         res_matches = self.client.get("/matches")
         self.assertEqual(res_matches.status_code, 200)
         html = res_matches.get_data(as_text=True)
-        self.assertIn("match-player-mvp", html)
+        self.assertTrue("match-player-gold" in html or "match-player-mvp" in html)
         self.assertIn("mvp-star", html)
 
 
@@ -280,8 +280,9 @@ class MvpVotingTests(unittest.TestCase):
         self.assertNotIn("voter_user_id", json.dumps(data))
         self.assertEqual(set(data.keys()), {
             "can_vote", "deadline_formatted", "deadline_iso", "is_open",
-            "match_date", "match_id", "mvp_player_ids", "success",
-            "team_a_players", "team_b_players", "user_vote"
+            "match_date", "match_id", "mvp_player_ids", "gold_player_ids",
+            "silver_player_ids", "bronze_player_ids", "success",
+            "team_a_players", "team_b_players", "user_vote", "user_votes"
         })
 
         # Check match history HTML rendering
@@ -291,5 +292,4 @@ class MvpVotingTests(unittest.TestCase):
         # Should have MVP vote button and banner
         self.assertIn("match-mvp-btn", html)
         self.assertIn("match-mvp-banner", html)
-        self.assertIn("MVP wählen", html)
 

@@ -162,6 +162,8 @@ def create_account_tables(connection):
             match_id TEXT NOT NULL,
             voter_user_id INTEGER NOT NULL,
             voted_player_id INTEGER NOT NULL,
+            voted_player_id_2 INTEGER,
+            voted_player_id_3 INTEGER,
             created_at TEXT NOT NULL,
             UNIQUE(match_id, voter_user_id),
             FOREIGN KEY (voter_user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -201,6 +203,13 @@ def create_account_tables(connection):
     existing_bubble_cols = {row["name"] for row in bubble_cursor.fetchall()}
     if "text_color" not in existing_bubble_cols:
         connection.execute("ALTER TABLE noise_bubbles ADD COLUMN text_color TEXT NOT NULL DEFAULT '#ffffff'")
+
+    mvp_cursor = connection.execute("PRAGMA table_info(match_mvp_votes)")
+    existing_mvp_cols = {row["name"] for row in mvp_cursor.fetchall()}
+    if "voted_player_id_2" not in existing_mvp_cols:
+        connection.execute("ALTER TABLE match_mvp_votes ADD COLUMN voted_player_id_2 INTEGER")
+    if "voted_player_id_3" not in existing_mvp_cols:
+        connection.execute("ALTER TABLE match_mvp_votes ADD COLUMN voted_player_id_3 INTEGER")
 
     # Normalize existing dashboard/index bubbles to root '/'
     connection.execute("UPDATE noise_bubbles SET page_path = '/' WHERE page_path IN ('/dashboard', '/index', '/dashboard/', '/index/')")
@@ -1256,48 +1265,120 @@ def is_match_mvp_voting_open(match_date_str: str, now_dt: datetime | None = None
     return now_dt <= deadline
 
 
-def record_match_mvp_vote(connection, match_id: str, voter_user_id: int, voted_player_id: int) -> bool:
-    """Record or update an anonymous MVP vote for a match."""
+def record_match_mvp_vote(
+    connection,
+    match_id: str,
+    voter_user_id: int,
+    voted_player_id: int,
+    voted_player_id_2: int | None = None,
+    voted_player_id_3: int | None = None,
+) -> bool:
+    """Record or update an anonymous ranked MVP vote (1 to 3 distinct players) for a match."""
     now_iso = datetime.now().isoformat()
+    # Normalize: ensure no duplicates in votes
+    seen = set()
+    votes = []
+    for pid in [voted_player_id, voted_player_id_2, voted_player_id_3]:
+        if pid is not None and int(pid) > 0 and pid not in seen:
+            seen.add(pid)
+            votes.append(int(pid))
+
+    p1 = votes[0] if len(votes) > 0 else int(voted_player_id)
+    p2 = votes[1] if len(votes) > 1 else None
+    p3 = votes[2] if len(votes) > 2 else None
+
     connection.execute("""
-        INSERT INTO match_mvp_votes (match_id, voter_user_id, voted_player_id, created_at)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO match_mvp_votes (match_id, voter_user_id, voted_player_id, voted_player_id_2, voted_player_id_3, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(match_id, voter_user_id) DO UPDATE SET
             voted_player_id = excluded.voted_player_id,
+            voted_player_id_2 = excluded.voted_player_id_2,
+            voted_player_id_3 = excluded.voted_player_id_3,
             created_at = excluded.created_at
-    """, (str(match_id), int(voter_user_id), int(voted_player_id), now_iso))
+    """, (str(match_id), int(voter_user_id), p1, p2, p3, now_iso))
     connection.commit()
     return True
 
 
-def get_user_match_mvp_vote(connection, match_id: str, voter_user_id: int) -> int | None:
-    """Return the voted_player_id for a specific user and match, or None."""
+def record_match_mvp_votes(
+    connection,
+    match_id: str,
+    voter_user_id: int,
+    voted_player_ids: list[int],
+) -> bool:
+    """Record ranked MVP votes from a list of player IDs (up to 3)."""
+    p1 = voted_player_ids[0] if len(voted_player_ids) > 0 else 0
+    p2 = voted_player_ids[1] if len(voted_player_ids) > 1 else None
+    p3 = voted_player_ids[2] if len(voted_player_ids) > 2 else None
+    return record_match_mvp_vote(connection, match_id, voter_user_id, p1, p2, p3)
+
+
+def get_user_match_mvp_votes(connection, match_id: str, voter_user_id: int) -> list[int]:
+    """Return the list of voted_player_ids [rank1, rank2, rank3] for a user and match."""
     row = connection.execute("""
-        SELECT voted_player_id FROM match_mvp_votes
+        SELECT voted_player_id, voted_player_id_2, voted_player_id_3 FROM match_mvp_votes
         WHERE match_id = ? AND voter_user_id = ?
     """, (str(match_id), int(voter_user_id))).fetchone()
-    return int(row["voted_player_id"]) if row else None
+    if not row:
+        return []
+    votes = []
+    for col in ["voted_player_id", "voted_player_id_2", "voted_player_id_3"]:
+        if row[col] is not None and int(row[col]) > 0:
+            votes.append(int(row[col]))
+    return votes
 
 
-def get_user_mvp_votes_for_matches(connection, voter_user_id: int, match_ids: list[str]) -> dict[str, int]:
-    """Return {match_id: voted_player_id} for a user across multiple matches."""
+def get_user_match_mvp_vote(connection, match_id: str, voter_user_id: int) -> int | None:
+    """Return the 1st ranked voted_player_id for a user and match (or None)."""
+    votes = get_user_match_mvp_votes(connection, match_id, voter_user_id)
+    return votes[0] if votes else None
+
+
+def get_user_mvp_votes_for_matches(connection, voter_user_id: int, match_ids: list[str]) -> dict[str, list[int]]:
+    """Return {match_id: [voted_player_ids]} for a user across multiple matches."""
     if not voter_user_id or not match_ids:
         return {}
     placeholders = ",".join("?" for _ in match_ids)
     rows = connection.execute(f"""
-        SELECT match_id, voted_player_id FROM match_mvp_votes
+        SELECT match_id, voted_player_id, voted_player_id_2, voted_player_id_3 FROM match_mvp_votes
         WHERE voter_user_id = ? AND match_id IN ({placeholders})
     """, [int(voter_user_id), *[str(m) for m in match_ids]]).fetchall()
-    return {row["match_id"]: int(row["voted_player_id"]) for row in rows}
+    result = {}
+    for row in rows:
+        votes = []
+        for col in ["voted_player_id", "voted_player_id_2", "voted_player_id_3"]:
+            if row[col] is not None and int(row[col]) > 0:
+                votes.append(int(row[col]))
+        result[row["match_id"]] = votes
+    return result
 
 
-def get_match_mvp_winners(connection, match_ids: list[str] | None = None) -> dict[str, list[int]]:
+def get_match_mvp_podium(connection, match_ids: list[str] | None = None) -> dict[str, dict]:
     """
-    Calculate and return the MVP winning player IDs for matches: {match_id: [winning_player_ids]}.
-    If multiple players tie for the top vote count, all of them are returned in the list.
+    Calculate and return the MVP podium for matches:
+    {
+        match_id: {
+            "gold": [player_id, ...],
+            "silver": [player_id, ...],
+            "bronze": [player_id, ...],
+            "details": {
+                player_id: {"total": int, "rank1": int, "rank2": int, "rank3": int}
+            }
+        }
+    }
+    Sorting / tie-breaking rules:
+    - Primary: Total votes (rank 1 + rank 2 + rank 3)
+    - Tie-breaker 1: More rank 1 votes
+    - Tie-breaker 2: More rank 2 votes
+    - Tie-breaker 3: More rank 3 votes
+    Medal allocation:
+    - Group 1 (highest): Gold
+    - If 1 Gold winner: Group 2 gets Silver. If 1 Silver winner, Group 3 gets Bronze.
+    - If 2 Gold winners: Group 2 gets Bronze.
+    - If 3+ Gold winners: Gold only.
     """
     query = """
-        SELECT match_id, voted_player_id, COUNT(*) as vote_count
+        SELECT match_id, voted_player_id, voted_player_id_2, voted_player_id_3
         FROM match_mvp_votes
     """
     params = []
@@ -1305,26 +1386,167 @@ def get_match_mvp_winners(connection, match_ids: list[str] | None = None) -> dic
         placeholders = ",".join("?" for _ in match_ids)
         query += f" WHERE match_id IN ({placeholders})"
         params.extend([str(m) for m in match_ids])
-    query += " GROUP BY match_id, voted_player_id ORDER BY match_id, vote_count DESC"
 
     rows = connection.execute(query, params).fetchall()
 
-    match_votes: dict[str, dict[int, int]] = {}
+    # match_id -> player_id -> {"total": 0, "rank1": 0, "rank2": 0, "rank3": 0}
+    match_player_stats: dict[str, dict[int, dict[str, int]]] = {}
+
     for r in rows:
         m_id = r["match_id"]
-        p_id = int(r["voted_player_id"])
-        cnt = int(r["vote_count"])
-        match_votes.setdefault(m_id, {})[p_id] = cnt
+        stats = match_player_stats.setdefault(m_id, {})
 
-    winners: dict[str, list[int]] = {}
-    for m_id, player_counts in match_votes.items():
-        if not player_counts:
+        # Rank 1
+        p1 = r["voted_player_id"]
+        if p1 is not None and int(p1) > 0:
+            pid1 = int(p1)
+            p_entry = stats.setdefault(pid1, {"total": 0, "rank1": 0, "rank2": 0, "rank3": 0})
+            p_entry["total"] += 1
+            p_entry["rank1"] += 1
+
+        # Rank 2
+        p2 = r["voted_player_id_2"]
+        if p2 is not None and int(p2) > 0:
+            pid2 = int(p2)
+            p_entry = stats.setdefault(pid2, {"total": 0, "rank1": 0, "rank2": 0, "rank3": 0})
+            p_entry["total"] += 1
+            p_entry["rank2"] += 1
+
+        # Rank 3
+        p3 = r["voted_player_id_3"]
+        if p3 is not None and int(p3) > 0:
+            pid3 = int(p3)
+            p_entry = stats.setdefault(pid3, {"total": 0, "rank1": 0, "rank2": 0, "rank3": 0})
+            p_entry["total"] += 1
+            p_entry["rank3"] += 1
+
+    podium_results: dict[str, dict] = {}
+
+    for m_id, players_dict in match_player_stats.items():
+        if not players_dict:
+            podium_results[m_id] = {"gold": [], "silver": [], "bronze": [], "details": {}}
             continue
-        max_votes = max(player_counts.values())
-        if max_votes > 0:
-            winners[m_id] = [pid for pid, cnt in player_counts.items() if cnt == max_votes]
 
-    return winners
+        # Group players by their exact tie-break key
+        # key: (total, rank1, rank2, rank3)
+        grouped_by_score: dict[tuple[int, int, int, int], list[int]] = {}
+        for pid, s in players_dict.items():
+            if s["total"] <= 0:
+                continue
+            key = (s["total"], s["rank1"], s["rank2"], s["rank3"])
+            grouped_by_score.setdefault(key, []).append(pid)
+
+        # Sort score groups in descending order
+        sorted_keys = sorted(grouped_by_score.keys(), reverse=True)
+
+        gold_list: list[int] = []
+        silver_list: list[int] = []
+        bronze_list: list[int] = []
+
+        if len(sorted_keys) >= 1:
+            gold_list = grouped_by_score[sorted_keys[0]]
+
+        if len(gold_list) == 1:
+            if len(sorted_keys) >= 2:
+                silver_list = grouped_by_score[sorted_keys[1]]
+                if len(silver_list) == 1 and len(sorted_keys) >= 3:
+                    bronze_list = grouped_by_score[sorted_keys[2]]
+        elif len(gold_list) == 2:
+            if len(sorted_keys) >= 2:
+                bronze_list = grouped_by_score[sorted_keys[1]]
+
+        podium_results[m_id] = {
+            "gold": gold_list,
+            "silver": silver_list,
+            "bronze": bronze_list,
+            "details": players_dict,
+        }
+
+    return podium_results
+
+
+def get_match_mvp_winners(connection, match_ids: list[str] | None = None) -> dict[str, list[int]]:
+    """
+    Calculate and return the MVP winning player IDs (Gold medalists) for matches: {match_id: [winning_player_ids]}.
+    Maintains backward compatibility with legacy calls.
+    """
+    podium = get_match_mvp_podium(connection, match_ids=match_ids)
+    return {m_id: res["gold"] for m_id, res in podium.items() if res.get("gold")}
+
+
+def get_mvp_medal_table(
+    connection,
+    all_matches_dict: dict,
+    filtered_match_ids: list[str] | None = None,
+) -> list[dict]:
+    """
+    Aggregate Gold, Silver, and Bronze MVP medals across matches.
+    Returns a sorted list of player records:
+    [
+        {
+            "player_id": int,
+            "gold": int,
+            "silver": int,
+            "bronze": int,
+            "total_medals": int,
+            "medal_score": int,
+            "rank": int,
+        }
+    ]
+    """
+    podium_map = get_match_mvp_podium(connection, match_ids=filtered_match_ids)
+
+    # Filter by match_ids if provided, otherwise only include matches that exist in all_matches_dict
+    valid_mids = set(filtered_match_ids) if filtered_match_ids is not None else set(all_matches_dict.keys())
+
+    player_medals: dict[int, dict[str, int]] = {}
+
+    for m_id, p_info in podium_map.items():
+        if m_id not in valid_mids:
+            continue
+        for pid in p_info.get("gold", []):
+            entry = player_medals.setdefault(pid, {"gold": 0, "silver": 0, "bronze": 0})
+            entry["gold"] += 1
+        for pid in p_info.get("silver", []):
+            entry = player_medals.setdefault(pid, {"gold": 0, "silver": 0, "bronze": 0})
+            entry["silver"] += 1
+        for pid in p_info.get("bronze", []):
+            entry = player_medals.setdefault(pid, {"gold": 0, "silver": 0, "bronze": 0})
+            entry["bronze"] += 1
+
+    table = []
+    for pid, counts in player_medals.items():
+        g = counts["gold"]
+        s = counts["silver"]
+        b = counts["bronze"]
+        total = g + s + b
+        score = (g * 3) + (s * 2) + (b * 1)
+        if total > 0:
+            table.append({
+                "player_id": pid,
+                "gold": g,
+                "silver": s,
+                "bronze": b,
+                "total_medals": total,
+                "medal_score": score,
+            })
+
+    # Sort table by Gold DESC, Silver DESC, Bronze DESC, Total DESC, Medal Score DESC
+    table.sort(key=lambda x: (x["gold"], x["silver"], x["bronze"], x["total_medals"], x["medal_score"]), reverse=True)
+
+    # Assign competitive ranks (handling ties)
+    for i, row in enumerate(table):
+        if i > 0:
+            prev = table[i - 1]
+            if (row["gold"], row["silver"], row["bronze"]) == (prev["gold"], prev["silver"], prev["bronze"]):
+                row["rank"] = prev["rank"]
+            else:
+                row["rank"] = i + 1
+        else:
+            row["rank"] = 1
+
+    return table
+
 
 
 

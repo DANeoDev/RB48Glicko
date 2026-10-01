@@ -352,13 +352,16 @@
 {% endif %}
 
 <div class="stats-table-header">
-    <div class="stats-header-spacer" style="display: flex; gap: 8px; align-items: center;">
+    <div class="stats-header-spacer" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
         <button type="button" class="synergies-btn" id="open-synergies-modal-btn" onclick="openSynergiesModal()" style="background: rgba(123, 82, 197, 0.2); border: 1px solid #7B52C5; color: #80deea; border-radius: var(--radius); padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s ease;" title="{{ t('synergies.btn_title', 'Community-Synergien, beste Duos und Angstgegner anzeigen') }}">
             <span>🤝 {{ t('synergies.btn_title', 'Community-Synergien') }}</span>
         </button>
         <button type="button" class="streaks-btn" id="open-streaks-modal-btn" onclick="openStreaksModal()" style="background: rgba(123, 82, 197, 0.2); border: 1px solid #7B52C5; color: #ffd700; border-radius: var(--radius); padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s ease;" title="{{ t('streaks.btn_title', 'Aktive Siegesserien, Rekordserien & Aufwind anzeigen') }}">
             <span>⚡ {{ t('streaks.btn_title', 'Serien & Rekorde') }}</span>
         </button>
+        <a href="{{ url_for('stats.mvp_medals') }}" class="mvp-medals-btn" id="open-mvp-medals-btn" style="background: rgba(255, 215, 0, 0.12); border: 1px solid rgba(255, 215, 0, 0.4); color: #ffd700; border-radius: var(--radius); padding: 6px 12px; font-size: 12px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s ease;" title="{{ t('stats.mvp_medals_title', 'MVP-Medaillenspiegel') }}">
+            <span>🏅 {{ t('stats.mvp_medals_btn', 'MVP-Medaillenspiegel') }}</span>
+        </a>
     </div>
     <div id="pitch-selector">
         <button class="pitch-selector selected" data-pitch="total" title="{{ t('stats.total_title', 'Statistics based on all matches, regardless of pitch type.') }}">{{ t('stats.total', 'TOTAL') }}</button>
