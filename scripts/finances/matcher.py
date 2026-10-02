@@ -1,5 +1,6 @@
 import re
 import difflib
+from datetime import datetime
 from scripts.database.database import get_connection as get_rb48_connection
 from scripts.accounts.database import get_accounts_connection
 from scripts.finances.database import get_finances_connection, get_identities
@@ -44,10 +45,14 @@ def parse_guest_hints_from_note(note: str | None) -> list[str]:
     
     # Remove common keyword prefixes
     prefixes = [
+        r'vereinsbeitrag\s*(und\s*)?',
+        r'mitgliedsbeitrag\s*(und\s*)?',
         r'gastbeitrag\s*',
         r'gast[\-\s]*beitrag\s*',
         r'gast\s*',
+        r'zahlung\s+(?:von|f(?:ue|[uü])r)\s+',
         r'f(?:ue|[uü])r\s+',
+        r'von\s+',
         r'beitrag\s+(f(?:ue|[uü])r\s+)?',
     ]
     for prefix in prefixes:
@@ -65,14 +70,48 @@ def parse_guest_hints_from_note(note: str | None) -> list[str]:
     parts = re.split(r'\s+und\s+|\s*[+&,/]\s*', remainder, flags=re.IGNORECASE)
     
     names = []
+    stopwords = {
+        'gastbeitrag', 'beitrag', 'gast', 'handyzahlung', 'zahlung', 'paypal',
+        'vereinsbeitrag', 'mitgliedsbeitrag', 'halbjahr', 'h1', 'h2', 'jahresbeitrag',
+        'spende', 'turnier', 'ball', 'mitglieder'
+    }
     for part in parts:
         name = part.strip()
+        # Strip sub-prefixes like 'zahlung von ' or 'von '
+        name = re.sub(r'^(?:zahlung\s+(?:von|f(?:ue|[uü])r)\s+|von\s+|f(?:ue|[uü])r\s+)', '', name, flags=re.IGNORECASE).strip()
         # Filter out noise: pure numbers, very short tokens, common words
         if name and len(name) >= 2 and not re.match(r'^\d+$', name):
-            if name.lower() not in ('gastbeitrag', 'beitrag', 'gast', 'handyzahlung', 'zahlung'):
+            if name.lower() not in stopwords:
                 names.append(name)
     
     return names
+
+
+def analyze_payment_note(note: str | None) -> dict:
+    """Analyze note for membership due clues, period hints, and guest names."""
+    if not note:
+        return {"has_due_hint": False, "guest_names": [], "period_hint": None}
+
+    text = note.strip().lower()
+    has_due = any(k in text for k in ("vereinsbeitrag", "mitgliedsbeitrag", "mitglied", "halbjahr", "h1", "h2", "jahresbeitrag"))
+
+    period_hint = None
+    curr_year = str(datetime.now().year)
+    year_match = re.search(r'\b(202\d)\b', text)
+    year_str = year_match.group(1) if year_match else curr_year
+
+    if any(k in text for k in ("h2", "2. halbjahr", "2.halbjahr", "zweites halbjahr")):
+        period_hint = f"{year_str}-H2"
+    elif any(k in text for k in ("h1", "1. halbjahr", "1.halbjahr", "erstes halbjahr")):
+        period_hint = f"{year_str}-H1"
+
+    guest_names = parse_guest_hints_from_note(note)
+
+    return {
+        "has_due_hint": has_due,
+        "guest_names": guest_names,
+        "period_hint": period_hint,
+    }
 
 
 def find_player_match(

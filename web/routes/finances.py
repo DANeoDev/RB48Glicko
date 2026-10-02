@@ -27,7 +27,9 @@ from scripts.finances.database import (
     delete_identity,
     set_player_membership_status,
 )
+from pathlib import Path
 from scripts.finances.paypal_parser import parse_paypal_csv
+from scripts.finances.bank_pdf_parser import parse_bank_pdf, convert_pdf_to_csv, parse_bank_csv
 from scripts.finances.matcher import find_player_match, mask_payer_name
 from scripts.finances.reconciliation import (
     get_match_history_financial_overview,
@@ -43,6 +45,8 @@ from scripts.finances.reconciliation import (
     get_available_finance_periods,
     get_period_display_label,
     get_finance_summary_metrics,
+    get_proxy_payment_suggestion,
+    settle_smart_combo_transaction,
     GUEST_FEE_PER_KICK,
     MEMBERSHIP_DUE_PER_HALFYEAR,
 )
@@ -149,19 +153,16 @@ def admin_finances():
                     pinfo = players_dict.get(match_res["player_id"], {})
                     tx["suggestion_player_name"] = pinfo.get("aliases", [f"Player #{match_res['player_id']}"])[0]
 
-            # Check for proxy payment pattern (multiple of guest fee or member paying guest fee)
+            # Check for proxy payment or combination payment pattern
             amount = float(tx.get("amount", 0))
-            if amount > 0:
-                remainder = amount % GUEST_FEE_PER_KICK
-                is_guest_multiple = remainder < 0.01 or (GUEST_FEE_PER_KICK - remainder) < 0.01
+            if amount > 0 and not tx.get("is_confirmed"):
                 check_pid = tx.get("matched_player_id") or (tx.get("suggestion") and tx["suggestion"].get("player_id"))
-                pstatus = next((p["status"] for p in players_with_status if p["player_id"] == check_pid), None) if check_pid else None
-
-                if is_guest_multiple and not tx.get("is_confirmed"):
-                    num_kicks = round(amount / GUEST_FEE_PER_KICK)
-                    if num_kicks >= 2 or (num_kicks >= 1 and pstatus == "member"):
+                if check_pid:
+                    proxy_sug = get_proxy_payment_suggestion(tx["id"], check_pid)
+                    if proxy_sug:
                         tx["is_proxy_candidate"] = True
-                        tx["proxy_num_kicks"] = num_kicks
+                        tx["proxy_num_kicks"] = proxy_sug.get("num_kicks", 0)
+                        tx["proxy_suggestion"] = proxy_sug
 
         # Learned identities
         identities = get_identities(finances_conn)
@@ -187,14 +188,21 @@ def admin_finances():
             accounts_conn=accounts_conn,
         )
 
-        # Unassigned transaction payers (payers of positive unconfirmed transactions)
+        # Unassigned transaction payers with date (payers of positive unconfirmed transactions)
         unassigned_payers = []
         for t in transactions:
             if not t.get("is_confirmed") and t.get("amount", 0) > 0 and t.get("status") == "imported":
                 name = t.get("raw_payer_name") or t.get("raw_payer_email") or f"Transaktion #{t['id']}"
                 masked = mask_payer_name(name)
-                if masked and masked not in unassigned_payers:
-                    unassigned_payers.append(masked)
+                t_date = t.get("date")
+                if masked and not any(u["name"] == masked and u["date"] == t_date for u in unassigned_payers):
+                    unassigned_payers.append({"name": masked, "date": t_date})
+
+        has_any_suggestion = any(
+            bool(t.get("proxy_suggestion") or (t.get("suggestion") and t["suggestion"].get("player_id")))
+            for t in transactions
+            if not t.get("is_confirmed") and t.get("status") == "imported"
+        )
 
         # Ignored aliases list (sorted alphabetically)
         ignored_aliases_list = sorted(list(get_ignored_aliases(rb48_conn)))
@@ -224,6 +232,7 @@ def admin_finances():
             total_guests_count=total_guests_count,
             guest_fee_rate=GUEST_FEE_PER_KICK,
             membership_due_rate=MEMBERSHIP_DUE_PER_HALFYEAR,
+            has_any_suggestion=has_any_suggestion,
         )
     finally:
         finances_conn.close()
@@ -300,81 +309,208 @@ def mark_due():
 @finances_bp.route("/upload", methods=["POST"])
 @require_webmaster
 def upload_csv():
-    """Upload and process a PayPal or bank CSV statement."""
-    file = request.files.get("csv_file")
-    if not file or not file.filename:
-        flash("Bitte eine CSV-Datei zum Hochladen auswählen.", "warning")
+    """Upload and process bank PDFs (Skatbank / VR-Bank) or PayPal/bank CSV statements (supports multiple files)."""
+    uploaded_files = request.files.getlist("files")
+    if not uploaded_files or not any(f.filename for f in uploaded_files):
+        single_f = request.files.get("csv_file")
+        if single_f and single_f.filename:
+            uploaded_files = [single_f]
+
+    valid_files = [f for f in uploaded_files if f and f.filename]
+    if not valid_files:
+        flash("Bitte mindestens eine Datei (PDF-Kontoauszug oder CSV) zum Hochladen auswählen.", "warning")
         return redirect(url_for("finances.admin_finances", tab="import"))
 
     finances_conn = get_finances_connection()
     rb48_conn = get_rb48_connection()
     accounts_conn = get_accounts_connection()
 
+    skatbank_dir = Path("data/finances/skatbank")
+    paypal_dir = Path("data/finances/paypal")
+    skatbank_dir.mkdir(parents=True, exist_ok=True)
+    paypal_dir.mkdir(parents=True, exist_ok=True)
+
+    imported_count = 0
+    skipped_duplicates = 0
+    auto_confirmed_count = 0
+    processed_files_count = 0
+
     try:
-        content = file.read()
-        parsed_txs = parse_paypal_csv(content)
+        for file in valid_files:
+            filename = file.filename
+            content = file.read()
+            if not content:
+                continue
 
-        if not parsed_txs:
-            flash("Keine gültigen Transaktionen in der Datei gefunden. Bitte prüfe das Format.", "danger")
-            return redirect(url_for("finances.admin_finances", tab="import"))
+            lower_name = filename.lower()
+            parsed_txs = []
 
-        imported_count = 0
-        skipped_duplicates = 0
-        auto_confirmed_count = 0
-
-        for tx in parsed_txs:
-            match = find_player_match(
-                tx.get("raw_payer_name"),
-                tx.get("raw_payer_email"),
-                finances_conn=finances_conn,
-                rb48_conn=rb48_conn,
-                accounts_conn=accounts_conn,
-            )
-
-            is_confirmed = 0
-            matched_pid = match.get("player_id")
-            matched_uid = match.get("user_id")
-
-            if match.get("confidence", 0.0) >= 0.95 and matched_pid:
-                is_confirmed = 1
-                status = "assigned"
+            if lower_name.endswith(".pdf"):
+                # Save original PDF into skatbank directory
+                pdf_target = skatbank_dir / filename
+                pdf_target.write_bytes(content)
+                # Convert PDF to CSV and store in data/finances/skatbank/
+                csv_stem = Path(filename).stem
+                csv_target = skatbank_dir / f"{csv_stem}.csv"
+                convert_pdf_to_csv(content, csv_target)
+                parsed_txs = parse_bank_pdf(content)
+            elif lower_name.endswith(".csv"):
+                text_sample = ""
+                for enc in ("utf-8-sig", "utf-8", "cp1252", "latin1"):
+                    try:
+                        text_sample = content.decode(enc)
+                        break
+                    except Exception:
+                        continue
+                is_paypal = any(k in text_sample.lower() for k in ("transaktionscode", "handyzahlung", "absender e-mail-adresse"))
+                if is_paypal:
+                    pp_target = paypal_dir / filename
+                    pp_target.write_bytes(content)
+                    parsed_txs = parse_paypal_csv(content)
+                else:
+                    sk_target = skatbank_dir / filename
+                    sk_target.write_bytes(content)
+                    parsed_txs = parse_bank_csv(content)
             else:
-                status = tx.get("status", "imported")
+                continue
 
-            new_id = insert_transaction(
-                finances_conn,
-                source=tx["source"],
-                tx_code=tx["tx_code"],
-                date=tx["date"],
-                time=tx["time"],
-                raw_payer_name=tx["raw_payer_name"],
-                raw_payer_email=tx["raw_payer_email"],
-                amount=tx["amount"],
-                currency=tx["currency"],
-                description=tx["description"],
-                status=status,
-                matched_player_id=matched_pid if is_confirmed else None,
-                matched_user_id=matched_uid if is_confirmed else None,
-                is_confirmed=is_confirmed,
-                raw_payload=tx.get("raw_payload"),
-                note=tx.get("note"),
-            )
+            if not parsed_txs:
+                continue
 
-            if new_id:
-                imported_count += 1
-                if is_confirmed and matched_pid:
-                    auto_confirmed_count += 1
-                    auto_allocate_transaction_to_debts(new_id, matched_pid)
-            else:
-                skipped_duplicates += 1
+            processed_files_count += 1
+
+            for tx in parsed_txs:
+                match = find_player_match(
+                    tx.get("raw_payer_name"),
+                    tx.get("raw_payer_email"),
+                    finances_conn=finances_conn,
+                    rb48_conn=rb48_conn,
+                    accounts_conn=accounts_conn,
+                )
+
+                is_confirmed = 0
+                matched_pid = match.get("player_id")
+                matched_uid = match.get("user_id")
+
+                # Auto-confirm only if single payment without complex split/proxy hints
+                from scripts.finances.matcher import analyze_payment_note
+                tx_analysis = analyze_payment_note(tx.get("note"))
+                has_combo_hint = tx_analysis.get("has_due_hint") and len(tx_analysis.get("guest_names", [])) > 0
+                if match.get("confidence", 0.0) >= 0.95 and matched_pid and not has_combo_hint and tx.get("amount", 0) > 0:
+                    amt = float(tx.get("amount", 0))
+                    if amt == GUEST_FEE_PER_KICK or amt == MEMBERSHIP_DUE_PER_HALFYEAR:
+                        is_confirmed = 1
+                        status = "assigned"
+                    else:
+                        status = "imported"
+                else:
+                    status = tx.get("status", "imported")
+
+                new_id = insert_transaction(
+                    finances_conn,
+                    source=tx["source"],
+                    tx_code=tx["tx_code"],
+                    date=tx["date"],
+                    time=tx["time"],
+                    raw_payer_name=tx["raw_payer_name"],
+                    raw_payer_email=tx["raw_payer_email"],
+                    amount=tx["amount"],
+                    currency=tx["currency"],
+                    description=tx["description"],
+                    status=status,
+                    matched_player_id=matched_pid if is_confirmed else None,
+                    matched_user_id=matched_uid if is_confirmed else None,
+                    is_confirmed=is_confirmed,
+                    raw_payload=tx.get("raw_payload"),
+                    note=tx.get("note"),
+                )
+
+                if new_id:
+                    imported_count += 1
+                    if is_confirmed and matched_pid:
+                        auto_confirmed_count += 1
+                        auto_allocate_transaction_to_debts(new_id, matched_pid)
+                else:
+                    skipped_duplicates += 1
 
         flash(
-            f"CSV-Import erfolgreich: {imported_count} neue Transaktionen importiert ({auto_confirmed_count} automatisch sicher zugeordnet), {skipped_duplicates} bereits vorhandene duplikate übersprungen.",
+            f"Import erfolgreich: {imported_count} neue Transaktionen aus {processed_files_count} Datei(en) verarbeitet "
+            f"({auto_confirmed_count} automatisch sicher zugeordnet, {skipped_duplicates} bereits vorhandene Duplikate übersprungen).",
             "success",
         )
         return redirect(url_for("finances.admin_finances", tab="import"))
     except Exception as exc:
-        flash(f"Fehler beim CSV-Import: {exc}", "danger")
+        flash(f"Fehler beim Import: {exc}", "danger")
+        return redirect(url_for("finances.admin_finances", tab="import"))
+    finally:
+        finances_conn.close()
+        rb48_conn.close()
+        accounts_conn.close()
+
+
+@finances_bp.route("/apply_suggestion", methods=["POST"])
+@require_webmaster
+def apply_suggestion():
+    """Apply a smart combo split or proxy suggestion for a single transaction."""
+    tx_id = request.form.get("tx_id", type=int)
+    if not tx_id:
+        flash("Transaktions-ID fehlt.", "danger")
+        return redirect(url_for("finances.admin_finances", tab="import"))
+
+    res = settle_smart_combo_transaction(tx_id)
+    if res.get("success"):
+        sug = res.get("suggestion") or {}
+        summary = sug.get("summary_text") or "Zahlung erfolgreich verbucht"
+        flash(f"Vorschlag übernommen: {summary}", "success")
+    else:
+        flash(f"Fehler beim Übernehmen des Vorschlags: {res.get('error', 'Unbekannter Fehler')}", "danger")
+
+    return redirect(url_for("finances.admin_finances", tab="import"))
+
+
+@finances_bp.route("/apply_all_suggestions", methods=["POST"])
+@require_webmaster
+def apply_all_suggestions():
+    """Apply all pending suggestions across all unconfirmed imported transactions."""
+    finances_conn = get_finances_connection()
+    rb48_conn = get_rb48_connection()
+    accounts_conn = get_accounts_connection()
+
+    applied_count = 0
+    try:
+        txs = get_transactions(finances_conn)
+        open_txs = [t for t in txs if not t.get("is_confirmed") and t.get("amount", 0) > 0 and t.get("status") == "imported"]
+
+        for t in open_txs:
+            tid = t["id"]
+            check_pid = t.get("matched_player_id")
+            if not check_pid:
+                match = find_player_match(
+                    t.get("raw_payer_name"),
+                    t.get("raw_payer_email"),
+                    finances_conn=finances_conn,
+                    rb48_conn=rb48_conn,
+                    accounts_conn=accounts_conn,
+                )
+                if match.get("confidence", 0.0) >= 0.60:
+                    check_pid = match.get("player_id")
+
+            if check_pid:
+                sug = get_proxy_payment_suggestion(tid, check_pid)
+                if sug:
+                    res = settle_smart_combo_transaction(tid, payer_player_id=check_pid, suggestion=sug)
+                    if res.get("success"):
+                        applied_count += 1
+                        continue
+
+                res = settle_transaction_and_debts(tid, payer_player_id=check_pid, remember=True)
+                if res.get("success"):
+                    applied_count += 1
+
+        flash(
+            f"{applied_count} Vorschläge erfolgreich übernommen und verbucht!",
+            "success" if applied_count > 0 else "info",
+        )
         return redirect(url_for("finances.admin_finances", tab="import"))
     finally:
         finances_conn.close()

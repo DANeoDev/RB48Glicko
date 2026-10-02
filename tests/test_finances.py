@@ -1,5 +1,6 @@
 import io
 import os
+from pathlib import Path
 import pytest
 from datetime import datetime, timezone
 
@@ -39,8 +40,15 @@ from scripts.finances.reconciliation import (
     get_period_display_label,
     get_finance_summary_metrics,
     resolve_player_membership_status,
+    get_proxy_payment_suggestion,
+    settle_smart_combo_transaction,
     GUEST_FEE_PER_KICK,
     MEMBERSHIP_DUE_PER_HALFYEAR,
+)
+from scripts.finances.bank_pdf_parser import (
+    parse_bank_pdf,
+    convert_pdf_to_csv,
+    parse_bank_csv,
 )
 from scripts.database.database import (
     get_connection as get_rb48_connection,
@@ -52,9 +60,35 @@ from scripts.database.database import (
     create_match_players_table,
 )
 from scripts.database.db_matches import create_match, add_match_player
-from scripts.accounts.database import get_accounts_connection, create_account_tables, approve_user
+from scripts.accounts.database import (
+    get_accounts_connection,
+    create_account_tables,
+    approve_user,
+    mark_email_verified,
+    update_user_role,
+)
 from scripts.accounts.auth import register_user, pass_psychology_test
 from web.app import create_app
+
+
+def _login_webmaster(app):
+    """Helper to create and log in a verified, approved webmaster user."""
+    import time
+    unique_name = f"wm_{int(time.time() * 1000000)}"
+    user_id, _ = register_user(unique_name, f"{unique_name}@example.com", "Password123!", role="webmaster")
+    acc_conn = get_accounts_connection()
+    mark_email_verified(acc_conn, user_id)
+    approve_user(acc_conn, user_id, approved=True)
+    update_user_role(acc_conn, user_id, "webmaster")
+    acc_conn.close()
+    pass_psychology_test(user_id)
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["user_id"] = user_id
+        sess["username"] = unique_name
+        sess["role"] = "webmaster"
+    return client
+
 
 
 @pytest.fixture
@@ -818,6 +852,213 @@ def test_flexible_member_dues_allocation(clean_finances_env):
     # Member 1 should count towards partial_dues_count and not open_dues_count
     assert metrics["partial_dues_count"] >= 1
     assert metrics["open_dues_count"] == 0  # Assuming only player 1 is a member in clean_finances_env
+
+
+def test_skatbank_pdf_parsing_and_csv_conversion(tmp_path):
+    """Test parsing a synthetic Deutsche Skatbank statement PDF and converting to CSV."""
+    import pymupdf
+    doc = pymupdf.open()
+    page = doc.new_page()
+    text = (
+        "Deutsche Skatbank Kontoauszug 2026\n"
+        "01.07.2026 01.07.2026 SEPA-Gutschrift 48,00+\n"
+        "Auftraggeber: Max Mustermann\n"
+        "Verwendungszweck: Vereinsbeitrag 2026-H2 EREF+11111\n"
+        "15.07.2026 15.07.2026 SEPA-Gutschrift 69,00+\n"
+        "Auftraggeber: Konstantin Steuer\n"
+        "Verwendungszweck: Vereinsbeitrag und Zahlung von Luecke und Jens EREF+22222\n"
+        "20.07.2026 20.07.2026 Lastschrift 15,00-\n"
+        "Auftraggeber: Sportstaette GmbH\n"
+        "Verwendungszweck: Hallenmiete EREF+33333\n"
+    )
+    page.insert_text((50, 50), text)
+    pdf_bytes = doc.tobytes()
+    doc.close()
+
+    txs = parse_bank_pdf(pdf_bytes)
+    assert len(txs) == 3
+
+    t1 = txs[0]
+    assert t1["amount"] == 48.00
+    assert t1["raw_payer_name"] == "Max Mustermann"
+    assert "Vereinsbeitrag" in t1["note"]
+    assert t1["tx_code"] == "EREF-11111"
+    assert t1["status"] == "imported"
+
+    t2 = txs[1]
+    assert t2["amount"] == 69.00
+    assert t2["raw_payer_name"] == "Konstantin Steuer"
+    assert "Luecke und Jens" in t2["note"]
+    assert t2["tx_code"] == "EREF-22222"
+
+    t3 = txs[2]
+    assert t3["amount"] == -15.00
+    assert t3["status"] == "expense"
+
+    # Test CSV conversion
+    out_csv = tmp_path / "skatbank_test.csv"
+    csv_str = convert_pdf_to_csv(pdf_bytes, out_csv)
+    assert out_csv.exists()
+    assert "48,00" in csv_str
+    assert "69,00" in csv_str
+    assert "-15,00" in csv_str
+    assert "Konstantin Steuer" in csv_str
+
+
+def test_multi_file_upload_and_directory_storage(clean_finances_env):
+    """Test uploading multiple statements (PDF & CSV) simultaneously."""
+    import pymupdf
+    from web.app import app
+
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((50, 50), "Deutsche Skatbank 2026\n01.07.2026 SEPA-Gutschrift 48,00+\nAuftraggeber: Stefan Player1\nVerwendungszweck: Beitrag EREF+998877\n")
+    pdf_bytes = doc.tobytes()
+    doc.close()
+
+    csv_bytes = (
+        '"Datum","Uhrzeit","Zeitzone","Beschreibung","Währung","Brutto","Entgelt","Netto","Guthaben","Transaktionscode","Absender E-Mail-Adresse","Name","Name der Bank","Bankkonto","Versand- und Bearbeitungsgebühr","Umsatzsteuer","Rechnungsnummer","Zugehöriger Transaktionscode"\n'
+        '"10.07.2026","12:09:12","Europe/Berlin","Handyzahlung","EUR","3,50","0,00","3,50","732,06","PP-TEST-MULTI-1","samuel@schelp.eu","Samuel Schelp","","","0,00","0,00","",""\n'
+    ).encode("utf-8")
+
+    client = _login_webmaster(app)
+
+    resp = client.post(
+        "/admin/finances/upload",
+        data={
+            "files": [
+                (io.BytesIO(pdf_bytes), "kontoauszug_juli.pdf"),
+                (io.BytesIO(csv_bytes), "paypal_juli.csv"),
+            ]
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "Import erfolgreich" in html
+
+    # Verify directory contents
+    sk_dir = Path("data/finances/skatbank")
+    pp_dir = Path("data/finances/paypal")
+    assert (sk_dir / "kontoauszug_juli.pdf").exists()
+    assert (sk_dir / "kontoauszug_juli.csv").exists()
+    assert (pp_dir / "paypal_juli.csv").exists()
+
+    # Clean up test files in data/finances/
+    (sk_dir / "kontoauszug_juli.pdf").unlink(missing_ok=True)
+    (sk_dir / "kontoauszug_juli.csv").unlink(missing_ok=True)
+    (pp_dir / "paypal_juli.csv").unlink(missing_ok=True)
+
+
+def test_combo_split_suggestion_and_bulk_apply(clean_finances_env):
+    """Test smart combination payment split (48€ due + 21€ guests) and 'Alle Vorschläge übernehmen'."""
+    from web.app import app
+    r_conn = get_rb48_connection()
+    # Payer Konstantin (player 20), Guests: Luecke (player 27) and Jens (player 31)
+    r_conn.execute("INSERT INTO players (player_id) VALUES (20), (27), (31)")
+    r_conn.execute("INSERT INTO aliases (alias, player_id) VALUES ('Konsti', 20), ('Lücke', 27), ('Konsti+1 (Jens)', 31)")
+    # Unpaid matches for Luecke
+    create_match(r_conn, "2026-07-22-1", "2026-07-22", "box", 1, 1, 5, 2)
+    add_match_player(r_conn, "2026-07-22-1", 27, "A")
+    create_match(r_conn, "2026-07-29-1", "2026-07-29", "box", 1, 1, 5, 2)
+    add_match_player(r_conn, "2026-07-29-1", 27, "A")
+    create_match(r_conn, "2026-08-04-1", "2026-08-04", "box", 1, 1, 5, 2)
+    add_match_player(r_conn, "2026-08-04-1", 27, "A")
+    # Unpaid matches for Jens
+    create_match(r_conn, "2026-08-19-1", "2026-08-19", "box", 1, 1, 5, 2)
+    add_match_player(r_conn, "2026-08-19-1", 31, "A")
+    create_match(r_conn, "2026-08-26-1", "2026-08-26", "box", 1, 1, 5, 2)
+    add_match_player(r_conn, "2026-08-26-1", 31, "A")
+    create_match(r_conn, "2026-09-23-1", "2026-09-23", "box", 1, 1, 5, 2)
+    add_match_player(r_conn, "2026-09-23-1", 31, "A")
+    r_conn.commit()
+    r_conn.close()
+
+    f_conn = get_finances_connection()
+    set_player_membership_status(f_conn, 20, "member")
+    tx_id = insert_transaction(
+        f_conn,
+        source="paypal",
+        tx_code="KONSTI-69-EUR-COMBO",
+        date="2026-10-02",
+        time="08:26:22",
+        raw_payer_name="Konstantin Steuer",
+        raw_payer_email="konstantin-steuer@web.de",
+        amount=69.00,
+        status="imported",
+        is_confirmed=0,
+        note="Vereinsbeitrag und Zahlung von Lücke und Jens",
+    )
+    f_conn.close()
+
+    # Verify suggestion calculation
+    sug = get_proxy_payment_suggestion(tx_id, 20)
+    assert sug is not None
+    assert sug["is_combo_split"] is True
+    assert sug["due_amount"] == 48.00
+    assert sug["guest_amount"] == 21.00
+    assert sug["num_kicks"] == 6
+    assert len(sug["suggested_guests"]) == 6
+    guest_pids = [g["player_id"] for g in sug["suggested_guests"]]
+    assert guest_pids.count(27) == 3  # 3 kicks for Luecke
+    assert guest_pids.count(31) == 3  # 3 kicks for Jens
+    assert "48,00" in sug["summary_text"]
+    assert "21,00" in sug["summary_text"]
+
+    client = _login_webmaster(app)
+
+    # Test "Alle Vorschläge übernehmen" route
+    resp = client.post("/admin/finances/apply_all_suggestions", follow_redirects=True)
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "Vorschläge erfolgreich übernommen" in html or "Vorschlag erfolgreich übernommen" in html
+
+    # Verify allocations in database
+    f_conn = get_finances_connection()
+    tx = get_transaction_by_id(f_conn, tx_id)
+    assert tx["status"] == "assigned"
+    assert tx["is_confirmed"] == 1
+
+    allocs = f_conn.execute("SELECT * FROM payment_allocations WHERE transaction_id = ?", (tx_id,)).fetchall()
+    assert len(allocs) == 7  # 1 membership due + 6 guest kicks
+    due_alloc = next(a for a in allocs if a["fee_type"] == "membership_due")
+    assert due_alloc["allocated_amount"] == 48.00
+    assert due_alloc["player_id"] == 20
+
+    guest_allocs = [a for a in allocs if a["fee_type"] == "match_guest"]
+    assert len(guest_allocs) == 6
+    assert sum(a["allocated_amount"] for a in guest_allocs) == 21.00
+    f_conn.close()
+
+
+def test_copy_paste_footer_unassigned_payer_with_date(clean_finances_env):
+    """Test copy-paste footer formatting with payment date for unassigned payers."""
+    from web.app import app
+    f_conn = get_finances_connection()
+    insert_transaction(
+        f_conn,
+        source="paypal",
+        tx_code="UNASSIGNED-STEFAN-METZGER",
+        date="2026-08-19",
+        time="22:53:47",
+        raw_payer_name="Stefan Metzger",
+        raw_payer_email="stef.metzger@gmail.com",
+        amount=3.50,
+        status="imported",
+        is_confirmed=0,
+    )
+    f_conn.close()
+
+    client = _login_webmaster(app)
+
+    resp = client.get("/admin/finances?tab=import")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    # UNASSIGNED_PAYERS in JS
+    assert 'UNASSIGNED_PAYERS = [{"date": "2026-08-19", "name": "Stefan Met..."}]' in html or 'Stefan Met...' in html
+    assert "die Zahlung von" in html or "die Zahlungen von" in html
+
 
 
 

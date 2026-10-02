@@ -472,20 +472,29 @@
         {% if active_tab == 'import' %}
         <div style="display: flex; flex-direction: column; gap: 24px;">
             <div style="background: var(--bg-surface-alt); border: 1px dashed var(--accent); border-radius: 8px; padding: 24px;">
-                <h3 style="margin: 0 0 8px 0; color: #ffffff; font-size: 16px;">📥 PayPal CSV-Kontoauszug hochladen</h3>
+                <h3 style="margin: 0 0 8px 0; color: #ffffff; font-size: 16px;">📥 Bank-Kontoauszüge (PDF/CSV) & PayPal CSV hochladen</h3>
                 <p class="muted" style="margin: 0 0 16px 0; font-size: 13px;">
-                    Lade hier den von PayPal exportierten CSV-Kontoauszug herunter (Aktivitäten ➔ Abrechnungen/Export ➔ CSV). Das System erkennt automatisch Gastbeiträge, ignoriert doppelte Zeilen und ordnet Absender intelligent zu.
+                    Lade hier deine Kontoauszüge als <strong>PDF (Deutsche Skatbank / VR-Bank)</strong> oder <strong>CSV-Dateien (PayPal, Bank)</strong> hoch. Du kannst auch <strong>mehrere Dateien gleichzeitig</strong> auswählen. PDF-Auszüge werden automatisch in CSV umgewandelt und in <code>data/finances/skatbank/</code> archiviert; PayPal-Dateien in <code>data/finances/paypal/</code>.
                 </p>
                 <form method="post" action="{{ url_for('finances.upload_csv') }}" enctype="multipart/form-data" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                    <input type="file" name="csv_file" accept=".csv,text/csv" required style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: #ffffff; font-size: 13px;">
+                    <input type="file" name="files" multiple accept=".csv,.pdf,text/csv,application/pdf" required style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: #ffffff; font-size: 13px;">
                     <button type="submit" class="primary" style="padding: 9px 20px; font-weight: 600; cursor: pointer;">
-                        📤 Datei importieren & analysieren
+                        📤 Datei(en) importieren & analysieren
                     </button>
                 </form>
             </div>
 
             <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
-                <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #ffffff;">Importierte Zahlungen ({{ transactions|length }})</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                    <h3 style="margin: 0; font-size: 16px; color: #ffffff;">Importierte Zahlungen ({{ transactions|length }})</h3>
+                    {% if has_any_suggestion %}
+                    <form method="post" action="{{ url_for('finances.apply_all_suggestions') }}" style="margin: 0;">
+                        <button type="submit" class="primary" style="background: linear-gradient(135deg, #28a745, #20c997); font-size: 12px; padding: 6px 14px; font-weight: 700; border: none; border-radius: 5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(40,167,69,0.3);" title="Alle offenen Vorschläge für Beiträge und Gastbeiträge mit 1 Klick annehmen">
+                            ✨ Alle Vorschläge übernehmen
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
 
                 {% if transactions %}
                 <div style="overflow-x: auto;">
@@ -571,8 +580,20 @@
                                                 </form>
                                             </div>
                                         {% elif tx.get('is_proxy_candidate') %}
-                                            {# Proxy payment split UI with 1-click Beglichen #}
+                                            {# Proxy payment split UI with 1-click Beglichen and Smart Suggestion #}
                                             <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
+                                                {% if tx.proxy_suggestion and tx.proxy_suggestion.summary_text %}
+                                                    <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 6px; padding: 6px 8px; text-align: left; max-width: 340px; margin-bottom: 2px;">
+                                                        <div style="font-size: 10.5px; font-weight: 700; color: #ffe082;">💡 Intelligenter Zuordnungsvorschlag:</div>
+                                                        <div style="font-size: 11px; color: #ffffff; margin-top: 2px;">{{ tx.proxy_suggestion.summary_text }}</div>
+                                                        <form method="post" action="{{ url_for('finances.apply_suggestion') }}" style="margin-top: 5px; margin-bottom: 0;">
+                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 10.5px; padding: 3px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                                                                ✓ Vorschlag übernehmen
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                {% endif %}
                                                 <div style="display: flex; gap: 6px; align-items: center;">
                                                     {% if tx.suggestion and tx.suggestion.player_id %}
                                                         <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
@@ -1093,11 +1114,18 @@ function maskPayerName(raw) {
 }
 
 function buildFooterText() {
-    let unassignedText = 'keine';
+    let unassignedText = '';
     if (UNASSIGNED_PAYERS && UNASSIGNED_PAYERS.length > 0) {
-        unassignedText = UNASSIGNED_PAYERS.map(maskPayerName).join(', ');
+        const items = UNASSIGNED_PAYERS.map(p => {
+            const rawName = typeof p === 'object' ? p.name : p;
+            const name = maskPayerName(rawName);
+            const dateStr = (typeof p === 'object' && p.date) ? ' vom ' + formatShortDate(p.date) : '';
+            return name + dateStr;
+        });
+        const prefix = items.length === 1 ? 'die Zahlung von ' : 'die Zahlungen von ';
+        unassignedText = ' Ich konnte bspw. ' + prefix + items.join(', ') + ' nicht einem Spieler zuordnen.';
     }
-    return '\n\nDie Liste kann unvollständig sein und/oder falsche Einträge beinhalten. Ich konnte bspw. ' + unassignedText + ' nicht einem Spieler zuordnen. Bitte die Beträge begleichen oder PN an mich zur Klärung.\n(automatisch erstellt)';
+    return '\n\nDie Liste kann unvollständig sein und/oder falsche Einträge beinhalten.' + unassignedText + ' Bitte die Beträge begleichen oder PN an mich zur Klärung.\n(automatisch erstellt)';
 }
 
 function copyToClipboard(text, buttonElement, defaultText) {

@@ -1174,18 +1174,28 @@ def _find_guest_player_id(guest_name: str, rb48_conn, players_dict: dict) -> int
         return None
     
     alias_rows = rb48_conn.execute("SELECT alias, player_id FROM aliases").fetchall()
+    # 1. Exact match
     for row in alias_rows:
         if normalize_text(row["alias"]) == norm_guest:
             return row["player_id"]
+
+    # 2. Match within parentheses e.g. 'Konsti+1 (Jens)' -> 'Jens'
+    import re as _re
+    for row in alias_rows:
+        alias_raw = row["alias"]
+        m = _re.search(r'\((.*?)\)', alias_raw)
+        if m and normalize_text(m.group(1)) == norm_guest:
+            return row["player_id"]
     
-    # Fuzzy: check if any alias is a substring or starts-with
+    # 3. Fuzzy: check if any alias is a substring or starts-with
     guest_tokens = norm_guest.split()
     for row in alias_rows:
         norm_alias = normalize_text(row["alias"])
         if not norm_alias:
             continue
+        alias_tokens = norm_alias.split()
         for token in guest_tokens:
-            if token == norm_alias or (len(token) >= 3 and token.startswith(norm_alias)):
+            if token in alias_tokens or token == norm_alias or (len(token) >= 3 and token.startswith(norm_alias)):
                 return row["player_id"]
     
     return None
@@ -1300,10 +1310,10 @@ def get_proxy_payment_suggestion(
     transaction_id: int,
     payer_player_id: int,
 ) -> dict | None:
-    """Generate a smart-split suggestion for a member's guest fee payment.
-    
-    Returns None if this doesn't look like a proxy payment.
-    Returns dict with 'suggested_guests', 'match_date', 'num_kicks', 'total' if it does.
+    """Generate a smart-split suggestion for a member's payment.
+    Supports both:
+    1. Combination payment: Membership due + guest fees (e.g. 69,00 € = 48€ Beitrag + 21€ Gäste)
+    2. Proxy guest payment: Multiples of 3,50 € on behalf of guests.
     """
     finances_conn = get_finances_connection()
     rb48_conn = get_rb48_connection()
@@ -1315,64 +1325,241 @@ def get_proxy_payment_suggestion(
             return None
         
         amount = float(tx["amount"])
-        
-        # Check if amount is a multiple of guest fee
-        remainder = amount % GUEST_FEE_PER_KICK
-        if remainder > 0.01 and (GUEST_FEE_PER_KICK - remainder) > 0.01:
-            return None  # Not a clean multiple
-        
-        num_kicks = round(amount / GUEST_FEE_PER_KICK)
-        if num_kicks <= 0:
-            return None
-        
-        # Check if payer is a member
         status = resolve_player_membership_status(payer_player_id, finances_conn, accounts_conn)
-        if status != 'member':
-            return None  # Not a member, standard self-payment flow
         
-        # Find nearby match dates
-        tx_date = tx["date"]
-        date_rows = rb48_conn.execute(
-            """
-            SELECT DISTINCT date
-            FROM matches
-            WHERE ABS(julianday(date) - julianday(?)) <= 3
-            ORDER BY ABS(julianday(date) - julianday(?)) ASC
-            """,
-            (tx_date, tx_date),
-        ).fetchall()
-        
-        all_guests = []
-        best_date = None
-        for drow in date_rows:
-            mdate = drow["date"]
-            guests = find_member_guests_for_date(
-                payer_player_id, mdate,
-                finances_conn=finances_conn,
-                rb48_conn=rb48_conn,
-                accounts_conn=accounts_conn,
-            )
-            if guests:
-                if not best_date:
-                    best_date = mdate
-                all_guests.extend([{**g, 'match_date': mdate} for g in guests])
-        
-        # Also parse note hints
-        note_hints = []
+        from scripts.finances.matcher import analyze_payment_note
         tx_note = tx.get("note") or ""
-        if tx_note:
-            from scripts.finances.matcher import parse_guest_hints_from_note
-            note_hints = parse_guest_hints_from_note(tx_note)
-        
+        note_analysis = analyze_payment_note(tx_note)
+        has_due_hint = note_analysis.get("has_due_hint", False)
+        period_hint = note_analysis.get("period_hint") or "2026-H2"
+        note_guest_names = note_analysis.get("guest_names", [])
+
+        is_combo_split = False
+        due_amount = 0.0
+        guest_amount = 0.0
+        num_kicks = 0
+
+        # Check if combination payment (Mitgliedsbeitrag + Gastbeiträge)
+        if status == 'member':
+            rem_after_due = round(amount - MEMBERSHIP_DUE_PER_HALFYEAR, 2)
+            if rem_after_due >= 0:
+                rem_mod = rem_after_due % GUEST_FEE_PER_KICK
+                rem_is_mult = rem_mod < 0.01 or (GUEST_FEE_PER_KICK - rem_mod) < 0.01
+                if rem_after_due > 0 and (rem_is_mult or has_due_hint or len(note_guest_names) > 0):
+                    is_combo_split = True
+                    due_amount = MEMBERSHIP_DUE_PER_HALFYEAR
+                    guest_amount = rem_after_due
+                    num_kicks = round(guest_amount / GUEST_FEE_PER_KICK)
+
+        if not is_combo_split:
+            remainder = amount % GUEST_FEE_PER_KICK
+            if remainder <= 0.01 or (GUEST_FEE_PER_KICK - remainder) <= 0.01:
+                guest_amount = amount
+                num_kicks = round(amount / GUEST_FEE_PER_KICK)
+            else:
+                return None
+
+        if num_kicks <= 0 and not is_combo_split:
+            return None
+
+        players_dict = get_players(rb48_conn)
+        payer_pdata = players_dict.get(payer_player_id, {})
+        payer_name = payer_pdata.get("aliases", [f"Spieler #{payer_player_id}"])[0]
+
+        suggested_guests = []
+        all_unpaid = get_all_unpaid_guest_entries()
+
+        # Step 1: Match specifically mentioned guests in note
+        if note_guest_names:
+            for gname in note_guest_names:
+                if len(suggested_guests) >= num_kicks:
+                    break
+                g_pid = _find_guest_player_id(gname, rb48_conn, players_dict)
+                if g_pid:
+                    g_name = players_dict.get(g_pid, {}).get("aliases", [gname])[0]
+                    # Find open unpaid matches for this player
+                    p_unpaid = [u for u in all_unpaid if u.get("player_id") == g_pid]
+                    for entry in p_unpaid:
+                        if len(suggested_guests) >= num_kicks:
+                            break
+                        suggested_guests.append({
+                            "player_id": g_pid,
+                            "name": g_name,
+                            "match_date": entry.get("match_date"),
+                            "amount": GUEST_FEE_PER_KICK,
+                        })
+                else:
+                    # External / ignored alias
+                    alias_unpaid = [u for u in all_unpaid if u.get("name", "").casefold() == gname.casefold()]
+                    if alias_unpaid:
+                        for entry in alias_unpaid:
+                            if len(suggested_guests) >= num_kicks:
+                                break
+                            suggested_guests.append({
+                                "player_id": None,
+                                "guest_alias": gname,
+                                "name": gname,
+                                "match_date": entry.get("match_date"),
+                                "amount": GUEST_FEE_PER_KICK,
+                            })
+                    else:
+                        suggested_guests.append({
+                            "player_id": None,
+                            "guest_alias": gname,
+                            "name": gname,
+                            "match_date": None,
+                            "amount": GUEST_FEE_PER_KICK,
+                        })
+
+        # Step 2: Nearby match dates / planner registered guests if still slots available
+        if len(suggested_guests) < num_kicks:
+            tx_date = tx["date"]
+            date_rows = rb48_conn.execute(
+                """
+                SELECT DISTINCT date
+                FROM matches
+                WHERE ABS(julianday(date) - julianday(?)) <= 5
+                ORDER BY ABS(julianday(date) - julianday(?)) ASC
+                """,
+                (tx_date, tx_date),
+            ).fetchall()
+            for drow in date_rows:
+                if len(suggested_guests) >= num_kicks:
+                    break
+                mdate = drow["date"]
+                mguests = find_member_guests_for_date(
+                    payer_player_id, mdate,
+                    finances_conn=finances_conn,
+                    rb48_conn=rb48_conn,
+                    accounts_conn=accounts_conn,
+                )
+                for mg in mguests:
+                    if len(suggested_guests) >= num_kicks:
+                        break
+                    if not any(sg.get("player_id") == mg["player_id"] and sg.get("match_date") == mdate for sg in suggested_guests):
+                        suggested_guests.append({
+                            "player_id": mg["player_id"],
+                            "name": mg["name"],
+                            "match_date": mdate,
+                            "amount": GUEST_FEE_PER_KICK,
+                        })
+
+        # Step 3: If still unfilled, fill with remaining unpaid entries
+        if len(suggested_guests) < num_kicks:
+            for entry in all_unpaid:
+                if len(suggested_guests) >= num_kicks:
+                    break
+                if not any(sg.get("player_id") == entry.get("player_id") and sg.get("match_date") == entry.get("match_date") for sg in suggested_guests):
+                    suggested_guests.append({
+                        "player_id": entry.get("player_id"),
+                        "guest_alias": entry.get("name") if not entry.get("player_id") else None,
+                        "name": entry.get("name"),
+                        "match_date": entry.get("match_date"),
+                        "amount": GUEST_FEE_PER_KICK,
+                    })
+
+        # Build human-readable summary text
+        guest_counts = {}
+        for g in suggested_guests:
+            gname = g.get("name") or "Gast"
+            guest_counts[gname] = guest_counts.get(gname, 0) + 1
+        guest_summary_parts = [f"{cnt}× {name}" for name, cnt in guest_counts.items()]
+        guest_summary_str = ", ".join(guest_summary_parts) if guest_summary_parts else f"{num_kicks}× Gastbeitrag"
+
+        if is_combo_split:
+            summary_text = f"{due_amount:.2f}".replace('.', ',') + f" € Beitrag ({payer_name}) + {guest_amount:.2f}".replace('.', ',') + f" € Gäste ({guest_summary_str})"
+        else:
+            summary_text = f"{amount:.2f}".replace('.', ',') + f" € Gäste ({guest_summary_str})"
+
         return {
             "is_proxy_payment": True,
+            "is_combo_split": is_combo_split,
             "num_kicks": num_kicks,
             "total": amount,
-            "match_date": best_date,
-            "suggested_guests": all_guests[:num_kicks],  # Suggest up to num_kicks guests
-            "all_available_guests": all_guests,
-            "note_hints": note_hints,
+            "due_amount": due_amount,
+            "guest_amount": guest_amount,
+            "period": period_hint,
+            "payer_player_id": payer_player_id,
+            "payer_name": payer_name,
+            "suggested_guests": suggested_guests[:num_kicks],
+            "note_hints": note_guest_names,
+            "summary_text": summary_text,
         }
+    finally:
+        finances_conn.close()
+        rb48_conn.close()
+        accounts_conn.close()
+
+
+def settle_smart_combo_transaction(
+    transaction_id: int,
+    payer_player_id: int | None = None,
+    suggestion: dict | None = None,
+) -> dict:
+    """Execute settlement of a combination payment or proxy suggestion."""
+    finances_conn = get_finances_connection()
+    rb48_conn = get_rb48_connection()
+    accounts_conn = get_accounts_connection()
+    try:
+        tx = get_transaction_by_id(finances_conn, transaction_id)
+        if not tx:
+            return {"success": False, "error": "Transaktion nicht gefunden"}
+
+        if not payer_player_id:
+            payer_player_id = tx.get("matched_player_id")
+
+        if not suggestion:
+            if not payer_player_id:
+                match = find_player_match(tx.get("raw_payer_name"), tx.get("raw_payer_email"), finances_conn=finances_conn, rb48_conn=rb48_conn, accounts_conn=accounts_conn)
+                payer_player_id = match.get("player_id")
+            if payer_player_id:
+                suggestion = get_proxy_payment_suggestion(transaction_id, payer_player_id)
+
+        if not suggestion:
+            return settle_transaction_and_debts(transaction_id, payer_player_id=payer_player_id)
+
+        payer_pid = suggestion.get("payer_player_id") or payer_player_id
+        payer_name = suggestion.get("payer_name") or tx.get("raw_payer_name") or "Zahler"
+
+        # 1. Allocate membership due if combo split
+        if suggestion.get("is_combo_split") and suggestion.get("due_amount", 0) > 0:
+            due_per = suggestion.get("period") or "2026-H2"
+            add_payment_allocation(
+                finances_conn,
+                fee_type="membership_due",
+                allocated_amount=suggestion["due_amount"],
+                payment_method=tx["source"],
+                transaction_id=transaction_id,
+                period=due_per,
+                player_id=payer_pid,
+                note=f"Vereinsbeitrag {due_per} ({payer_name})",
+            )
+
+        # 2. Allocate guest kicks
+        for g in suggestion.get("suggested_guests", []):
+            add_payment_allocation(
+                finances_conn,
+                fee_type="match_guest",
+                allocated_amount=float(g.get("amount", GUEST_FEE_PER_KICK)),
+                payment_method=tx["source"],
+                transaction_id=transaction_id,
+                match_date=g.get("match_date"),
+                player_id=g.get("player_id"),
+                guest_alias=g.get("guest_alias"),
+                paid_by_player_id=payer_pid,
+                note=f"Bezahlt von {payer_name}",
+            )
+
+        # 3. Mark transaction assigned and confirmed
+        update_transaction_assignment(
+            finances_conn,
+            transaction_id,
+            player_id=payer_pid,
+            status="assigned",
+            is_confirmed=1,
+        )
+
+        return {"success": True, "suggestion": suggestion}
     finally:
         finances_conn.close()
         rb48_conn.close()

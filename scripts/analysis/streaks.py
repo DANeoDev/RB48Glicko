@@ -67,9 +67,17 @@ def get_dashboard_streaks(connection):
         cutoff_count = all_time_win_streaks[11]["count"]
         all_time_win_streaks = [s for s in all_time_win_streaks if s["count"] >= cutoff_count]
 
-    # Most improved player in past 30 days
-    now = datetime.now()
-    cutoff_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+    # Most improved player in past 30 days (anchored to latest match date, or today)
+    latest_row = connection.execute("SELECT MAX(date) AS max_date FROM matches").fetchone()
+    if latest_row and latest_row["max_date"]:
+        try:
+            ref_date = datetime.strptime(latest_row["max_date"], "%Y-%m-%d")
+        except ValueError:
+            ref_date = datetime.now()
+    else:
+        ref_date = datetime.now()
+    cutoff_date = (ref_date - timedelta(days=30)).strftime("%Y-%m-%d")
+
 
     ratings = get_ratings(connection)
     improved_list = []
