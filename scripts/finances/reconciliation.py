@@ -788,9 +788,47 @@ def manual_mark_match_guest_payment(
         finances_conn.close()
 
 
+def get_period_date_range(period: str) -> dict:
+    """
+    Return start date, end date, has_ended status, and display label for a period string.
+    """
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    is_full_year = len(str(period)) == 4 and str(period).isdigit()
+
+    if str(period).endswith("-H1"):
+        year = str(period)[:4]
+        start_date = f"{year}-01-01"
+        end_date = f"{year}-06-30"
+        label = f"1. Halbjahr {year} ({period})"
+    elif str(period).endswith("-H2"):
+        year = str(period)[:4]
+        start_date = f"{year}-07-01"
+        end_date = f"{year}-12-31"
+        label = f"2. Halbjahr {year} ({period})"
+    elif is_full_year:
+        year = str(period)
+        start_date = f"{year}-01-01"
+        end_date = f"{year}-12-31"
+        label = f"Gesamtjahr {year}"
+    else:  # "all" or other
+        start_date = "1970-01-01"
+        end_date = "2099-12-31"
+        label = "Gesamter Zeitraum"
+
+    has_ended = today_str > end_date
+    return {
+        "period": period,
+        "start": start_date,
+        "end": end_date,
+        "has_ended": has_ended,
+        "label": label,
+    }
+
+
 def get_membership_dues_overview(period: str = "2026-H2") -> dict:
     """
-    Get membership dues breakdown (48 € / Half-year) for all club members.
+    Get membership dues breakdown (48 € / Half-year) for all club members,
+    including actual match attendance (kicks count) during this period.
     """
     finances_conn = get_finances_connection()
     try:
@@ -819,20 +857,78 @@ def get_membership_dues_overview(period: str = "2026-H2") -> dict:
             if pid:
                 alloc_by_player.setdefault(pid, []).append(a)
 
+        # Query match attendance for each member during this period from rb48 database
+        p_range = get_period_date_range(period)
+        match_stats_by_player: dict[int, dict] = {}
+        try:
+            rb48_conn = get_rb48_connection()
+            try:
+                rows = rb48_conn.execute(
+                    """
+                    SELECT mp.player_id, COUNT(DISTINCT m.match_id) AS games_count, MAX(m.date) AS latest_match_date
+                    FROM matches m
+                    JOIN match_players mp ON m.match_id = mp.match_id
+                    WHERE m.date >= ? AND m.date <= ?
+                    GROUP BY mp.player_id
+                    """,
+                    (p_range["start"], p_range["end"]),
+                ).fetchall()
+                match_stats_by_player = {
+                    r["player_id"]: {
+                        "games_count": r["games_count"],
+                        "latest_match_date": r["latest_match_date"],
+                    }
+                    for r in rows
+                }
+            finally:
+                rb48_conn.close()
+        except Exception:
+            pass
+
         member_dues_list = []
-        total_expected = len(members) * fee_required_per_member
         total_collected = 0.0
+
+        count_paid = 0
+        count_partial = 0
+        count_unpaid_active = 0
+        count_unpaid_inactive = 0
+        count_inactive = 0
 
         for m in members:
             pid = m["player_id"]
             p_allocs = alloc_by_player.get(pid, [])
             paid_sum = sum(a["allocated_amount"] for a in p_allocs if a["payment_method"] != "waived")
-            is_waived = any(a["payment_method"] == "waived" for a in p_allocs)
+            waived_allocs = [a for a in p_allocs if a["payment_method"] == "waived"]
+            is_waived = len(waived_allocs) > 0
+            is_explicitly_inactive = any(
+                "inaktiv" in (a.get("note") or "").lower() for a in waived_allocs
+            )
+
+            p_stats = match_stats_by_player.get(pid, {"games_count": 0, "latest_match_date": None})
+            games_count = p_stats["games_count"]
+            latest_match_date = p_stats["latest_match_date"]
+            was_present = games_count > 0
+
+            # Inactive members: explicitly marked inactive or waived with 0 games
+            is_inactive = is_explicitly_inactive or (is_waived and not was_present)
+
+            # Inactive or waived members do not pay dues ("inaktive Mitglieder zahlen keinen Beitrag")
+            if is_inactive:
+                fee_required = 0.0
+            elif is_waived:
+                fee_required = 0.0
+            else:
+                fee_required = fee_required_per_member
 
             total_collected += paid_sum
 
-            if is_waived:
+            # Classify status
+            if is_inactive:
+                pstatus = "inactive"
+                count_inactive += 1
+            elif is_waived:
                 pstatus = "waived"
+                count_inactive += 1
             elif paid_sum >= fee_required_per_member:
                 pmethods = {a["payment_method"] for a in p_allocs}
                 if "bank" in pmethods:
@@ -841,29 +937,56 @@ def get_membership_dues_overview(period: str = "2026-H2") -> dict:
                     pstatus = "cash"
                 else:
                     pstatus = "paid"
+                count_paid += 1
             elif paid_sum > 0:
                 pstatus = "partial"
-            else:
-                pstatus = "unpaid"
+                count_partial += 1
+            else:  # paid_sum == 0
+                if was_present:
+                    pstatus = "unpaid"  # Truly unpaid: player was there!
+                    count_unpaid_active += 1
+                else:
+                    if p_range["has_ended"]:
+                        pstatus = "unpaid_inactive_ended"  # 0 games and period ended -> de facto inactive!
+                        count_unpaid_inactive += 1
+                    else:
+                        pstatus = "unpaid_inactive_ongoing"  # 0 games so far, period still ongoing
+                        count_unpaid_inactive += 1
 
             member_dues_list.append({
                 "player_id": pid,
                 "name": m["name"],
                 "aliases_str": m["aliases_str"],
                 "linked_user": m["linked_user"],
-                "fee_required": fee_required_per_member,
+                "fee_required": fee_required,
+                "base_fee": fee_required_per_member,
                 "amount_paid": paid_sum,
                 "payment_status": pstatus,
                 "allocations": p_allocs,
+                "games_count": games_count,
+                "latest_match_date": latest_match_date,
+                "was_present": was_present,
+                "is_inactive": is_inactive,
             })
+
+        total_expected = sum(m["fee_required"] for m in member_dues_list)
+        active_members_count = sum(1 for m in member_dues_list if m["fee_required"] > 0)
+        outstanding = max(0.0, total_expected - total_collected)
 
         return {
             "period": period,
+            "period_dates": p_range,
             "members": member_dues_list,
             "total_members": len(members),
+            "active_members_count": active_members_count,
             "total_expected": total_expected,
             "total_collected": total_collected,
-            "outstanding": max(0.0, total_expected - total_collected),
+            "outstanding": outstanding,
+            "count_paid": count_paid,
+            "count_partial": count_partial,
+            "count_unpaid_active": count_unpaid_active,
+            "count_unpaid_inactive": count_unpaid_inactive,
+            "count_inactive": count_inactive,
         }
     finally:
         finances_conn.close()
@@ -891,19 +1014,126 @@ def manual_mark_membership_due(
         if payment_method == "unpaid":
             return 0
 
-        alloc_amount = 0.0 if payment_method == "waived" else amount
+        alloc_amount = 0.0 if payment_method in ("waived", "inactive") else amount
+        actual_method = "waived" if payment_method == "inactive" else payment_method
+        actual_note = note or ("Inaktiv im Zeitraum" if payment_method == "inactive" else f"Mitgliedsbeitrag ({payment_method})")
+
         return add_payment_allocation(
             finances_conn,
             fee_type="membership_due",
             allocated_amount=alloc_amount,
-            payment_method=payment_method,
+            payment_method=actual_method,
             transaction_id=None,
             period=period,
             player_id=player_id,
-            note=note or f"Mitgliedsbeitrag ({payment_method})",
+            note=actual_note,
         )
     finally:
         finances_conn.close()
+
+
+def bulk_set_inactive_members(period: str) -> int:
+    """
+    Bulk mark all members with 0 kicks in an ended (or specified) period as inactive/waived.
+    Returns the count of members updated.
+    """
+    ov = get_membership_dues_overview(period)
+    updated_count = 0
+    for m in ov["members"]:
+        if m["games_count"] == 0 and m["payment_status"] in ("unpaid", "unpaid_inactive_ended", "unpaid_inactive_ongoing"):
+            manual_mark_membership_due(
+                period=period,
+                player_id=m["player_id"],
+                payment_method="waived",
+                note="Inaktiv im Zeitraum (0 Kicks)",
+                amount=0.0,
+            )
+            updated_count += 1
+    return updated_count
+
+
+def get_membership_dues_matrix(finances_conn=None, rb48_conn=None) -> dict:
+    """
+    Build a cross-period matrix of all club members and their dues/attendance status
+    across all available half-years (e.g. 2026-H2, 2026-H1, 2025-H2, etc.).
+    """
+    close_fin = False
+    if finances_conn is None:
+        finances_conn = get_finances_connection()
+        close_fin = True
+
+    try:
+        available_periods = [
+            p for p in get_available_finance_periods(finances_conn=finances_conn)
+            if p["type"] == "halfyear"
+        ]
+        period_values = [p["value"] for p in available_periods]
+
+        # Compute dues overview for each period
+        period_overviews = {
+            pv: get_membership_dues_overview(pv)
+            for pv in period_values
+        }
+
+        players = get_all_players_with_membership()
+        members = [p for p in players if p["status"] == "member"]
+
+        matrix_rows = []
+        for m in members:
+            pid = m["player_id"]
+            p_periods = {}
+            total_paid_all = 0.0
+            total_unpaid_active_count = 0
+
+            for pv in period_values:
+                ov = period_overviews[pv]
+                m_info = next((item for item in ov["members"] if item["player_id"] == pid), None)
+                if m_info:
+                    p_periods[pv] = {
+                        "payment_status": m_info["payment_status"],
+                        "amount_paid": m_info["amount_paid"],
+                        "fee_required": m_info["fee_required"],
+                        "games_count": m_info["games_count"],
+                        "latest_match_date": m_info["latest_match_date"],
+                        "was_present": m_info["was_present"],
+                        "has_ended": ov["period_dates"]["has_ended"],
+                    }
+                    total_paid_all += m_info["amount_paid"]
+                    if m_info["payment_status"] == "unpaid":
+                        total_unpaid_active_count += 1
+                else:
+                    p_periods[pv] = {
+                        "payment_status": "unpaid_inactive_ended",
+                        "amount_paid": 0.0,
+                        "fee_required": 0.0,
+                        "games_count": 0,
+                        "latest_match_date": None,
+                        "was_present": False,
+                        "has_ended": True,
+                    }
+
+            matrix_rows.append({
+                "player_id": pid,
+                "name": m["name"],
+                "aliases_str": m["aliases_str"],
+                "linked_user": m["linked_user"],
+                "periods": p_periods,
+                "total_paid_all": total_paid_all,
+                "total_unpaid_active_count": total_unpaid_active_count,
+            })
+
+        matrix_rows.sort(key=lambda x: (-x["total_unpaid_active_count"], x["name"].lower()))
+
+        return {
+            "periods": available_periods,
+            "period_values": period_values,
+            "members": matrix_rows,
+            "total_members": len(members),
+        }
+    finally:
+        if close_fin:
+            finances_conn.close()
+
 
 
 def auto_allocate_transaction_to_debts(

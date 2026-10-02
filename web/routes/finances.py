@@ -36,7 +36,11 @@ from scripts.finances.reconciliation import (
     get_match_date_guest_status,
     get_all_players_with_membership,
     get_membership_dues_overview,
+    get_membership_dues_matrix,
+    bulk_set_inactive_members,
+    get_period_date_range,
     manual_mark_match_guest_payment,
+
     manual_mark_membership_due,
     auto_allocate_transaction_to_debts,
     settle_transaction_and_debts,
@@ -207,6 +211,10 @@ def admin_finances():
         # Ignored aliases list (sorted alphabetically)
         ignored_aliases_list = sorted(list(get_ignored_aliases(rb48_conn)))
 
+        dues_view = request.args.get("dues_view", "period")
+        available_halfyear_periods = [p for p in available_periods if p.get("type") == "halfyear"]
+        dues_matrix = get_membership_dues_matrix(finances_conn=finances_conn, rb48_conn=rb48_conn)
+
         return render_template(
             "admin_finances.html",
             active_tab=active_tab,
@@ -218,6 +226,9 @@ def admin_finances():
             ignored_aliases=ignored_aliases_list,
             players_with_status=players_with_status,
             dues_overview=dues_overview,
+            dues_matrix=dues_matrix,
+            dues_view=dues_view,
+            available_halfyear_periods=available_halfyear_periods,
             selected_period=selected_period,
             period_display_label=period_display_label,
             available_periods=available_periods,
@@ -238,6 +249,7 @@ def admin_finances():
         finances_conn.close()
         rb48_conn.close()
         accounts_conn.close()
+
 
 
 @finances_bp.route("/set-player-status", methods=["POST"])
@@ -306,7 +318,21 @@ def mark_due():
     return jsonify({"success": True, "period": period, "player_id": player_id, "payment_method": payment_method})
 
 
+@finances_bp.route("/bulk-set-inactive", methods=["POST"])
+@require_webmaster
+def bulk_set_inactive():
+    """Bulk mark all members with 0 kicks in a period as inactive/waived."""
+    period = request.form.get("period", "2026-H1")
+    count = bulk_set_inactive_members(period)
+    if count > 0:
+        flash(f"{count} inaktive Mitglieder mit 0 Kicks wurden für {period} auf inaktiv/befreit gesetzt.", "success")
+    else:
+        flash(f"Keine offenen Mitglieder mit 0 Kicks in {period} gefunden.", "info")
+    return redirect(url_for("finances.admin_finances", tab="dues", period=period))
+
+
 @finances_bp.route("/upload", methods=["POST"])
+
 @require_webmaster
 def upload_csv():
     """Upload and process bank PDFs (Skatbank / VR-Bank) or PayPal/bank CSV statements (supports multiple files)."""

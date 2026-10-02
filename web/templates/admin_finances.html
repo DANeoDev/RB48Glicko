@@ -377,59 +377,235 @@
         <!-- TAB 3: MEMBERSHIP DUES -->
         {% if active_tab == 'dues' %}
         <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+            <!-- Header & View Switch -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 16px;">
                 <div>
-                    <h2 style="margin: 0; font-size: 18px; color: #ffffff;">Mitgliedsbeiträge (48,00 € / Halbjahr)</h2>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <h2 style="margin: 0; font-size: 18px; color: #ffffff;">Mitgliedsbeiträge (48,00 € / Halbjahr)</h2>
+                        {% if dues_view != 'matrix' and dues_overview.period_dates %}
+                            {% if dues_overview.period_dates.has_ended %}
+                                <span style="background: rgba(255, 193, 7, 0.15); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.3); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;" title="Dieser Zeitraum ist bereits abgelaufen (endete am {{ dues_overview.period_dates.end }}). Inaktive Mitglieder ohne Teilnahme müssen keinen Beitrag zahlen.">
+                                    🏁 Zeitraum beendet ({{ dues_overview.period_dates.end }})
+                                </span>
+                            {% else %}
+                                <span style="background: rgba(40, 167, 69, 0.15); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.3); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;" title="Dieser Zeitraum läuft noch bis {{ dues_overview.period_dates.end }}.">
+                                    🟢 Laufender Zeitraum (bis {{ dues_overview.period_dates.end }})
+                                </span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
                     <p class="muted" style="margin: 4px 0 0 0; font-size: 13px;">
-                        Tracking der Halbjahresbeiträge für alle {{ dues_overview.total_members }} registrierten Vereinsmitglieder.
+                        Tracking der Halbjahresbeiträge für alle {{ dues_overview.total_members }} registrierten Vereinsmitglieder nach Anwesenheit & Zahlungsstatus.
                     </p>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 13px; color: var(--text-muted);">Halbjahr:</span>
-                    <a href="{{ url_for('finances.admin_finances', tab='dues', period='2026-H2') }}" style="padding: 5px 12px; font-size: 12.5px; text-decoration: none; border-radius: 4px; {% if selected_period == '2026-H2' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">2026-H2</a>
-                    <a href="{{ url_for('finances.admin_finances', tab='dues', period='2026-H1') }}" style="padding: 5px 12px; font-size: 12.5px; text-decoration: none; border-radius: 4px; {% if selected_period == '2026-H1' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">2026-H1</a>
+                
+                <!-- View Mode Toggle & Period Selector -->
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 4px; background: var(--bg-surface); padding: 3px; border-radius: 6px; border: 1px solid var(--border);">
+                        <a href="{{ url_for('finances.admin_finances', tab='dues', period=selected_period, dues_view='period') }}" style="padding: 5px 12px; font-size: 12px; font-weight: 600; text-decoration: none; border-radius: 4px; {% if dues_view != 'matrix' %}background: var(--accent); color: #ffffff;{% else %}color: var(--text-muted);{% endif %}">
+                            📅 Halbjahr-Detailansicht
+                        </a>
+                        <a href="{{ url_for('finances.admin_finances', tab='dues', period=selected_period, dues_view='matrix') }}" style="padding: 5px 12px; font-size: 12px; font-weight: 600; text-decoration: none; border-radius: 4px; {% if dues_view == 'matrix' %}background: var(--accent); color: #ffffff;{% else %}color: var(--text-muted);{% endif %}">
+                            📊 Gesamt-Matrix (Alle Halbjahre)
+                        </a>
+                    </div>
+                    {% if dues_view != 'matrix' %}
+                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                        <span style="font-size: 12px; color: var(--text-muted);">Halbjahr:</span>
+                        {% for p in available_halfyear_periods %}
+                        <a href="{{ url_for('finances.admin_finances', tab='dues', period=p.value, dues_view='period') }}" style="padding: 3px 9px; font-size: 12px; text-decoration: none; border-radius: 4px; {% if selected_period == p.value %}background: var(--accent); color: #ffffff; font-weight: 700;{% else %}background: var(--bg-surface); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">{{ p.value }}</a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
 
+            {% if dues_view == 'matrix' %}
+            <!-- MATRIX VIEW: ALL HALF-YEARS AT A GLANCE -->
+            <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 13px; color: var(--text-muted);">
+                    Übersicht über alle registrierten Mitglieder und ihren Status über alle Halbjahre hinweg ({{ dues_matrix.total_members }} Mitglieder).
+                </div>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border); text-align: left; color: var(--text-muted); font-size: 12px;">
+                            <th style="padding: 10px 12px; min-width: 180px; position: sticky; left: 0; background: var(--bg-surface-alt); z-index: 2;">Mitglied</th>
+                            {% for pv in dues_matrix.period_values %}
+                            <th style="padding: 10px 12px; text-align: center; min-width: 130px;">
+                                <a href="{{ url_for('finances.admin_finances', tab='dues', period=pv, dues_view='period') }}" style="color: #80deea; text-decoration: none; font-weight: 700;">
+                                    {{ pv }} ➔
+                                </a>
+                            </th>
+                            {% endfor %}
+                            <th style="padding: 10px 12px; text-align: right; min-width: 100px;">Gesamt bezahlt</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in dues_matrix.members %}
+                        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                            <td style="padding: 10px 12px; position: sticky; left: 0; background: var(--bg-surface-alt); z-index: 1;">
+                                <strong style="color: #ffffff;">{{ m.name }}</strong>
+                                {% if m.aliases_str and m.aliases_str != m.name %}
+                                <div style="font-size: 11px; color: var(--text-muted);">{{ m.aliases_str }}</div>
+                                {% endif %}
+                            </td>
+                            {% for pv in dues_matrix.period_values %}
+                            {% set cell = m.periods.get(pv) %}
+                            <td style="padding: 8px 10px; text-align: center;">
+                                {% if cell %}
+                                    {% if cell.payment_status in ('paid', 'bank', 'cash') %}
+                                        <div style="background: rgba(40, 167, 69, 0.2); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.4); border-radius: 4px; padding: 4px 6px; font-size: 11px; font-weight: 700;" title="Bezahlt: {{ '%.2f'|format(cell.amount_paid)|replace('.', ',') }} € ({{ cell.games_count }} Kicks)">
+                                            🟢 {{ "%.0f"|format(cell.amount_paid) }} €
+                                            {% if cell.games_count > 0 %}<span style="font-weight: 400; font-size: 10px; opacity: 0.85;">({{ cell.games_count }}k)</span>{% endif %}
+                                        </div>
+                                    {% elif cell.payment_status == 'partial' %}
+                                        <div style="background: rgba(255, 193, 7, 0.2); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.4); border-radius: 4px; padding: 4px 6px; font-size: 11px; font-weight: 700;" title="Teilbetrag: {{ '%.2f'|format(cell.amount_paid)|replace('.', ',') }} €">
+                                            🟡 {{ "%.0f"|format(cell.amount_paid) }} €
+                                        </div>
+                                    {% elif cell.payment_status == 'inactive' %}
+                                        <div style="background: rgba(255, 255, 255, 0.05); color: #a09cb0; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 4px; padding: 4px 6px; font-size: 11px;" title="Inaktiv im Zeitraum (0 Kicks – befreit)">
+                                            ⚪ Inaktiv
+                                        </div>
+                                    {% elif cell.payment_status == 'waived' %}
+                                        <div style="background: rgba(255, 255, 255, 0.08); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 4px; padding: 4px 6px; font-size: 11px;" title="Beitrag erlassen">
+                                            ⚪ Erlassen
+                                        </div>
+                                    {% elif cell.payment_status == 'unpaid' %}
+                                        <div style="background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.5); border-radius: 4px; padding: 4px 6px; font-size: 11px; font-weight: 700;" title="Offen & aktiv: War {{ cell.games_count }}-mal anwesend (zuletzt {{ cell.latest_match_date }})">
+                                            🔴 Offen ({{ cell.games_count }}k)
+                                        </div>
+                                    {% elif cell.payment_status == 'unpaid_inactive_ended' %}
+                                        <div style="background: rgba(255, 193, 7, 0.15); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 4px; padding: 4px 6px; font-size: 11px;" title="Zeitraum beendet & 0 Kicks. De facto befreit.">
+                                            🟡 0 Kicks
+                                        </div>
+                                    {% else %}
+                                        <div style="background: rgba(255, 255, 255, 0.04); color: var(--text-muted); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font-size: 11px;" title="Laufender Zeitraum – bisher 0 Kicks">
+                                            ⏳ 0 Kicks
+                                        </div>
+                                    {% endif %}
+                                {% else %}
+                                    <span style="color: var(--text-muted); font-size: 11px;">—</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            <td style="padding: 10px 12px; text-align: right; font-weight: 700; color: #80deea;">
+                                {{ "%.2f"|format(m.total_paid_all)|replace(".", ",") }} €
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% else %}
+            <!-- PERIOD DETAIL VIEW -->
             <!-- Dues Summary Metrics -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;">
                 <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: 6px; padding: 12px;">
-                    <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Soll ({{ dues_overview.total_members }} Mitglieder)</div>
+                    <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Soll ({{ dues_overview.active_members_count }} aktive Mitglieder)</div>
                     <div style="font-size: 20px; font-weight: 700; color: #ffffff;">{{ "%.2f"|format(dues_overview.total_expected)|replace(".", ",") }} €</div>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">{{ dues_overview.total_members }} Mitglieder gesamt</div>
                 </div>
                 <div style="background: rgba(40, 167, 69, 0.1); border: 1px solid rgba(40, 167, 69, 0.3); border-radius: 6px; padding: 12px;">
                     <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Eingegangen</div>
                     <div style="font-size: 20px; font-weight: 700; color: #88ff88;">{{ "%.2f"|format(dues_overview.total_collected)|replace(".", ",") }} €</div>
+                    <div style="font-size: 11px; color: #88ff88; margin-top: 2px;">{{ dues_overview.count_paid }} bezahlt</div>
                 </div>
                 <div style="background: rgba(220, 53, 69, 0.1); border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 6px; padding: 12px;">
-                    <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Ausstehend</div>
+                    <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Ausstehend (Echt offen)</div>
                     <div style="font-size: 20px; font-weight: 700; color: #ff8888;">{{ "%.2f"|format(dues_overview.outstanding)|replace(".", ",") }} €</div>
+                    <div style="font-size: 11px; color: #ff8888; margin-top: 2px;">{{ dues_overview.count_unpaid_active }} aktive säumig</div>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); border-radius: 6px; padding: 12px;">
+                    <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Inaktiv / Befreit</div>
+                    <div style="font-size: 20px; font-weight: 700; color: #c9c2d8;">{{ dues_overview.count_inactive }}</div>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">{{ dues_overview.count_unpaid_inactive }} noch offen (0 Kicks)</div>
+                </div>
+            </div>
+
+            <!-- Action & Filter Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+                <!-- Filter Pills -->
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <button type="button" class="dues-filter-btn" data-filter="all" onclick="filterDuesRows('all')" style="background: var(--accent); color: #ffffff; border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;">
+                        Alle ({{ dues_overview.total_members }})
+                    </button>
+                    <button type="button" class="dues-filter-btn" data-filter="unpaid" onclick="filterDuesRows('unpaid')" style="background: var(--bg-surface); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.4); border-radius: 4px; padding: 4px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;" title="Mitglieder, die im Zeitraum anwesend waren, aber noch nicht bezahlt haben">
+                        🔴 Offen & Aktiv ({{ dues_overview.count_unpaid_active }})
+                    </button>
+                    <button type="button" class="dues-filter-btn" data-filter="unpaid_inactive" onclick="filterDuesRows('unpaid_inactive')" style="background: var(--bg-surface); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.4); border-radius: 4px; padding: 4px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;" title="Mitglieder mit 0 Kicks im Zeitraum">
+                        🟡 0 Kicks ({{ dues_overview.count_unpaid_inactive }})
+                    </button>
+                    <button type="button" class="dues-filter-btn" data-filter="paid" onclick="filterDuesRows('paid')" style="background: var(--bg-surface); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.4); border-radius: 4px; padding: 4px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;">
+                        🟢 Bezahlt ({{ dues_overview.count_paid }})
+                    </button>
+                    <button type="button" class="dues-filter-btn" data-filter="inactive" onclick="filterDuesRows('inactive')" style="background: var(--bg-surface); color: #c9c2d8; border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;">
+                        ⚪ Inaktiv / Befreit ({{ dues_overview.count_inactive }})
+                    </button>
+                </div>
+
+                <!-- Action Buttons: Copy open active & Bulk set inactive -->
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <button type="button" id="btn-copy-active-dues" class="secondary" onclick="copyActiveOpenDues('{{ selected_period }}')" style="font-size: 11.5px; padding: 5px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Kopiert die Liste der anwesenden säumigen Mitglieder in die Zwischenablage">
+                        📋 Offene aktive Beiträge kopieren
+                    </button>
+                    {% if dues_overview.period_dates.has_ended and dues_overview.count_unpaid_inactive > 0 %}
+                    <form method="post" action="{{ url_for('finances.bulk_set_inactive') }}" style="margin: 0; display: inline;">
+                        <input type="hidden" name="period" value="{{ selected_period }}">
+                        <button type="submit" class="secondary" style="background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.4); color: #ffe082; font-size: 11.5px; padding: 5px 12px; cursor: pointer; font-weight: 600;" onclick="return confirm('Möchtest du wirklich alle {{ dues_overview.count_unpaid_inactive }} Mitglieder mit 0 Kicks für {{ selected_period }} als inaktiv/befreit markieren?');">
+                            ⏸️ Alle {{ dues_overview.count_unpaid_inactive }} Inaktiven befreien (0 Kicks)
+                        </button>
+                    </form>
+                    {% endif %}
                 </div>
             </div>
 
             <!-- Members Dues Table -->
             <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;" id="dues-table">
                     <thead>
                         <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-muted); font-size: 12px;">
                             <th style="padding: 10px 8px;">Mitglied</th>
-                            <th style="padding: 10px 8px;">Aliase</th>
-                            <th style="padding: 10px 8px;">Beitrag ({{ selected_period }})</th>
+                            <th style="padding: 10px 8px;">Kicks im Zeitraum</th>
+                            <th style="padding: 10px 8px;">Soll-Beitrag</th>
                             <th style="padding: 10px 8px;">Status</th>
                             <th style="padding: 10px 8px; text-align: right;">Aktionen</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for m in dues_overview.members %}
-                        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); {% if m.payment_status == 'inactive' %}opacity: 0.65;{% endif %}" id="due-row-{{ m.player_id }}" data-status="{{ m.payment_status }}" data-name="{{ m.name }}" data-games="{{ m.games_count }}">
                             <td style="padding: 12px 8px;">
                                 <strong style="color: #ffffff;">{{ m.name }}</strong>
+                                {% if m.aliases_str and m.aliases_str != m.name %}
+                                <div style="font-size: 11px; color: var(--text-muted);">{{ m.aliases_str }}</div>
+                                {% endif %}
                             </td>
-                            <td style="padding: 12px 8px; color: var(--text-muted); font-size: 12px;">
-                                {{ m.aliases_str }}
+                            <td style="padding: 12px 8px;">
+                                {% if m.games_count > 0 %}
+                                    <span style="color: #88ff88; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                                        ⚽ {{ m.games_count }} Kicks
+                                    </span>
+                                    {% if m.latest_match_date %}
+                                    <span style="font-size: 11px; color: var(--text-muted); margin-left: 4px;">(zuletzt {{ m.latest_match_date }})</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span style="color: var(--text-muted); font-size: 12px;">⚪ 0 Kicks (Nicht anwesend)</span>
+                                {% endif %}
                             </td>
-                            <td style="padding: 12px 8px; font-weight: 600; color: #80deea;">
-                                {{ "%.2f"|format(m.fee_required)|replace(".", ",") }} €
+                            <td style="padding: 12px 8px;" id="due-fee-{{ m.player_id }}">
+                                {% if m.payment_status in ('inactive', 'waived') %}
+                                    <span style="text-decoration: line-through; color: var(--text-muted); font-size: 11px;">48,00 €</span>
+                                    <span style="color: #88ff88; font-weight: 700; margin-left: 4px;">0,00 €</span>
+                                {% elif m.amount_paid > 0 and m.amount_paid != m.fee_required %}
+                                    <span style="font-weight: 600; color: #80deea;">{{ "%.2f"|format(m.fee_required)|replace(".", ",") }} €</span>
+                                    <div style="font-size: 10.5px; color: #88ff88;">(bezahlt: {{ "%.2f"|format(m.amount_paid)|replace(".", ",") }} €)</div>
+                                {% else %}
+                                    <span style="font-weight: 600; color: #80deea;">{{ "%.2f"|format(m.fee_required)|replace(".", ",") }} €</span>
+                                {% endif %}
                             </td>
                             <td style="padding: 12px 8px;" id="due-status-{{ m.player_id }}">
                                 {% if m.payment_status == 'bank' %}
@@ -438,24 +614,35 @@
                                     <span style="background: rgba(128, 222, 234, 0.25); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">💵 Bar bezahlt</span>
                                 {% elif m.payment_status == 'paid' %}
                                     <span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟢 Bezahlt (PayPal)</span>
+                                {% elif m.payment_status == 'partial' %}
+                                    <span style="background: rgba(255, 193, 7, 0.2); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.4); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟡 Teilweise ({{ "%.2f"|format(m.amount_paid)|replace(".", ",") }} €)</span>
+                                {% elif m.payment_status == 'inactive' %}
+                                    <span style="background: rgba(255, 255, 255, 0.08); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.2); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;" title="Inaktives Mitglied im Zeitraum (0 Kicks – kein Beitrag fällig)">⚪ Inaktiv (0 Kicks)</span>
                                 {% elif m.payment_status == 'waived' %}
                                     <span style="background: rgba(255, 255, 255, 0.1); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.2); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">⚪ Erlassen</span>
+                                {% elif m.payment_status == 'unpaid' %}
+                                    <span style="background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;" title="Spieler war da ({{ m.games_count }} Kicks) – Zahlung offen, nachfragen!">🔴 Offen & Aktiv</span>
+                                {% elif m.payment_status == 'unpaid_inactive_ended' %}
+                                    <span style="background: rgba(255, 193, 7, 0.2); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.4); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;" title="Zeitraum beendet & 0 Kicks: De facto kein Beitrag fällig. Bitte auf inaktiv setzen.">🟡 0 Kicks (De facto befreit)</span>
                                 {% else %}
-                                    <span style="background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🔴 Offen</span>
+                                    <span style="background: rgba(255, 255, 255, 0.08); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.2); font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px;" title="Zeitraum läuft noch: bisher noch keine Kicks.">⏳ Bisher 0 Kicks (Laufend)</span>
                                 {% endif %}
                             </td>
                             <td style="padding: 12px 8px; text-align: right;">
-                                <div style="display: inline-flex; gap: 4px;">
-                                    <button type="button" class="secondary" onclick="markMembershipDue('{{ selected_period }}', {{ m.player_id }}, 'bank')" style="font-size: 11px; padding: 3px 8px;" title="Als per Banküberweisung bezahlt markieren">
+                                <div style="display: inline-flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end;">
+                                    <button type="button" class="secondary" onclick="markMembershipDue('{{ selected_period }}', {{ m.player_id }}, 'bank')" style="font-size: 11px; padding: 3px 7px;" title="Als per Banküberweisung bezahlt markieren">
                                         🏦 Bank
                                     </button>
-                                    <button type="button" class="secondary" onclick="markMembershipDue('{{ selected_period }}', {{ m.player_id }}, 'cash')" style="font-size: 11px; padding: 3px 8px;" title="Als bar bezahlt markieren">
+                                    <button type="button" class="secondary" onclick="markMembershipDue('{{ selected_period }}', {{ m.player_id }}, 'cash')" style="font-size: 11px; padding: 3px 7px;" title="Als bar bezahlt markieren">
                                         💵 Bar
                                     </button>
-                                    <button type="button" class="secondary" onclick="markMembershipDue('{{ selected_period }}', {{ m.player_id }}, 'waived')" style="font-size: 11px; padding: 3px 8px; color: var(--text-muted);" title="Beitrag erlassen">
+                                    <button type="button" class="secondary" onclick="markMembershipDue('{{ selected_period }}', {{ m.player_id }}, 'waived', 'inaktiv')" style="font-size: 11px; padding: 3px 7px; color: #ffe082; border-color: rgba(255, 193, 7, 0.3);" title="Als inaktives Mitglied für diesen Zeitraum befreien (Soll = 0,00 €)">
+                                        ⏸️ Inaktiv
+                                    </button>
+                                    <button type="button" class="secondary" onclick="markMembershipDue('{{ selected_period }}', {{ m.player_id }}, 'waived')" style="font-size: 11px; padding: 3px 7px; color: var(--text-muted);" title="Beitrag regulär erlassen">
                                         ⚪ Erlassen
                                     </button>
-                                    <button type="button" class="secondary" onclick="markMembershipDue('{{ selected_period }}', {{ m.player_id }}, 'unpaid')" style="font-size: 11px; padding: 3px 8px; color: #ff8888;" title="Als offen zurücksetzen">
+                                    <button type="button" class="secondary" onclick="markMembershipDue('{{ selected_period }}', {{ m.player_id }}, 'unpaid')" style="font-size: 11px; padding: 3px 7px; color: #ff8888;" title="Als offen zurücksetzen">
                                         🔴 Offen
                                     </button>
                                 </div>
@@ -465,8 +652,10 @@
                     </tbody>
                 </table>
             </div>
+            {% endif %}
         </div>
         {% endif %}
+
 
         <!-- TAB 4: CSV IMPORT & TRANSACTIONS -->
         {% if active_tab == 'import' %}
@@ -989,11 +1178,12 @@ function setPlayerStatus(playerId, status) {
     .catch(err => console.error('Error setting player status:', err));
 }
 
-function markMembershipDue(period, playerId, method) {
+function markMembershipDue(period, playerId, method, note) {
     const formData = new FormData();
     formData.append('period', period);
     formData.append('player_id', playerId);
     formData.append('payment_method', method);
+    if (note) formData.append('note', note);
 
     fetch('{{ url_for("finances.mark_due") }}', {
         method: 'POST',
@@ -1004,21 +1194,103 @@ function markMembershipDue(period, playerId, method) {
     .then(data => {
         if (data.success) {
             const col = document.getElementById('due-status-' + playerId);
+            const row = document.getElementById('due-row-' + playerId);
+            const feeCol = document.getElementById('due-fee-' + playerId);
             if (col) {
                 if (method === 'bank') {
                     col.innerHTML = '<span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟢 Bezahlt (Bank)</span>';
+                    if (row) { row.setAttribute('data-status', 'bank'); row.style.opacity = '1'; }
+                    if (feeCol) feeCol.innerHTML = '<span style="font-weight: 600; color: #80deea;">48,00 €</span>';
                 } else if (method === 'cash') {
                     col.innerHTML = '<span style="background: rgba(128, 222, 234, 0.25); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">💵 Bar bezahlt</span>';
+                    if (row) { row.setAttribute('data-status', 'cash'); row.style.opacity = '1'; }
+                    if (feeCol) feeCol.innerHTML = '<span style="font-weight: 600; color: #80deea;">48,00 €</span>';
+                } else if (method === 'waived' && note && note.includes('inaktiv')) {
+                    col.innerHTML = '<span style="background: rgba(255, 255, 255, 0.08); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.2); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;" title="Inaktives Mitglied im Zeitraum (0 Kicks – kein Beitrag fällig)">⚪ Inaktiv (0 Kicks)</span>';
+                    if (row) { row.setAttribute('data-status', 'inactive'); row.style.opacity = '0.65'; }
+                    if (feeCol) feeCol.innerHTML = '<span style="text-decoration: line-through; color: var(--text-muted); font-size: 11px;">48,00 €</span> <span style="color: #88ff88; font-weight: 700; margin-left: 4px;">0,00 €</span>';
                 } else if (method === 'waived') {
                     col.innerHTML = '<span style="background: rgba(255, 255, 255, 0.1); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.2); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">⚪ Erlassen</span>';
+                    if (row) { row.setAttribute('data-status', 'waived'); row.style.opacity = '0.65'; }
+                    if (feeCol) feeCol.innerHTML = '<span style="text-decoration: line-through; color: var(--text-muted); font-size: 11px;">48,00 €</span> <span style="color: #88ff88; font-weight: 700; margin-left: 4px;">0,00 €</span>';
                 } else {
-                    col.innerHTML = '<span style="background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🔴 Offen</span>';
+                    const games = row ? parseInt(row.getAttribute('data-games') || '0', 10) : 0;
+                    if (row) row.style.opacity = '1';
+                    if (games > 0) {
+                        col.innerHTML = '<span style="background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;" title="Spieler war da (' + games + ' Kicks) – Zahlung offen!">🔴 Offen & Aktiv</span>';
+                        if (row) row.setAttribute('data-status', 'unpaid');
+                    } else {
+                        col.innerHTML = '<span style="background: rgba(255, 193, 7, 0.2); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.4); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;" title="0 Kicks im Zeitraum">🟡 0 Kicks (De facto befreit)</span>';
+                        if (row) row.setAttribute('data-status', 'unpaid_inactive_ended');
+                    }
+                    if (feeCol) feeCol.innerHTML = '<span style="font-weight: 600; color: #80deea;">48,00 €</span>';
                 }
             }
         }
     })
     .catch(err => console.error('Error updating membership due:', err));
 }
+
+function filterDuesRows(type) {
+    const rows = document.querySelectorAll('tr[id^="due-row-"]');
+    const btns = document.querySelectorAll('.dues-filter-btn');
+    btns.forEach(b => {
+        if (b.getAttribute('data-filter') === type) {
+            b.style.background = 'var(--accent)';
+            b.style.color = '#ffffff';
+        } else {
+            b.style.background = 'var(--bg-surface)';
+            if (b.getAttribute('data-filter') === 'unpaid') b.style.color = '#ff8888';
+            else if (b.getAttribute('data-filter') === 'unpaid_inactive') b.style.color = '#ffe082';
+            else if (b.getAttribute('data-filter') === 'paid') b.style.color = '#88ff88';
+            else if (b.getAttribute('data-filter') === 'inactive') b.style.color = '#c9c2d8';
+            else b.style.color = 'var(--text-muted)';
+        }
+    });
+
+    rows.forEach(r => {
+        const s = r.getAttribute('data-status');
+        if (type === 'all') {
+            r.style.display = '';
+        } else if (type === 'unpaid') {
+            r.style.display = (s === 'unpaid') ? '' : 'none';
+        } else if (type === 'unpaid_inactive') {
+            r.style.display = (s === 'unpaid_inactive_ended' || s === 'unpaid_inactive_ongoing') ? '' : 'none';
+        } else if (type === 'paid') {
+            r.style.display = (s === 'paid' || s === 'bank' || s === 'cash') ? '' : 'none';
+        } else if (type === 'inactive') {
+            r.style.display = (s === 'inactive' || s === 'waived') ? '' : 'none';
+        }
+    });
+}
+
+function copyActiveOpenDues(period) {
+    const btn = document.getElementById('btn-copy-active-dues');
+    const rows = document.querySelectorAll('tr[id^="due-row-"]');
+    const lines = [];
+
+    rows.forEach(r => {
+        const s = r.getAttribute('data-status');
+        if (s === 'unpaid') {
+            const name = r.getAttribute('data-name');
+            const games = r.getAttribute('data-games');
+            if (name) {
+                lines.push('- ' + name + ' (' + games + ' Kicks)');
+            }
+        }
+    });
+
+    if (lines.length === 0) {
+        alert('Keine offenen Mitgliedsbeiträge von aktiven Spielern in ' + period + ' vorhanden.');
+        return;
+    }
+
+    const header = 'Offene Mitgliedsbeiträge ' + period + ' (Aktive Spieler):\n\n';
+    const footer = '\n\nBitte den Halbjahresbeitrag (48,00 €) zeitnah per PayPal oder Überweisung begleichen oder PN an mich zur Klärung.\n(automatisch erstellt)';
+    const text = header + lines.join('\n') + footer;
+    copyToClipboard(text, btn, '📋 Offene aktive Beiträge kopieren');
+}
+
 
 function prepareSplitAllocations(txId) {
     const form = document.getElementById('split-form-' + txId);

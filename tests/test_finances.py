@@ -42,9 +42,13 @@ from scripts.finances.reconciliation import (
     resolve_player_membership_status,
     get_proxy_payment_suggestion,
     settle_smart_combo_transaction,
+    get_period_date_range,
+    get_membership_dues_matrix,
+    bulk_set_inactive_members,
     GUEST_FEE_PER_KICK,
     MEMBERSHIP_DUE_PER_HALFYEAR,
 )
+
 from scripts.finances.bank_pdf_parser import (
     parse_bank_pdf,
     convert_pdf_to_csv,
@@ -1058,6 +1062,130 @@ def test_copy_paste_footer_unassigned_payer_with_date(clean_finances_env):
     # UNASSIGNED_PAYERS in JS
     assert 'UNASSIGNED_PAYERS = [{"date": "2026-08-19", "name": "Stefan Met..."}]' in html or 'Stefan Met...' in html
     assert "die Zahlung von" in html or "die Zahlungen von" in html
+
+
+def test_dues_period_date_range():
+    """Test date range, label, and has_ended status computation."""
+    h1 = get_period_date_range("2026-H1")
+    assert h1["start"] == "2026-01-01"
+    assert h1["end"] == "2026-06-30"
+    assert h1["has_ended"] is True  # 2026-10-02 > 2026-06-30
+    assert "1. Halbjahr" in h1["label"]
+
+    h2 = get_period_date_range("2026-H2")
+    assert h2["start"] == "2026-07-01"
+    assert h2["end"] == "2026-12-31"
+    assert h2["has_ended"] is False  # 2026-10-02 <= 2026-12-31
+    assert "2. Halbjahr" in h2["label"]
+
+
+def test_dues_attendance_active_vs_inactive_in_ended_period(clean_finances_env):
+    """Test distinguishing active open dues vs inactive members with 0 kicks in ended periods."""
+    r_conn = get_rb48_connection()
+    # Player 1 played in 2026-H1 (March 2026)
+    create_match(r_conn, "2026-03-10-1", "2026-03-10", "box", 1, 1, 5, 3)
+    add_match_player(r_conn, "2026-03-10-1", 1, "A")
+    # Player 2 has 0 matches in 2026-H1
+    r_conn.commit()
+    r_conn.close()
+
+    f_conn = get_finances_connection()
+    set_player_membership_status(f_conn, 1, "member")
+    set_player_membership_status(f_conn, 2, "member")
+    f_conn.close()
+
+    # Initial check for 2026-H1 (ended period)
+    ov = get_membership_dues_overview("2026-H1")
+    assert ov["period_dates"]["has_ended"] is True
+    p1 = next(m for m in ov["members"] if m["player_id"] == 1)
+    p2 = next(m for m in ov["members"] if m["player_id"] == 2)
+
+    assert p1["games_count"] == 1
+    assert p1["was_present"] is True
+    assert p1["payment_status"] == "unpaid"  # Truly unpaid, active player!
+
+    assert p2["games_count"] == 0
+    assert p2["was_present"] is False
+    assert p2["payment_status"] == "unpaid_inactive_ended"  # 0 games, period ended!
+
+    # Setting Player 2 to inactive removes their debt requirement
+    manual_mark_membership_due("2026-H1", 2, "waived", note="inaktiv")
+    ov2 = get_membership_dues_overview("2026-H1")
+    p2_updated = next(m for m in ov2["members"] if m["player_id"] == 2)
+    assert p2_updated["payment_status"] == "inactive"
+    assert p2_updated["is_inactive"] is True
+    assert p2_updated["fee_required"] == 0.0
+
+    # Total expected now only counts the active member (Player 1)
+    assert ov2["total_expected"] == 48.00
+    assert ov2["outstanding"] == 48.00
+    assert ov2["count_unpaid_active"] == 1
+    assert ov2["count_inactive"] == 1
+
+    # Test bulk_set_inactive_members for any remaining 0-kick members
+    f_conn = get_finances_connection()
+    set_player_membership_status(f_conn, 33, "member")
+    f_conn.close()
+
+    # Player 33 has 0 games in 2026-H1
+    ov3 = get_membership_dues_overview("2026-H1")
+    assert ov3["count_unpaid_inactive"] >= 1
+
+    count = bulk_set_inactive_members("2026-H1")
+    assert count >= 1
+
+    ov4 = get_membership_dues_overview("2026-H1")
+    p33 = next(m for m in ov4["members"] if m["player_id"] == 33)
+    assert p33["payment_status"] == "inactive"
+    assert p33["fee_required"] == 0.0
+
+
+def test_dues_matrix_and_web_routes(clean_finances_env):
+    """Test cross-period dues matrix and web routes."""
+    from web.app import app
+    f_conn = get_finances_connection()
+    set_player_membership_status(f_conn, 1, "member")
+    set_player_membership_status(f_conn, 2, "member")
+    f_conn.close()
+
+    # Matrix computation
+    mat = get_membership_dues_matrix()
+    assert len(mat["periods"]) >= 2
+    assert any(p["value"] == "2026-H2" for p in mat["periods"])
+    assert any(p["value"] == "2026-H1" for p in mat["periods"])
+    assert len(mat["members"]) >= 2
+
+    client = _login_webmaster(app)
+
+    # 1. Period detail view
+    resp = client.get("/admin/finances?tab=dues&period=2026-H2")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "Mitgliedsbeiträge" in html
+    assert "Soll (" in html
+    assert "Halbjahr-Detailansicht" in html
+    assert "Gesamt-Matrix" in html
+
+    # 2. Matrix view
+    resp_mat = client.get("/admin/finances?tab=dues&dues_view=matrix")
+    assert resp_mat.status_code == 200
+    html_mat = resp_mat.get_data(as_text=True)
+    assert "Gesamt bezahlt" in html_mat
+    assert "2026-H2" in html_mat
+
+    # 3. Mark inactive via AJAX
+    resp_ajax = client.post(
+        "/admin/finances/mark-membership-due",
+        data={"period": "2026-H1", "player_id": 2, "payment_method": "waived", "note": "inaktiv"},
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert resp_ajax.status_code == 200
+    assert resp_ajax.get_json()["success"] is True
+
+    # 4. Bulk set inactive route
+    resp_bulk = client.post("/admin/finances/bulk-set-inactive", data={"period": "2026-H1"}, follow_redirects=True)
+    assert resp_bulk.status_code == 200
+
 
 
 
