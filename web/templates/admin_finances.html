@@ -59,10 +59,10 @@
 
         <!-- Metrics Overview Cards -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px;">
-            <!-- Card 1: Offene Kleckerbeträge -->
+            <!-- Card 1: Offene Gastbeiträge -->
             <div style="background: {% if metrics.open_klecker_amount > 0 %}rgba(220, 53, 69, 0.12){% else %}rgba(40, 167, 69, 0.12){% endif %}; border: 1px solid {% if metrics.open_klecker_amount > 0 %}rgba(220, 53, 69, 0.35){% else %}rgba(40, 167, 69, 0.35){% endif %}; border-radius: 8px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
                 <div>
-                    <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">⚽ Offene Kleckerbeträge</div>
+                    <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">⚽ Offene Gastbeiträge</div>
                     <div style="font-size: 26px; font-weight: 800; color: {% if metrics.open_klecker_amount > 0 %}#ff8888{% else %}#88ff88{% endif %}; margin-top: 6px;">
                         {{ "%.2f"|format(metrics.open_klecker_amount)|replace(".", ",") }} €
                     </div>
@@ -71,9 +71,8 @@
                     {% if metrics.open_klecker_amount > 0 %}
                         <span style="color: #ff8888; font-weight: 600;">🔴 {{ metrics.open_klecker_count }} Kicks offen</span> (à {{ "%.2f"|format(guest_fee_rate)|replace(".", ",") }} €)
                     {% else %}
-                        <span style="color: #88ff88; font-weight: 600;">✓ Alle Kleckerbeträge bezahlt</span>
+                        <span style="color: #88ff88; font-weight: 600;">✓ Alle Gastbeiträge bezahlt</span>
                     {% endif %}
-                    <div style="font-size: 11px; opacity: 0.8; margin-top: 2px;">{{ "%.2f"|format(metrics.total_klecker_collected)|replace(".", ",") }} € von {{ "%.2f"|format(metrics.total_klecker_expected)|replace(".", ",") }} € bezahlt</div>
                 </div>
             </div>
 
@@ -94,7 +93,6 @@
                     {% else %}
                         <span style="color: #88ff88; font-weight: 600;">✓ Alle Mitgliedsbeiträge bezahlt</span>
                     {% endif %}
-                    <div style="font-size: 11px; opacity: 0.8; margin-top: 2px;">{{ "%.2f"|format(metrics.total_dues_collected)|replace(".", ",") }} € von {{ "%.2f"|format(metrics.total_dues_expected)|replace(".", ",") }} € eingezahlt</div>
                 </div>
             </div>
 
@@ -134,10 +132,10 @@
                 👥 Spieler-Status ({{ total_members_count }} Mitgl. / {{ total_guests_count }} Gäste)
             </a>
             <a href="{{ url_for('finances.admin_finances', tab='dues', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'dues' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
-                🏛️ Mitgliedsbeiträge (48 €)
+                🏛️ Mitgliedsbeiträge
             </a>
             <a href="{{ url_for('finances.admin_finances', tab='import', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; display: flex; align-items: center; gap: 6px; {% if active_tab == 'import' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
-                📥 PayPal CSV-Import
+                📥 Zahlungsimport & Archiv
                 {% if unassigned_count > 0 %}
                     <span style="background: #ffc107; color: #140b28; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 10px;">{{ unassigned_count }}</span>
                 {% endif %}
@@ -671,6 +669,81 @@
                         📤 Datei(en) importieren & analysieren
                     </button>
                 </form>
+            </div>
+
+            <!-- ARCHIVE & SNAPSHOT MANAGEMENT -->
+            <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 16px; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+                            📦 Zahlungslisten-Archiv
+                        </h3>
+                        <p class="muted" style="margin: 4px 0 0 0; font-size: 12.5px;">
+                            Sichere den aktuellen Stand aller Importe und Zuordnungen als archivierten Snapshot oder lade frühere Archive als CSV herunter.
+                        </p>
+                    </div>
+                    <!-- Form to trigger archive -->
+                    <form method="post" action="{{ url_for('finances.archive_current') }}" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0;">
+                        <input type="text" name="archive_title" placeholder="Bezeichnung (z. B. Abschluss SoSe 2026)" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; font-size: 13px; color: #ffffff; min-width: 220px;">
+                        <button type="submit" class="secondary" style="padding: 7px 16px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;">
+                            📦 Aktuelle Liste archivieren
+                        </button>
+                    </form>
+                </div>
+
+                {% if finance_archives %}
+                <div style="overflow-x: auto; margin-top: 12px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-muted); font-size: 12px;">
+                                <th style="padding: 8px;">Archiviert am</th>
+                                <th style="padding: 8px;">Bezeichnung / Titel</th>
+                                <th style="padding: 8px;">Buchungen</th>
+                                <th style="padding: 8px;">Einnahmen</th>
+                                <th style="padding: 8px;">Ausgaben</th>
+                                <th style="padding: 8px; text-align: right;">Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for arch in finance_archives %}
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                <td style="padding: 10px 8px; color: #ffffff; white-space: nowrap;">
+                                    <strong>{{ arch.archived_at }}</strong>
+                                </td>
+                                <td style="padding: 10px 8px; color: #38bdf8; font-weight: 600;">
+                                    {{ arch.title }}
+                                </td>
+                                <td style="padding: 10px 8px; white-space: nowrap;">
+                                    {{ arch.tx_count }} Einträge
+                                </td>
+                                <td style="padding: 10px 8px; color: #88ff88; font-weight: 600; white-space: nowrap;">
+                                    +{{ "%.2f"|format(arch.total_income)|replace(".", ",") }} €
+                                </td>
+                                <td style="padding: 10px 8px; color: #ff8888; font-weight: 600; white-space: nowrap;">
+                                    -{{ "%.2f"|format(arch.total_expenses)|replace(".", ",") }} €
+                                </td>
+                                <td style="padding: 10px 8px; text-align: right; white-space: nowrap;">
+                                    <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center;">
+                                        <a href="{{ url_for('finances.download_archive', archive_id=arch.id) }}" class="primary" style="padding: 4px 10px; font-size: 12px; text-decoration: none; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;" title="Archiv als vollständige CSV-Tabelle herunterladen">
+                                            📥 CSV Download
+                                        </a>
+                                        <form method="post" action="{{ url_for('finances.delete_archive', archive_id=arch.id) }}" onsubmit="return confirm('Möchtest du dieses Archiv wirklich löschen?');" style="margin: 0;">
+                                            <button type="submit" style="background: transparent; border: none; color: #dc3545; cursor: pointer; font-size: 13px; padding: 4px 6px;" title="Archiv löschen">
+                                                🗑️
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div style="font-size: 12.5px; color: var(--text-muted); font-style: italic; padding: 6px 0;">
+                    Noch keine Snapshots archiviert. Klicke oben auf „Aktuelle Liste archivieren“, um den aktuellen Stand der Buchungen und Zuordnungen zu sichern.
+                </div>
+                {% endif %}
             </div>
 
             <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">

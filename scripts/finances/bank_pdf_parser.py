@@ -78,9 +78,7 @@ def parse_bank_pdf(pdf_content_or_path) -> list[dict]:
         doc = pymupdf.open(str(pdf_content_or_path))
     elif isinstance(pdf_content_or_path, bytes):
         doc = pymupdf.open(stream=pdf_content_or_path, filetype="pdf")
-
     else:
-        # File-like
         data = pdf_content_or_path.read()
         doc = pymupdf.open(stream=data, filetype="pdf")
 
@@ -92,139 +90,96 @@ def parse_bank_pdf(pdf_content_or_path) -> list[dict]:
         full_text += "\n" + ptxt
 
     default_year = _extract_year_from_header(full_text)
-
     transactions = []
 
-    # Strategy 1: Tabular or line-based extraction across pages
     for page_idx, ptxt in enumerate(pages_text):
+        if "Kontoauszug" not in ptxt and "Kontokorrent" not in ptxt and "alter Kontostand" not in ptxt:
+            continue
+
+        m_yr = re.search(r'neuer Kontostand vom \d{2}\.\d{2}\.(20\d{2})', ptxt) or re.search(r'erstellt am[\s\S]*?\b(20\d{2})\b', ptxt)
+        stmt_year = int(m_yr.group(1)) if m_yr else int(default_year)
+
         lines = [line.strip() for line in ptxt.splitlines() if line.strip()]
         i = 0
         while i < len(lines):
             line = lines[i]
 
-            # Look for lines starting with a date (e.g. 01.07.2026 or 01.07.26 or 01.07.)
-            date_match = re.match(r'^(\d{2}\.\d{2}\.(?:\d{4}|\d{2})?)\b(?:\s+(\d{2}\.\d{2}\.(?:\d{4}|\d{2})?))?', line)
-            if not date_match:
+            skat_date_m = re.match(r'^(\d{2}\.\d{2}\.(?:\d{4})?)(?:\s+(\d{2}\.\d{2}\.(?:\d{4})?))?\s+(.+)', line)
+            if not skat_date_m:
                 i += 1
                 continue
 
-            raw_date = date_match.group(1)
-            # Expand short date like 01.07. to 01.07.2026
-            if len(raw_date) == 6 or raw_date.endswith('.'):
-                raw_date = f"{raw_date.rstrip('.')}.{default_year}"
-            elif len(raw_date.split('.')[-1]) == 2:
-                # 01.07.26 -> 01.07.2026
-                p = raw_date.split('.')
-                raw_date = f"{p[0]}.{p[1]}.20{p[2]}"
-
-            date_iso = parse_date_to_iso(raw_date)
-
-            # Collect subsequent lines belonging to this booking entry until next date or end of block
-            entry_lines = [line[date_match.end():].strip()]
-            i += 1
-            while i < len(lines):
-                next_line = lines[i]
-                # If next line starts with a new transaction date, stop
-                if re.match(r'^\d{2}\.\d{2}\.(?:\d{4}|\d{2})?\b', next_line):
-                    break
-                # If footer or balance line, stop entry
-                if re.match(r'^(Alter Kontostand|Neuer Kontostand|Kontostand|Endsaldo|Saldo|Seite \d+)', next_line, re.I):
-                    i += 1
-                    break
-                entry_lines.append(next_line)
-                i += 1
-
-            entry_text = " ".join([l for l in entry_lines if l]).strip()
-
-            # Find amount in entry_lines or line itself
-            amount = 0.0
-            found_amount = False
-
-            # Search amount tokens: e.g. 48,00+ or 69,00 + or +48,00 or -15,00 or 48,00 H
-            amt_matches = list(re.finditer(r'([+\-]?\s*\d{1,3}(?:\.\d{3})*,\d{2})\s*([+\-HS])?', entry_text))
-            if amt_matches:
-                # The last amount match in the line is usually the transaction amount (or second to last if saldo is next)
-                for m in reversed(amt_matches):
-                    full_amt_token = m.group(0).strip()
-                    amt_val, valid = _clean_amount_token(full_amt_token)
-                    if valid and abs(amt_val) > 0.001:
-                        # Exclude obvious year numbers or saldos if recognizable
-                        amount = amt_val
-                        found_amount = True
-                        break
-
-            if not found_amount or abs(amount) < 0.001:
-                continue
-
-            # Identify Vorgang / Description
-            desc = "Überweisung"
-            desc_match = re.search(r'\b(SEPA-Gutschrift|Gutschrift|SEPA-Überweisung|Überweisung|Dauerauftrag|Lastschrift|Kartenzahlung|Abschluss|Entgelt|Zinsen)\b', entry_text, re.I)
-            if desc_match:
-                desc = desc_match.group(1).title()
-
-            # If amount had no explicit sign: Gutschrift is +, Lastschrift is -
-            if not re.search(r'[+\-HS]', entry_text) and not entry_text.startswith('+') and not entry_text.startswith('-'):
-                if any(k in desc.lower() for k in ('gutschrift', 'eingang')):
-                    amount = abs(amount)
-                elif any(k in desc.lower() for k in ('lastschrift', 'entgelt', 'gebühr', 'abschluss')):
-                    amount = -abs(amount)
-
-            # Identify Payer / Auftraggeber
-            payer_name = None
-            payer_match = re.search(
-                r'(?:Auftraggeber|Zahlungspflichtiger|Absender|Von|Name):\s*([^,;\n\r]+?)(?:\s+(?:Verwendungszweck|Verw|SVWZ|IBAN|BIC|EREF|KREF|MREF|CRED|End-to-End)|\s*$)',
-                entry_text,
-                re.I
+            vorgang_candidate = skat_date_m.group(3)
+            is_tx_line = (
+                "PN:" in vorgang_candidate
+                or bool(re.search(r'(Überweisung|Lastschrift|Gebühr|Dauerauftrag|Gutschrift|Gutschr|Entgelt|Kartenzahlung|Abschluss)', vorgang_candidate, re.I))
+                or bool(re.search(r'\d{1,3}(?:\.\d{3})*,\d{2}\s*[+\-HS]', vorgang_candidate))
             )
-            if payer_match:
-                payer_name = payer_match.group(1).strip()
+            if not is_tx_line:
+                i += 1
+                continue
+
+            bu_raw = skat_date_m.group(1)
+            if len(bu_raw.strip('.')) <= 5:
+                p = bu_raw.strip('.').split('.')
+                day, month = int(p[0]), int(p[1])
+                tx_year = stmt_year if not (month == 12 and '01' in str(stmt_year)) else stmt_year - 1
+                date_iso = f"{tx_year:04d}-{month:02d}-{day:02d}"
             else:
-                # Secondary heuristic: look for personal name patterns or text after booking type
-                # Often e.g. "SEPA-Gutschrift Konstantin Steuer EREF+..."
-                after_desc = ""
-                if desc_match:
-                    after_desc = entry_text[desc_match.end():].strip()
-                else:
-                    after_desc = entry_text
+                date_iso = parse_date_to_iso(bu_raw)
 
-                # Strip IBAN / BIC / EREF
-                cleaned_after = re.sub(r'\b[A-Z]{2}\d{2}[A-Z0-9\s]{12,30}\b', '', after_desc)
-                cleaned_after = re.sub(r'\b(?:BIC|EREF|KREF|MREF|SVWZ|CRED)\+[^\s]+', '', cleaned_after)
-                # Find leading words (2-3 words capitalized like a name)
-                words = cleaned_after.split()
-                if len(words) >= 2 and all(w[0].isupper() for w in words[:2] if len(w) > 0 and w.isalpha()):
-                    candidate = f"{words[0]} {words[1]}"
-                    if candidate.lower() not in ('deutsche skatbank', 'vr bank', 'neuer kontostand', 'alter kontostand'):
-                        payer_name = candidate
+            amt_val = None
+            amt_match = re.search(r'([+\-]?\s*\d{1,3}(?:\.\d{3})*,\d{2})\s*([+\-HS])?', vorgang_candidate)
+            desc = vorgang_candidate
+            if amt_match and (" H" in amt_match.group(0) or " S" in amt_match.group(0) or amt_match.group(0).endswith("+") or amt_match.group(0).endswith("-")):
+                amt_str_tok = amt_match.group(0).strip()
+                amt_clean, valid = _clean_amount_token(amt_str_tok)
+                if valid:
+                    amt_val = amt_clean
+                    desc = vorgang_candidate[:amt_match.start()].strip()
 
-            # Extract Verwendungszweck / Note
-            note = ""
-            note_match = re.search(r'(?:Verwendungszweck|SVWZ\+|Verw\.?\-Zweck|Notiz|Betreff):\s*(.+?)(?:\s+(?:EREF|KREF|MREF|CRED|IBAN|BIC)\+|\s*$)', entry_text, re.I)
-            if note_match:
-                note = note_match.group(1).strip()
+            i += 1
+            entry_lines = []
+            while i < len(lines):
+                n_line = lines[i]
+                if n_line.startswith('───') or 'neuer Kontostand' in n_line or re.match(r'^\d{2}\.\d{2}\.(?:\d{4})?(?:\s+\d{2}\.\d{2}\.(?:\d{4})?)?\s+', n_line):
+                    break
+                if amt_val is None:
+                    amt_m = re.match(r'^\s*([+\-]?\s*\d{1,3}(?:\.\d{3})*,\d{2})\s*([+\-HS])?\s*$', n_line)
+                    if amt_m:
+                        amt_clean, valid = _clean_amount_token(amt_m.group(0))
+                        if valid:
+                            amt_val = amt_clean
+                            i += 1
+                            continue
+                entry_lines.append(n_line)
+                i += 1
+
+            if amt_val is None:
+                continue
+
+            amount = round(amt_val, 2)
+            full_entry_text = " ".join(entry_lines)
+            payer_m = re.search(r'(?:Auftraggeber|Zahlungspflichtiger|Absender|Name):\s*([^,;\n\r]+?)(?:\s+(?:Verwendungszweck|Verw|SVWZ|IBAN|BIC|EREF|KREF|MREF|CRED)|\s*$)', full_entry_text, re.I)
+            if payer_m:
+                payer_name = payer_m.group(1).strip()
+            elif entry_lines:
+                payer_name = entry_lines[0].strip()
             else:
-                # Capture text between known markers
-                cleaned_note = entry_text
-                # Remove date, description, payer, amount tokens
-                if desc_match:
-                    cleaned_note = cleaned_note.replace(desc_match.group(0), "")
-                if payer_name:
-                    cleaned_note = cleaned_note.replace(payer_name, "")
-                for m in amt_matches:
-                    cleaned_note = cleaned_note.replace(m.group(0), "")
-                # Remove IBANs
-                cleaned_note = re.sub(r'\b[A-Z]{2}\d{2}[A-Z0-9\s]{12,30}\b', '', cleaned_note)
-                cleaned_note = re.sub(r'\b(?:Auftraggeber|BIC|EREF|KREF|MREF|CRED|SVWZ|IBAN)[+:]?[^\s]*', '', cleaned_note, flags=re.I)
-                cleaned_note = re.sub(r'\s+', ' ', cleaned_note).strip()
-                if len(cleaned_note) > 3:
-                    note = cleaned_note
+                payer_name = None
 
-            # Extract EREF or unique transaction code
-            eref_match = re.search(r'\b(?:EREF|End-to-End-Ref(?:\.|erenz)?)\+?([^\s,;]+)', entry_text, re.I)
+            note_m = re.search(r'(?:Verwendungszweck|SVWZ\+|Verw\.?\-Zweck|Notiz|Betreff):\s*(.+?)(?:\s+(?:EREF|KREF|MREF|CRED|IBAN|BIC)\+|\s*$)', full_entry_text, re.I)
+            if note_m:
+                note = note_m.group(1).strip()
+            elif len(entry_lines) > 1:
+                note = " ".join(entry_lines[1:]).strip()
+            else:
+                note = ""
+
+            eref_match = re.search(r'\b(?:EREF|End-to-End-Ref(?:\.|erenz)?)\+?[:\s]*([^\s,;]+)', " ".join(entry_lines), re.I)
             if eref_match:
                 tx_code = f"EREF-{eref_match.group(1).strip()}"
             else:
-                # Deterministic hash of date, amount, payer, note
                 h_str = f"{date_iso}-{amount:.2f}-{payer_name or ''}-{note[:20]}"
                 tx_code = f"SKATBANK-{date_iso}-{abs(hash(h_str)) % 100000000:08d}"
 
@@ -237,12 +192,12 @@ def parse_bank_pdf(pdf_content_or_path) -> list[dict]:
                 "time": "00:00:00",
                 "description": desc,
                 "currency": "EUR",
-                "amount": round(amount, 2),
+                "amount": amount,
                 "raw_payer_name": payer_name,
                 "raw_payer_email": None,
                 "note": note,
                 "status": status,
-                "raw_payload": {"entry_text": entry_text, "page": page_idx + 1},
+                "raw_payload": {"vorgang": desc, "entry_lines": entry_lines, "page": page_idx + 1},
             })
 
     return transactions

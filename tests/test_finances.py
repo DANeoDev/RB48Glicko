@@ -382,7 +382,7 @@ def test_webmaster_finances_web_routes(clean_finances_env):
     assert "(automatisch erstellt)" in after_html
 
     # Test presence of new cards and period filter
-    assert "Offene Kleckerbeträge" in after_html
+    assert "Offene Gastbeiträge" in after_html
     assert "Offene Mitgliedsbeiträge" in after_html
     assert "Paypaleinnahmen" in after_html
     assert "Kontoeinnahmen" in after_html
@@ -1185,6 +1185,137 @@ def test_dues_matrix_and_web_routes(clean_finances_env):
     # 4. Bulk set inactive route
     resp_bulk = client.post("/admin/finances/bulk-set-inactive", data={"period": "2026-H1"}, follow_redirects=True)
     assert resp_bulk.status_code == 200
+
+
+def test_detailed_paypal_csv_parsing():
+    """Test that detailed PayPal CSV format (Download.CSV) with Hinweis, Betreff, and Typ is parsed properly."""
+    detailed_csv = """Datum;Uhrzeit;Zeitzone;Name;Typ;Status;Währung;Brutto;Gebühr;Netto;Absender E-Mail-Adresse;Empfänger E-Mail-Adresse;Transaktionscode;Lieferadresse;Adress-Status;Artikelbezeichnung;Artikelnummer;Versand- und Bearbeitungsgebühr;Versicherungsbetrag;Umsatzsteuer;Option 1 Name;Option 1 Wert;Option 2 Name;Option 2 Wert;Zugehöriger Transaktionscode;Rechnungsnummer;Zollnummer;Anzahl;Empfangsnummer;Guthaben;Adresszeile 1;Adresszusatz;Ort;Bundesland;PLZ;Land;Telefon;Betreff;Hinweis;Ländervorwahl;Auswirkung auf Guthaben
+10.07.2026;09:00:00;MESZ;Tim Hauler;Handyzahlung;Abgeschlossen;EUR;3,50;0,00;3,50;tim@example.com;;TX1001;;;;;;;;;;;;;;;;;;;;;;;;;Kicken;;Haben
+29.07.2026;11:00:00;MESZ;Aron Salamon;Handyzahlung;Abgeschlossen;EUR;10,50;0,00;10,50;aron@example.com;;TX1002;;;;;;;;;;;;;;;;;;;;;;;;;Zock Aron 08. / 22. / 29. Juli;;Haben
+30.07.2026;12:00:00;MESZ;Eversport GmbH;PayPal Express-Zahlung;Abgeschlossen;EUR;-74,00;0,00;-74,00;ever@example.com;;TX1003;;;Platzbuchung Kautz;;;;;;;;;;;;;;;;;;;;;;Platzbuchung Fußball 04.08.2026;;;Soll
+05.08.2026;14:00:00;MESZ;Philipp Nockemann;Handyzahlung;Abgeschlossen;EUR;36,00;0,00;36,00;philipp@example.com;;TX1004;;;;;;;;;;;;;;;;;;;;;;;;;Mitgliedsbeitrag SoSe 2026;;Haben
+"""
+    txs = parse_paypal_csv(detailed_csv)
+    assert len(txs) == 4
+
+    # Tim Hauler
+    assert txs[0]["tx_code"] == "TX1001"
+    assert txs[0]["amount"] == 3.50
+    assert txs[0]["note"] == "Kicken"
+    assert txs[0]["status"] == "imported"
+
+    # Aron Salamon
+    assert txs[1]["tx_code"] == "TX1002"
+    assert txs[1]["amount"] == 10.50
+    assert "Zock Aron" in txs[1]["note"]
+
+    # Eversport
+    assert txs[2]["tx_code"] == "TX1003"
+    assert txs[2]["amount"] == -74.00
+    assert txs[2]["status"] == "expense"
+    assert "Platzbuchung" in txs[2]["note"]
+
+    # Philipp Nockemann (flexible / self-chosen dues amount)
+    assert txs[3]["tx_code"] == "TX1004"
+    assert txs[3]["amount"] == 36.00
+    assert "Mitgliedsbeitrag SoSe 2026" in txs[3]["note"]
+
+
+def test_skatbank_pdf_parsing_if_available():
+    """Test Skatbank PDF parsing on real statements if present in data/finances/skatbank."""
+    skatbank_dir = Path("data/finances/skatbank")
+    pdf_files = list(skatbank_dir.glob("*.pdf"))
+    if not pdf_files:
+        pytest.skip("No Skatbank PDFs found in data/finances/skatbank/")
+
+    total_txs = 0
+    for p in pdf_files:
+        txs = parse_bank_pdf(p)
+        total_txs += len(txs)
+        for t in txs:
+            assert t["source"] == "bank"
+            assert t["date"].startswith("202")
+            assert t["amount"] != 0.0
+
+    assert total_txs >= 15
+
+
+def test_finance_archive_workflow(clean_finances_env, monkeypatch):
+    """Test archiving current list, viewing archives, downloading CSV, and deleting archive."""
+    app = create_app()
+    client = _login_webmaster(app)
+
+    # Insert a couple of sample transactions
+    finances_conn = get_finances_connection()
+    insert_transaction(
+        finances_conn,
+        source="paypal",
+        tx_code="TX_ARCHIVE_1",
+        date="2026-07-22",
+        time="10:00:00",
+        raw_payer_name="Tim Hauler",
+        raw_payer_email="tim@example.com",
+        amount=3.50,
+        description="Handyzahlung",
+        status="imported",
+        is_confirmed=1,
+    )
+    insert_transaction(
+        finances_conn,
+        source="bank",
+        tx_code="TX_ARCHIVE_2",
+        date="2026-07-23",
+        time="00:00:00",
+        raw_payer_name="Universitat zu Koln",
+        raw_payer_email=None,
+        amount=-120.00,
+        description="Basislastschrift",
+        status="expense",
+        is_confirmed=1,
+    )
+    finances_conn.close()
+
+    # 1. Trigger archive
+    resp_arch = client.post(
+        "/admin/finances/archive-current",
+        data={"archive_title": "Testarchiv 2026", "archive_notes": "Sicherung vor Monatsabschluss"},
+        follow_redirects=True,
+    )
+    assert resp_arch.status_code == 200
+    html = resp_arch.get_data(as_text=True)
+    assert "Testarchiv 2026" in html
+    assert "Zahlungslisten-Archiv" in html
+
+    # 2. Check archive list from DB
+    finances_conn = get_finances_connection()
+    from scripts.finances.database import get_finance_archives
+    archives = get_finance_archives(finances_conn)
+    assert len(archives) >= 1
+    arch_id = archives[0]["id"]
+    assert archives[0]["title"] == "Testarchiv 2026"
+    assert archives[0]["tx_count"] == 2
+    assert archives[0]["total_income"] == 3.50
+    assert archives[0]["total_expenses"] == 120.00
+    finances_conn.close()
+
+    # 3. Download archive CSV
+    resp_dl = client.get(f"/admin/finances/download-archive/{arch_id}")
+    assert resp_dl.status_code == 200
+    assert "text/csv" in resp_dl.content_type
+    dl_content = resp_dl.get_data(as_text=True)
+    assert "TX_ARCHIVE_1" in dl_content
+    assert "Tim Hauler" in dl_content
+    assert "TX_ARCHIVE_2" in dl_content
+    assert "Universitat zu Koln" in dl_content
+
+    # 4. Delete archive
+    resp_del = client.post(f"/admin/finances/delete-archive/{arch_id}", follow_redirects=True)
+    assert resp_del.status_code == 200
+    finances_conn = get_finances_connection()
+    archives_after = get_finance_archives(finances_conn)
+    assert not any(a["id"] == arch_id for a in archives_after)
+    finances_conn.close()
+
 
 
 

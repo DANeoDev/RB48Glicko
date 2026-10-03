@@ -1,4 +1,6 @@
+import csv
 import io
+from datetime import datetime
 from flask import (
     Blueprint,
     flash,
@@ -7,6 +9,7 @@ from flask import (
     render_template,
     request,
     url_for,
+    Response,
 )
 from web.services.security import require_webmaster, get_current_user
 from scripts.database.database import get_connection as get_rb48_connection
@@ -26,6 +29,10 @@ from scripts.finances.database import (
     save_or_update_identity,
     delete_identity,
     set_player_membership_status,
+    create_finance_archive,
+    get_finance_archives,
+    get_finance_archive_by_id,
+    delete_finance_archive,
 )
 from pathlib import Path
 from scripts.finances.paypal_parser import parse_paypal_csv
@@ -214,6 +221,7 @@ def admin_finances():
         dues_view = request.args.get("dues_view", "period")
         available_halfyear_periods = [p for p in available_periods if p.get("type") == "halfyear"]
         dues_matrix = get_membership_dues_matrix(finances_conn=finances_conn, rb48_conn=rb48_conn)
+        finance_archives = get_finance_archives(finances_conn)
 
         return render_template(
             "admin_finances.html",
@@ -244,6 +252,7 @@ def admin_finances():
             guest_fee_rate=GUEST_FEE_PER_KICK,
             membership_due_rate=MEMBERSHIP_DUE_PER_HALFYEAR,
             has_any_suggestion=has_any_suggestion,
+            finance_archives=finance_archives,
         )
     finally:
         finances_conn.close()
@@ -840,3 +849,161 @@ def proxy_suggestion():
     from scripts.finances.reconciliation import get_proxy_payment_suggestion
     suggestion = get_proxy_payment_suggestion(tx_id, player_id)
     return jsonify({"suggestion": suggestion})
+
+
+@finances_bp.route("/archive-current", methods=["POST"])
+@require_webmaster
+def archive_current():
+    """Archive current transaction list and payment allocations into a saved snapshot."""
+    title = request.form.get("archive_title", "").strip()
+    notes = request.form.get("archive_notes", "").strip() or None
+
+    finances_conn = get_finances_connection()
+    rb48_conn = get_rb48_connection()
+    try:
+        transactions = get_transactions(finances_conn, limit=1000)
+        if not transactions:
+            flash("Keine Transaktionen zum Archivieren vorhanden.", "warning")
+            return redirect(url_for("finances.admin_finances", tab="import"))
+
+        players_dict = get_players(rb48_conn)
+
+        # Get allocations for all transactions
+        tx_ids = [t["id"] for t in transactions]
+        allocs_by_tx = {}
+        if tx_ids:
+            placeholders = ",".join("?" for _ in tx_ids)
+            arows = finances_conn.execute(
+                f"SELECT * FROM payment_allocations WHERE transaction_id IN ({placeholders})",
+                tx_ids,
+            ).fetchall()
+            for ar in arows:
+                allocs_by_tx.setdefault(ar["transaction_id"], []).append(dict(ar))
+
+        output = io.StringIO()
+        writer = csv.writer(output, delimiter=';')
+        writer.writerow([
+            "ID", "Datum", "Uhrzeit", "Quelle", "Transaktionscode",
+            "Betrag", "Waehrung", "Absender_Name", "Absender_Email",
+            "Status", "Zugeordneter_Spieler", "Bestaetigt",
+            "Verwendungszweck_Notiz", "Beglichene_Posten"
+        ])
+
+        total_income = 0.0
+        total_expenses = 0.0
+
+        for tx in transactions:
+            amt = float(tx.get("amount", 0.0))
+            if amt > 0:
+                total_income += amt
+            else:
+                total_expenses += abs(amt)
+
+            player_name = ""
+            if tx.get("matched_player_id"):
+                pinfo = players_dict.get(tx["matched_player_id"], {})
+                player_name = pinfo.get("aliases", [f"Player #{tx['matched_player_id']}"])[0]
+
+            tx_allocs = allocs_by_tx.get(tx["id"], [])
+            alloc_summaries = []
+            for a in tx_allocs:
+                bene_name = ""
+                if a.get("player_id"):
+                    bene_pdata = players_dict.get(a["player_id"], {})
+                    bene_name = bene_pdata.get("aliases", [f"Spieler #{a['player_id']}"])[0]
+                fee_t = a.get("fee_type", "")
+                if fee_t == "match_guest":
+                    alloc_summaries.append(f"Gastbeitrag {bene_name or ''} ({a.get('match_date', '')})")
+                elif fee_t == "membership_due":
+                    alloc_summaries.append(f"Mitgliedsbeitrag {bene_name or ''} ({a.get('period', '')})")
+                else:
+                    alloc_summaries.append(a.get("note") or "Zahlung")
+
+            amt_str = f"{amt:.2f}".replace('.', ',')
+            writer.writerow([
+                tx["id"],
+                tx["date"],
+                tx.get("time", ""),
+                tx.get("source", ""),
+                tx.get("tx_code", ""),
+                amt_str,
+                tx.get("currency", "EUR"),
+                tx.get("raw_payer_name", "") or "",
+                tx.get("raw_payer_email", "") or "",
+                tx.get("status", ""),
+                player_name,
+                "Ja" if tx.get("is_confirmed") else "Nein",
+                tx.get("note", "") or tx.get("description", "") or "",
+                ", ".join(alloc_summaries),
+            ])
+
+        csv_data = output.getvalue()
+
+        now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
+        if not title:
+            title = f"Zahlungsliste vom {now_str}"
+
+        archive_id = create_finance_archive(
+            finances_conn,
+            title=title,
+            tx_count=len(transactions),
+            total_income=total_income,
+            total_expenses=total_expenses,
+            csv_data=csv_data,
+            notes=notes,
+        )
+
+        # Also store local backup copy in data/finances/archives/
+        arch_dir = Path("data/finances/archives")
+        arch_dir.mkdir(parents=True, exist_ok=True)
+        file_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        (arch_dir / f"archive_{archive_id}_{file_ts}.csv").write_text(csv_data, encoding="utf-8-sig")
+
+        flash(
+            f"📦 Archiv '{title}' mit {len(transactions)} Buchungen erfolgreich gespeichert.",
+            "success",
+        )
+        return redirect(url_for("finances.admin_finances", tab="import"))
+    finally:
+        finances_conn.close()
+        rb48_conn.close()
+
+
+@finances_bp.route("/download-archive/<int:archive_id>", methods=["GET"])
+@require_webmaster
+def download_archive(archive_id: int):
+    """Download a saved financial archive as CSV."""
+    finances_conn = get_finances_connection()
+    try:
+        archive = get_finance_archive_by_id(finances_conn, archive_id)
+        if not archive:
+            flash("Archiv nicht gefunden.", "danger")
+            return redirect(url_for("finances.admin_finances", tab="import"))
+
+        clean_date = (archive["archived_at"][:10]).replace("-", "")
+        filename = f"rb48_archiv_{archive['id']}_{clean_date}.csv"
+        csv_bytes = ("\ufeff" + archive["csv_data"]).encode("utf-8")
+        return Response(
+            csv_bytes,
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Type": "text/csv; charset=utf-8",
+            },
+        )
+    finally:
+        finances_conn.close()
+
+
+@finances_bp.route("/delete-archive/<int:archive_id>", methods=["POST"])
+@require_webmaster
+def delete_archive(archive_id: int):
+    """Delete a saved financial archive."""
+    finances_conn = get_finances_connection()
+    try:
+        delete_finance_archive(finances_conn, archive_id)
+        flash(f"Archiv #{archive_id} gelöscht.", "info")
+        return redirect(url_for("finances.admin_finances", tab="import"))
+    finally:
+        finances_conn.close()
+

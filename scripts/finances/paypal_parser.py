@@ -135,19 +135,26 @@ def parse_paypal_csv(content_or_file) -> list[dict]:
             or row.get("Absender")
             or ""
         )
-        note_raw = (
-            row.get("Rechnungsnummer")
-            or row.get("Notiz")
-            or row.get("Betreff")
-            or row.get("Note")
-            or ""
-        )
+        # Collect all notes / references across standard and detailed PayPal CSV formats
+        candidate_notes = []
+        for field in ("Hinweis", "Betreff", "Notiz", "Note", "Artikelbezeichnung", "Rechnungsnummer"):
+            val = (row.get(field) or "").strip()
+            if val and val not in candidate_notes:
+                candidate_notes.append(val)
+        note_raw = " - ".join(candidate_notes)
 
         amount = parse_german_amount(gross_raw)
         date_iso = parse_date_to_iso(date_raw)
 
         if not tx_code and not date_iso:
             continue
+
+        # Adjust sign if Auswirkung auf Guthaben is explicit (e.g. Soll / Haben)
+        impact_raw = (row.get("Auswirkung auf Guthaben") or row.get("Impact on Balance") or "").strip().lower()
+        if impact_raw == "soll" and amount > 0:
+            amount = -amount
+        elif impact_raw == "haben" and amount < 0:
+            amount = abs(amount)
 
         # Status: negative or known expense providers
         if amount < 0 or "express-zahlung" in desc_raw.lower() or "eversport" in payer_name.lower():

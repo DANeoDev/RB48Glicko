@@ -145,6 +145,19 @@ def create_finance_tables(connection):
         )
     """)
 
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS finance_archives (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            archived_at TEXT NOT NULL,
+            title TEXT NOT NULL,
+            tx_count INTEGER NOT NULL DEFAULT 0,
+            total_income REAL NOT NULL DEFAULT 0.0,
+            total_expenses REAL NOT NULL DEFAULT 0.0,
+            csv_data TEXT NOT NULL,
+            notes TEXT
+        )
+    """)
+
     connection.commit()
 
 
@@ -489,3 +502,54 @@ def get_allocations_paid_by_player(connection, paid_by_player_id: int) -> list[d
         (paid_by_player_id,),
     )
     return [dict(row) for row in cursor.fetchall()]
+
+
+def create_finance_archive(
+    connection,
+    title: str,
+    tx_count: int,
+    total_income: float,
+    total_expenses: float,
+    csv_data: str,
+    notes: str | None = None,
+) -> int:
+    """Store an archived snapshot of transactions and allocations."""
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    cursor = connection.execute(
+        """
+        INSERT INTO finance_archives (
+            archived_at, title, tx_count, total_income, total_expenses, csv_data, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (now, title, tx_count, round(total_income, 2), round(total_expenses, 2), csv_data, notes),
+    )
+    connection.commit()
+    return cursor.lastrowid
+
+
+def get_finance_archives(connection) -> list[dict]:
+    """Retrieve all saved financial archives ordered newest first."""
+    cursor = connection.execute(
+        "SELECT id, archived_at, title, tx_count, total_income, total_expenses, notes FROM finance_archives ORDER BY id DESC"
+    )
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def get_finance_archive_by_id(connection, archive_id: int) -> dict | None:
+    """Retrieve a single archive including its full CSV data."""
+    row = connection.execute(
+        "SELECT * FROM finance_archives WHERE id = ?",
+        (archive_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_finance_archive(connection, archive_id: int) -> bool:
+    """Delete a finance archive by ID."""
+    cursor = connection.execute(
+        "DELETE FROM finance_archives WHERE id = ?",
+        (archive_id,),
+    )
+    connection.commit()
+    return cursor.rowcount > 0
+
