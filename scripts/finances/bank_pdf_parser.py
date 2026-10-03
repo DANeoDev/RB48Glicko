@@ -9,9 +9,17 @@ from datetime import datetime
 import io
 import re
 from pathlib import Path
-import pymupdf
+
+try:
+    import pymupdf
+except ImportError:
+    try:
+        import fitz as pymupdf
+    except ImportError:
+        pymupdf = None
 
 from scripts.finances.paypal_parser import parse_german_amount, parse_date_to_iso
+
 
 
 def _extract_year_from_header(text: str) -> str:
@@ -59,10 +67,18 @@ def parse_bank_pdf(pdf_content_or_path) -> list[dict]:
     Parse a German bank PDF statement (e.g. Deutsche Skatbank / VR-Banken).
     Extracts transactions into standardized dicts with source='bank'.
     """
+    if pymupdf is None:
+        raise RuntimeError(
+            "PyMuPDF ist auf diesem Server nicht installiert. "
+            "Bitte installiere 'pymupdf' (z. B. via 'pip install pymupdf' im Terminal) "
+            "oder lade Kontoauszüge als CSV-Dateien hoch."
+        )
+
     if isinstance(pdf_content_or_path, (str, Path)):
         doc = pymupdf.open(str(pdf_content_or_path))
     elif isinstance(pdf_content_or_path, bytes):
         doc = pymupdf.open(stream=pdf_content_or_path, filetype="pdf")
+
     else:
         # File-like
         data = pdf_content_or_path.read()

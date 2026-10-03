@@ -378,9 +378,14 @@ def upload_csv():
                 # Convert PDF to CSV and store in data/finances/skatbank/
                 csv_stem = Path(filename).stem
                 csv_target = skatbank_dir / f"{csv_stem}.csv"
-                convert_pdf_to_csv(content, csv_target)
-                parsed_txs = parse_bank_pdf(content)
+                try:
+                    convert_pdf_to_csv(content, csv_target)
+                    parsed_txs = parse_bank_pdf(content)
+                except RuntimeError as err:
+                    flash(str(err), "danger")
+                    continue
             elif lower_name.endswith(".csv"):
+
                 text_sample = ""
                 for enc in ("utf-8-sig", "utf-8", "cp1252", "latin1"):
                     try:
