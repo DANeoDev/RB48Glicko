@@ -61,6 +61,7 @@ from scripts.finances.reconciliation import (
     settle_smart_combo_transaction,
     get_all_players_open_debts,
     get_transaction_cleared_debts_preview,
+    infer_transaction_settlement_target,
     GUEST_FEE_PER_KICK,
     MEMBERSHIP_DUE_PER_HALFYEAR,
 )
@@ -175,8 +176,13 @@ def admin_finances():
             if amount > 0 and not tx.get("is_confirmed"):
                 check_pid = tx.get("matched_player_id") or (tx.get("suggestion") and tx["suggestion"].get("player_id"))
                 if check_pid:
+                    inferred = infer_transaction_settlement_target(
+                        amount, tx.get("date"), tx.get("note"), tx.get("description"), check_pid, all_open_debts
+                    )
+                    tx["inferred_target_settlement"] = inferred.get("target_settlement")
                     tx["cleared_debts_preview"] = get_transaction_cleared_debts_preview(
-                        amount, check_pid, all_player_debts=all_open_debts
+                        amount, check_pid, all_player_debts=all_open_debts,
+                        tx_date=tx.get("date"), tx_note=tx.get("note"), tx_description=tx.get("description")
                     )
                     proxy_sug = get_proxy_payment_suggestion(tx["id"], check_pid)
                     if proxy_sug:
@@ -685,12 +691,14 @@ def assign_transaction():
         if not player_id:
             return jsonify({"success": False, "error": "Bitte einen Spieler auswählen"}), 400
 
+        target_settlement = request.form.get("target_settlement", "auto")
         res = settle_transaction_and_debts(
             transaction_id=tx_id,
             payer_player_id=player_id,
             beneficiary_player_id=beneficiary_player_id,
             remember=remember,
             current_user_id=curr_user["id"] if curr_user else None,
+            target_settlement=target_settlement,
         )
 
         kicks_covered = res.get("covered_count", 0)
@@ -724,6 +732,7 @@ def settle_transaction_route():
 
     raw_payer_id = request.form.get("payer_player_id") or request.form.get("player_id", "")
     raw_bene_id = request.form.get("beneficiary_player_id", "")
+    target_settlement = request.form.get("target_settlement", "auto")
     remember = request.form.get("remember_identity") in ("1", "true", "on")
     match_date = request.form.get("match_date")
 
@@ -735,6 +744,7 @@ def settle_transaction_route():
         match_date=match_date,
         remember=remember,
         current_user_id=curr_user["id"] if curr_user else None,
+        target_settlement=target_settlement,
     )
 
     if not res.get("success"):

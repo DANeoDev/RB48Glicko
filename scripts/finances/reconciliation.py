@@ -1173,8 +1173,11 @@ def auto_allocate_transaction_to_debts(
                     covered += proxy_covered
                     return covered
 
-            # Allocate to membership dues for current periods (e.g. 2026-H2 or 2026-H1)
-            for per in ("2026-H2", "2026-H1"):
+            # Allocate to membership dues using smart inferred period order
+            inferred = infer_transaction_settlement_target(
+                remaining_amount, tx.get("date"), tx.get("note"), tx.get("description"), player_id
+            )
+            for per in inferred.get("periods", ("2026-H1", "2026-H2")):
                 if remaining_amount <= 0:
                     break
                 allocs = get_allocations_for_period(finances_conn, per)
@@ -2053,6 +2056,7 @@ def settle_transaction_and_debts(
     current_user_id: int | None = None,
     note: str | None = None,
     beneficiary_alias: str | None = None,
+    target_settlement: str | None = None,
 ) -> dict:
     """
     Settle a transaction directly, covering debts for either the payer themselves
@@ -2134,6 +2138,8 @@ def settle_transaction_and_debts(
             status="assigned",
             is_confirmed=1,
         )
+        if target_settlement == "credit_only":
+            return {"success": True, "covered_count": 0, "status": "assigned"}
 
         remaining_amount = float(tx.get("amount", 0))
         covered_count = 0
@@ -2155,6 +2161,14 @@ def settle_transaction_and_debts(
                 alloc_note = f"Bezahlt von {payer_name}"
             else:
                 alloc_note = f"PayPal {tx['tx_code'] or ''}".strip()
+
+        # Determine settlement target preference
+        inferred = infer_transaction_settlement_target(
+            remaining_amount, tx.get("date"), tx.get("note"), tx.get("description"), bene_pid
+        )
+        effective_target = target_settlement if (target_settlement and target_settlement != "auto") else None
+        if not effective_target and (inferred.get("has_due_hint") or (inferred.get("target_settlement") or "").startswith("due:")):
+            effective_target = inferred["target_settlement"]
 
         # Case A: Beneficiary is an ignored alias (external player)
         if bene_alias and remaining_amount > 0:
@@ -2237,47 +2251,84 @@ def settle_transaction_and_debts(
 
         # Case B: Beneficiary is a registered player (guest or member with historical guest fees)
         elif bene_pid and remaining_amount > 0:
-            # 1. Check existing manual allocations without transaction_id for the beneficiary
-            if match_date:
-                manual_rows = finances_conn.execute(
-                    """
-                    SELECT id, allocated_amount FROM payment_allocations
-                    WHERE match_date = ? AND player_id = ? AND transaction_id IS NULL AND fee_type = 'match_guest'
-                    """,
-                    (match_date, bene_pid),
-                ).fetchall()
-            else:
-                manual_rows = finances_conn.execute(
-                    """
-                    SELECT id, allocated_amount FROM payment_allocations
-                    WHERE player_id = ? AND transaction_id IS NULL AND fee_type = 'match_guest'
-                    ORDER BY match_date DESC
-                    """,
-                    (bene_pid,),
-                ).fetchall()
+            # B1. If membership dues are targeted (explicitly or inferred from text/amount/status), allocate dues FIRST
+            if effective_target and effective_target.startswith("due:"):
+                req_part = effective_target.split(":", 1)[1]
+                if req_part.endswith("-year") or (len(req_part) == 4 and req_part.isdigit()):
+                    yr = req_part[:4]
+                    due_pers = [f"{yr}-H1", f"{yr}-H2"]
+                else:
+                    due_pers = [req_part]
 
-            for mr in manual_rows:
-                if remaining_amount < GUEST_FEE_PER_KICK:
-                    break
-                finances_conn.execute(
-                    """
-                    UPDATE payment_allocations
-                    SET transaction_id = ?, payment_method = ?, paid_by_player_id = ?, note = ?
-                    WHERE id = ?
-                    """,
-                    (
-                        transaction_id,
-                        tx["source"],
-                        payer_pid if payer_pid != bene_pid else None,
-                        alloc_note,
-                        mr["id"],
-                    ),
-                )
-                remaining_amount -= GUEST_FEE_PER_KICK
-                covered_count += 1
+                for per in due_pers:
+                    if remaining_amount <= 0:
+                        break
+                    allocs = get_allocations_for_period(finances_conn, per)
+                    p_allocs = [a for a in allocs if a.get("player_id") == bene_pid]
+                    paid_sum = sum(a["allocated_amount"] for a in p_allocs if a["payment_method"] != "waived")
+                    if paid_sum >= MEMBERSHIP_DUE_PER_HALFYEAR:
+                        continue
 
-            # 2. Check unpaid match guest fees for beneficiary (even if now member)
-            if remaining_amount >= GUEST_FEE_PER_KICK:
+                    alloc_amt = min(remaining_amount, max(0.0, MEMBERSHIP_DUE_PER_HALFYEAR - paid_sum))
+                    if alloc_amt <= 0:
+                        alloc_amt = min(remaining_amount, MEMBERSHIP_DUE_PER_HALFYEAR)
+
+                    add_payment_allocation(
+                        finances_conn,
+                        fee_type="membership_due",
+                        allocated_amount=alloc_amt,
+                        payment_method=tx["source"],
+                        transaction_id=transaction_id,
+                        period=per,
+                        player_id=bene_pid,
+                        paid_by_player_id=payer_pid if payer_pid != bene_pid else None,
+                        note=alloc_note or f"Mitgliedsbeitrag {per}",
+                    )
+                    remaining_amount -= alloc_amt
+                    covered_count += 1
+
+            # B2. Check existing manual allocations without transaction_id for the beneficiary (if kicks not skipped)
+            if effective_target != "due_only" and remaining_amount >= GUEST_FEE_PER_KICK:
+                if match_date:
+                    manual_rows = finances_conn.execute(
+                        """
+                        SELECT id, allocated_amount FROM payment_allocations
+                        WHERE match_date = ? AND player_id = ? AND transaction_id IS NULL AND fee_type = 'match_guest'
+                        """,
+                        (match_date, bene_pid),
+                    ).fetchall()
+                else:
+                    manual_rows = finances_conn.execute(
+                        """
+                        SELECT id, allocated_amount FROM payment_allocations
+                        WHERE player_id = ? AND transaction_id IS NULL AND fee_type = 'match_guest'
+                        ORDER BY match_date DESC
+                        """,
+                        (bene_pid,),
+                    ).fetchall()
+
+                for mr in manual_rows:
+                    if remaining_amount < GUEST_FEE_PER_KICK:
+                        break
+                    finances_conn.execute(
+                        """
+                        UPDATE payment_allocations
+                        SET transaction_id = ?, payment_method = ?, paid_by_player_id = ?, note = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            transaction_id,
+                            tx["source"],
+                            payer_pid if payer_pid != bene_pid else None,
+                            alloc_note,
+                            mr["id"],
+                        ),
+                    )
+                    remaining_amount -= GUEST_FEE_PER_KICK
+                    covered_count += 1
+
+            # B3. Check unpaid match guest fees for beneficiary
+            if effective_target != "due_only" and remaining_amount >= GUEST_FEE_PER_KICK:
                 if match_date:
                     dates_to_check = [match_date]
                 else:
@@ -2318,10 +2369,10 @@ def settle_transaction_and_debts(
                     remaining_amount -= GUEST_FEE_PER_KICK
                     covered_count += 1
 
-            # 3. If beneficiary is a member, allocate to membership dues (supports flexible amounts < 48 €)
+            # B4. If beneficiary is a member and dues were NOT already allocated above, allocate to membership dues
             status = resolve_player_membership_status(bene_pid, finances_conn, accounts_conn)
-            if remaining_amount > 0 and status == "member":
-                for per in ("2026-H2", "2026-H1"):
+            if remaining_amount > 0 and status == "member" and not (effective_target and effective_target.startswith("due:")):
+                for per in inferred.get("periods", ("2026-H1", "2026-H2")):
                     if remaining_amount <= 0:
                         break
                     allocs = get_allocations_for_period(finances_conn, per)
@@ -2343,7 +2394,7 @@ def settle_transaction_and_debts(
                         period=per,
                         player_id=bene_pid,
                         paid_by_player_id=payer_pid if payer_pid != bene_pid else None,
-                        note=alloc_note,
+                        note=alloc_note or f"Mitgliedsbeitrag {per}",
                     )
                     remaining_amount -= alloc_amt
                     covered_count += 1
@@ -2503,29 +2554,32 @@ def get_all_players_open_debts(finances_conn=None, rb48_conn=None, accounts_conn
                 "amount": entry_amt,
             })
 
-        # 2. Unpaid membership dues for members (e.g. 2026-H2)
+        # 2. Unpaid membership dues for members across all available halfyears
         try:
-            dues_ov = get_membership_dues_overview("2026-H2")
-            for m in dues_ov.get("members", []):
-                pid = str(m["player_id"])
-                due_open = float(m.get("fee_required", 0.0)) - float(m.get("amount_paid", 0.0))
-                # Only if active member and fee > 0
-                if due_open > 0 and m.get("payment_status") in ("unpaid", "partial"):
-                    d = debts.setdefault(pid, {
-                        "total_open": 0.0,
-                        "guest_kicks_count": 0,
-                        "guest_kicks": [],
-                        "dues": [],
-                        "summary": "",
-                        "short_summary": "",
-                        "is_member": True,
-                    })
-                    d["is_member"] = True
-                    d["total_open"] += due_open
-                    d["dues"].append({
-                        "period": "2026-H2",
-                        "amount": due_open,
-                    })
+            pers = [p["value"] for p in get_available_finance_periods(finances_conn, rb48_conn) if p.get("type") == "halfyear"]
+            pers.sort()  # e.g. ['2026-H1', '2026-H2']
+            for per in pers:
+                dues_ov = get_membership_dues_overview(per)
+                for m in dues_ov.get("members", []):
+                    pid = str(m["player_id"])
+                    due_open = float(m.get("fee_required", 0.0)) - float(m.get("amount_paid", 0.0))
+                    # Only if active member and fee > 0 (skip if period ended and member was inactive)
+                    if due_open > 0 and m.get("payment_status") in ("unpaid", "partial", "unpaid_inactive_ongoing"):
+                        d = debts.setdefault(pid, {
+                            "total_open": 0.0,
+                            "guest_kicks_count": 0,
+                            "guest_kicks": [],
+                            "dues": [],
+                            "summary": "",
+                            "short_summary": "",
+                            "is_member": True,
+                        })
+                        d["is_member"] = True
+                        d["total_open"] += due_open
+                        d["dues"].append({
+                            "period": per,
+                            "amount": due_open,
+                        })
         except Exception:
             pass
 
@@ -2569,6 +2623,81 @@ def get_all_players_open_debts(finances_conn=None, rb48_conn=None, accounts_conn
             accounts_conn.close()
 
 
+def infer_transaction_settlement_target(
+    amount: float,
+    tx_date: str | None = None,
+    note: str | None = None,
+    description: str | None = None,
+    player_id: int | str | None = None,
+    all_player_debts: dict | None = None,
+) -> dict:
+    """
+    Intelligently infer which membership dues or debts a transaction is meant to settle,
+    taking into account the transaction date, payment note/purpose (e.g. SoSe26, H1, 2026),
+    transfer amount, and the player's actual open debts.
+    """
+    import re
+    text = f"{note or ''} {description or ''}".strip().lower()
+
+    # 1. Determine base year
+    curr_year = str(get_cologne_now().year)
+    year = curr_year
+    year_match = re.search(r'\b(202\d)\b', text)
+    year_short_match = re.search(r'\b(?:sose|wise|ss|ws)\s*(\d{2})\b', text)
+    if year_match:
+        year = year_match.group(1)
+    elif year_short_match:
+        year = f"20{year_short_match.group(1)}"
+    elif tx_date and len(tx_date) >= 4 and tx_date[:4].isdigit():
+        year = tx_date[:4]
+
+    # 2. Check for explicit period hints in text
+    has_h1_hint = bool(re.search(r'\b(sose|sommersemester|h1|1\.\s*halbjahr|1\.\s*hj|ss)\b', text))
+    has_h2_hint = bool(re.search(r'\b(wise|wintersemester|h2|2\.\s*halbjahr|2\.\s*hj|ws)\b', text))
+    has_year_hint = bool(re.search(r'\b(ganzjahr|gesamtjahr|jahresbeitrag|volljahr|h1\s*\+\s*h2|h1\s*und\s*h2|h1/h2)\b', text))
+    if not has_year_hint and (f"beitrag {year}" in text or f"mitgliedsbeitrag {year}" in text):
+        if amount >= (2 * MEMBERSHIP_DUE_PER_HALFYEAR - 0.5):
+            has_year_hint = True
+
+    has_due_hint = any(k in text for k in ("beitrag", "mitglied", "sose", "wise", "verein", "halbjahr"))
+    is_dues_amount = amount >= (MEMBERSHIP_DUE_PER_HALFYEAR - 8.0)
+    is_full_year_amount = abs(amount - (2 * MEMBERSHIP_DUE_PER_HALFYEAR)) < 1.0 or amount >= (2 * MEMBERSHIP_DUE_PER_HALFYEAR - 0.5)
+
+    # 3. Determine target settlement and period ordering
+    if not has_due_hint and not is_dues_amount:
+        target_settlement = "kicks_only"
+        periods = []
+    elif has_year_hint or is_full_year_amount:
+        target_settlement = f"due:{year}-year"
+        periods = [f"{year}-H1", f"{year}-H2"]
+    elif has_h1_hint:
+        target_settlement = f"due:{year}-H1"
+        periods = [f"{year}-H1", f"{year}-H2"]
+    elif has_h2_hint:
+        target_settlement = f"due:{year}-H2"
+        periods = [f"{year}-H2", f"{year}-H1"]
+    else:
+        month = 1
+        if tx_date and len(tx_date) >= 7 and tx_date[5:7].isdigit():
+            try:
+                month = int(tx_date[5:7])
+            except ValueError:
+                month = 1
+        if month <= 6:
+            target_settlement = f"due:{year}-H1"
+            periods = [f"{year}-H1", f"{year}-H2"]
+        else:
+            target_settlement = f"due:{year}-H2"
+            periods = [f"{year}-H2", f"{year}-H1"]
+
+    return {
+        "target_settlement": target_settlement,
+        "periods": periods,
+        "year": year,
+        "has_due_hint": has_due_hint,
+    }
+
+
 def get_transaction_cleared_debts_preview(
     amount: float,
     player_id: int | str,
@@ -2576,6 +2705,10 @@ def get_transaction_cleared_debts_preview(
     finances_conn=None,
     rb48_conn=None,
     accounts_conn=None,
+    tx_date: str | None = None,
+    tx_note: str | None = None,
+    tx_description: str | None = None,
+    target_settlement: str | None = None,
 ) -> str:
     """
     Given a transaction amount and a candidate target player, determine exactly
@@ -2588,40 +2721,88 @@ def get_transaction_cleared_debts_preview(
         all_player_debts = get_all_players_open_debts(finances_conn, rb48_conn, accounts_conn)
 
     p_debts = all_player_debts.get(player_id)
-    if not p_debts or p_debts.get("total_open", 0.0) <= 0:
-        return "Keine offenen Posten im System erfasst (Zahlung auf Vorrat / Guthaben)"
+    if target_settlement == "credit_only":
+        return f"{amount:.2f}".replace('.', ',') + " € als Guthaben (keine Verrechnung mit offenen Posten)"
+
+    inferred = infer_transaction_settlement_target(
+        amount, tx_date=tx_date, note=tx_note, description=tx_description, player_id=player_id, all_player_debts=all_player_debts
+    )
+
+    effective_target = target_settlement if (target_settlement and target_settlement != "auto") else inferred["target_settlement"]
 
     rem = float(amount)
     cleared_items = []
 
-    # 1. Clear membership dues first if member
-    for due in p_debts.get("dues", []):
-        if rem <= 0:
-            break
-        due_amt = float(due["amount"])
-        covered = min(rem, due_amt)
-        cov_str = f"{covered:.2f}".replace('.', ',')
-        cleared_items.append(f"Mitgliedsbeitrag {due['period']} ({cov_str} €)")
-        rem -= covered
+    # 1. Target is explicit or inferred membership due period(s)
+    if effective_target and effective_target.startswith("due:"):
+        req_part = effective_target.split(":", 1)[1]
+        if req_part.endswith("-year") or (len(req_part) == 4 and req_part.isdigit()):
+            yr = req_part[:4]
+            due_pers = [f"{yr}-H1", f"{yr}-H2"]
+        else:
+            due_pers = [req_part]
 
-    # 2. Clear oldest guest kicks
-    covered_kicks = []
-    for k in p_debts.get("guest_kicks", []):
-        k_amt = float(k["amount"])
-        if rem < k_amt:
-            break
-        mdate = k.get("match_date", "")
-        mdate_short = mdate[5:].replace("-", ".") if mdate else ""
-        covered_kicks.append(mdate_short)
-        rem -= k_amt
+        for per in due_pers:
+            if rem <= 0:
+                break
+            cov = min(rem, MEMBERSHIP_DUE_PER_HALFYEAR)
+            cov_str = f"{cov:.2f}".replace('.', ',')
+            cleared_items.append(f"Mitgliedsbeitrag {per} ({cov_str} €)")
+            rem -= cov
 
-    if covered_kicks:
-        c_count = len(covered_kicks)
-        c_tot = f"{c_count * GUEST_FEE_PER_KICK:.2f}".replace('.', ',')
-        cleared_items.append(f"{c_count} Gastbeitrag{'s' if c_count > 1 else ''} ({', '.join(covered_kicks)} – gesamt {c_tot} €)")
+        # If remaining amount is still left and player has open guest kicks, cover them
+        if rem >= GUEST_FEE_PER_KICK and p_debts and p_debts.get("guest_kicks"):
+            covered_kicks = []
+            for k in p_debts["guest_kicks"]:
+                k_amt = float(k["amount"])
+                if rem < k_amt:
+                    break
+                mdate = k.get("match_date", "")
+                mdate_short = mdate[5:].replace("-", ".") if mdate else ""
+                covered_kicks.append(mdate_short)
+                rem -= k_amt
+            if covered_kicks:
+                c_count = len(covered_kicks)
+                c_tot = f"{c_count * GUEST_FEE_PER_KICK:.2f}".replace('.', ',')
+                cleared_items.append(f"{c_count} Gastbeitrag{'s' if c_count > 1 else ''} ({', '.join(covered_kicks)} – gesamt {c_tot} €)")
 
+    # 2. General debts clearance from p_debts
+    elif p_debts and p_debts.get("total_open", 0.0) > 0:
+        dues_list = list(p_debts.get("dues", []))
+        if inferred.get("periods"):
+            pref_order = {p: i for i, p in enumerate(inferred["periods"])}
+            dues_list.sort(key=lambda d: pref_order.get(d["period"], 99))
+
+        for due in dues_list:
+            if rem <= 0:
+                break
+            due_amt = float(due["amount"])
+            covered = min(rem, due_amt)
+            cov_str = f"{covered:.2f}".replace('.', ',')
+            cleared_items.append(f"Mitgliedsbeitrag {due['period']} ({cov_str} €)")
+            rem -= covered
+
+        if effective_target != "due_only":
+            covered_kicks = []
+            for k in p_debts.get("guest_kicks", []):
+                k_amt = float(k["amount"])
+                if rem < k_amt:
+                    break
+                mdate = k.get("match_date", "")
+                mdate_short = mdate[5:].replace("-", ".") if mdate else ""
+                covered_kicks.append(mdate_short)
+                rem -= k_amt
+
+            if covered_kicks:
+                c_count = len(covered_kicks)
+                c_tot = f"{c_count * GUEST_FEE_PER_KICK:.2f}".replace('.', ',')
+                cleared_items.append(f"{c_count} Gastbeitrag{'s' if c_count > 1 else ''} ({', '.join(covered_kicks)} – gesamt {c_tot} €)")
+
+    # 3. Fallback
     if not cleared_items:
-        return f"{amount:.2f}".replace('.', ',') + " € (Teilbetrag / Anzahlung)"
+        if p_debts and p_debts.get("total_open", 0.0) > 0:
+            return f"{amount:.2f}".replace('.', ',') + " € (Teilbetrag / Anzahlung)"
+        return "Keine offenen Posten im System erfasst (Zahlung auf Vorrat / Guthaben)"
 
     res = " + ".join(cleared_items)
     if rem > 0:

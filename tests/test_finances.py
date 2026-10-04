@@ -1513,3 +1513,151 @@ def test_all_open_debts_json_serialization_sort_keys(clean_finances_env):
     html = resp.get_data(as_text=True)
     assert "const ALL_OPEN_DEBTS =" in html
 
+
+def test_semester_and_fullyear_dues_inference_and_settlement(clean_finances_env):
+    """Test SoSe26 (Bernhard Greven 48€) and Ganzjahr 2026 (Michael Schneemann 96€) inference, preview, and settlement."""
+    from scripts.finances.reconciliation import (
+        infer_transaction_settlement_target,
+        get_transaction_cleared_debts_preview,
+        settle_transaction_and_debts,
+        get_allocations_for_period,
+    )
+    from scripts.finances.database import insert_transaction, set_player_membership_status, get_finances_connection
+    from scripts.database.database import get_connection as get_rb48_conn
+
+    # Setup players 70 (Bernhard) and 71 (Michael)
+    r_conn = get_rb48_conn()
+    r_conn.execute("INSERT INTO players (player_id) VALUES (70)")
+    r_conn.execute("INSERT INTO aliases (alias, player_id) VALUES ('Bernhard', 70)")
+    r_conn.execute("INSERT INTO players (player_id) VALUES (71)")
+    r_conn.execute("INSERT INTO aliases (alias, player_id) VALUES ('Micha', 71)")
+    r_conn.commit()
+    r_conn.close()
+
+    f_conn = get_finances_connection()
+    set_player_membership_status(f_conn, 70, "member")
+    set_player_membership_status(f_conn, 71, "member")
+    f_conn.close()
+
+    # 1. Bernhard Greven: 48,00 € with note "Mitgliedsbeitrag SoSe26"
+    inferred_bernhard = infer_transaction_settlement_target(
+        48.0, tx_date="2026-05-04", note="Mitgliedsbeitrag SoSe26", description="Überweisungsgutschr. PN:5931"
+    )
+    assert inferred_bernhard["target_settlement"] == "due:2026-H1"
+    assert inferred_bernhard["periods"] == ["2026-H1", "2026-H2"]
+
+    preview_bernhard = get_transaction_cleared_debts_preview(
+        48.0, 70, tx_date="2026-05-04", tx_note="Mitgliedsbeitrag SoSe26", tx_description="Überweisungsgutschr. PN:5931"
+    )
+    assert "Mitgliedsbeitrag 2026-H1 (48,00 €)" in preview_bernhard
+
+    # Insert transaction and settle
+    f_conn = get_finances_connection()
+    tx_b_id = insert_transaction(
+        f_conn,
+        source="bank",
+        tx_code="SKAT-BERNHARD-SOSE26",
+        date="2026-05-04",
+        time="00:00:00",
+        raw_payer_name="Bernhard Greven",
+        raw_payer_email="",
+        amount=48.00,
+        status="imported",
+        is_confirmed=0,
+        note="Mitgliedsbeitrag SoSe26",
+    )
+    f_conn.close()
+
+    res_b = settle_transaction_and_debts(
+        transaction_id=tx_b_id,
+        payer_player_id=70,
+        beneficiary_player_id=70,
+    )
+    assert res_b["success"] is True
+
+    f_conn = get_finances_connection()
+    allocs_h1 = get_allocations_for_period(f_conn, "2026-H1")
+    b_allocs_h1 = [a for a in allocs_h1 if a["player_id"] == 70]
+    assert len(b_allocs_h1) == 1
+    assert b_allocs_h1[0]["allocated_amount"] == 48.00
+    assert b_allocs_h1[0]["fee_type"] == "membership_due"
+    f_conn.close()
+
+    # 2. Michael Schneemann: 96,00 € with note "Schneemann Mitgliedsbeitrag 2026"
+    inferred_micha = infer_transaction_settlement_target(
+        96.0, tx_date="2026-04-30", note="Schneemann Mitgliedsbeitrag 2026", description="Überweisungsgutschr. PN:931"
+    )
+    assert inferred_micha["target_settlement"] == "due:2026-year"
+    assert inferred_micha["periods"] == ["2026-H1", "2026-H2"]
+
+    preview_micha = get_transaction_cleared_debts_preview(
+        96.0, 71, tx_date="2026-04-30", tx_note="Schneemann Mitgliedsbeitrag 2026", tx_description="Überweisungsgutschr. PN:931"
+    )
+    assert "Mitgliedsbeitrag 2026-H1 (48,00 €)" in preview_micha
+    assert "Mitgliedsbeitrag 2026-H2 (48,00 €)" in preview_micha
+    assert "Guthaben" not in preview_micha
+
+    # Insert transaction and settle
+    f_conn = get_finances_connection()
+    tx_m_id = insert_transaction(
+        f_conn,
+        source="bank",
+        tx_code="SKAT-MICHA-2026",
+        date="2026-04-30",
+        time="00:00:00",
+        raw_payer_name="Michael Schneemann",
+        raw_payer_email="",
+        amount=96.00,
+        status="imported",
+        is_confirmed=0,
+        note="Schneemann Mitgliedsbeitrag 2026",
+    )
+    f_conn.close()
+
+    res_m = settle_transaction_and_debts(
+        transaction_id=tx_m_id,
+        payer_player_id=71,
+        beneficiary_player_id=71,
+    )
+    assert res_m["success"] is True
+
+    f_conn = get_finances_connection()
+    allocs_m_h1 = [a for a in get_allocations_for_period(f_conn, "2026-H1") if a["player_id"] == 71]
+    allocs_m_h2 = [a for a in get_allocations_for_period(f_conn, "2026-H2") if a["player_id"] == 71]
+    assert len(allocs_m_h1) == 1
+    assert allocs_m_h1[0]["allocated_amount"] == 48.00
+    assert len(allocs_m_h2) == 1
+    assert allocs_m_h2[0]["allocated_amount"] == 48.00
+    f_conn.close()
+
+    # 3. Test explicit manual target override: user chooses due:2026-H2 for a 48€ payment
+    f_conn = get_finances_connection()
+    tx_override_id = insert_transaction(
+        f_conn,
+        source="bank",
+        tx_code="SKAT-OVERRIDE-48",
+        date="2026-05-04",
+        time="00:00:00",
+        raw_payer_name="Bernhard Greven",
+        raw_payer_email="",
+        amount=48.00,
+        status="imported",
+        is_confirmed=0,
+        note="Mitgliedsbeitrag",
+    )
+    f_conn.close()
+
+    res_override = settle_transaction_and_debts(
+        transaction_id=tx_override_id,
+        payer_player_id=70,
+        beneficiary_player_id=70,
+        target_settlement="due:2026-H2",
+    )
+    assert res_override["success"] is True
+
+    f_conn = get_finances_connection()
+    allocs_b_h2 = [a for a in get_allocations_for_period(f_conn, "2026-H2") if a["player_id"] == 70]
+    assert len(allocs_b_h2) == 1
+    assert allocs_b_h2[0]["allocated_amount"] == 48.00
+    f_conn.close()
+

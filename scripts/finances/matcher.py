@@ -73,15 +73,17 @@ def parse_guest_hints_from_note(note: str | None) -> list[str]:
     stopwords = {
         'gastbeitrag', 'beitrag', 'gast', 'handyzahlung', 'zahlung', 'paypal',
         'vereinsbeitrag', 'mitgliedsbeitrag', 'halbjahr', 'h1', 'h2', 'jahresbeitrag',
-        'spende', 'turnier', 'ball', 'mitglieder'
+        'spende', 'turnier', 'ball', 'mitglieder', 'sose', 'wise', 'sommersemester',
+        'wintersemester', 'sose26', 'wise26', 'ss26', 'ws26'
     }
     for part in parts:
         name = part.strip()
         # Strip sub-prefixes like 'zahlung von ' or 'von '
         name = re.sub(r'^(?:zahlung\s+(?:von|f(?:ue|[uü])r)\s+|von\s+|f(?:ue|[uü])r\s+)', '', name, flags=re.IGNORECASE).strip()
-        # Filter out noise: pure numbers, very short tokens, common words
+        # Filter out noise: pure numbers, very short tokens, common words, or terms containing mitglied/beitrag/semester
         if name and len(name) >= 2 and not re.match(r'^\d+$', name):
-            if name.lower() not in stopwords:
+            nl = name.lower()
+            if nl not in stopwords and not re.search(r'\b(sose\d*|wise\d*|202\d)\b', nl) and 'mitglied' not in nl:
                 names.append(name)
     
     return names
@@ -90,20 +92,31 @@ def parse_guest_hints_from_note(note: str | None) -> list[str]:
 def analyze_payment_note(note: str | None) -> dict:
     """Analyze note for membership due clues, period hints, and guest names."""
     if not note:
-        return {"has_due_hint": False, "guest_names": [], "period_hint": None}
+        return {"has_due_hint": False, "guest_names": [], "period_hint": None, "full_year": False}
 
     text = note.strip().lower()
-    has_due = any(k in text for k in ("vereinsbeitrag", "mitgliedsbeitrag", "mitglied", "halbjahr", "h1", "h2", "jahresbeitrag"))
+    has_due = any(k in text for k in ("vereinsbeitrag", "mitgliedsbeitrag", "mitglied", "halbjahr", "h1", "h2", "jahresbeitrag", "sose", "wise", "beitrag"))
 
     period_hint = None
     curr_year = str(datetime.now().year)
     year_match = re.search(r'\b(202\d)\b', text)
-    year_str = year_match.group(1) if year_match else curr_year
+    year_short_match = re.search(r'\b(?:sose|wise|ss|ws)\s*(\d{2})\b', text)
+    
+    if year_match:
+        year_str = year_match.group(1)
+    elif year_short_match:
+        year_str = f"20{year_short_match.group(1)}"
+    else:
+        year_str = curr_year
 
-    if any(k in text for k in ("h2", "2. halbjahr", "2.halbjahr", "zweites halbjahr")):
+    full_year = any(k in text for k in ("jahresbeitrag", "ganzjahr", "gesamtjahr", "volljahr", "h1+h2", "h1 und h2", "h1/h2"))
+
+    if any(k in text for k in ("h2", "2. halbjahr", "2.halbjahr", "zweites halbjahr", "wise", "wintersemester", "ws")):
         period_hint = f"{year_str}-H2"
-    elif any(k in text for k in ("h1", "1. halbjahr", "1.halbjahr", "erstes halbjahr")):
+    elif any(k in text for k in ("h1", "1. halbjahr", "1.halbjahr", "erstes halbjahr", "sose", "sommersemester", "ss")):
         period_hint = f"{year_str}-H1"
+    elif full_year or f"beitrag {year_str}" in text or f"mitgliedsbeitrag {year_str}" in text:
+        full_year = True
 
     guest_names = parse_guest_hints_from_note(note)
 
@@ -111,6 +124,8 @@ def analyze_payment_note(note: str | None) -> dict:
         "has_due_hint": has_due,
         "guest_names": guest_names,
         "period_hint": period_hint,
+        "full_year": full_year,
+        "year": year_str,
     }
 
 

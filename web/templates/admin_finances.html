@@ -1017,6 +1017,26 @@
                                                             </select>
                                                         </div>
                                                         <div style="display: flex; gap: 4px; align-items: center; width: 100%;">
+                                                            <span style="font-size: 10.5px; color: var(--text-muted); width: 65px; white-space: nowrap;">Begleicht:</span>
+                                                            <select name="target_settlement" onchange="updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this)" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; flex: 1;">
+                                                                <option value="auto">✨ Auto: {{ tx.cleared_debts_preview or 'Vorschlag' }}</option>
+                                                                <optgroup label="Mitgliedsbeitrag">
+                                                                    {% for per in available_halfyear_periods %}
+                                                                        <option value="due:{{ per.value }}" {% if tx.inferred_target_settlement == 'due:' ~ per.value %}selected{% endif %}>
+                                                                            Mitgliedsbeitrag {{ per.value }} (48,00 €)
+                                                                        </option>
+                                                                    {% endfor %}
+                                                                    <option value="due:2026-year" {% if tx.inferred_target_settlement == 'due:2026-year' %}selected{% endif %}>
+                                                                        Mitgliedsbeitrag 2026 (H1 + H2, 96,00 €)
+                                                                    </option>
+                                                                </optgroup>
+                                                                <optgroup label="Weitere Optionen">
+                                                                    <option value="kicks_only">Nur Gastbeiträge (Kicks)</option>
+                                                                    <option value="credit_only">Reines Guthaben (keine Verrechnung)</option>
+                                                                </optgroup>
+                                                            </select>
+                                                        </div>
+                                                        <div style="display: flex; gap: 4px; align-items: center; width: 100%;">
                                                             <span style="font-size: 10.5px; color: var(--text-muted); width: 65px; white-space: nowrap;">Begleicht für:</span>
                                                             <select name="beneficiary_player_id" onchange="const rem = this.closest('form').querySelector('input[name=remember_identity]'); if (rem && this.value) { rem.checked = false; } updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this);" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; flex: 1;">
                                                                 <option value="">-- Für sich selbst (Zahler) --</option>
@@ -1063,14 +1083,16 @@
                                                         <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
                                                             <input type="hidden" name="tx_id" value="{{ tx.id }}">
                                                             <input type="hidden" name="payer_player_id" value="{{ tx.suggestion.player_id }}">
+                                                            <input type="hidden" name="target_settlement" value="{{ tx.inferred_target_settlement or 'auto' }}">
                                                             <input type="hidden" name="remember_identity" value="1">
-                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Direkt für {{ tx.suggestion_player_name }} als beglichen markieren">
+                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Direkt für {{ tx.suggestion_player_name }} als beglichen markieren ({{ tx.cleared_debts_preview or '' }})">
                                                                 ✓ Beglichen ({{ tx.suggestion_player_name }})
                                                             </button>
                                                         </form>
                                                     {% else %}
                                                         <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
                                                             <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                            <input type="hidden" name="target_settlement" value="{{ tx.inferred_target_settlement or 'auto' }}">
                                                             <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer;" title="Manuell als beglichen/erledigt markieren">
                                                                 ✓ Beglichen
                                                             </button>
@@ -1111,6 +1133,27 @@
                                                                 {% endfor %}
                                                             </optgroup>
                                                             {% endif %}
+                                                        </select>
+                                                    </div>
+
+                                                    <div style="display: flex; gap: 4px; align-items: center; width: 100%;">
+                                                        <span style="font-size: 11px; color: var(--text-muted); width: 65px; white-space: nowrap;">Begleicht:</span>
+                                                        <select name="target_settlement" onchange="updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this)" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; flex: 1;">
+                                                            <option value="auto">✨ Auto: {{ tx.cleared_debts_preview or 'Vorschlag' }}</option>
+                                                            <optgroup label="Mitgliedsbeitrag">
+                                                                {% for per in available_halfyear_periods %}
+                                                                    <option value="due:{{ per.value }}" {% if tx.inferred_target_settlement == 'due:' ~ per.value %}selected{% endif %}>
+                                                                        Mitgliedsbeitrag {{ per.value }} (48,00 €)
+                                                                    </option>
+                                                                {% endfor %}
+                                                                <option value="due:2026-year" {% if tx.inferred_target_settlement == 'due:2026-year' %}selected{% endif %}>
+                                                                    Mitgliedsbeitrag 2026 (H1 + H2, 96,00 €)
+                                                                </option>
+                                                            </optgroup>
+                                                            <optgroup label="Weitere Optionen">
+                                                                <option value="kicks_only">Nur Gastbeiträge (Kicks)</option>
+                                                                <option value="credit_only">Reines Guthaben (keine Verrechnung)</option>
+                                                            </optgroup>
                                                         </select>
                                                     </div>
 
@@ -1565,6 +1608,7 @@ function updateManualPreview(txId, amount, changedEl) {
     
     const beneSelect = form.querySelector('select[name="beneficiary_player_id"]');
     const payerSelect = form.querySelector('select[name="player_id"]');
+    const targetSelect = form.querySelector('select[name="target_settlement"]');
     
     let targetVal = beneSelect ? beneSelect.value : '';
     if (!targetVal && payerSelect) {
@@ -1579,7 +1623,45 @@ function updateManualPreview(txId, amount, changedEl) {
         previewEl.innerHTML = '';
         return;
     }
-    
+
+    const targetChoice = targetSelect ? targetSelect.value : 'auto';
+
+    if (targetChoice === 'credit_only') {
+        previewEl.style.display = 'block';
+        previewEl.innerHTML = 'ℹ️ <em>Zahlung wird als reines Guthaben verbucht (keine Verrechnung mit offenen Posten)</em>';
+        return;
+    }
+
+    let rem = parseFloat(amount);
+    const cleared = [];
+
+    // Target is explicit due period or full year
+    if (targetChoice && targetChoice.startsWith('due:')) {
+        const duePart = targetChoice.slice(4);
+        if (duePart === '2026-year') {
+            const cov1 = Math.min(rem, 48.0);
+            cleared.push('Mitgliedsbeitrag 2026-H1 (' + cov1.toFixed(2).replace('.', ',') + ' €)');
+            rem -= cov1;
+            if (rem > 0) {
+                const cov2 = Math.min(rem, 48.0);
+                cleared.push('Mitgliedsbeitrag 2026-H2 (' + cov2.toFixed(2).replace('.', ',') + ' €)');
+                rem -= cov2;
+            }
+        } else {
+            const cov = Math.min(rem, 48.0);
+            cleared.push('Mitgliedsbeitrag ' + duePart + ' (' + cov.toFixed(2).replace('.', ',') + ' €)');
+            rem -= cov;
+        }
+
+        let text = '🎯 <strong>Begleicht bei Bestätigung:</strong> ' + cleared.join(' + ');
+        if (rem > 0) {
+            text += ' <em>(Rest ' + rem.toFixed(2).replace('.', ',') + ' € als Guthaben)</em>';
+        }
+        previewEl.style.display = 'block';
+        previewEl.innerHTML = text;
+        return;
+    }
+
     let key = targetVal;
     if (typeof key === 'string' && key.startsWith('ignored:')) {
         key = key.slice(8);
@@ -1590,16 +1672,24 @@ function updateManualPreview(txId, amount, changedEl) {
     
     const pDebts = ALL_OPEN_DEBTS[key];
     if (!pDebts || !pDebts.total_open || pDebts.total_open <= 0) {
+        if (targetChoice === 'auto') {
+            if (Math.abs(amount - 96.0) < 1.0) {
+                previewEl.style.display = 'block';
+                previewEl.innerHTML = '🎯 <strong>Begleicht bei Bestätigung:</strong> Mitgliedsbeitrag 2026-H1 (48,00 €) + Mitgliedsbeitrag 2026-H2 (48,00 €)';
+                return;
+            } else if (Math.abs(amount - 48.0) < 1.0) {
+                previewEl.style.display = 'block';
+                previewEl.innerHTML = '🎯 <strong>Begleicht bei Bestätigung:</strong> Mitgliedsbeitrag 2026-H1 (48,00 €)';
+                return;
+            }
+        }
         previewEl.style.display = 'block';
         previewEl.innerHTML = 'ℹ️ <em>Keine offenen Posten im System erfasst (Zahlung auf Vorrat / Guthaben)</em>';
         return;
     }
-    
-    let rem = parseFloat(amount);
-    const cleared = [];
-    
-    // 1. Membership dues
-    if (pDebts.dues && pDebts.dues.length > 0) {
+
+    // 1. Membership dues (skip if kicks_only)
+    if (targetChoice !== 'kicks_only' && pDebts.dues && pDebts.dues.length > 0) {
         for (let d of pDebts.dues) {
             if (rem <= 0) break;
             const dueAmt = parseFloat(d.amount);
