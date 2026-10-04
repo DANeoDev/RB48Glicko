@@ -1285,10 +1285,14 @@ def test_finance_archive_workflow(clean_finances_env, monkeypatch):
     html = resp_arch.get_data(as_text=True)
     assert "Testarchiv 2026" in html
     assert "Zahlungslisten-Archiv" in html
+    assert "bereinigt" in html
 
-    # 2. Check archive list from DB
+    # 2. Check archive list from DB and verify active transactions table was purged
     finances_conn = get_finances_connection()
     from scripts.finances.database import get_finance_archives
+    remaining_tx = get_transactions(finances_conn)
+    assert len(remaining_tx) == 0  # Imported list was cleared!
+
     archives = get_finance_archives(finances_conn)
     assert len(archives) >= 1
     arch_id = archives[0]["id"]
@@ -1315,6 +1319,53 @@ def test_finance_archive_workflow(clean_finances_env, monkeypatch):
     archives_after = get_finance_archives(finances_conn)
     assert not any(a["id"] == arch_id for a in archives_after)
     finances_conn.close()
+
+
+def test_admin_finances_import_tab_display(clean_finances_env):
+    """
+    Test that the import tab renders the Betreff / Verwendungszweck and Absender columns,
+    displays transaction notes prominently, and positions the archive section below the list.
+    """
+    app = create_app()
+    client = _login_webmaster(app)
+
+    finances_conn = get_finances_connection()
+    insert_transaction(
+        finances_conn,
+        source="paypal",
+        tx_code="TX_NOTE_DISPLAY_TEST",
+        date="2026-08-01",
+        time="14:30:00",
+        raw_payer_name="Konstantin Steuer",
+        raw_payer_email="konsti@example.com",
+        amount=69.00,
+        description="PayPal Zahlung",
+        status="imported",
+        is_confirmed=0,
+        note="Vereinsbeitrag und Zahlung von Lücke und Jens",
+    )
+    finances_conn.close()
+
+    resp = client.get("/admin/finances?tab=import")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+
+    # 1. Check table headers
+    assert "Absender" in html
+    assert "Betreff / Verwendungszweck" in html
+
+    # 2. Check sender and note display
+    assert "Konstantin Steuer" in html
+    assert "konsti@example.com" in html
+    assert "Vereinsbeitrag und Zahlung von Lücke und Jens" in html
+
+    # 3. Verify positioning: Open list appears before archive section in DOM
+    open_list_pos = html.find("Importierte Zahlungen")
+    archive_section_pos = html.find('id="archive-section"')
+    assert open_list_pos != -1
+    assert archive_section_pos != -1
+    assert open_list_pos < archive_section_pos, "Archive section must be positioned below the open transactions list!"
+
 
 
 

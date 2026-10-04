@@ -959,8 +959,19 @@ def archive_current():
         file_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         (arch_dir / f"archive_{archive_id}_{file_ts}.csv").write_text(csv_data, encoding="utf-8-sig")
 
+        # Purge archived transactions from the active table
+        if tx_ids:
+            for i in range(0, len(tx_ids), 500):
+                chunk = tx_ids[i:i + 500]
+                placeholders = ",".join("?" for _ in chunk)
+                finances_conn.execute(
+                    f"DELETE FROM finance_transactions WHERE id IN ({placeholders})",
+                    chunk,
+                )
+            finances_conn.commit()
+
         flash(
-            f"📦 Archiv '{title}' mit {len(transactions)} Buchungen erfolgreich gespeichert.",
+            f"📦 Archiv '{title}' mit {len(transactions)} Buchungen erfolgreich gespeichert und Importliste bereinigt.",
             "success",
         )
         return redirect(url_for("finances.admin_finances", tab="import"))
