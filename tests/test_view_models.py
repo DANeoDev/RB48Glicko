@@ -108,9 +108,15 @@ class ViewModelsTest(unittest.TestCase):
     def test_compute_leaderboard_deltas_db(self):
         conn = get_connection()
         try:
+            from datetime import datetime
+            from scripts.database.db_matches import get_matches
+            matches = get_matches(conn)
+            latest_date_str = max((m["date"] for m in matches.values()), default=None)
+            ref_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date() if latest_date_str else None
+
             players = get_players(conn)
             ratings = get_ratings(conn)
-            deltas = compute_leaderboard_deltas(conn, ratings, players)
+            deltas = compute_leaderboard_deltas(conn, ratings, players, reference_date=ref_date)
             self.assertIsInstance(deltas, dict)
             has_inactive_player_with_positive_rd = False
             for pid in players:

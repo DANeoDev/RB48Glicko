@@ -11,6 +11,7 @@ from flask import (
 import math
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from scripts.utils.timezone import COLOGNE_TZ, get_cologne_now
 from scripts.accounts.database import (
     get_accounts_connection,
     get_opted_out_player_ids,
@@ -266,8 +267,7 @@ def match_history():
     finally:
         acc_conn.close()
 
-    tz = ZoneInfo("Europe/Berlin")
-    now_dt = datetime.now(tz)
+    now_dt = get_cologne_now()
     match_voting_status = {}
     for m in matches:
         mid = m["match_id"]
@@ -469,8 +469,7 @@ def get_mvp_status(match_id):
     participants = team_a + team_b
     match_date = match["date"]
     deadline = get_match_mvp_deadline(match_date)
-    tz = ZoneInfo("Europe/Berlin")
-    is_open = datetime.now(tz) <= deadline
+    is_open = is_match_mvp_voting_open(match_date)
 
     acc_conn = get_accounts_connection()
     try:
@@ -523,8 +522,7 @@ def get_mvp_results(match_id):
 
     match_date = match["date"]
     deadline = get_match_mvp_deadline(match_date)
-    tz = ZoneInfo("Europe/Berlin")
-    is_open = datetime.now(tz) <= deadline
+    is_open = is_match_mvp_voting_open(match_date)
 
     acc_conn = get_accounts_connection()
     try:

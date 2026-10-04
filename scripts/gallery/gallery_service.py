@@ -7,6 +7,7 @@ import random
 from datetime import datetime
 from PIL import Image
 from werkzeug.utils import secure_filename
+from scripts.utils.timezone import get_cologne_now, get_cologne_file_timestamp
 
 from scripts.accounts.database import (
     delete_gallery_photo_record,
@@ -85,7 +86,7 @@ def extract_capture_date(image_path: Path) -> datetime:
         ts = min(stat.st_ctime, stat.st_mtime) if stat.st_ctime > 0 else stat.st_mtime
         return datetime.fromtimestamp(ts)
     except Exception:
-        return datetime.now()
+        return get_cologne_now().replace(tzinfo=None)
 
 
 def get_image_dimensions(image_path: Path):
@@ -212,7 +213,7 @@ def save_gallery_images(files, user_id=None, username="user"):
             if not sanitized_base:
                 sanitized_base = "upload"
 
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = get_cologne_file_timestamp()
             target_name = f"{timestamp}_{sanitized_base}{ext}"
             target_path = gallery_dir / target_name
 

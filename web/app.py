@@ -20,6 +20,11 @@ from web.services.security import (  # noqa: E402
     get_effective_tier,
     has_tier,
 )
+from scripts.utils.timezone import (  # noqa: E402
+    COLOGNE_TZ,
+    get_cologne_now,
+    format_cologne_datetime,
+)
 
 
 def load_env_file():
@@ -89,8 +94,11 @@ def create_app():
             "format_date_localized": format_date_localized,
             "unseen_achievements_count": unseen_achievements_count,
             "unseen_webmaster_notifications_count": unseen_webmaster_notifications_count,
+            "cologne_now": get_cologne_now,
+            "format_cologne_datetime": format_cologne_datetime,
         }
 
+    app.jinja_env.filters["cologne_datetime"] = format_cologne_datetime
     register_routes(app)
     return app
 

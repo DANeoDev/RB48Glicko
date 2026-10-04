@@ -1,6 +1,5 @@
-"""Routes and business logic for the Attendance Planner tool."""
-
 from datetime import datetime, timedelta, timezone
+from scripts.utils.timezone import get_cologne_now, get_cologne_date_str, COLOGNE_TZ
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for, Response
 
 from scripts.accounts.database import get_accounts_connection, get_user_by_id, set_user_attendance_name
@@ -40,7 +39,7 @@ def calculate_guest_unlock_time(event_date_str):
         else:
             dt = datetime.strptime(event_date_str, "%Y-%m-%d")
     except (ValueError, TypeError):
-        dt = datetime.now()
+        dt = get_cologne_now().replace(tzinfo=None)
 
     # weekday(): 0=Monday ... 5=Saturday, 6=Sunday
     weekday = dt.weekday()
@@ -50,9 +49,10 @@ def calculate_guest_unlock_time(event_date_str):
 
 
 def is_guest_registration_unlocked(event_date_str):
-    """Return whether current local time is past the preceding Sunday 00:00."""
+    """Return whether current Cologne time is past the preceding Sunday 00:00."""
     unlock_time = calculate_guest_unlock_time(event_date_str)
-    return datetime.now() >= unlock_time
+    cologne_now_naive = get_cologne_now().replace(tzinfo=None)
+    return cologne_now_naive >= unlock_time
 
 
 def resolve_active_roster_player_ids(active_roster, alias_lookup, acc_conn):
@@ -94,7 +94,7 @@ def format_event_view_data(event, current_user, attendees, alias_lookup=None, ac
     waiting_list = attending[capacity:]
 
     unlock_time = calculate_guest_unlock_time(event["event_date"])
-    guest_unlocked = datetime.now() >= unlock_time
+    guest_unlocked = is_guest_registration_unlocked(event["event_date"])
 
     matched_player_ids = []
     if alias_lookup and acc_conn:
@@ -168,7 +168,7 @@ def planner():
 
     # Determine which match is the actual next upcoming match (datewise)
     # A match has passed when the matchday has passed (event_date < today)
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = get_cologne_date_str()
     next_upcoming_found = False
     for evt in events_data:
         evt_date_prefix = evt["event_date"][:10]
@@ -503,7 +503,7 @@ def delete_event_route(event_id):
 @require_admin
 def archive_past_events():
     """Admin tool: Archive and remove past matchdays (event_date < today) with automatic backup."""
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = get_cologne_date_str()
     connection = get_planner_connection()
     try:
         events = get_upcoming_events(connection, limit=None)

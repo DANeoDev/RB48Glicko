@@ -1,5 +1,6 @@
 import csv
 from datetime import datetime, timezone
+from scripts.utils.timezone import get_cologne_date_str, get_cologne_now
 from scripts.finances.database import (
     get_finances_connection,
     add_payment_allocation,
@@ -792,7 +793,7 @@ def get_period_date_range(period: str) -> dict:
     """
     Return start date, end date, has_ended status, and display label for a period string.
     """
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_str = get_cologne_date_str()
     is_full_year = len(str(period)) == 4 and str(period).isdigit()
 
     if str(period).endswith("-H1"):
@@ -1837,7 +1838,7 @@ def get_available_finance_periods(finances_conn=None, rb48_conn=None) -> list[di
     Return available period filters (half-years and full years, plus all time).
     Ordered descending by year.
     """
-    current_year = datetime.now(timezone.utc).year
+    current_year = get_cologne_now().year
     years = {current_year}
 
     close_rb = False

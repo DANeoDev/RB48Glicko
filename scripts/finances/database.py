@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sqlite3
 from datetime import datetime, timezone
+from scripts.utils.timezone import get_cologne_timestamp_str
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -182,7 +183,7 @@ def insert_transaction(
     """
     Insert a financial transaction. If source+tx_code already exists, it is ignored and returns None.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = get_cologne_timestamp_str()
     raw_json = json.dumps(raw_payload, ensure_ascii=False) if raw_payload else None
 
     try:
@@ -289,7 +290,7 @@ def save_or_update_identity(
     """
     Save or update a learned payment identity mapping (Email and/or Name -> Player).
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = get_cologne_timestamp_str()
     clean_email = payer_email.strip().lower() if payer_email else None
     clean_name = payer_name.strip() if payer_name else None
 
@@ -376,7 +377,7 @@ def add_payment_allocation(
     guest_alias: str | None = None,
 ) -> int:
     """Record a payment allocation linking transaction/cash to a debt/event."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = get_cologne_timestamp_str()
     cursor = connection.execute(
         """
         INSERT INTO payment_allocations (
@@ -477,7 +478,7 @@ def set_player_membership_status(connection, player_id: int, status: str, member
     """Set or update player membership status ('member' or 'guest'), optionally with member_since date."""
     if status not in ("member", "guest"):
         status = "guest"
-    now = datetime.now(timezone.utc).isoformat()
+    now = get_cologne_timestamp_str()
     if status == "guest":
         member_since = None
 
@@ -514,7 +515,7 @@ def create_finance_archive(
     notes: str | None = None,
 ) -> int:
     """Store an archived snapshot of transactions and allocations."""
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    now = get_cologne_timestamp_str()
     cursor = connection.execute(
         """
         INSERT INTO finance_archives (

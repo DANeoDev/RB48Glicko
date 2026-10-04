@@ -4,7 +4,8 @@ try:
 except ImportError:
     request = None
 
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
+from scripts.utils.timezone import get_cologne_date
 from scripts.database.db_matches import (
     get_matches,
     get_match_teams,
@@ -246,12 +247,12 @@ def _compute_period_delta(
     }
 
 
-def compute_leaderboard_deltas(connection, ratings: dict, players: dict) -> dict[int, dict[str, dict]]:
+def compute_leaderboard_deltas(connection, ratings: dict, players: dict, reference_date: date | None = None) -> dict[int, dict[str, dict]]:
     """Compute rating and performance deltas across game, month, quarter, and year intervals."""
     matches = get_matches(connection)
     sorted_matches = sorted(matches.values(), key=lambda m: (m["date"], m["match_id"]))
 
-    today = datetime.now().date()
+    today = reference_date if reference_date is not None else get_cologne_date()
     cutoff_month = (today - timedelta(days=30)).strftime("%Y-%m-%d")
     cutoff_quarter = (today - timedelta(days=90)).strftime("%Y-%m-%d")
     cutoff_year = (today - timedelta(days=365)).strftime("%Y-%m-%d")

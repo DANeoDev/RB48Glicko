@@ -1,6 +1,7 @@
 import csv
 import io
 from datetime import datetime
+from scripts.utils.timezone import get_cologne_now, get_cologne_file_timestamp
 from flask import (
     Blueprint,
     flash,
@@ -1003,7 +1004,7 @@ def archive_current():
 
         csv_data = output.getvalue()
 
-        now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
+        now_str = get_cologne_now().strftime("%d.%m.%Y %H:%M")
         if not title:
             title = f"Zahlungsliste vom {now_str}"
 
@@ -1020,7 +1021,7 @@ def archive_current():
         # Also store local backup copy in data/finances/archives/
         arch_dir = Path("data/finances/archives")
         arch_dir.mkdir(parents=True, exist_ok=True)
-        file_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_ts = get_cologne_file_timestamp()
         (arch_dir / f"archive_{archive_id}_{file_ts}.csv").write_text(csv_data, encoding="utf-8-sig")
 
         # Purge archived transactions from the active table

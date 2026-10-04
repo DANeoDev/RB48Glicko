@@ -4,6 +4,12 @@ import sqlite3
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs
 from zoneinfo import ZoneInfo
+from scripts.utils.timezone import (
+    COLOGNE_TZ,
+    get_cologne_now,
+    get_cologne_timestamp_str,
+    get_cologne_file_timestamp,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -520,8 +526,7 @@ def unlink_player(connection, user_id):
 
 def set_user_access_level(connection, user_id, access_level):
     """Update user access level (visitor, user, glicko_user, admin, webmaster)."""
-    from datetime import datetime
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_cologne_timestamp_str()
 
     if access_level == "visitor":
         connection.execute(
@@ -640,7 +645,7 @@ def backup_and_delete_user(connection, user_id):
     backup_dir = PROJECT_ROOT / "data" / "backups" / "accounts"
     backup_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = get_cologne_file_timestamp()
     backup_filename = f"accounts_backup_{timestamp}.db"
     backup_path = backup_dir / backup_filename
 
@@ -1030,7 +1035,7 @@ def shift_match_history_noise_bubbles(connection=None, shift_slots=1, total_slot
 
 def record_gallery_photo(connection, filename, uploader_user_id=None, uploader_username=None, capture_date=None):
     """Store or update metadata for an uploaded gallery photo."""
-    now_iso = datetime.now().isoformat()
+    now_iso = get_cologne_timestamp_str()
     connection.execute("""
         INSERT INTO gallery_photos (filename, uploader_user_id, uploader_username, capture_date, created_at)
         VALUES (?, ?, ?, ?, ?)
@@ -1063,7 +1068,7 @@ def get_all_gallery_photos_metadata(connection):
 
 def update_gallery_photo_date(connection, filename, capture_date_str):
     """Update or insert the capture date for a gallery photo."""
-    now_iso = datetime.now().isoformat()
+    now_iso = get_cologne_timestamp_str()
     connection.execute("""
         INSERT INTO gallery_photos (filename, capture_date, created_at)
         VALUES (?, ?, ?)
@@ -1093,7 +1098,7 @@ def mark_user_achievements_seen(connection, user_id: int, achievement_keys):
     """Mark a collection of achievement keys as seen for a user."""
     if not achievement_keys:
         return
-    now_iso = datetime.now().isoformat()
+    now_iso = get_cologne_timestamp_str()
     connection.executemany("""
         INSERT OR IGNORE INTO user_seen_achievements (user_id, achievement_key, seen_at)
         VALUES (?, ?, ?)
@@ -1114,7 +1119,7 @@ def record_player_unlocked_achievement(connection, player_id: int, achievement_k
     """Record that a player has unlocked a specific achievement key."""
     if not player_id or not achievement_key:
         return
-    now_iso = datetime.now().isoformat()
+    now_iso = get_cologne_timestamp_str()
     connection.execute("""
         INSERT OR IGNORE INTO player_unlocked_achievements (player_id, achievement_key, unlocked_at)
         VALUES (?, ?, ?)
@@ -1144,7 +1149,7 @@ def record_webmaster_notification(
     Record an administrative event for Webmaster visibility.
     event_type: 'user_registered', 'opt_out_changed', 'status_changed', 'player_link_requested', etc.
     """
-    now_iso = datetime.now().isoformat()
+    now_iso = get_cologne_timestamp_str()
     cursor = connection.execute("""
         INSERT INTO webmaster_notifications (event_type, user_id, username, details, created_at)
         VALUES (?, ?, ?, ?, ?)
@@ -1217,7 +1222,7 @@ def mark_webmaster_notifications_seen(
     """
     Mark specific or all webmaster notifications as seen by a webmaster user.
     """
-    now_iso = datetime.now().isoformat()
+    now_iso = get_cologne_timestamp_str()
     if notification_ids is None:
         # Mark all currently unread notifications as seen
         connection.execute("""
@@ -1271,7 +1276,7 @@ def create_feedback_entry(
     user_agent: str | None = None,
 ) -> int:
     """Insert a new user/visitor feedback entry into the database."""
-    now_iso = datetime.now().isoformat()
+    now_iso = get_cologne_timestamp_str()
     cursor = connection.execute("""
         INSERT INTO feedback (
             user_id, username, category, message, page_url,
@@ -1360,19 +1365,17 @@ def delete_feedback_entry(connection, feedback_id: int) -> bool:
 
 def get_match_mvp_deadline(match_date_str: str) -> datetime:
     """Return the deadline for MVP voting: match_date + 1 day at 20:00 Europe/Berlin."""
-    tz = ZoneInfo("Europe/Berlin")
     match_d = datetime.strptime(str(match_date_str)[:10], "%Y-%m-%d").date()
     deadline_date = match_d + timedelta(days=1)
-    return datetime(deadline_date.year, deadline_date.month, deadline_date.day, 20, 0, 0, tzinfo=tz)
+    return datetime(deadline_date.year, deadline_date.month, deadline_date.day, 20, 0, 0, tzinfo=COLOGNE_TZ)
 
 
 def is_match_mvp_voting_open(match_date_str: str, now_dt: datetime | None = None) -> bool:
     """Check if MVP voting is currently open (now <= match_date + 1 day 20:00 Europe/Berlin)."""
-    tz = ZoneInfo("Europe/Berlin")
     if now_dt is None:
-        now_dt = datetime.now(tz)
+        now_dt = get_cologne_now()
     elif now_dt.tzinfo is None:
-        now_dt = now_dt.replace(tzinfo=tz)
+        now_dt = now_dt.replace(tzinfo=COLOGNE_TZ)
     deadline = get_match_mvp_deadline(match_date_str)
     return now_dt <= deadline
 
@@ -1386,7 +1389,7 @@ def record_match_mvp_vote(
     voted_player_id_3: int | None = None,
 ) -> bool:
     """Record or update an anonymous ranked MVP vote (1 to 3 distinct players) for a match."""
-    now_iso = datetime.now().isoformat()
+    now_iso = get_cologne_timestamp_str()
     # Normalize: ensure no duplicates in votes
     seen = set()
     votes = []

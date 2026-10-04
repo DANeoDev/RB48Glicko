@@ -1,4 +1,10 @@
 from datetime import datetime, timedelta, timezone
+from scripts.utils.timezone import (
+    get_cologne_now,
+    get_cologne_date,
+    get_cologne_timestamp_str,
+    get_cologne_file_timestamp,
+)
 import os
 from pathlib import Path
 import sqlite3
@@ -138,7 +144,7 @@ def create_event(connection, event_date, pitch, title=None, location=None, max_p
         else:
             max_players = 12
     if created_at is None:
-        created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        created_at = get_cologne_timestamp_str()
 
     cursor = connection.execute(
         """
@@ -178,13 +184,13 @@ def add_standard_wednesday_events(connection, count=4):
             else:
                 last_dt = datetime.strptime(date_str, "%Y-%m-%d")
         except Exception:
-            last_dt = datetime.now()
+            last_dt = get_cologne_now()
 
         base_date = last_dt.date()
         last_pitch = latest_event["pitch"].lower()
         next_pitch = "hf" if last_pitch == "box" else "box"
     else:
-        base_date = datetime.now().date()
+        base_date = get_cologne_date()
         next_pitch = "box"
 
     # Find the first Wednesday strictly after base_date (weekday 2)
@@ -367,7 +373,7 @@ def log_attendance_action(
             event_title = f"Event #{event_id}"
 
     if created_at is None:
-        created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        created_at = get_cologne_timestamp_str()
 
     connection.execute(
         """
@@ -418,7 +424,7 @@ def set_user_rsvp(connection, event_id, user_id, display_name, status):
     if status not in ("attending", "declined"):
         raise ValueError(f"Invalid status: {status}")
 
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    now = get_cologne_timestamp_str()
     existing = get_user_event_rsvp(connection, event_id, user_id)
 
     if existing:
@@ -478,7 +484,7 @@ def add_guest_rsvp(connection, event_id, guest_name, registered_by_user_id=None,
     - If visitor: guest_name + ' (Guest)'
     - If registered by user: guest_name + ' (registered_by_name +N)'
     """
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    now = get_cologne_timestamp_str()
 
     if registered_by_user_id:
         # Count existing guests registered by this user for this event to determine +1, +2 etc
@@ -533,7 +539,7 @@ def update_attendee(connection, attendee_id, name=None, status=None, actor_name=
 
     new_name = name.strip() if name is not None and str(name).strip() else existing["name"]
     new_status = status if status in ("attending", "declined") else existing["status"]
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    now = get_cologne_timestamp_str()
 
     connection.execute(
         """
@@ -604,7 +610,7 @@ def backup_and_clear_events(connection, event_ids=None):
     db_file = get_planner_db_file()
     backup_dir = get_planner_backup_dir()
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = get_cologne_file_timestamp()
     backup_filename = f"planner_backup_{timestamp}.db"
     backup_path = backup_dir / backup_filename
 

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from scripts.utils.timezone import get_cologne_now
 from pathlib import Path
 import re
 from flask import Blueprint, request, redirect, url_for, jsonify, send_from_directory
@@ -73,7 +74,7 @@ def create_news():
     markdown = request.form.get("markdown", "").strip()
     if not markdown:
         return redirect(url_for("stats.home"))
-    now = datetime.now(timezone.utc)
+    now = get_cologne_now()
     filename = news_filename(markdown, now)
     try:
         create_news_file(filename, markdown)

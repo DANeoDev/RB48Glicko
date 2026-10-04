@@ -1,5 +1,6 @@
 import json
 from datetime import date
+from scripts.utils.timezone import get_cologne_date_str
 from flask import Blueprint, render_template, request, jsonify
 
 from scripts.accounts.database import get_accounts_connection
@@ -329,7 +330,7 @@ def _handle_save_match(data, is_xhr, connection, players):
 
         if not matches_list:
             matches_list = [{
-                "date": data.get("date", date.today().isoformat()),
+                "date": data.get("date", get_cologne_date_str()),
                 "pitch": data.get("pitch", "box"),
                 "team_a": _get_prefilled_team_ids(data, "team_a", players) if hasattr(data, "getlist") else [int(p) for p in data.get("team_a", []) if str(p).isdigit() and int(p) in players],
                 "team_b": _get_prefilled_team_ids(data, "team_b", players) if hasattr(data, "getlist") else [int(p) for p in data.get("team_b", []) if str(p).isdigit() and int(p) in players],
@@ -341,7 +342,7 @@ def _handle_save_match(data, is_xhr, connection, players):
 
         parsed_matches = []
         for idx, m in enumerate(matches_list, start=1):
-            m_date = m.get("date") or (data.get("date") if hasattr(data, "get") else None) or date.today().isoformat()
+            m_date = m.get("date") or (data.get("date") if hasattr(data, "get") else None) or get_cologne_date_str()
             m_pitch = m.get("pitch") or (data.get("pitch") if hasattr(data, "get") else None) or "box"
             if m_pitch not in ("box", "hf"):
                 raise ValueError(f"Spiel {idx}: Ungültiges Platzformat '{m_pitch}'.")
@@ -501,7 +502,7 @@ def match_center():
                 if len(selected_ids) >= 2:
                     result = generate_match(selected_ids, players, ratings, rating_type, seed=seed)
 
-        match_date = imported_planner_date or request.form.get("date", request.args.get("date", request.form.get("parsed_match_date", date.today().isoformat())))
+        match_date = imported_planner_date or request.form.get("date", request.args.get("date", request.form.get("parsed_match_date", get_cologne_date_str())))
         if parse_result and parse_result.get("match_date"):
             match_date = parse_result["match_date"]
 

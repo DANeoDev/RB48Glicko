@@ -1,5 +1,6 @@
 import csv
 from datetime import datetime
+from scripts.utils.timezone import get_cologne_file_timestamp, get_cologne_timestamp_str
 import io
 import os
 from pathlib import Path
@@ -334,7 +335,7 @@ def delete_match(connection, match_id):
                     remaining_rows.append(r)
 
             # Create timestamped snapshot of the matchday CSV
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = get_cologne_file_timestamp()
             backup_filename = f"{match_date}_{timestamp}_before_{match_id}.csv"
             backup_path = backup_dir / backup_filename
             shutil.copy2(csv_file, backup_path)
@@ -363,7 +364,7 @@ def delete_match(connection, match_id):
                     goals_a = drow[4] if len(drow) > 4 else ""
                     goals_b = drow[5] if len(drow) > 5 else ""
                     awriter.writerow([
-                        datetime.now().isoformat(),
+                        get_cologne_timestamp_str(),
                         match_id,
                         match_date,
                         pitch,
