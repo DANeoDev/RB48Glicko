@@ -2404,10 +2404,45 @@ def reset_transaction_settlement(transaction_id: int):
         finances_conn.close()
 
 
-def get_all_players_open_debts(finances_conn=None, rb48_conn=None, accounts_conn=None) -> dict:
+class OpenDebtsDict(dict):
+    """
+    Dictionary of open debts storing all internal keys as strings to ensure json.dumps/tojson
+    with sort_keys=True succeeds without int vs str comparison TypeError in Python 3.10+,
+    while transparently supporting int and str lookups, and ignored alias prefixing.
+    """
+    def __getitem__(self, key):
+        s_key = str(key)
+        if super().__contains__(s_key):
+            return super().__getitem__(s_key)
+        if s_key.startswith("ignored:"):
+            trimmed = s_key[8:]
+            if super().__contains__(trimmed):
+                return super().__getitem__(trimmed)
+        else:
+            prefixed = f"ignored:{s_key}"
+            if super().__contains__(prefixed):
+                return super().__getitem__(prefixed)
+        return super().__getitem__(s_key)
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def __contains__(self, key):
+        s_key = str(key)
+        if super().__contains__(s_key):
+            return True
+        if s_key.startswith("ignored:"):
+            return super().__contains__(s_key[8:])
+        return super().__contains__(f"ignored:{s_key}")
+
+
+def get_all_players_open_debts(finances_conn=None, rb48_conn=None, accounts_conn=None) -> OpenDebtsDict:
     """
     Compute open debts for every player and external alias.
-    Returns a dict keyed by player_id (int) or 'ignored:<alias>' (str):
+    Returns an OpenDebtsDict keyed by stringified player_id ('12') and 'ignored:<alias>' / '<alias>':
     {
         key: {
             "total_open": float,
@@ -2435,17 +2470,17 @@ def get_all_players_open_debts(finances_conn=None, rb48_conn=None, accounts_conn
         close_acc = True
 
     try:
-        debts = {}
+        debts = OpenDebtsDict()
 
         # 1. Unpaid guest kicks across all match history
         all_unpaid_guests = get_all_unpaid_guest_entries()
         for g in all_unpaid_guests:
             raw_pid = g.get("player_id")
-            key = raw_pid
-            if not key and g.get("name"):
+            if raw_pid is not None and str(raw_pid).isdigit():
+                key = str(int(raw_pid))
+            elif g.get("name"):
                 key = f"ignored:{g['name']}"
-
-            if not key:
+            else:
                 continue
 
             entry_amt = float(g.get("fee_required", GUEST_FEE_PER_KICK)) - float(g.get("amount_paid", 0.0))
@@ -2472,7 +2507,7 @@ def get_all_players_open_debts(finances_conn=None, rb48_conn=None, accounts_conn
         try:
             dues_ov = get_membership_dues_overview("2026-H2")
             for m in dues_ov.get("members", []):
-                pid = m["player_id"]
+                pid = str(m["player_id"])
                 due_open = float(m.get("fee_required", 0.0)) - float(m.get("amount_paid", 0.0))
                 # Only if active member and fee > 0
                 if due_open > 0 and m.get("payment_status") in ("unpaid", "partial"):
@@ -2495,7 +2530,8 @@ def get_all_players_open_debts(finances_conn=None, rb48_conn=None, accounts_conn
             pass
 
         # Build human-readable summaries for each player with debts
-        for key, d in debts.items():
+        for key in list(debts.keys()):
+            d = debts[key]
             tot = d["total_open"]
             parts = []
             short_parts = []
@@ -2518,6 +2554,10 @@ def get_all_players_open_debts(finances_conn=None, rb48_conn=None, accounts_conn
             tot_str = f"{tot:.2f}".replace('.', ',')
             d["summary"] = f"{tot_str} € offen ({', '.join(parts)})"
             d["short_summary"] = f"{tot_str} € ({', '.join(short_parts)})"
+
+            # Register clean alias key without prefix to support direct name lookup
+            if str(key).startswith("ignored:"):
+                debts[str(key)[8:]] = d
 
         return debts
     finally:

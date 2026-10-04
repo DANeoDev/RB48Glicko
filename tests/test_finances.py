@@ -36,6 +36,8 @@ from scripts.finances.reconciliation import (
     settle_transaction_and_debts,
     reset_transaction_settlement,
     get_all_unpaid_guest_entries,
+    get_all_players_open_debts,
+    OpenDebtsDict,
     get_available_finance_periods,
     get_period_display_label,
     get_finance_summary_metrics,
@@ -1469,10 +1471,45 @@ def test_admin_finances_cleared_debts_preview_and_upload_ui_display(clean_financ
     assert f'value="{tx_id}"' in html
 
 
+def test_all_open_debts_json_serialization_sort_keys(clean_finances_env):
+    """Verify that get_all_players_open_debts produces string keys and serializes with sort_keys=True."""
+    import json
+    from web.app import app
 
+    debts = get_all_players_open_debts()
+    assert isinstance(debts, OpenDebtsDict)
 
+    # All keys in the returned dictionary must be strings so json.dumps(sort_keys=True) works
+    for k in debts.keys():
+        assert isinstance(k, str), f"Key {k!r} is not a string (type: {type(k)})"
 
+    # Must serialize without raising TypeError: '<' not supported between instances of 'str' and 'int'
+    serialized = json.dumps(debts, sort_keys=True)
+    assert isinstance(serialized, str)
 
+    # Test dictionary transparent lookup with both int and str
+    test_dict = OpenDebtsDict()
+    test_dict["12"] = {"total_open": 7.0}
+    test_dict["ignored:Lücke"] = {"total_open": 3.5}
+    test_dict["Lücke"] = {"total_open": 3.5}
 
+    assert test_dict[12]["total_open"] == 7.0
+    assert test_dict["12"]["total_open"] == 7.0
+    assert test_dict.get(12)["total_open"] == 7.0
+    assert test_dict.get("12")["total_open"] == 7.0
+    assert test_dict["ignored:Lücke"]["total_open"] == 3.5
+    assert test_dict["Lücke"]["total_open"] == 3.5
+    assert test_dict.get("Lücke")["total_open"] == 3.5
+    assert test_dict.get("ignored:Lücke")["total_open"] == 3.5
+    assert 12 in test_dict
+    assert "12" in test_dict
+    assert "Lücke" in test_dict
+    assert "ignored:Lücke" in test_dict
 
+    # Verify that Jinja2 /tojson in admin_finances route template renders without TypeError
+    client = _login_webmaster(app)
+    resp = client.get("/admin/finances")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "const ALL_OPEN_DEBTS =" in html
 
