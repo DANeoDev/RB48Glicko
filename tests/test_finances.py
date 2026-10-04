@@ -18,6 +18,13 @@ from scripts.finances.database import (
     set_player_membership_status,
     get_player_membership_status,
     get_all_player_membership_statuses,
+    create_receivable,
+    get_receivable_by_id,
+    get_receivables,
+    update_receivable,
+    delete_receivable,
+    get_allocations_for_receivable,
+    create_special_receivables_group,
 )
 from scripts.finances.paypal_parser import (
     parse_german_amount,
@@ -47,9 +54,13 @@ from scripts.finances.reconciliation import (
     get_period_date_range,
     get_membership_dues_matrix,
     bulk_set_inactive_members,
+    sync_rule_based_receivables,
+    allocate_transaction_receivables,
+    create_manual_due_receivables,
     GUEST_FEE_PER_KICK,
     MEMBERSHIP_DUE_PER_HALFYEAR,
 )
+from web.services.finance_ai import suggest_transaction_allocation_ai
 
 from scripts.finances.bank_pdf_parser import (
     parse_bank_pdf,
@@ -1660,4 +1671,381 @@ def test_semester_and_fullyear_dues_inference_and_settlement(clean_finances_env)
     assert len(allocs_b_h2) == 1
     assert allocs_b_h2[0]["allocated_amount"] == 48.00
     f_conn.close()
+
+
+def test_receivables_crud_and_special_group(clean_finances_env):
+    """Test CRUD operations for finance_receivables and group creation."""
+    f_conn = get_finances_connection()
+    # 1. Create single receivable
+    rec_id = create_receivable(
+        f_conn,
+        kind="special",
+        amount=15.00,
+        title="Trikotsatz 2026",
+        player_id=1,
+        due_date="2026-08-01",
+        note="Rückennummer 10",
+        source="manual",
+    )
+    assert rec_id > 0
+
+    # 2. Get by ID
+    rec = get_receivable_by_id(f_conn, rec_id)
+    assert rec is not None
+    assert rec["title"] == "Trikotsatz 2026"
+    assert rec["amount"] == 15.00
+    assert rec["status"] == "open"
+    assert rec["paid_amount"] == 0.00
+    assert rec["open_amount"] == 15.00
+
+    # 3. Update receivable
+    update_receivable(
+        f_conn,
+        rec_id,
+        status="settled",
+        manual_settled=1,
+        note="Bar bei Übergabe",
+    )
+    rec_updated = get_receivable_by_id(f_conn, rec_id)
+    assert rec_updated["status"] == "settled"
+    assert rec_updated["manual_settled"] == 1
+    assert rec_updated["note"] == "Bar bei Übergabe"
+    assert rec_updated["open_amount"] == 0.00
+
+    # 4. Filter receivables
+    recs = get_receivables(f_conn, player_id=1, kind="special")
+    assert len(recs) == 1
+    assert recs[0]["id"] == rec_id
+
+    # 5. Create special receivables group (Option B: manual list with custom aliases)
+    group_id, count = create_special_receivables_group(
+        f_conn,
+        title="Turniergebühr Sommerfest",
+        amount_per_person=10.00,
+        due_date="2026-07-20",
+        note="Startgeld",
+        player_ids=[2, 3],
+        guest_aliases=["Lukas", "Timo"],
+    )
+    assert count == 4
+    group_recs = get_receivables(f_conn, special_group_id=group_id)
+    assert len(group_recs) == 4
+    assert all(r["amount"] == 10.00 for r in group_recs)
+    assert all(r["title"] == "Turniergebühr Sommerfest" for r in group_recs)
+    assert all(r["special_group_id"] == group_id for r in group_recs)
+
+    # 6. Delete manual receivable
+    delete_receivable(f_conn, rec_id)
+    assert get_receivable_by_id(f_conn, rec_id) is None
+    f_conn.close()
+
+
+def test_sync_rule_based_receivables(clean_finances_env):
+    """Test idempotent synchronization of dues and match guests into finance_receivables."""
+    r_conn = get_rb48_connection()
+    # Player 1 is a member, Player 2 is a guest
+    # Add match where Player 2 participated
+    create_match(r_conn, "2026-09-29-1", "2026-09-29", "box", 1, 1, 5, 3)
+    add_match_player(r_conn, "2026-09-29-1", 1, "A")
+    add_match_player(r_conn, "2026-09-29-1", 2, "B")
+    r_conn.commit()
+    r_conn.close()
+
+    f_conn = get_finances_connection()
+    set_player_membership_status(f_conn, 1, "member")
+    set_player_membership_status(f_conn, 2, "guest")
+    f_conn.close()
+
+    count1 = sync_rule_based_receivables()
+    assert count1["created_dues"] + count1["created_kicks"] >= 2
+
+    f_conn = get_finances_connection()
+    recs = get_receivables(f_conn)
+    # Check dues receivable for player 1
+    p1_due = next((r for r in recs if r["kind"] == "membership_due" and r["player_id"] == 1 and r["period"] == "2026-H2"), None)
+    assert p1_due is not None
+    assert p1_due["amount"] == 48.00
+
+    # Check guest fee receivable for player 2
+    p2_guest = next((r for r in recs if r["kind"] == "match_guest" and r["player_id"] == 2 and r["match_date"] == "2026-09-29"), None)
+    assert p2_guest is not None
+    assert p2_guest["amount"] == 3.50
+    f_conn.close()
+
+    # Second sync is idempotent
+    count2 = sync_rule_based_receivables()
+    assert count2["created_dues"] + count2["created_kicks"] == 0
+    f_conn = get_finances_connection()
+    recs2 = get_receivables(f_conn)
+    assert len(recs2) == len(recs)
+    f_conn.close()
+
+
+def test_allocate_transaction_receivables_partial_and_settled(clean_finances_env):
+    """Test allocating a transaction against a receivable with partial payment and mark_settled override."""
+    f_conn = get_finances_connection()
+    rec_id = create_receivable(
+        f_conn,
+        kind="membership_due",
+        amount=48.00,
+        title="Mitgliedsbeitrag 2026-H1",
+        player_id=1,
+        period="2026-H1",
+    )
+    tx_id = insert_transaction(
+        f_conn,
+        source="bank",
+        tx_code="TX-PARTIAL-SETTLE",
+        date="2026-05-10",
+        time="12:00:00",
+        raw_payer_name="Test Member",
+        raw_payer_email="test@example.com",
+        amount=30.00,
+        status="imported",
+        is_confirmed=0,
+    )
+    f_conn.close()
+
+    # Allocate 30 € out of 48 €, but user marks it settled (reduced rate exemption)
+    res = allocate_transaction_receivables(
+        transaction_id=tx_id,
+        payer_player_id=1,
+        allocations=[{
+            "receivable_id": rec_id,
+            "amount": 30.00,
+            "mark_settled": True,
+        }],
+        remember=True,
+    )
+    assert res["success"] is True
+
+    f_conn = get_finances_connection()
+    tx = get_transaction_by_id(f_conn, tx_id)
+    assert tx["status"] in ("assigned", "settled")
+    assert tx["is_confirmed"] == 1
+    assert tx["matched_player_id"] == 1
+
+    rec = get_receivable_by_id(f_conn, rec_id)
+    assert rec["status"] == "settled"
+    assert rec["manual_settled"] == 1
+    assert rec["paid_amount"] == 30.00
+    assert rec["open_amount"] == 0.00
+
+    allocs = get_allocations_for_receivable(f_conn, rec_id)
+    assert len(allocs) == 1
+    assert allocs[0]["allocated_amount"] == 30.00
+    assert allocs[0]["transaction_id"] == tx_id
+    f_conn.close()
+
+
+def test_allocate_transaction_receivables_multi_and_surplus(clean_finances_env):
+    """Test allocating transaction over multiple receivables with leftover surplus credited."""
+    f_conn = get_finances_connection()
+    rec1_id = create_receivable(
+        f_conn,
+        kind="membership_due",
+        amount=48.00,
+        title="Mitgliedsbeitrag 2026-H1",
+        player_id=2,
+        period="2026-H1",
+    )
+    rec2_id = create_receivable(
+        f_conn,
+        kind="membership_due",
+        amount=48.00,
+        title="Mitgliedsbeitrag 2026-H2",
+        player_id=2,
+        period="2026-H2",
+    )
+    # Payment of 100.00 € (48 + 48 + 4 leftover)
+    tx_id = insert_transaction(
+        f_conn,
+        source="bank",
+        tx_code="TX-MULTI-100",
+        date="2026-05-15",
+        time="12:00:00",
+        raw_payer_name="Player Two",
+        raw_payer_email="player2@example.com",
+        amount=100.00,
+        status="imported",
+        is_confirmed=0,
+    )
+    f_conn.close()
+
+    res = allocate_transaction_receivables(
+        transaction_id=tx_id,
+        payer_player_id=2,
+        allocations=[
+            {"receivable_id": rec1_id, "amount": 48.00, "mark_settled": False},
+            {"receivable_id": rec2_id, "amount": 48.00, "mark_settled": False},
+        ],
+    )
+    assert res["success"] is True
+
+    f_conn = get_finances_connection()
+    r1 = get_receivable_by_id(f_conn, rec1_id)
+    r2 = get_receivable_by_id(f_conn, rec2_id)
+    assert r1["status"] == "settled"
+    assert r2["status"] == "settled"
+
+    allocs = f_conn.execute("SELECT * FROM payment_allocations WHERE transaction_id = ?", (tx_id,)).fetchall()
+    # 2 linked to receivables + 1 unlinked credit surplus (4.00 €)
+    assert len(allocs) == 3
+    surplus_alloc = [a for a in allocs if a["receivable_id"] is None]
+    assert len(surplus_alloc) == 1
+    assert surplus_alloc[0]["allocated_amount"] == 4.00
+    assert surplus_alloc[0]["fee_type"] == "manual_adjustment"
+    f_conn.close()
+
+
+def test_manual_due_receivables_creation(clean_finances_env):
+    """Test creating historical / manual dues for a period (e.g. 2026-H1)."""
+    f_conn = get_finances_connection()
+    set_player_membership_status(f_conn, 1, "member")
+    set_player_membership_status(f_conn, 2, "member")
+    set_player_membership_status(f_conn, 3, "guest")
+    f_conn.close()
+
+    count = create_manual_due_receivables("2026-H1")
+    assert count == 2  # exactly the 2 members
+
+    f_conn = get_finances_connection()
+    recs = get_receivables(f_conn, period="2026-H1", kind="membership_due")
+    assert len(recs) == 2
+    assert all(r["amount"] == 48.00 for r in recs)
+
+    # Calling again does not duplicate
+    count2 = create_manual_due_receivables("2026-H1")
+    assert count2 == 0
+    f_conn.close()
+
+
+def test_finance_routes_receivables_and_modals(clean_finances_env):
+    """Test HTTP endpoints for receivables management, creation, marking, and deletion."""
+    from web.app import app
+    client = _login_webmaster(app)
+
+    # 1. GET receivables tab
+    resp = client.get("/admin/finances?tab=receivables")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "Soll" in html and "Offene Posten" in html
+
+    # 2. POST create special receivable
+    resp_spec = client.post("/admin/finances/receivables/special/create", data={
+        "title": "Vereinsmeisterschaft Essen",
+        "amount": "12.50",
+        "due_date": "2026-09-01",
+        "note": "BBQ & Drinks",
+        "mode": "manual",
+        "player_ids": ["1", "2"],
+        "custom_aliases": "Lukas",
+    }, follow_redirects=True)
+    assert resp_spec.status_code == 200
+    html_spec = resp_spec.get_data(as_text=True)
+    assert "Vereinsmeisterschaft Essen" in html_spec
+
+    f_conn = get_finances_connection()
+    spec_recs = get_receivables(f_conn, kind="special")
+    assert len(spec_recs) == 3
+    test_rec_id = spec_recs[0]["id"]
+    f_conn.close()
+
+    # 3. POST mark receivable settled
+    resp_mark = client.post(f"/admin/finances/receivables/{test_rec_id}/mark", data={
+        "action": "settled",
+    }, follow_redirects=True)
+    assert resp_mark.status_code == 200
+
+    f_conn = get_finances_connection()
+    r_marked = get_receivable_by_id(f_conn, test_rec_id)
+    assert r_marked["status"] == "settled"
+    assert r_marked["manual_settled"] == 1
+    f_conn.close()
+
+    # 4. POST mark receivable open again
+    resp_open = client.post(f"/admin/finances/receivables/{test_rec_id}/mark", data={
+        "action": "open",
+    }, follow_redirects=True)
+    assert resp_open.status_code == 200
+
+    f_conn = get_finances_connection()
+    r_open = get_receivable_by_id(f_conn, test_rec_id)
+    assert r_open["status"] == "open"
+    assert r_open["manual_settled"] == 0
+    f_conn.close()
+
+    # 5. POST create manual dues
+    f_conn = get_finances_connection()
+    set_player_membership_status(f_conn, 1, "member")
+    f_conn.close()
+
+    resp_due = client.post("/admin/finances/receivables/manual-due/create", data={
+        "period": "2026-H1",
+        "scope": "all_members",
+    }, follow_redirects=True)
+    assert resp_due.status_code == 200
+
+    # 6. POST allocate receivables
+    f_conn = get_finances_connection()
+    tx_id = insert_transaction(
+        f_conn,
+        source="bank",
+        tx_code="TX-ROUTE-ALLOC",
+        date="2026-06-01",
+        time="12:00:00",
+        raw_payer_name="Lukas Test",
+        raw_payer_email="lukas@example.com",
+        amount=12.50,
+        status="imported",
+        is_confirmed=0,
+    )
+    f_conn.close()
+
+    import json
+    resp_alloc = client.post("/admin/finances/allocate-receivables", data={
+        "tx_id": str(tx_id),
+        "payer_player_id": "1",
+        "remember": "1",
+        "allocations_json": json.dumps([{
+            "receivable_id": test_rec_id,
+            "amount": 12.50,
+            "mark_settled": True,
+        }]),
+    }, follow_redirects=True)
+    assert resp_alloc.status_code == 200
+
+    f_conn = get_finances_connection()
+    r_after = get_receivable_by_id(f_conn, test_rec_id)
+    assert r_after["status"] == "settled"
+    f_conn.close()
+
+    # 7. POST delete receivable (on unallocated special receivable)
+    other_rec_id = spec_recs[1]["id"]
+    resp_del = client.post(f"/admin/finances/receivables/{other_rec_id}/delete", follow_redirects=True)
+    assert resp_del.status_code == 200
+    f_conn = get_finances_connection()
+    assert get_receivable_by_id(f_conn, other_rec_id) is None
+    f_conn.close()
+
+
+def test_finance_ai_service(clean_finances_env, monkeypatch):
+    """Test AI suggestion service graceful fallback when no key is present or on API calls."""
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    tx = {
+        "id": 999,
+        "amount": 48.00,
+        "raw_payer_name": "Bernhard Greven",
+        "purpose": "Mitgliedsbeitrag 2026-H1",
+        "subject": "",
+        "date": "2026-05-04",
+    }
+    recs = [
+        {"id": 1, "kind": "membership_due", "title": "Mitgliedsbeitrag 2026-H1", "player_name": "Bernhard", "amount": 48.0, "open_amount": 48.0},
+    ]
+    players = [{"id": 70, "name": "Bernhard"}]
+
+    # When no key or offline, it safely returns None without raising exceptions
+    res = suggest_transaction_allocation_ai(tx, recs, players)
+    assert res is None
 

@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 from datetime import datetime
 from scripts.utils.timezone import get_cologne_now, get_cologne_file_timestamp
 from flask import (
@@ -34,6 +35,12 @@ from scripts.finances.database import (
     get_finance_archives,
     get_finance_archive_by_id,
     delete_finance_archive,
+    get_receivables,
+    get_receivable_by_id,
+    update_receivable,
+    delete_receivable,
+    create_special_receivables_group,
+    create_receivable,
 )
 from pathlib import Path
 from scripts.finances.paypal_parser import parse_paypal_csv
@@ -48,7 +55,6 @@ from scripts.finances.reconciliation import (
     bulk_set_inactive_members,
     get_period_date_range,
     manual_mark_match_guest_payment,
-
     manual_mark_membership_due,
     auto_allocate_transaction_to_debts,
     settle_transaction_and_debts,
@@ -62,9 +68,13 @@ from scripts.finances.reconciliation import (
     get_all_players_open_debts,
     get_transaction_cleared_debts_preview,
     infer_transaction_settlement_target,
+    sync_rule_based_receivables,
+    create_manual_due_receivables,
+    allocate_transaction_receivables,
     GUEST_FEE_PER_KICK,
     MEMBERSHIP_DUE_PER_HALFYEAR,
 )
+from web.services.finance_ai import suggest_transaction_allocation_ai
 
 
 finances_bp = Blueprint("finances", __name__, url_prefix="/admin/finances")
@@ -74,7 +84,9 @@ finances_bp = Blueprint("finances", __name__, url_prefix="/admin/finances")
 @require_webmaster
 def admin_finances():
     """Main Webmaster Finances & Payment Management Dashboard."""
-    active_tab = request.args.get("tab", "matches")
+    active_tab = request.args.get("tab", "transactions")
+    if active_tab == "import":
+        active_tab = "transactions"
     selected_date = request.args.get("date")
     selected_period = request.args.get("period", "2026-H2")
 
@@ -104,10 +116,39 @@ def admin_finances():
             selected_date = guest_dates[0]["match_date"] if guest_dates else matches_overview[0]["match_date"]
             selected_date_details = get_match_date_guest_status(selected_date)
 
+        # Auto-sync rule-based receivables and link unlinked allocations
+        try:
+            sync_rule_based_receivables(finances_conn, rb48_conn, accounts_conn)
+        except Exception:
+            pass
+
+        all_receivables = get_receivables(finances_conn)
+        for r in all_receivables:
+            if r.get("player_id"):
+                pinfo = players_dict.get(r["player_id"], {})
+                r["player_name"] = pinfo.get("aliases", [f"Spieler #{r['player_id']}"])[0]
+            else:
+                r["player_name"] = r.get("guest_alias") or "Gast"
+            alloc_sum = finances_conn.execute(
+                "SELECT SUM(allocated_amount) as s FROM payment_allocations WHERE receivable_id = ? AND payment_method != 'waived'",
+                (r["id"],),
+            ).fetchone()["s"] or 0.0
+            r["paid_amount"] = float(alloc_sum)
+            r["open_amount"] = max(0.0, float(r["amount"]) - float(alloc_sum))
+
+        open_receivables = [r for r in all_receivables if r["status"] in ("open", "partial") or r.get("open_amount", 0) > 0]
+        open_receivables_sum = sum(r.get("open_amount", 0.0) for r in open_receivables)
+
+        all_match_dates = [
+            row["date"] for row in rb48_conn.execute(
+                "SELECT DISTINCT date FROM matches ORDER BY date DESC"
+            ).fetchall()
+        ]
+
         # Membership dues overview
         dues_overview = get_membership_dues_overview(selected_period)
 
-        # Comprehensive open debts map (dues + guest kicks) for all players
+        # Comprehensive open debts map (dues + guest kicks + specials) for all players
         all_open_debts = get_all_players_open_debts(finances_conn, rb48_conn, accounts_conn)
 
         # Transactions
@@ -304,6 +345,10 @@ def admin_finances():
             membership_due_rate=MEMBERSHIP_DUE_PER_HALFYEAR,
             has_any_suggestion=has_any_suggestion,
             finance_archives=finance_archives,
+            all_receivables=all_receivables,
+            open_receivables=open_receivables,
+            open_receivables_sum=open_receivables_sum,
+            all_match_dates=all_match_dates,
         )
     finally:
         finances_conn.close()
@@ -1090,6 +1135,189 @@ def delete_archive(archive_id: int):
         delete_finance_archive(finances_conn, archive_id)
         flash(f"Archiv #{archive_id} gelöscht.", "info")
         return redirect(url_for("finances.admin_finances", tab="import"))
+    finally:
+        finances_conn.close()
+
+
+@finances_bp.route("/allocate-receivables", methods=["POST"])
+@require_webmaster
+def allocate_receivables_route():
+    """Allocate a transaction to specific receivables chosen in modal."""
+    tx_id = request.form.get("tx_id", type=int)
+    payer_id = request.form.get("payer_player_id")
+    remember = bool(request.form.get("remember"))
+    note = request.form.get("note")
+    allocations_json = request.form.get("allocations_json", "[]")
+
+    if not tx_id:
+        flash("Fehlende Transaktions-ID.", "danger")
+        return redirect(url_for("finances.admin_finances", tab="transactions"))
+
+    try:
+        alloc_items = json.loads(allocations_json) if allocations_json else []
+    except Exception:
+        alloc_items = []
+
+    res = allocate_transaction_receivables(
+        transaction_id=tx_id,
+        payer_player_id=payer_id,
+        allocations=alloc_items,
+        remember=remember,
+        note=note,
+    )
+    if res.get("success"):
+        flash(f"✓ Transaktion #{tx_id} erfolgreich verbucht ({res.get('covered_count', 0)} Posten zugeordnet).", "success")
+    else:
+        flash(f"Fehler: {res.get('error', 'Zuordnung fehlgeschlagen')}", "danger")
+
+    return redirect(url_for("finances.admin_finances", tab="transactions"))
+
+
+@finances_bp.route("/receivables/special/create", methods=["POST"])
+@require_webmaster
+def create_special_receivables_route():
+    """Create special receivables (Sonderposten) via match import or multi-select."""
+    title = request.form.get("title", "").strip()
+    amount_per_person = request.form.get("amount", type=float)
+    due_date = request.form.get("due_date", "").strip() or None
+    note = request.form.get("note", "").strip() or None
+    mode = request.form.get("mode", "manual")
+
+    if not title or not amount_per_person or amount_per_person <= 0:
+        flash("Bitte einen Titel und einen Betrag > 0 € angeben.", "danger")
+        return redirect(url_for("finances.admin_finances", tab="receivables"))
+
+    finances_conn = get_finances_connection()
+    rb48_conn = get_rb48_connection()
+    try:
+        player_ids = []
+        guest_aliases = []
+
+        if mode == "match":
+            match_date = request.form.get("match_date", "").strip()
+            if not match_date:
+                flash("Kein Spieltag gewählt.", "danger")
+                return redirect(url_for("finances.admin_finances", tab="receivables"))
+
+            prows = rb48_conn.execute(
+                """
+                SELECT DISTINCT player_id FROM matches
+                JOIN match_players USING(match_id)
+                WHERE date = ?
+                """,
+                (match_date,),
+            ).fetchall()
+            player_ids = [r["player_id"] for r in prows]
+
+            # Also check ignored aliases on that date
+            details = get_match_date_guest_status(match_date, finances_conn, rb48_conn)
+            for g in details.get("guest_entries", []):
+                if g.get("is_ignored_alias") and g.get("name"):
+                    guest_aliases.append(g["name"])
+        else:
+            pids_raw = request.form.getlist("player_ids")
+            for p in pids_raw:
+                try:
+                    player_ids.append(int(p))
+                except (ValueError, TypeError):
+                    pass
+
+            custom_aliases_raw = request.form.get("custom_aliases", "")
+            for a in custom_aliases_raw.split(","):
+                clean = a.strip()
+                if clean:
+                    guest_aliases.append(clean)
+
+        if not player_ids and not guest_aliases:
+            flash("Keine Personen für den Sonderposten ausgewählt.", "danger")
+            return redirect(url_for("finances.admin_finances", tab="receivables"))
+
+        group_id, count = create_special_receivables_group(
+            finances_conn,
+            title=title,
+            amount_per_person=amount_per_person,
+            player_ids=player_ids,
+            guest_aliases=guest_aliases,
+            due_date=due_date,
+            note=note,
+        )
+        flash(f"✓ Sonderposten '{title}' für {count} Personen angelegt.", "success")
+        return redirect(url_for("finances.admin_finances", tab="receivables"))
+    finally:
+        finances_conn.close()
+        rb48_conn.close()
+
+
+@finances_bp.route("/receivables/manual-due/create", methods=["POST"])
+@require_webmaster
+def create_manual_due_route():
+    """Create membership due receivables for a period (e.g. 2026-H1) for all members or selected."""
+    period = request.form.get("period", "").strip()
+    scope = request.form.get("scope", "all_members")
+
+    if not period:
+        flash("Kein Zeitraum angegeben.", "danger")
+        return redirect(url_for("finances.admin_finances", tab="receivables"))
+
+    player_ids = None
+    if scope == "selected":
+        pids_raw = request.form.getlist("player_ids")
+        player_ids = []
+        for p in pids_raw:
+            try:
+                player_ids.append(int(p))
+            except (ValueError, TypeError):
+                pass
+
+    count = create_manual_due_receivables(period, player_ids=player_ids)
+    flash(f"✓ {count} Beitragsforderungen für {period} angelegt.", "success")
+    return redirect(url_for("finances.admin_finances", tab="receivables"))
+
+
+@finances_bp.route("/receivables/<int:receivable_id>/mark", methods=["POST"])
+@require_webmaster
+def mark_receivable_route(receivable_id: int):
+    """Mark a receivable as settled, waived, or open (allows manual override)."""
+    action = request.form.get("action", "settled")
+    new_amount = request.form.get("amount", type=float)
+
+    finances_conn = get_finances_connection()
+    try:
+        rec = get_receivable_by_id(finances_conn, receivable_id)
+        if not rec:
+            flash("Forderung nicht gefunden.", "danger")
+            return redirect(url_for("finances.admin_finances", tab="receivables"))
+
+        if action == "settled":
+            update_receivable(finances_conn, receivable_id, status="settled", manual_settled=1)
+            flash(f"✓ Posten #{receivable_id} ({rec['title']}) als beglichen markiert.", "success")
+        elif action == "waived":
+            update_receivable(finances_conn, receivable_id, status="waived", manual_settled=1)
+            flash(f"Posten #{receivable_id} ({rec['title']}) erlassen.", "info")
+        elif action == "open":
+            update_receivable(finances_conn, receivable_id, status="open", manual_settled=0)
+            flash(f"Posten #{receivable_id} ({rec['title']}) wieder auf offen gesetzt.", "info")
+
+        if new_amount and new_amount > 0:
+            update_receivable(finances_conn, receivable_id, amount=new_amount)
+
+        return redirect(url_for("finances.admin_finances", tab="receivables"))
+    finally:
+        finances_conn.close()
+
+
+@finances_bp.route("/receivables/<int:receivable_id>/delete", methods=["POST"])
+@require_webmaster
+def delete_receivable_route(receivable_id: int):
+    """Delete a manual/special receivable."""
+    finances_conn = get_finances_connection()
+    try:
+        ok = delete_receivable(finances_conn, receivable_id)
+        if ok:
+            flash(f"Posten #{receivable_id} gelöscht.", "success")
+        else:
+            flash(f"Posten #{receivable_id} kann nicht gelöscht werden, da bereits Buchungen darauf verknüpft sind.", "danger")
+        return redirect(url_for("finances.admin_finances", tab="receivables"))
     finally:
         finances_conn.close()
 

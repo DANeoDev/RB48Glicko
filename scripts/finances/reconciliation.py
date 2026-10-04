@@ -14,6 +14,13 @@ from scripts.finances.database import (
     get_all_player_membership_records,
     get_player_membership_status,
     set_player_membership_status,
+    create_receivable,
+    get_receivable_by_id,
+    get_receivables,
+    update_receivable,
+    delete_receivable,
+    get_allocations_for_receivable,
+    create_special_receivables_group,
 )
 from scripts.database.database import get_connection as get_rb48_connection
 from scripts.database.db_players import get_players, get_ignored_aliases, get_alias_lookup
@@ -390,14 +397,29 @@ def get_all_unpaid_guest_entries() -> list[dict]:
     return all_unpaid
 
 
-def get_match_date_guest_status(match_date: str) -> dict:
+def get_match_date_guest_status(
+    match_date: str,
+    finances_conn=None,
+    rb48_conn=None,
+    accounts_conn=None,
+) -> dict:
     """
     Get financial breakdown for all players on a specific match date from Match History,
     including both regular guest players and participating ignored aliases.
     """
-    rb48_conn = get_rb48_connection()
-    finances_conn = get_finances_connection()
-    accounts_conn = get_accounts_connection()
+    close_rb48 = False
+    close_finances = False
+    close_accounts = False
+
+    if rb48_conn is None:
+        rb48_conn = get_rb48_connection()
+        close_rb48 = True
+    if finances_conn is None:
+        finances_conn = get_finances_connection()
+        close_finances = True
+    if accounts_conn is None:
+        accounts_conn = get_accounts_connection()
+        close_accounts = True
 
     try:
         players_dict = get_players(rb48_conn)
@@ -575,9 +597,12 @@ def get_match_date_guest_status(match_date: str) -> dict:
             "outstanding": max(0.0, total_guest_fees_expected - total_guest_fees_collected),
         }
     finally:
-        rb48_conn.close()
-        finances_conn.close()
-        accounts_conn.close()
+        if close_rb48:
+            rb48_conn.close()
+        if close_finances:
+            finances_conn.close()
+        if close_accounts:
+            accounts_conn.close()
 
 
 def find_unconfirmed_transaction_for_player(
@@ -2434,10 +2459,401 @@ def settle_transaction_and_debts(
         accounts_conn.close()
 
 
+def sync_rule_based_receivables(finances_conn=None, rb48_conn=None, accounts_conn=None) -> dict:
+    """
+    Synchronize all rule-based membership dues and match guest kicks into finance_receivables.
+    - Idempotent: does not create duplicate receivables.
+    - Retroactively links existing payment_allocations to their matching receivable_id.
+    - Calculates and updates receivable status ('open', 'partial', 'settled', 'waived').
+    - Respects manual_settled=1 overrides (partial payments manually marked settled remain settled).
+    """
+    close_fin = False
+    close_rb = False
+    close_acc = False
+
+    if finances_conn is None:
+        finances_conn = get_finances_connection()
+        close_fin = True
+    if rb48_conn is None:
+        rb48_conn = get_rb48_connection()
+        close_rb = True
+    if accounts_conn is None:
+        accounts_conn = get_accounts_connection()
+        close_acc = True
+
+    created_dues = 0
+    created_kicks = 0
+    linked_allocations = 0
+
+    try:
+        # 1. Sync rule-based membership dues for all members across half-year periods
+        try:
+            pers = [p["value"] for p in get_available_finance_periods(finances_conn, rb48_conn) if p.get("type") == "halfyear"]
+        except Exception:
+            pers = ["2026-H1", "2026-H2"]
+
+        members = [p for p in get_all_players_with_membership(finances_conn, rb48_conn, accounts_conn) if p.get("status") == "member"]
+
+        for per in pers:
+            p_range = get_period_date_range(per)
+            due_date = p_range.get("end_date") or f"{per[:4]}-12-31"
+
+            for m in members:
+                pid = m["player_id"]
+                existing = finances_conn.execute(
+                    "SELECT id, status, manual_settled FROM finance_receivables WHERE kind = 'membership_due' AND player_id = ? AND period = ?",
+                    (pid, per),
+                ).fetchone()
+
+                if not existing:
+                    create_receivable(
+                        finances_conn,
+                        kind="membership_due",
+                        amount=MEMBERSHIP_DUE_PER_HALFYEAR,
+                        title=f"Mitgliedsbeitrag {per}",
+                        player_id=pid,
+                        period=per,
+                        due_date=due_date,
+                        status="open",
+                        source="rule",
+                    )
+                    created_dues += 1
+
+        # 2. Sync match guest kicks
+        match_dates = [
+            row["date"] for row in rb48_conn.execute(
+                "SELECT DISTINCT date FROM matches ORDER BY date ASC"
+            ).fetchall()
+        ]
+
+        for mdate in match_dates:
+            details = get_match_date_guest_status(mdate, finances_conn, rb48_conn, accounts_conn)
+            for g in details.get("guest_entries", []):
+                raw_pid = g.get("player_id")
+                pid = None
+                alias = None
+                if raw_pid is not None and str(raw_pid).isdigit():
+                    pid = int(raw_pid)
+                elif isinstance(raw_pid, str) and raw_pid.startswith("ignored:"):
+                    alias = raw_pid[8:]
+                elif g.get("name"):
+                    alias = g["name"]
+
+                if not pid and not alias:
+                    continue
+
+                if pid:
+                    existing = finances_conn.execute(
+                        "SELECT id, status, manual_settled FROM finance_receivables WHERE kind = 'match_guest' AND player_id = ? AND match_date = ?",
+                        (pid, mdate),
+                    ).fetchone()
+                else:
+                    existing = finances_conn.execute(
+                        "SELECT id, status, manual_settled FROM finance_receivables WHERE kind = 'match_guest' AND LOWER(guest_alias) = LOWER(?) AND match_date = ?",
+                        (alias, mdate),
+                    ).fetchone()
+
+                if not existing:
+                    create_receivable(
+                        finances_conn,
+                        kind="match_guest",
+                        amount=GUEST_FEE_PER_KICK,
+                        title=f"Gastbeitrag {mdate}",
+                        player_id=pid,
+                        guest_alias=alias,
+                        match_date=mdate,
+                        due_date=mdate,
+                        status="open",
+                        source="rule",
+                    )
+                    created_kicks += 1
+
+        # 3. Link unlinked payment_allocations to matching receivables and update statuses
+        all_recs = finances_conn.execute("SELECT * FROM finance_receivables").fetchall()
+        for rec in all_recs:
+            rid = rec["id"]
+            r_kind = rec["kind"]
+            r_pid = rec["player_id"]
+            r_alias = rec["guest_alias"]
+            r_per = rec["period"]
+            r_mdate = rec["match_date"]
+            r_amount = float(rec["amount"])
+            manual_settled = bool(dict(rec).get("manual_settled", 0))
+
+            if r_kind == "membership_due" and r_pid and r_per:
+                matching_allocs = finances_conn.execute(
+                    "SELECT id, allocated_amount, payment_method, receivable_id FROM payment_allocations WHERE fee_type = 'membership_due' AND player_id = ? AND period = ?",
+                    (r_pid, r_per),
+                ).fetchall()
+            elif r_kind == "match_guest" and r_mdate:
+                if r_pid:
+                    matching_allocs = finances_conn.execute(
+                        "SELECT id, allocated_amount, payment_method, receivable_id FROM payment_allocations WHERE fee_type = 'match_guest' AND player_id = ? AND match_date = ?",
+                        (r_pid, r_mdate),
+                    ).fetchall()
+                else:
+                    matching_allocs = finances_conn.execute(
+                        "SELECT id, allocated_amount, payment_method, receivable_id FROM payment_allocations WHERE fee_type = 'match_guest' AND (LOWER(guest_alias) = LOWER(?) OR note LIKE ?) AND match_date = ?",
+                        (r_alias, f"%{r_alias}%", r_mdate),
+                    ).fetchall()
+            else:
+                matching_allocs = finances_conn.execute(
+                    "SELECT id, allocated_amount, payment_method, receivable_id FROM payment_allocations WHERE receivable_id = ?",
+                    (rid,),
+                ).fetchall()
+
+            for ma in matching_allocs:
+                if not ma["receivable_id"]:
+                    finances_conn.execute(
+                        "UPDATE payment_allocations SET receivable_id = ? WHERE id = ?",
+                        (rid, ma["id"]),
+                    )
+                    linked_allocations += 1
+
+            if manual_settled:
+                new_status = "settled"
+            else:
+                has_waived = any(ma["payment_method"] == "waived" for ma in matching_allocs)
+                total_paid = sum(float(ma["allocated_amount"] or 0.0) for ma in matching_allocs if ma["payment_method"] != "waived")
+                if has_waived:
+                    new_status = "waived"
+                elif total_paid >= r_amount:
+                    new_status = "settled"
+                elif total_paid > 0:
+                    new_status = "partial"
+                else:
+                    new_status = "open"
+
+            if new_status != rec["status"]:
+                finances_conn.execute(
+                    "UPDATE finance_receivables SET status = ? WHERE id = ?",
+                    (new_status, rid),
+                )
+
+        finances_conn.commit()
+        return {
+            "created_dues": created_dues,
+            "created_kicks": created_kicks,
+            "linked_allocations": linked_allocations,
+            "total_receivables": len(all_recs) + created_dues + created_kicks,
+        }
+    finally:
+        if close_fin:
+            finances_conn.close()
+        if close_rb:
+            rb48_conn.close()
+        if close_acc:
+            accounts_conn.close()
+
+
+def create_manual_due_receivables(
+    period: str,
+    player_ids: list[int] | None = None,
+    finances_conn=None,
+    rb48_conn=None,
+    accounts_conn=None,
+) -> int:
+    """
+    Manually create membership due receivables for a period (e.g. 2026-H1 or any historical period)
+    where no match attendance exists. Can be for all active members or selected players.
+    """
+    close_fin = False
+    close_rb = False
+    close_acc = False
+
+    if finances_conn is None:
+        finances_conn = get_finances_connection()
+        close_fin = True
+    if rb48_conn is None:
+        rb48_conn = get_rb48_connection()
+        close_rb = True
+    if accounts_conn is None:
+        accounts_conn = get_accounts_connection()
+        close_acc = True
+
+    try:
+        if player_ids is None:
+            members = [p for p in get_all_players_with_membership(finances_conn, rb48_conn, accounts_conn) if p.get("status") == "member"]
+            pids = [m["player_id"] for m in members]
+        else:
+            pids = player_ids
+
+        p_range = get_period_date_range(period)
+        due_date = p_range.get("end") or p_range.get("end_date") or f"{period[:4]}-06-30"
+
+        created = 0
+        for pid in pids:
+            existing = finances_conn.execute(
+                "SELECT id FROM finance_receivables WHERE kind = 'membership_due' AND player_id = ? AND period = ?",
+                (pid, period),
+            ).fetchone()
+            if not existing:
+                create_receivable(
+                    finances_conn,
+                    kind="membership_due",
+                    amount=MEMBERSHIP_DUE_PER_HALFYEAR,
+                    title=f"Mitgliedsbeitrag {period}",
+                    player_id=pid,
+                    period=period,
+                    due_date=due_date,
+                    status="open",
+                    source="manual",
+                )
+                created += 1
+
+        finances_conn.commit()
+        return created
+    finally:
+        if close_fin:
+            finances_conn.close()
+        if close_rb:
+            rb48_conn.close()
+        if close_acc:
+            accounts_conn.close()
+
+
+def allocate_transaction_receivables(
+    transaction_id: int,
+    payer_player_id: int | str | None = None,
+    allocations: list[dict] | None = None,
+    remember: bool = False,
+    current_user_id: int | None = None,
+    note: str | None = None,
+) -> dict:
+    """
+    Manually allocate a transaction to one or more specific receivables.
+    Supports partial payments, marking a receivable as fully settled even on partial payment,
+    and booking any remainder as credit/surplus.
+    `allocations` is a list of dicts:
+        [
+            {"receivable_id": int, "amount": float, "mark_settled": bool (optional)},
+            ...
+        ]
+    """
+    finances_conn = get_finances_connection()
+    rb48_conn = get_rb48_connection()
+    accounts_conn = get_accounts_connection()
+    try:
+        tx = get_transaction_by_id(finances_conn, transaction_id)
+        if not tx:
+            return {"success": False, "error": "Transaktion nicht gefunden"}
+
+        payer_pid = None
+        payer_alias = None
+        if isinstance(payer_player_id, str) and payer_player_id.startswith("ignored:"):
+            payer_alias = payer_player_id.split(":", 1)[1]
+        elif payer_player_id is not None:
+            try:
+                payer_pid = int(payer_player_id)
+            except (ValueError, TypeError):
+                payer_alias = str(payer_player_id)
+
+        if not payer_pid and not payer_alias:
+            payer_pid = tx.get("matched_player_id")
+        if not payer_pid and not payer_alias:
+            payer_alias = tx.get("raw_payer_name") or tx.get("raw_payer_email") or "Zahler"
+
+        update_transaction_assignment(
+            finances_conn,
+            transaction_id,
+            player_id=payer_pid,
+            status="assigned",
+            is_confirmed=1,
+        )
+
+        if remember and payer_pid:
+            save_or_update_identity(
+                finances_conn,
+                player_id=payer_pid,
+                payer_email=tx.get("raw_payer_email"),
+                payer_name=tx.get("raw_payer_name"),
+                confidence=1.0,
+                created_by_user_id=current_user_id,
+            )
+
+        tx_amount = float(tx.get("amount", 0.0))
+        remaining = tx_amount
+        covered_count = 0
+
+        alloc_list = allocations or []
+        for item in alloc_list:
+            rid = int(item["receivable_id"])
+            amt = float(item["amount"])
+            if amt <= 0:
+                continue
+
+            rec = get_receivable_by_id(finances_conn, rid)
+            if not rec:
+                continue
+
+            mark_settled = bool(item.get("mark_settled", False))
+            bene_pid = rec.get("player_id")
+            bene_alias = rec.get("guest_alias")
+
+            fee_type_to_save = rec["kind"] if rec["kind"] in ("match_guest", "membership_due") else "manual_adjustment"
+            add_payment_allocation(
+                finances_conn,
+                fee_type=fee_type_to_save,
+                allocated_amount=amt,
+                payment_method=tx.get("source", "bank"),
+                transaction_id=transaction_id,
+                event_id=None,
+                match_date=rec.get("match_date"),
+                player_id=bene_pid,
+                guest_alias=bene_alias,
+                period=rec.get("period"),
+                receivable_id=rid,
+                paid_by_player_id=payer_pid if (payer_pid and payer_pid != bene_pid) else None,
+                note=note or f"Begleicht {rec['title']}",
+            )
+            covered_count += 1
+            remaining -= amt
+
+            if mark_settled:
+                update_receivable(finances_conn, rid, status="settled", manual_settled=1)
+            else:
+                allocs = get_allocations_for_receivable(finances_conn, rid)
+                tot_paid = sum(float(a["allocated_amount"] or 0.0) for a in allocs if a["payment_method"] != "waived")
+                if tot_paid >= float(rec["amount"]):
+                    update_receivable(finances_conn, rid, status="settled")
+                elif tot_paid > 0:
+                    update_receivable(finances_conn, rid, status="partial")
+
+        if remaining > 0.01:
+            add_payment_allocation(
+                finances_conn,
+                fee_type="manual_adjustment",
+                allocated_amount=remaining,
+                payment_method=tx.get("source", "bank"),
+                transaction_id=transaction_id,
+                player_id=payer_pid,
+                guest_alias=payer_alias,
+                note=f"Guthaben / Überzahlung ({remaining:.2f} €)",
+            )
+
+        finances_conn.commit()
+        return {
+            "success": True,
+            "transaction_id": transaction_id,
+            "covered_count": covered_count,
+            "remaining_credit": max(0.0, remaining),
+        }
+    finally:
+        finances_conn.close()
+        rb48_conn.close()
+        accounts_conn.close()
+
+
 def reset_transaction_settlement(transaction_id: int):
     """Reset a transaction back to 'imported' (unconfirmed) and remove/detach allocations."""
     finances_conn = get_finances_connection()
     try:
+        aff_rows = finances_conn.execute(
+            "SELECT DISTINCT receivable_id FROM payment_allocations WHERE transaction_id = ? AND receivable_id IS NOT NULL",
+            (transaction_id,),
+        ).fetchall()
+        aff_rids = [r["receivable_id"] for r in aff_rows]
+
         finances_conn.execute(
             "DELETE FROM payment_allocations WHERE transaction_id = ?",
             (transaction_id,),
@@ -2450,6 +2866,22 @@ def reset_transaction_settlement(transaction_id: int):
             """,
             (transaction_id,),
         )
+
+        for rid in aff_rids:
+            rec = get_receivable_by_id(finances_conn, rid)
+            if rec and not rec.get("manual_settled"):
+                paid = finances_conn.execute(
+                    "SELECT SUM(allocated_amount) as s FROM payment_allocations WHERE receivable_id = ? AND payment_method != 'waived'",
+                    (rid,),
+                ).fetchone()["s"] or 0.0
+                if paid >= float(rec["amount"]):
+                    n_st = "settled"
+                elif paid > 0:
+                    n_st = "partial"
+                else:
+                    n_st = "open"
+                update_receivable(finances_conn, rid, status=n_st)
+
         finances_conn.commit()
     finally:
         finances_conn.close()
@@ -2583,6 +3015,50 @@ def get_all_players_open_debts(finances_conn=None, rb48_conn=None, accounts_conn
         except Exception:
             pass
 
+        # 3. Special receivables (Sonderposten)
+        try:
+            specials = finances_conn.execute(
+                "SELECT * FROM finance_receivables WHERE kind = 'special' AND status IN ('open', 'partial')"
+            ).fetchall()
+            for sp in specials:
+                raw_pid = sp.get("player_id")
+                if raw_pid is not None and str(raw_pid).isdigit():
+                    key = str(int(raw_pid))
+                elif sp.get("guest_alias"):
+                    key = f"ignored:{sp['guest_alias']}"
+                else:
+                    continue
+
+                paid = finances_conn.execute(
+                    "SELECT SUM(allocated_amount) as s FROM payment_allocations WHERE receivable_id = ? AND payment_method != 'waived'",
+                    (sp["id"],),
+                ).fetchone()["s"] or 0.0
+                sp_open = max(0.0, float(sp["amount"]) - float(paid))
+                if sp_open <= 0:
+                    continue
+
+                d = debts.setdefault(key, {
+                    "total_open": 0.0,
+                    "guest_kicks_count": 0,
+                    "guest_kicks": [],
+                    "dues": [],
+                    "specials": [],
+                    "summary": "",
+                    "short_summary": "",
+                    "is_member": False,
+                })
+                d["total_open"] += sp_open
+                if "specials" not in d:
+                    d["specials"] = []
+                d["specials"].append({
+                    "id": sp["id"],
+                    "title": sp["title"],
+                    "amount": sp_open,
+                    "due_date": sp["due_date"],
+                })
+        except Exception:
+            pass
+
         # Build human-readable summaries for each player with debts
         for key in list(debts.keys()):
             d = debts[key]
@@ -2604,6 +3080,12 @@ def get_all_players_open_debts(finances_conn=None, rb48_conn=None, accounts_conn
                 k_amt = f"{kick_sum:.2f}".replace('.', ',')
                 parts.append(f"{d['guest_kicks_count']} Kick{'s' if d['guest_kicks_count'] > 1 else ''}: {dates_str}")
                 short_parts.append(f"{d['guest_kicks_count']} Kick{'s' if d['guest_kicks_count'] > 1 else ''}")
+
+            if d.get("specials"):
+                for sp in d["specials"]:
+                    sp_amt = f"{sp['amount']:.2f}".replace('.', ',')
+                    parts.append(f"{sp['title']} ({sp_amt} €)")
+                    short_parts.append(f"{sp['title']}")
 
             tot_str = f"{tot:.2f}".replace('.', ',')
             d["summary"] = f"{tot_str} € offen ({', '.join(parts)})"

@@ -131,23 +131,26 @@
 
         <!-- Navigation Tabs -->
         <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 24px; flex-wrap: wrap;">
-            <a href="{{ url_for('finances.admin_finances', tab='matches', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'matches' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
-                ⚽ Match-Historie & Gastbeiträge
-            </a>
-            <a href="{{ url_for('finances.admin_finances', tab='players', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'players' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
-                👥 Spieler-Status ({{ total_members_count }} Mitgl. / {{ total_guests_count }} Gäste)
-            </a>
-            <a href="{{ url_for('finances.admin_finances', tab='dues', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'dues' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
-                🏛️ Mitgliedsbeiträge
-            </a>
-            <a href="{{ url_for('finances.admin_finances', tab='import', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; display: flex; align-items: center; gap: 6px; {% if active_tab == 'import' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
-                📥 Zahlungsimport & Archiv
+            <a href="{{ url_for('finances.admin_finances', tab='transactions', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; display: flex; align-items: center; gap: 6px; {% if active_tab == 'transactions' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+                💳 Zahlungsabgleich & Upload
                 {% if unassigned_count > 0 %}
-                    <span style="background: #ffc107; color: #140b28; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 10px;">{{ unassigned_count }}</span>
+                    <span style="background: #ffc107; color: #140b28; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 10px;">{{ unassigned_count }} offen</span>
                 {% endif %}
             </a>
-            <a href="{{ url_for('finances.admin_finances', tab='identities', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'identities' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
-                🧠 Lernendes Zahler-Gedächtnis ({{ identities|length }})
+            <a href="{{ url_for('finances.admin_finances', tab='receivables', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; display: flex; align-items: center; gap: 6px; {% if active_tab == 'receivables' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+                📋 Soll & Offene Posten
+                {% if open_receivables %}
+                    <span style="background: rgba(220, 53, 69, 0.25); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.4); font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 10px;">{{ open_receivables|length }}</span>
+                {% endif %}
+            </a>
+            <a href="{{ url_for('finances.admin_finances', tab='matches', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'matches' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+                ⚽ Gastbeiträge nach Spieltag
+            </a>
+            <a href="{{ url_for('finances.admin_finances', tab='dues', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab == 'dues' %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+                🏛️ Beitragsmatrix
+            </a>
+            <a href="{{ url_for('finances.admin_finances', tab='settings', period=selected_period) }}" style="padding: 8px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-radius: 6px; {% if active_tab in ('settings', 'players', 'identities') %}background: var(--accent); color: #ffffff;{% else %}background: var(--bg-surface-alt); color: var(--text-muted); border: 1px solid var(--border);{% endif %}">
+                ⚙️ Stammdaten & Archiv
             </a>
         </div>
 
@@ -313,70 +316,7 @@
         </div>
         {% endif %}
 
-        <!-- TAB 2: PLAYER MEMBERSHIP STATUS -->
-        {% if active_tab == 'players' %}
-        <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
-                <div>
-                    <h2 style="margin: 0; font-size: 18px; color: #ffffff;">Spieler-Mitgliedsstatus (Vereinsmitglied vs. Gast)</h2>
-                    <p class="muted" style="margin: 4px 0 0 0; font-size: 13px;">
-                        Vereinsmitglieder zahlen Halbjahresbeiträge (48 €) und keine Spieltags-Kleckerbeiträge. Spieler mit verknüpftem Benutzeraccount sind standardmäßig als Mitglied initialisiert.
-                    </p>
-                </div>
-            </div>
 
-            <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-muted); font-size: 12px;">
-                            <th style="padding: 10px 8px;">Spieler</th>
-                            <th style="padding: 10px 8px;">Aliase</th>
-                            <th style="padding: 10px 8px;">Verknüpftes Benutzerkonto</th>
-                            <th style="padding: 10px 8px;">Aktueller Status</th>
-                            <th style="padding: 10px 8px; text-align: right;">Status ändern</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for p in players_with_status %}
-                        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                            <td style="padding: 12px 8px;">
-                                <strong style="color: #ffffff;">{{ p.name }}</strong>
-                            </td>
-                            <td style="padding: 12px 8px; color: var(--text-muted); font-size: 12px;">
-                                {{ p.aliases_str }}
-                            </td>
-                            <td style="padding: 12px 8px;">
-                                {% if p.linked_user %}
-                                    <span style="color: #80deea; font-weight: 600;">👤 {{ p.linked_user.username }}</span>
-                                    <span style="font-size: 11px; color: var(--text-muted);">({{ p.linked_user.email }})</span>
-                                {% else %}
-                                    <span class="muted" style="font-size: 12px;">Kein Web-Konto</span>
-                                {% endif %}
-                            </td>
-                            <td style="padding: 12px 8px;" id="player-status-badge-{{ p.player_id }}">
-                                {% if p.status == 'member' %}
-                                    <span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟢 Vereinsmitglied</span>
-                                {% else %}
-                                    <span style="background: rgba(255, 193, 7, 0.25); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟡 Gastspieler (3,50 € / Kick)</span>
-                                {% endif %}
-                            </td>
-                            <td style="padding: 12px 8px; text-align: right;">
-                                <div style="display: inline-flex; gap: 6px;">
-                                    <button type="button" class="secondary" onclick="setPlayerStatus({{ p.player_id }}, 'member')" style="font-size: 11px; padding: 3px 8px; {% if p.status == 'member' %}border-color: #88ff88; color: #88ff88;{% endif %}" title="Als Vereinsmitglied setzen">
-                                        🟢 Mitglied
-                                    </button>
-                                    <button type="button" class="secondary" onclick="setPlayerStatus({{ p.player_id }}, 'guest')" style="font-size: 11px; padding: 3px 8px; {% if p.status == 'guest' %}border-color: #ffe082; color: #ffe082;{% endif %}" title="Als Gastspieler setzen">
-                                        🟡 Gast
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        {% endif %}
 
         <!-- TAB 3: MEMBERSHIP DUES -->
         {% if active_tab == 'dues' %}
@@ -661,8 +601,8 @@
         {% endif %}
 
 
-        <!-- TAB 4: CSV IMPORT & TRANSACTIONS -->
-        {% if active_tab == 'import' %}
+        <!-- TAB 1: CSV IMPORT & TRANSACTIONS -->
+        {% if active_tab == 'transactions' %}
         <div style="display: flex; flex-direction: column; gap: 24px;">
             <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 24px;">
                 <h3 style="margin: 0 0 8px 0; color: #ffffff; font-size: 16px;">📥 Bank-Kontoauszüge (PDF/CSV) & PayPal CSV hochladen</h3>
@@ -843,363 +783,36 @@
                                                     </button>
                                                 </form>
                                             </div>
-                                        {% elif tx.get('is_proxy_candidate') %}
-                                            {# Proxy payment split UI with 1-click Beglichen and Smart Suggestion #}
-                                            <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
-                                                {% if tx.proxy_suggestion and tx.proxy_suggestion.summary_text %}
-                                                    <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 6px; padding: 6px 8px; text-align: left; max-width: 340px; margin-bottom: 2px;">
-                                                        <div style="font-size: 10.5px; font-weight: 700; color: #ffe082;">💡 Intelligenter Zuordnungsvorschlag:</div>
-                                                        <div style="font-size: 11px; color: #ffffff; margin-top: 2px;">{{ tx.proxy_suggestion.summary_text }}</div>
-                                                        {% if tx.proxy_suggestion.cleared_debts_summary %}
-                                                            <div style="margin-top: 4px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 4px; padding: 4px 6px; font-size: 10.5px; color: #38bdf8; line-height: 1.35;">
-                                                                🎯 <strong>Begleicht konkret:</strong> {{ tx.proxy_suggestion.cleared_debts_summary }}
-                                                            </div>
-                                                        {% endif %}
-                                                        <form method="post" action="{{ url_for('finances.apply_suggestion') }}" style="margin-top: 5px; margin-bottom: 0;">
-                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 10.5px; padding: 3px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
-                                                                ✓ Vorschlag übernehmen
-                                                            </button>
-                                                        </form>
-                                                    </div>
-                                                {% endif %}
-                                                <div style="display: flex; gap: 6px; align-items: center;">
-                                                    {% if tx.suggestion and tx.suggestion.player_id %}
-                                                        <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
-                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                            <input type="hidden" name="payer_player_id" value="{{ tx.suggestion.player_id }}">
-                                                            <input type="hidden" name="remember_identity" value="1">
-                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Direkt für {{ tx.suggestion_player_name }} als beglichen markieren">
-                                                                ✓ Beglichen ({{ tx.suggestion_player_name }})
-                                                            </button>
-                                                        </form>
-                                                    {% elif tx.raw_payer_name %}
-                                                        <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
-                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Direkt als beglichen abhaken (auch ohne Spieler-Zuordnung)">
-                                                                ✓ Beglichen ({{ tx.raw_payer_name }})
-                                                            </button>
-                                                        </form>
-                                                    {% else %}
-                                                        <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
-                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer;" title="Manuell als beglichen/erledigt markieren">
-                                                                ✓ Beglichen
-                                                            </button>
-                                                        </form>
-                                                    {% endif %}
-                                                </div>
-
-                                                <details style="width: 100%; text-align: left; max-width: 340px; margin-top: 2px;">
-                                                    <summary style="font-size: 10.5px; color: #ffe082; cursor: pointer; font-weight: 600;">🔀 Aufteilen auf {{ tx.proxy_num_kicks }} Gäste ({{ "%.2f"|format(tx.amount)|replace(".", ",") }} €) →</summary>
-                                                    <div style="margin-top: 6px; background: rgba(255, 193, 7, 0.08); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 6px; padding: 8px;">
-                                                        <form method="post" action="{{ url_for('finances.split_assign_transaction') }}" style="display: flex; flex-direction: column; gap: 5px; align-items: flex-end; margin: 0; width: 100%;" id="split-form-{{ tx.id }}">
-                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                            <input type="hidden" name="allocations" id="split-allocs-{{ tx.id }}" value="[]">
-
-                                                            <div style="width: 100%; display: flex; align-items: center; gap: 6px;">
-                                                                <span style="font-size: 10.5px; color: var(--text-muted); width: 55px;">Zahler:</span>
-                                                                <select name="paid_by_player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; flex: 1;">
-                                                                    <option value="">{% if tx.raw_payer_name %}{{ tx.raw_payer_name }} (Zahler){% else %}-- Zahler wählen --{% endif %}</option>
-                                                                    <optgroup label="🔴 Spieler mit offenen Beträgen">
-                                                                        {% for p in player_list if p.has_open_debts %}
-                                                                            <option value="{{ p.player_id }}" {% if (tx.suggestion and tx.suggestion.player_id == p.player_id) or (tx.matched_player_id == p.player_id) %}selected{% endif %}>{{ p.name }} (🔴 {{ p.open_debts_short_summary }})</option>
-                                                                        {% endfor %}
-                                                                    </optgroup>
-                                                                    <optgroup label="✓ Spieler ohne offene Beträge">
-                                                                        {% for p in player_list if not p.has_open_debts %}
-                                                                            <option value="{{ p.player_id }}" {% if (tx.suggestion and tx.suggestion.player_id == p.player_id) or (tx.matched_player_id == p.player_id) %}selected{% endif %}>{{ p.name }}</option>
-                                                                        {% endfor %}
-                                                                    </optgroup>
-                                                                    {% if ignored_aliases_with_debts %}
-                                                                    <optgroup label="🔴 Externe Gäste mit offenen Beträgen">
-                                                                        {% for ign in ignored_aliases_with_debts if ign.has_open_debts %}
-                                                                            <option value="ignored:{{ ign.name }}">{{ ign.name }} (🔴 {{ ign.open_debts_short_summary }})</option>
-                                                                        {% endfor %}
-                                                                    </optgroup>
-                                                                    <optgroup label="✓ Weitere externe Gäste">
-                                                                        {% for ign in ignored_aliases_with_debts if not ign.has_open_debts %}
-                                                                            <option value="ignored:{{ ign.name }}">{{ ign.name }} (Extern)</option>
-                                                                        {% endfor %}
-                                                                    </optgroup>
-                                                                    {% endif %}
-                                                                </select>
-                                                            </div>
-
-                                                            <div id="split-slots-{{ tx.id }}" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
-                                                                {% for i in range(tx.proxy_num_kicks) %}
-                                                                <div style="display: flex; gap: 4px; align-items: center;">
-                                                                    <span style="font-size: 10.5px; color: var(--text-muted); width: 60px;">Gast {{ i + 1 }}:</span>
-                                                                    <select name="guest_{{ i }}" class="split-guest-select" data-form-id="{{ tx.id }}" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 3px 4px; border-radius: 4px; flex: 1;">
-                                                                        <option value="">-- Gast {{ i + 1 }} --</option>
-                                                                        <optgroup label="🔴 Gäste mit offenen Beiträgen">
-                                                                            {% for p in player_list if p.status == 'guest' and p.has_open_debts %}
-                                                                                <option value="{{ p.player_id }}">{{ p.name }} (🔴 {{ p.open_debts_short_summary }})</option>
-                                                                            {% endfor %}
-                                                                        </optgroup>
-                                                                        {% if ignored_aliases_with_debts %}
-                                                                        <optgroup label="🔴 Externe Gäste mit offenen Beiträgen">
-                                                                            {% for ign in ignored_aliases_with_debts if ign.has_open_debts %}
-                                                                                <option value="ignored:{{ ign.name }}">{{ ign.name }} (🔴 {{ ign.open_debts_short_summary }})</option>
-                                                                            {% endfor %}
-                                                                        </optgroup>
-                                                                        {% endif %}
-                                                                        <optgroup label="✓ Weitere Gäste">
-                                                                            {% for p in player_list if p.status == 'guest' and not p.has_open_debts %}
-                                                                                <option value="{{ p.player_id }}">{{ p.name }}</option>
-                                                                            {% endfor %}
-                                                                        </optgroup>
-                                                                        {% if ignored_aliases_with_debts %}
-                                                                        <optgroup label="✓ Weitere Externe">
-                                                                            {% for ign in ignored_aliases_with_debts if not ign.has_open_debts %}
-                                                                                <option value="ignored:{{ ign.name }}">{{ ign.name }} (Extern)</option>
-                                                                        {% endfor %}
-                                                                        </optgroup>
-                                                                        {% endif %}
-                                                                        <optgroup label="Mitglieder">
-                                                                            {% for p in player_list if p.status == 'member' %}
-                                                                                <option value="{{ p.player_id }}">{{ p.name }}{% if p.has_open_debts %} (🔴 {{ p.open_debts_short_summary }}){% endif %}</option>
-                                                                            {% endfor %}
-                                                                        </optgroup>
-                                                                    </select>
-                                                                    <span style="font-size: 11px; color: var(--text-muted); white-space: nowrap;">3,50 €</span>
-                                                                </div>
-                                                                {% endfor %}
-                                                            </div>
-                                                            <div style="display: flex; gap: 6px; align-items: center;">
-                                                                <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;">
-                                                                    <input type="checkbox" name="remember_identity" value="1" checked> 💾 Merken
-                                                                </label>
-                                                                <button type="submit" class="primary" style="font-size: 11px; padding: 4px 10px; cursor: pointer;" onclick="return prepareSplitAllocations('{{ tx.id }}')">
-                                                                    🔀 Aufteilen & Begleichen
-                                                                </button>
-                                                            </div>
-                                                        </form>
-                                                    </div>
-                                                </details>
-                                                            🔀 Aufteilen & Begleichen
-                                                        </button>
-                                                    </div>
-                                                        </form>
-                                                    </div>
-                                                </details>
-                                                {# Fallback: direct settle or single assignment #}
-                                                <details style="width: 100%;">
-                                                    <summary style="font-size: 10.5px; color: var(--text-muted); cursor: pointer;">Oder: Einfache Einzelzuordnung →</summary>
-                                                    <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end; margin-top: 4px;">
-                                                        <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                        <div style="display: flex; gap: 4px; align-items: center; width: 100%;">
-                                                            <span style="font-size: 10.5px; color: var(--text-muted); width: 65px; white-space: nowrap;">Zahler:</span>
-                                                            <select name="player_id" onchange="updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this)" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 3px 6px; border-radius: 4px; flex: 1;">
-                                                                <option value="">-- Spieler wählen --</option>
-                                                                <optgroup label="🔴 Spieler mit offenen Beträgen">
-                                                                    {% for p in player_list if p.has_open_debts %}
-                                                                        <option value="{{ p.player_id }}" {% if tx.suggestion and tx.suggestion.player_id == p.player_id %}selected{% endif %}>{{ p.name }} (🔴 {{ p.open_debts_short_summary }})</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                <optgroup label="✓ Spieler ohne offene Beträge">
-                                                                    {% for p in player_list if not p.has_open_debts %}
-                                                                        <option value="{{ p.player_id }}" {% if tx.suggestion and tx.suggestion.player_id == p.player_id %}selected{% endif %}>{{ p.name }}</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                {% if ignored_aliases_with_debts %}
-                                                                <optgroup label="🔴 Externe Gäste mit offenen Beträgen">
-                                                                    {% for ign in ignored_aliases_with_debts if ign.has_open_debts %}
-                                                                        <option value="ignored:{{ ign.name }}">{{ ign.name }} (🔴 {{ ign.open_debts_short_summary }})</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                <optgroup label="✓ Weitere externe Gäste">
-                                                                    {% for ign in ignored_aliases_with_debts if not ign.has_open_debts %}
-                                                                        <option value="ignored:{{ ign.name }}">{{ ign.name }} (Extern)</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                {% endif %}
-                                                            </select>
-                                                        </div>
-                                                        <div style="display: flex; gap: 4px; align-items: center; width: 100%;">
-                                                            <span style="font-size: 10.5px; color: var(--text-muted); width: 65px; white-space: nowrap;">Begleicht:</span>
-                                                            <select name="target_settlement" onchange="updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this)" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; flex: 1;">
-                                                                <option value="auto">✨ Auto: {{ tx.cleared_debts_preview or 'Vorschlag' }}</option>
-                                                                <optgroup label="Mitgliedsbeitrag">
-                                                                    {% for per in available_halfyear_periods %}
-                                                                        <option value="due:{{ per.value }}" {% if tx.inferred_target_settlement == 'due:' ~ per.value %}selected{% endif %}>
-                                                                            Mitgliedsbeitrag {{ per.value }} (48,00 €)
-                                                                        </option>
-                                                                    {% endfor %}
-                                                                    <option value="due:2026-year" {% if tx.inferred_target_settlement == 'due:2026-year' %}selected{% endif %}>
-                                                                        Mitgliedsbeitrag 2026 (H1 + H2, 96,00 €)
-                                                                    </option>
-                                                                </optgroup>
-                                                                <optgroup label="Weitere Optionen">
-                                                                    <option value="kicks_only">Nur Gastbeiträge (Kicks)</option>
-                                                                    <option value="credit_only">Reines Guthaben (keine Verrechnung)</option>
-                                                                </optgroup>
-                                                            </select>
-                                                        </div>
-                                                        <div style="display: flex; gap: 4px; align-items: center; width: 100%;">
-                                                            <span style="font-size: 10.5px; color: var(--text-muted); width: 65px; white-space: nowrap;">Begleicht für:</span>
-                                                            <select name="beneficiary_player_id" onchange="const rem = this.closest('form').querySelector('input[name=remember_identity]'); if (rem && this.value) { rem.checked = false; } updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this);" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; flex: 1;">
-                                                                <option value="">-- Für sich selbst (Zahler) --</option>
-                                                                <optgroup label="🔴 Spieler mit offenen Beträgen">
-                                                                    {% for p in player_list if p.has_open_debts %}
-                                                                        <option value="{{ p.player_id }}">{{ p.name }} (🔴 {{ p.open_debts_short_summary }})</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                <optgroup label="✓ Spieler ohne offene Beträge">
-                                                                    {% for p in player_list if not p.has_open_debts %}
-                                                                        <option value="{{ p.player_id }}">{{ p.name }}</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                {% if ignored_aliases_with_debts %}
-                                                                <optgroup label="🔴 Externe Gäste mit offenen Beträgen">
-                                                                    {% for ign in ignored_aliases_with_debts if ign.has_open_debts %}
-                                                                        <option value="ignored:{{ ign.name }}">{{ ign.name }} (🔴 {{ ign.open_debts_short_summary }})</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                <optgroup label="✓ Weitere externe Gäste">
-                                                                    {% for ign in ignored_aliases_with_debts if not ign.has_open_debts %}
-                                                                        <option value="ignored:{{ ign.name }}">{{ ign.name }} (Extern)</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                {% endif %}
-                                                            </select>
-                                                        </div>
-                                                        <div id="manual-settle-preview-split-{{ tx.id }}" style="display:none; margin-top: 4px; font-size: 11px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 4px; padding: 4px 6px; color: #38bdf8; text-align: left; width: 100%; line-height: 1.35;"></div>
-                                                        <div style="display: flex; gap: 4px; align-items: center; margin-top: 2px;">
-                                                            <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;">
-                                                                <input type="checkbox" name="remember_identity" value="1" checked> 💾
-                                                            </label>
-                                                            <button type="submit" class="primary" style="font-size: 11px; padding: 3px 8px; cursor: pointer;">✓ Zuweisen & Begleichen</button>
-                                                        </div>
-                                                    </form>
-                                                </details>
-                                            </div>
                                         {% else %}
-                                            {# Standard single-player assignment with 1-click Beglichen and third-party beneficiary support #}
-                                            <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
-                                                <div style="display: flex; gap: 6px; align-items: center;">
-                                                    {% if tx.suggestion and tx.suggestion.player_id %}
-                                                        {# 1-Click Beglichen Button for suggested player #}
-                                                        <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
-                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                            <input type="hidden" name="payer_player_id" value="{{ tx.suggestion.player_id }}">
-                                                            <input type="hidden" name="target_settlement" value="{{ tx.inferred_target_settlement or 'auto' }}">
-                                                            <input type="hidden" name="remember_identity" value="1">
-                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Direkt für {{ tx.suggestion_player_name }} als beglichen markieren ({{ tx.cleared_debts_preview or '' }})">
-                                                                ✓ Beglichen ({{ tx.suggestion_player_name }})
-                                                            </button>
-                                                        </form>
-                                                    {% else %}
-                                                        <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
-                                                            <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                            <input type="hidden" name="target_settlement" value="{{ tx.inferred_target_settlement or 'auto' }}">
-                                                            <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer;" title="Manuell als beglichen/erledigt markieren">
-                                                                ✓ Beglichen
-                                                            </button>
-                                                        </form>
-                                                    {% endif %}
-                                                </div>
-
-                                                {# Detailed assignment form (who paid + who does it settle for) #}
-                                                <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end; margin: 0; width: 100%; max-width: 340px;">
-                                                    <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                    <div style="display: flex; gap: 4px; align-items: center; width: 100%;">
-                                                        <span style="font-size: 11px; color: var(--text-muted); width: 65px; white-space: nowrap;">Zahler:</span>
-                                                        <select name="player_id" onchange="updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this)" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11.5px; padding: 3px 6px; border-radius: 4px; flex: 1;">
-                                                            <option value="">-- Zahler wählen --</option>
-                                                            <optgroup label="🔴 Spieler mit offenen Beträgen">
-                                                                {% for p in player_list if p.has_open_debts %}
-                                                                    <option value="{{ p.player_id }}" {% if (tx.matched_player_id == p.player_id) or (not tx.matched_player_id and tx.suggestion and tx.suggestion.player_id == p.player_id) %}selected{% endif %}>
-                                                                        {{ p.name }} (🔴 {{ p.open_debts_short_summary }})
-                                                                    </option>
-                                                                {% endfor %}
-                                                            </optgroup>
-                                                            <optgroup label="✓ Spieler ohne offene Beträge">
-                                                                {% for p in player_list if not p.has_open_debts %}
-                                                                    <option value="{{ p.player_id }}" {% if (tx.matched_player_id == p.player_id) or (not tx.matched_player_id and tx.suggestion and tx.suggestion.player_id == p.player_id) %}selected{% endif %}>
-                                                                        {{ p.name }}
-                                                                    </option>
-                                                                {% endfor %}
-                                                            </optgroup>
-                                                            {% if ignored_aliases_with_debts %}
-                                                            <optgroup label="🔴 Externe Gäste mit offenen Beträgen">
-                                                                {% for ign in ignored_aliases_with_debts if ign.has_open_debts %}
-                                                                    <option value="ignored:{{ ign.name }}">{{ ign.name }} (🔴 {{ ign.open_debts_short_summary }})</option>
-                                                                {% endfor %}
-                                                            </optgroup>
-                                                            <optgroup label="✓ Weitere externe Gäste">
-                                                                {% for ign in ignored_aliases_with_debts if not ign.has_open_debts %}
-                                                                    <option value="ignored:{{ ign.name }}">{{ ign.name }} (Extern)</option>
-                                                                {% endfor %}
-                                                            </optgroup>
-                                                            {% endif %}
-                                                        </select>
-                                                    </div>
-
-                                                    <div style="display: flex; gap: 4px; align-items: center; width: 100%;">
-                                                        <span style="font-size: 11px; color: var(--text-muted); width: 65px; white-space: nowrap;">Begleicht:</span>
-                                                        <select name="target_settlement" onchange="updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this)" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; flex: 1;">
-                                                            <option value="auto">✨ Auto: {{ tx.cleared_debts_preview or 'Vorschlag' }}</option>
-                                                            <optgroup label="Mitgliedsbeitrag">
-                                                                {% for per in available_halfyear_periods %}
-                                                                    <option value="due:{{ per.value }}" {% if tx.inferred_target_settlement == 'due:' ~ per.value %}selected{% endif %}>
-                                                                        Mitgliedsbeitrag {{ per.value }} (48,00 €)
-                                                                    </option>
-                                                                {% endfor %}
-                                                                <option value="due:2026-year" {% if tx.inferred_target_settlement == 'due:2026-year' %}selected{% endif %}>
-                                                                    Mitgliedsbeitrag 2026 (H1 + H2, 96,00 €)
-                                                                </option>
-                                                            </optgroup>
-                                                            <optgroup label="Weitere Optionen">
-                                                                <option value="kicks_only">Nur Gastbeiträge (Kicks)</option>
-                                                                <option value="credit_only">Reines Guthaben (keine Verrechnung)</option>
-                                                            </optgroup>
-                                                        </select>
-                                                    </div>
-
-                                                    <details style="font-size: 11px; width: 100%; text-align: left;">
-                                                        <summary style="cursor: pointer; color: #80deea; font-size: 10.5px;">Für wen anders bezahlt? (z. B. Malte, Paul) →</summary>
-                                                        <div style="margin-top: 4px; display: flex; gap: 4px; align-items: center; width: 100%;">
-                                                            <span style="font-size: 10.5px; color: var(--text-muted); width: 65px; white-space: nowrap;">Begleicht für:</span>
-                                                            <select name="beneficiary_player_id" onchange="const rem = this.closest('form').querySelector('input[name=remember_identity]'); if (rem && this.value) { rem.checked = false; } updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this);" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; flex: 1;">
-                                                                <option value="">-- Für sich selbst (Zahler) --</option>
-                                                                <optgroup label="🔴 Spieler mit offenen Beträgen">
-                                                                    {% for p in player_list if p.has_open_debts %}
-                                                                        <option value="{{ p.player_id }}">{{ p.name }} (🔴 {{ p.open_debts_short_summary }})</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                <optgroup label="✓ Spieler ohne offene Beträge">
-                                                                    {% for p in player_list if not p.has_open_debts %}
-                                                                        <option value="{{ p.player_id }}">{{ p.name }}</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                {% if ignored_aliases_with_debts %}
-                                                                <optgroup label="🔴 Externe Gäste mit offenen Beträgen">
-                                                                    {% for ign in ignored_aliases_with_debts if ign.has_open_debts %}
-                                                                        <option value="ignored:{{ ign.name }}">{{ ign.name }} (🔴 {{ ign.open_debts_short_summary }})</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                <optgroup label="✓ Weitere externe Gäste">
-                                                                    {% for ign in ignored_aliases_with_debts if not ign.has_open_debts %}
-                                                                        <option value="ignored:{{ ign.name }}">{{ ign.name }} (Extern)</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                {% endif %}
-                                                            </select>
-                                                        </div>
-                                                    </details>
-
-                                                    <div id="manual-settle-preview-{{ tx.id }}" style="display:none; margin-top: 4px; font-size: 11px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 4px; padding: 4px 6px; color: #38bdf8; text-align: left; width: 100%; line-height: 1.35;"></div>
-
-                                                    <div style="display: flex; gap: 4px; align-items: center; margin-top: 2px;">
-                                                        <label style="font-size: 10.5px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;" title="Nur den Zahler merken (nicht dauerhaft mit dem Begünstigten verknüpfen)">
-                                                            <input type="checkbox" name="remember_identity" value="1" checked> 💾 Zahler merken
-                                                        </label>
-                                                        <button type="submit" class="primary" style="font-size: 11px; padding: 3px 8px; cursor: pointer;">
-                                                            ✓ Zuweisen & Begleichen
+                                            <div style="display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap;">
+                                                {% if tx.proxy_suggestion and tx.proxy_suggestion.summary_text %}
+                                                    <form method="post" action="{{ url_for('finances.apply_suggestion') }}" style="margin: 0; display: inline;">
+                                                        <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                        <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Vorschlag buchen: {{ tx.proxy_suggestion.summary_text }}">
+                                                            ✓ Vorschlag buchen
                                                         </button>
-                                                    </div>
-                                                </form>
+                                                    </form>
+                                                {% elif tx.suggestion and tx.suggestion.player_id %}
+                                                    <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
+                                                        <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                        <input type="hidden" name="payer_player_id" value="{{ tx.suggestion.player_id }}">
+                                                        <input type="hidden" name="target_settlement" value="{{ tx.inferred_target_settlement or 'auto' }}">
+                                                        <input type="hidden" name="remember_identity" value="1">
+                                                        <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Direkt für {{ tx.suggestion_player_name }} als beglichen buchen">
+                                                            ✓ Vorschlag buchen
+                                                        </button>
+                                                    </form>
+                                                {% else %}
+                                                    <form method="post" action="{{ url_for('finances.settle_transaction_route') }}" style="margin: 0; display: inline;">
+                                                        <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                                        <button type="submit" class="secondary" style="font-size: 11px; padding: 4px 10px; cursor: pointer;" title="Schnell als beglichen markieren">
+                                                            ✓ Beglichen
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                                <button type="button" class="primary" onclick="openAllocationModal({{ tx.id }})" style="background: rgba(123, 82, 197, 0.25); border: 1px solid var(--accent); color: #ffffff; font-size: 11px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Offene Posten (Mitgliedsbeitrag, Gastbeiträge, Sonderposten) gezielt zuordnen & aufteilen">
+                                                    ⚙️ Zuordnen...
+                                                </button>
                                             </div>
                                         {% endif %}
                                     {% endif %}
@@ -1291,78 +904,168 @@
         </div>
         {% endif %}
 
-        <!-- TAB 5: LEARNED IDENTITIES -->
-        {% if active_tab == 'identities' %}
-        <div style="display: grid; grid-template-columns: 360px 1fr; gap: 24px; align-items: start;">
+        <!-- TAB 2: SOLL & OFFENE POSTEN (RECEIVABLES) -->
+        {% if active_tab == 'receivables' %}
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- Receivables Header & Toolbar -->
             <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
-                <h3 style="margin: 0 0 12px 0; color: #ffffff; font-size: 16px;">💾 Neue Zuordnung anlegen</h3>
-                <p class="muted" style="margin: 0 0 16px 0; font-size: 12.5px;">
-                    Verknüpfe eine E-Mail-Adresse oder einen PayPal-Namen dauerhaft mit einem Spieler.
-                </p>
-                <form method="post" action="{{ url_for('finances.save_identity') }}" style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
                     <div>
-                        <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Absender E-Mail</label>
-                        <input type="email" name="payer_email" placeholder="z. B. max.mustermann@gmx.de" style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 4px; font-size: 13px;">
+                        <h2 style="margin: 0; font-size: 18px; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+                            📋 Soll & Offene Posten
+                        </h2>
+                        <p class="muted" style="margin: 4px 0 0 0; font-size: 13px;">
+                            Zentrale Übersicht aller Beitrags-, Gast- und Sonderforderungen. Hier können Posten auch bei Teilzahlung oder individuellem Nachlass manuell als erledigt abgehakt werden.
+                        </p>
                     </div>
-                    <div>
-                        <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Absender Name (PayPal)</label>
-                        <input type="text" name="payer_name" placeholder="z. B. Max Mustermann" style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 4px; font-size: 13px;">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <button type="button" class="primary" onclick="openSpecialModal()" style="padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #7b52c5, #9b6be8);">
+                            ➕ Sonderposten anlegen
+                        </button>
+                        <button type="button" class="secondary" onclick="openManualDueModal()" style="padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border-color: #80deea; color: #80deea;">
+                            ➕ Beitrags-Soll (z. B. 2026-H1) anlegen
+                        </button>
                     </div>
-                    <div>
-                        <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Zugeordneter Spieler *</label>
-                        <select name="player_id" required style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 4px; font-size: 13px;">
-                            <option value="">-- Spieler wählen --</option>
-                            <optgroup label="Registrierte Spieler">
-                                {% for p in player_list %}
-                                    <option value="{{ p.player_id }}">{{ p.name }} ({{ p.aliases_str }})</option>
-                                {% endfor %}
-                            </optgroup>
-                            {% if ignored_aliases %}
-                            <optgroup label="Ignorierte Aliase / Externe Gäste">
-                                {% for ign in ignored_aliases %}
-                                    <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
-                                {% endfor %}
-                            </optgroup>
-                            {% endif %}
-                        </select>
+                </div>
+
+                <!-- Receivables Metrics -->
+                <div style="display: flex; gap: 16px; margin-top: 18px; flex-wrap: wrap;">
+                    <div style="background: rgba(220, 53, 69, 0.12); border: 1px solid rgba(220, 53, 69, 0.35); border-radius: 6px; padding: 10px 16px; min-width: 180px;">
+                        <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Gesamtes offenes Soll</div>
+                        <div style="font-size: 20px; font-weight: 800; color: #ff8888; margin-top: 2px;">
+                            {{ "%.2f"|format(open_receivables_sum)|replace(".", ",") }} €
+                        </div>
                     </div>
-                    <button type="submit" class="primary" style="padding: 9px; font-weight: 600; cursor: pointer; margin-top: 6px;">
-                        💾 Zuordnung speichern
-                    </button>
-                </form>
+                    <div style="background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); border-radius: 6px; padding: 10px 16px; min-width: 180px;">
+                        <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Offene Posten</div>
+                        <div style="font-size: 20px; font-weight: 800; color: #ffe082; margin-top: 2px;">
+                            {{ open_receivables|length }} <span style="font-size: 13px; font-weight: normal; color: var(--text-muted);">/ {{ all_receivables|length }} gesamt</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filters & Search Bar -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; gap: 12px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <div style="display: inline-flex; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px;">
+                            <button type="button" class="rec-kind-filter-btn" data-kind="all" onclick="filterReceivablesByKind('all', this)" style="padding: 4px 10px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; background: var(--accent); color: #fff; cursor: pointer;">Alle Posten</button>
+                            <button type="button" class="rec-kind-filter-btn" data-kind="membership_due" onclick="filterReceivablesByKind('membership_due', this)" style="padding: 4px 10px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; background: transparent; color: var(--text-muted); cursor: pointer;">🏛️ Mitgliedsbeitrag</button>
+                            <button type="button" class="rec-kind-filter-btn" data-kind="match_guest" onclick="filterReceivablesByKind('match_guest', this)" style="padding: 4px 10px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; background: transparent; color: var(--text-muted); cursor: pointer;">⚽ Gastbeitrag</button>
+                            <button type="button" class="rec-kind-filter-btn" data-kind="special" onclick="filterReceivablesByKind('special', this)" style="padding: 4px 10px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; background: transparent; color: var(--text-muted); cursor: pointer;">⭐ Sonderposten</button>
+                        </div>
+                        <div style="display: inline-flex; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px;">
+                            <button type="button" class="rec-status-filter-btn" data-status="open_only" onclick="filterReceivablesByStatus('open_only', this)" style="padding: 4px 10px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; background: rgba(220, 53, 69, 0.25); color: #ff8888; cursor: pointer;">🔴 Nur Offene & Teilbezahlte</button>
+                            <button type="button" class="rec-status-filter-btn" data-status="settled_only" onclick="filterReceivablesByStatus('settled_only', this)" style="padding: 4px 10px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; background: transparent; color: var(--text-muted); cursor: pointer;">🟢 Beglichen</button>
+                            <button type="button" class="rec-status-filter-btn" data-status="all" onclick="filterReceivablesByStatus('all', this)" style="padding: 4px 10px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; background: transparent; color: var(--text-muted); cursor: pointer;">Alle Status</button>
+                        </div>
+                    </div>
+                    <div style="flex: 1; min-width: 220px; max-width: 350px;">
+                        <input type="text" id="receivable-search-input" oninput="filterReceivablesTable()" placeholder="🔍 Suche nach Spieler, Posten, Datum..." style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-size: 12.5px; color: #ffffff;">
+                    </div>
+                </div>
             </div>
 
+            <!-- Receivables Table -->
             <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
-                <h3 style="margin: 0 0 16px 0; color: #ffffff; font-size: 16px;">Bekannte Zahler-Identitäten ({{ identities|length }})</h3>
-                {% if identities %}
+                {% if all_receivables %}
                 <div style="overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;" id="receivables-table">
                         <thead>
                             <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-muted); font-size: 12px;">
-                                <th style="padding: 10px 8px;">Absender E-Mail</th>
-                                <th style="padding: 10px 8px;">Absender Name</th>
-                                <th style="padding: 10px 8px;">Zugeordneter Spieler</th>
-                                <th style="padding: 10px 8px; text-align: right;">Aktion</th>
+                                <th style="padding: 10px 8px;">Art</th>
+                                <th style="padding: 10px 8px;">Spieler / Empfänger</th>
+                                <th style="padding: 10px 8px;">Titel / Verwendungszweck</th>
+                                <th style="padding: 10px 8px;">Zeitraum / Datum</th>
+                                <th style="padding: 10px 8px;">Soll</th>
+                                <th style="padding: 10px 8px;">Bezahlt</th>
+                                <th style="padding: 10px 8px;">Offen</th>
+                                <th style="padding: 10px 8px;">Status</th>
+                                <th style="padding: 10px 8px; text-align: right;">Aktionen</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for ident in identities %}
-                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                                <td style="padding: 12px 8px; color: #ffffff; font-family: monospace;">
-                                    {{ ident.payer_email or '—' }}
+                            {% for r in all_receivables %}
+                            <tr class="rec-row" data-kind="{{ r.kind }}" data-status="{{ r.status }}" data-open="{{ '1' if r.open_amount > 0 or r.status in ('open', 'partial') else '0' }}" data-search="{{ (r.player_name ~ ' ' ~ r.title ~ ' ' ~ (r.note or '') ~ ' ' ~ (r.period or '') ~ ' ' ~ (r.match_date or ''))|lower }}" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); {% if r.status in ('settled', 'waived') %}opacity: 0.75;{% endif %}">
+                                <td style="padding: 10px 8px; white-space: nowrap;">
+                                    {% if r.kind == 'membership_due' %}
+                                        <span style="background: rgba(123, 82, 197, 0.2); color: #c9c2d8; font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(123, 82, 197, 0.4);">🏛️ Beitrag</span>
+                                    {% elif r.kind == 'match_guest' %}
+                                        <span style="background: rgba(0, 188, 212, 0.15); color: #80deea; font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(0, 188, 212, 0.35);">⚽ Gast</span>
+                                    {% else %}
+                                        <span style="background: rgba(255, 193, 7, 0.2); color: #ffe082; font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(255, 193, 7, 0.4);">⭐ Sonderposten</span>
+                                    {% endif %}
                                 </td>
-                                <td style="padding: 12px 8px; color: var(--text-muted);">
-                                    {{ ident.payer_name or '—' }}
+                                <td style="padding: 10px 8px;">
+                                    <strong style="color: #ffffff;">{{ r.player_name }}</strong>
                                 </td>
-                                <td style="padding: 12px 8px;">
-                                    <strong style="color: #80deea;">{{ ident.player_name }}</strong>
+                                <td style="padding: 10px 8px;">
+                                    <div style="font-weight: 600; color: #ffffff;">{{ r.title }}</div>
+                                    {% if r.note %}
+                                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">💬 {{ r.note }}</div>
+                                    {% endif %}
                                 </td>
-                                <td style="padding: 12px 8px; text-align: right;">
-                                    <form method="post" action="{{ url_for('finances.remove_identity', identity_id=ident.id) }}" onsubmit="return confirm('Zuordnung wirklich löschen?');" style="margin: 0;">
-                                        <button type="submit" class="secondary" style="font-size: 11px; padding: 3px 8px; color: #ff8888; cursor: pointer;">
-                                            🗑️ Löschen
-                                        </button>
-                                    </form>
+                                <td style="padding: 10px 8px; font-size: 12px; color: var(--text-muted); white-space: nowrap;">
+                                    {{ r.period or r.due_date or r.match_date or '—' }}
+                                </td>
+                                <td style="padding: 10px 8px; font-weight: 700; white-space: nowrap; color: #ffffff;">
+                                    {{ "%.2f"|format(r.amount)|replace(".", ",") }} €
+                                </td>
+                                <td style="padding: 10px 8px; color: #88ff88; font-weight: 600; white-space: nowrap;">
+                                    {{ "%.2f"|format(r.paid_amount)|replace(".", ",") }} €
+                                </td>
+                                <td style="padding: 10px 8px; font-weight: 700; white-space: nowrap;">
+                                    {% if r.open_amount > 0 %}
+                                        <span style="color: #ff8888;">{{ "%.2f"|format(r.open_amount)|replace(".", ",") }} €</span>
+                                    {% else %}
+                                        <span style="color: #88ff88;">0,00 €</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 10px 8px; white-space: nowrap;">
+                                    {% if r.status == 'settled' %}
+                                        {% if r.manual_settled %}
+                                            <span style="background: rgba(40, 167, 69, 0.2); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.4); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;" title="Manuell als vollständig beglichen abgehakt">🟢 Beglichen (Manuell)</span>
+                                        {% else %}
+                                            <span style="background: rgba(40, 167, 69, 0.2); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.4); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">🟢 Beglichen</span>
+                                        {% endif %}
+                                    {% elif r.status == 'partial' %}
+                                        <span style="background: rgba(255, 193, 7, 0.2); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.4); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">🟡 Teilbezahlt</span>
+                                    {% elif r.status == 'waived' %}
+                                        <span style="background: rgba(255, 255, 255, 0.08); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.2); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">⚪ Erlassen</span>
+                                    {% else %}
+                                        <span style="background: rgba(220, 53, 69, 0.2); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.4); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">🔴 Offen</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 10px 8px; text-align: right; white-space: nowrap;">
+                                    <div style="display: flex; gap: 4px; justify-content: flex-end; align-items: center;">
+                                        {% if r.status != 'settled' %}
+                                            <form method="post" action="{{ url_for('finances.mark_receivable_route', receivable_id=r.id) }}" style="margin: 0; display: inline;">
+                                                <input type="hidden" name="action" value="settled">
+                                                <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 3px 8px; cursor: pointer;" title="Diesen Posten als vollständig beglichen abhaken (auch bei Teilzahlung)">
+                                                    ✓ Abhaken
+                                                </button>
+                                            </form>
+                                            <form method="post" action="{{ url_for('finances.mark_receivable_route', receivable_id=r.id) }}" style="margin: 0; display: inline;">
+                                                <input type="hidden" name="action" value="waived">
+                                                <button type="submit" class="secondary" style="font-size: 11px; padding: 3px 8px; cursor: pointer;" title="Posten erlassen (z. B. Befreiung)">
+                                                    ⚪ Erlassen
+                                                </button>
+                                            </form>
+                                        {% else %}
+                                            <form method="post" action="{{ url_for('finances.mark_receivable_route', receivable_id=r.id) }}" style="margin: 0; display: inline;">
+                                                <input type="hidden" name="action" value="open">
+                                                <button type="submit" class="secondary" style="font-size: 11px; padding: 3px 8px; cursor: pointer;" title="Posten wieder auf offen stellen">
+                                                    ↩ Auf Offen
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                        {% if r.source == 'manual' or r.kind == 'special' %}
+                                            <form method="post" action="{{ url_for('finances.delete_receivable_route', receivable_id=r.id) }}" onsubmit="return confirm('Möchtest du diesen Posten wirklich löschen?');" style="margin: 0; display: inline;">
+                                                <button type="submit" style="background: transparent; border: none; color: #ff8888; font-size: 13px; cursor: pointer; padding: 2px 4px;" title="Posten löschen">
+                                                    🗑️
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -1370,12 +1073,458 @@
                     </table>
                 </div>
                 {% else %}
-                    <p class="muted" style="text-align: center; padding: 30px 0; margin: 0;">Noch keine Zahler-Zuordnungen gespeichert.</p>
+                    <p class="muted" style="text-align: center; padding: 30px 0; margin: 0;">Keine Forderungen erfasst.</p>
                 {% endif %}
             </div>
         </div>
         {% endif %}
 
+        <!-- TAB 5: STAMMDATEN, MITGLIEDERSTATUS & ARCHIV -->
+        {% if active_tab in ('settings', 'players', 'identities') %}
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- CARD 1: SPIELER-STATUS -->
+            <div id="settings-players-card" style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 16px; color: #ffffff;">👥 Spieler-Mitgliedsstatus (Vereinsmitglied vs. Gast)</h3>
+                        <p class="muted" style="margin: 4px 0 0 0; font-size: 12.5px;">
+                            Vereinsmitglieder zahlen Halbjahresbeiträge (48 €) und keine Spieltags-Kleckerbeiträge. Spieler mit verknüpftem Benutzeraccount sind standardmäßig als Mitglied initialisiert.
+                        </p>
+                    </div>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-muted); font-size: 12px;">
+                                <th style="padding: 10px 8px;">Spieler</th>
+                                <th style="padding: 10px 8px;">Aliase</th>
+                                <th style="padding: 10px 8px;">Verknüpftes Benutzerkonto</th>
+                                <th style="padding: 10px 8px;">Aktueller Status</th>
+                                <th style="padding: 10px 8px; text-align: right;">Status ändern</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in players_with_status %}
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                <td style="padding: 10px 8px;">
+                                    <strong style="color: #ffffff;">{{ p.name }}</strong>
+                                </td>
+                                <td style="padding: 10px 8px; color: var(--text-muted); font-size: 12px;">
+                                    {{ p.aliases_str }}
+                                </td>
+                                <td style="padding: 10px 8px;">
+                                    {% if p.linked_user %}
+                                        <span style="color: #80deea; font-weight: 600;">👤 {{ p.linked_user.username }}</span>
+                                        <span style="font-size: 11px; color: var(--text-muted);">({{ p.linked_user.email }})</span>
+                                    {% else %}
+                                        <span class="muted" style="font-size: 12px;">Kein Web-Konto</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 10px 8px;" id="player-status-badge-{{ p.player_id }}">
+                                    {% if p.status == 'member' %}
+                                        <span style="background: rgba(40, 167, 69, 0.25); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟢 Vereinsmitglied</span>
+                                    {% else %}
+                                        <span style="background: rgba(255, 193, 7, 0.25); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.5); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;">🟡 Gastspieler (3,50 € / Kick)</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 10px 8px; text-align: right;">
+                                    <div style="display: inline-flex; gap: 6px;">
+                                        <button type="button" class="secondary" onclick="setPlayerStatus({{ p.player_id }}, 'member')" style="font-size: 11px; padding: 3px 8px; {% if p.status == 'member' %}border-color: #88ff88; color: #88ff88;{% endif %}" title="Als Vereinsmitglied setzen">
+                                            🟢 Mitglied
+                                        </button>
+                                        <button type="button" class="secondary" onclick="setPlayerStatus({{ p.player_id }}, 'guest')" style="font-size: 11px; padding: 3px 8px; {% if p.status == 'guest' %}border-color: #ffe082; color: #ffe082;{% endif %}" title="Als Gastspieler setzen">
+                                            🟡 Gast
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- CARD 2: LERNENDES IDENTITÄTEN-GEDÄCHTNIS -->
+            <div id="settings-identities-card" style="display: grid; grid-template-columns: 360px 1fr; gap: 20px; align-items: start;">
+                <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+                    <h3 style="margin: 0 0 10px 0; color: #ffffff; font-size: 15px;">💾 Neue Zuordnung speichern</h3>
+                    <p class="muted" style="margin: 0 0 14px 0; font-size: 12px;">
+                        Verknüpfe eine E-Mail-Adresse oder einen PayPal-Namen dauerhaft mit einem Spieler für automatische Erkennung.
+                    </p>
+                    <form method="post" action="{{ url_for('finances.save_identity') }}" style="display: flex; flex-direction: column; gap: 10px;">
+                        <div>
+                            <label style="font-size: 11.5px; color: var(--text-muted); display: block; margin-bottom: 3px;">Absender E-Mail</label>
+                            <input type="email" name="payer_email" placeholder="z. B. max.mustermann@gmx.de" style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; padding: 7px; border-radius: 4px; font-size: 12.5px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 11.5px; color: var(--text-muted); display: block; margin-bottom: 3px;">Absender Name (PayPal / Bank)</label>
+                            <input type="text" name="payer_name" placeholder="z. B. Max Mustermann" style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; padding: 7px; border-radius: 4px; font-size: 12.5px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 11.5px; color: var(--text-muted); display: block; margin-bottom: 3px;">Zugeordneter Spieler *</label>
+                            <select name="player_id" required style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; padding: 7px; border-radius: 4px; font-size: 12.5px;">
+                                <option value="">-- Spieler wählen --</option>
+                                <optgroup label="Registrierte Spieler">
+                                    {% for p in player_list %}
+                                        <option value="{{ p.player_id }}">{{ p.name }} ({{ p.aliases_str }})</option>
+                                    {% endfor %}
+                                </optgroup>
+                                {% if ignored_aliases %}
+                                <optgroup label="Ignorierte Aliase / Externe Gäste">
+                                    {% for ign in ignored_aliases %}
+                                        <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                    {% endfor %}
+                                </optgroup>
+                                {% endif %}
+                            </select>
+                        </div>
+                        <button type="submit" class="primary" style="padding: 8px; font-weight: 600; cursor: pointer; margin-top: 4px;">
+                            💾 Zuordnung speichern
+                        </button>
+                    </form>
+                </div>
+
+                <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+                    <h3 style="margin: 0 0 14px 0; color: #ffffff; font-size: 15px;">Bekannte Zahler-Identitäten ({{ identities|length }})</h3>
+                    {% if identities %}
+                    <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 12.5px;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-muted); font-size: 11.5px;">
+                                    <th style="padding: 8px;">Absender E-Mail</th>
+                                    <th style="padding: 8px;">Absender Name</th>
+                                    <th style="padding: 8px;">Zugeordneter Spieler</th>
+                                    <th style="padding: 8px; text-align: right;">Aktion</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ident in identities %}
+                                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                    <td style="padding: 9px 8px; color: #ffffff; font-family: monospace;">{{ ident.payer_email or '—' }}</td>
+                                    <td style="padding: 9px 8px; color: var(--text-muted);">{{ ident.payer_name or '—' }}</td>
+                                    <td style="padding: 9px 8px;"><strong style="color: #80deea;">{{ ident.player_name }}</strong></td>
+                                    <td style="padding: 9px 8px; text-align: right;">
+                                        <form method="post" action="{{ url_for('finances.remove_identity', identity_id=ident.id) }}" onsubmit="return confirm('Zuordnung wirklich löschen?');" style="margin: 0;">
+                                            <button type="submit" class="secondary" style="font-size: 10.5px; padding: 2px 6px; color: #ff8888; cursor: pointer;">🗑️</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                        <p class="muted" style="text-align: center; padding: 20px 0; margin: 0;">Noch keine Zahler-Zuordnungen gespeichert.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- CARD 3: ARCHIVIERTE SNAPSHOTS -->
+            <div id="settings-archives-card" style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+                <h3 style="margin: 0 0 10px 0; color: #ffffff; font-size: 15px;">📦 Archivierte Zahlungslisten-Snapshots ({{ finance_archives|length }})</h3>
+                <p class="muted" style="margin: 0 0 14px 0; font-size: 12.5px;">
+                    Frühere archivierte Zwischenstände mit allen Zuordnungen herunterladen oder verwalten.
+                </p>
+                {% if finance_archives %}
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12.5px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-muted); font-size: 11.5px;">
+                                <th style="padding: 8px;">Archiviert am</th>
+                                <th style="padding: 8px;">Bezeichnung</th>
+                                <th style="padding: 8px;">Einträge</th>
+                                <th style="padding: 8px;">Einnahmen</th>
+                                <th style="padding: 8px;">Ausgaben</th>
+                                <th style="padding: 8px; text-align: right;">Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for arch in finance_archives %}
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                <td style="padding: 9px 8px; color: #ffffff;"><strong>{{ arch.archived_at }}</strong></td>
+                                <td style="padding: 9px 8px; color: #38bdf8; font-weight: 600;">{{ arch.title }}</td>
+                                <td style="padding: 9px 8px;">{{ arch.tx_count }}</td>
+                                <td style="padding: 9px 8px; color: #88ff88; font-weight: 600;">+{{ "%.2f"|format(arch.total_income)|replace(".", ",") }} €</td>
+                                <td style="padding: 9px 8px; color: #ff8888; font-weight: 600;">-{{ "%.2f"|format(arch.total_expenses)|replace(".", ",") }} €</td>
+                                <td style="padding: 9px 8px; text-align: right;">
+                                    <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
+                                        <a href="{{ url_for('finances.download_archive', archive_id=arch.id) }}" class="primary" style="padding: 3px 8px; font-size: 11.5px; text-decoration: none; border-radius: 4px;">📥 CSV Download</a>
+                                        <form method="post" action="{{ url_for('finances.delete_archive', archive_id=arch.id) }}" onsubmit="return confirm('Möchtest du dieses Archiv wirklich löschen?');" style="margin: 0;">
+                                            <button type="submit" style="background: transparent; border: none; color: #dc3545; cursor: pointer; font-size: 12px; padding: 2px 4px;">🗑️</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                    <p class="muted" style="text-align: center; padding: 20px 0; margin: 0;">Noch keine Snapshots archiviert.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODAL 1: TRANSAKTION ZUORDNEN (ALLOCATION MODAL) -->
+<!-- ======================================================== -->
+<div id="allocation-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+    <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; max-width: 900px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.7);">
+        <!-- Modal Header -->
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg-surface-alt); display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3 style="margin: 0; font-size: 17px; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+                    ⚙️ Zahlung zuordnen & Posten begleichen
+                </h3>
+                <div id="alloc-tx-header-sub" style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+            <button type="button" onclick="closeAllocationModal()" style="background: transparent; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 4px 8px;">✕</button>
+        </div>
+
+        <!-- Modal Body (Scrollable) -->
+        <div style="padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
+            <!-- Payer Selection Box -->
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 6px; padding: 14px;">
+                <div style="display: flex; gap: 14px; flex-wrap: wrap; align-items: center;">
+                    <div style="flex: 1; min-width: 240px;">
+                        <label style="font-size: 12px; font-weight: 700; color: #ffffff; display: block; margin-bottom: 4px;">👤 Wer hat bezahlt? (Zahler-Zuordnung)</label>
+                        <select id="alloc-payer-select" onchange="onAllocPayerChanged(this.value)" style="width: 100%; background: var(--bg-surface-alt); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 5px; font-size: 13px;">
+                            <option value="">-- Zahler wählen --</option>
+                            <optgroup label="🔴 Spieler mit offenen Posten">
+                                {% for p in player_list if p.has_open_debts %}
+                                    <option value="{{ p.player_id }}">{{ p.name }} (🔴 {{ p.open_debts_short_summary }})</option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="✓ Spieler ohne offene Posten">
+                                {% for p in player_list if not p.has_open_debts %}
+                                    <option value="{{ p.player_id }}">{{ p.name }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% if ignored_aliases %}
+                            <optgroup label="Externe Gäste">
+                                {% for ign in ignored_aliases %}
+                                    <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div style="display: flex; align-items: center; margin-top: 18px;">
+                        <label style="font-size: 12px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" id="alloc-remember-ident" checked>
+                            <span>💾 Zahler dauerhaft merken</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Receivables Filter Toolbar -->
+            <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+                    <label style="font-size: 12.5px; font-weight: 700; color: #80deea;">
+                        🎯 Zu begleichende Posten auswählen (Soll-Ausgleich)
+                    </label>
+                    <div style="display: flex; gap: 6px;">
+                        <button type="button" class="secondary" onclick="filterModalRecsPayerOnly()" style="font-size: 11px; padding: 3px 8px;">Nur Posten dieses Zahlers</button>
+                        <button type="button" class="secondary" onclick="filterModalRecsAll()" style="font-size: 11px; padding: 3px 8px;">Alle offenen Posten</button>
+                    </div>
+                </div>
+                <input type="text" id="alloc-rec-search" oninput="renderAllocModalTable()" placeholder="🔍 Posten nach Spieler, Datum oder Titel filtern..." style="width: 100%; box-sizing: border-box; background: var(--bg-surface-alt); border: 1px solid var(--border); color: #ffffff; padding: 7px 12px; border-radius: 5px; font-size: 12.5px; margin-bottom: 10px;">
+            </div>
+
+            <!-- Receivables Selection Table -->
+            <div style="overflow-x: auto; max-height: 280px; border: 1px solid var(--border); border-radius: 6px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12.5px;" id="alloc-modal-table">
+                    <thead>
+                        <tr style="background: var(--bg-surface-alt); border-bottom: 1px solid var(--border); text-align: left; color: var(--text-muted); font-size: 11.5px;">
+                            <th style="padding: 8px; width: 35px; text-align: center;">Ausw.</th>
+                            <th style="padding: 8px;">Art / Titel</th>
+                            <th style="padding: 8px;">Spieler / Empfänger</th>
+                            <th style="padding: 8px;">Zeitraum / Datum</th>
+                            <th style="padding: 8px; text-align: right;">Soll</th>
+                            <th style="padding: 8px; text-align: right;">Noch offen</th>
+                            <th style="padding: 8px; width: 110px; text-align: right;">Betrag anrechnen</th>
+                            <th style="padding: 8px; text-align: center;" title="Posten auch bei Teilzahlung als vollständig erledigt markieren">Erledigt?</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alloc-modal-tbody">
+                        <!-- Populated dynamically by renderAllocModalTable() -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Live Balance Summary Banner -->
+            <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Eingegangener Betrag</div>
+                        <div id="alloc-live-total" style="font-size: 16px; font-weight: 800; color: #88ff88;">+0,00 €</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Zugeordnet</div>
+                        <div id="alloc-live-allocated" style="font-size: 16px; font-weight: 800; color: #80deea;">0,00 €</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Verbleibender Rest</div>
+                        <div id="alloc-live-rem" style="font-size: 16px; font-weight: 800; color: #ffffff;">0,00 €</div>
+                    </div>
+                </div>
+                <div id="alloc-live-status-msg" style="font-size: 12px; color: var(--text-muted); font-style: italic;">
+                    <!-- status text -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div style="padding: 14px 20px; border-top: 1px solid var(--border); background: var(--bg-surface-alt); display: flex; justify-content: space-between; align-items: center;">
+            <button type="button" class="secondary" onclick="closeAllocationModal()" style="font-size: 13px; padding: 6px 14px;">Abbrechen</button>
+            <form id="alloc-submit-form" method="post" action="{{ url_for('finances.allocate_receivables_route') }}" onsubmit="return handleAllocSubmit();" style="margin: 0;">
+                <input type="hidden" name="tx_id" id="alloc-form-tx-id">
+                <input type="hidden" name="payer_player_id" id="alloc-form-payer-id">
+                <input type="hidden" name="remember" id="alloc-form-remember">
+                <input type="hidden" name="allocations_json" id="alloc-form-json">
+                <button type="submit" class="primary" style="font-size: 13px; font-weight: 700; padding: 8px 18px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                    💾 Zuordnung speichern & buchen
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODAL 2: SONDERPOSTEN ANLEGEN -->
+<!-- ======================================================== -->
+<div id="special-receivable-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+    <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; max-width: 650px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.7);">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg-surface-alt); display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 16px; color: #ffffff;">⭐ Neuen Sonderposten anlegen</h3>
+            <button type="button" onclick="closeSpecialModal()" style="background: transparent; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 4px 8px;">✕</button>
+        </div>
+        <form method="post" action="{{ url_for('finances.create_special_receivables_route') }}" style="display: flex; flex-direction: column; overflow-y: auto; padding: 20px; gap: 14px; margin: 0;">
+            <div>
+                <label style="font-size: 12px; font-weight: 700; color: #ffffff; display: block; margin-bottom: 4px;">Titel / Bezeichnung *</label>
+                <input type="text" name="title" required placeholder="z. B. Trikotbestellung, Turniergebühr, Hallenmiete" style="width: 100%; box-sizing: border-box; background: var(--bg-surface-alt); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 5px; font-size: 13px;">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div>
+                    <label style="font-size: 12px; font-weight: 700; color: #ffffff; display: block; margin-bottom: 4px;">Betrag pro Person (€) *</label>
+                    <input type="number" step="0.50" min="0.50" name="amount" required placeholder="z. B. 15.00" style="width: 100%; box-sizing: border-box; background: var(--bg-surface-alt); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 5px; font-size: 13px;">
+                </div>
+                <div>
+                    <label style="font-size: 12px; font-weight: 700; color: #ffffff; display: block; margin-bottom: 4px;">Fälligkeitsdatum (optional)</label>
+                    <input type="date" name="due_date" style="width: 100%; box-sizing: border-box; background: var(--bg-surface-alt); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 5px; font-size: 13px;">
+                </div>
+            </div>
+            <div>
+                <label style="font-size: 12px; font-weight: 700; color: #ffffff; display: block; margin-bottom: 4px;">Notiz / Beschreibung (optional)</label>
+                <input type="text" name="note" placeholder="Zusätzliche Details für Buchungen" style="width: 100%; box-sizing: border-box; background: var(--bg-surface-alt); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 5px; font-size: 13px;">
+            </div>
+
+            <!-- Person Selection Mode -->
+            <div style="border-top: 1px solid var(--border); padding-top: 14px;">
+                <label style="font-size: 12px; font-weight: 700; color: #80deea; display: block; margin-bottom: 8px;">👥 Empfänger festlegen (Für wen gilt dieser Sonderposten?):</label>
+                <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+                    <label style="font-size: 12.5px; color: #ffffff; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;">
+                        <input type="radio" name="mode" value="match" checked onchange="switchSpecialMode('match')">
+                        <strong>Option A: Spieltag importieren</strong>
+                    </label>
+                    <label style="font-size: 12.5px; color: #ffffff; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;">
+                        <input type="radio" name="mode" value="manual" onchange="switchSpecialMode('manual')">
+                        <strong>Option B: Spieler manuell auswählen</strong>
+                    </label>
+                </div>
+
+                <!-- Option A: Matchday select -->
+                <div id="special-mode-match">
+                    <label style="font-size: 11.5px; color: var(--text-muted); display: block; margin-bottom: 4px;">Spieltag auswählen (alle Teilnehmer dieses Kicks erhalten den Posten):</label>
+                    <select name="match_date" style="width: 100%; background: var(--bg-surface-alt); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 5px; font-size: 13px;">
+                        {% for mdate in all_match_dates %}
+                            <option value="{{ mdate }}">{{ mdate }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Option B: Manual players multi-select -->
+                <div id="special-mode-manual" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <input type="text" id="special-player-search" oninput="filterSpecialPlayerCheckboxes()" placeholder="🔍 Spieler suchen..." style="flex: 1; background: var(--bg-surface-alt); border: 1px solid var(--border); color: #ffffff; padding: 6px 10px; border-radius: 4px; font-size: 12px; margin-right: 8px;">
+                        <button type="button" class="secondary" onclick="toggleAllSpecialPlayers(true)" style="font-size: 11px; padding: 3px 8px;">Alle</button>
+                        <button type="button" class="secondary" onclick="toggleAllSpecialPlayers(false)" style="font-size: 11px; padding: 3px 8px; margin-left: 4px;">Keine</button>
+                    </div>
+                    <div id="special-player-list" style="max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 5px; padding: 8px; display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.2);">
+                        {% for p in player_list %}
+                            <label class="special-player-label" data-search="{{ p.name|lower }}" style="font-size: 12px; color: #ffffff; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                <input type="checkbox" name="player_ids" value="{{ p.player_id }}">
+                                <span>{{ p.name }} <span style="font-size: 10.5px; color: var(--text-muted);">({{ p.aliases_str }})</span></span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                    <div style="margin-top: 8px;">
+                        <label style="font-size: 11.5px; color: var(--text-muted); display: block; margin-bottom: 3px;">Externe Gast-Aliase (kommagetrennt, z. B. 'Lukas, Timo'):</label>
+                        <input type="text" name="custom_aliases" placeholder="Lukas, Timo" style="width: 100%; box-sizing: border-box; background: var(--bg-surface-alt); border: 1px solid var(--border); color: #ffffff; padding: 6px; border-radius: 4px; font-size: 12px;">
+                    </div>
+                </div>
+            </div>
+
+            <div style="border-top: 1px solid var(--border); padding-top: 14px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="secondary" onclick="closeSpecialModal()" style="font-size: 13px; padding: 6px 14px;">Abbrechen</button>
+                <button type="submit" class="primary" style="font-size: 13px; font-weight: 700; padding: 8px 18px; cursor: pointer;">
+                    ➕ Sonderposten anlegen
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODAL 3: BEITRAGS-SOLL ANLEGEN (Z. B. 2026-H1) -->
+<!-- ======================================================== -->
+<div id="manual-due-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+    <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; max-width: 550px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.7);">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg-surface-alt); display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 16px; color: #ffffff;">🏛️ Beitrags-Soll anlegen (z. B. 2026-H1)</h3>
+            <button type="button" onclick="closeManualDueModal()" style="background: transparent; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 4px 8px;">✕</button>
+        </div>
+        <form method="post" action="{{ url_for('finances.create_manual_due_route') }}" style="display: flex; flex-direction: column; overflow-y: auto; padding: 20px; gap: 14px; margin: 0;">
+            <div>
+                <label style="font-size: 12px; font-weight: 700; color: #ffffff; display: block; margin-bottom: 4px;">Zeitraum / Halbjahr *</label>
+                <input type="text" name="period" value="2026-H1" required placeholder="z. B. 2026-H1" style="width: 100%; box-sizing: border-box; background: var(--bg-surface-alt); border: 1px solid var(--border); color: #ffffff; padding: 8px; border-radius: 5px; font-size: 13px;">
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">Erzeugt für jedes Mitglied eine Beitragsforderung über 48,00 € für diesen Zeitraum.</div>
+            </div>
+            <div>
+                <label style="font-size: 12px; font-weight: 700; color: #ffffff; display: block; margin-bottom: 6px;">Umfang:</label>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label style="font-size: 12.5px; color: #ffffff; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                        <input type="radio" name="scope" value="all_members" checked>
+                        <span>Für alle aktuellen Vereinsmitglieder ({{ total_members_count }} Spieler)</span>
+                    </label>
+                    <label style="font-size: 12.5px; color: #ffffff; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                        <input type="radio" name="scope" value="selected" onchange="document.getElementById('manual-due-players').style.display = this.checked ? 'block' : 'none'">
+                        <span>Nur für bestimmte Spieler</span>
+                    </label>
+                </div>
+            </div>
+            <div id="manual-due-players" style="display: none; max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 5px; padding: 6px;">
+                {% for p in player_list %}
+                    <label style="font-size: 12px; color: #ffffff; display: flex; align-items: center; gap: 6px; margin-bottom: 3px; cursor: pointer;">
+                        <input type="checkbox" name="player_ids" value="{{ p.player_id }}">
+                        <span>{{ p.name }}</span>
+                    </label>
+                {% endfor %}
+            </div>
+            <div style="border-top: 1px solid var(--border); padding-top: 14px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="secondary" onclick="closeManualDueModal()" style="font-size: 13px; padding: 6px 14px;">Abbrechen</button>
+                <button type="submit" class="primary" style="font-size: 13px; font-weight: 700; padding: 8px 18px; cursor: pointer;">
+                    🏛️ Beitragsforderungen anlegen
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1600,6 +1749,8 @@ const ALL_UNPAID_DEBTS = {{ all_unpaid_entries|tojson if all_unpaid_entries is d
 const UNASSIGNED_PAYERS = {{ unassigned_payers|tojson if unassigned_payers is defined else '[]' }};
 const ALL_OPEN_DEBTS = {{ all_open_debts|tojson if all_open_debts is defined else '{}' }};
 const GUEST_FEE_RATE = {{ guest_fee_rate|default(3.5) }};
+const ALL_RECEIVABLES = {{ all_receivables|tojson if all_receivables is defined else '[]' }};
+const ALL_TRANSACTIONS = {{ transactions|tojson if transactions is defined else '[]' }};
 
 // --- DYNAMIC LIVE DEBT PREVIEW FOR MANUAL ASSIGNMENT ---
 function updateManualPreview(txId, amount, changedEl) {
@@ -2077,5 +2228,498 @@ function changeFinancePeriod(period) {
     url.searchParams.set('period', period);
     window.location.href = url.toString();
 }
+
+// --- ALLOCATION MODAL (VERRECHNUNG MIT FORDERUNGEN / POSTEN) ---
+let currentAllocTx = null;
+let currentAllocSelections = {}; // recId -> { amount: float, mark_settled: bool }
+let allocFilterPayerOnly = true;
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function openAllocationModal(txId) {
+    currentAllocTx = ALL_TRANSACTIONS.find(t => t.id === txId) || null;
+    if (!currentAllocTx) {
+        alert('Transaktion #' + txId + ' konnte nicht geladen werden.');
+        return;
+    }
+
+    currentAllocSelections = {};
+    allocFilterPayerOnly = true;
+
+    // Transaction Details Header
+    const dateStr = (currentAllocTx.date || '') + (currentAllocTx.time ? (' ' + currentAllocTx.time) : '');
+    const dateEl = document.getElementById('alloc-modal-tx-date');
+    if (dateEl) dateEl.textContent = dateStr;
+
+    const amtStr = (currentAllocTx.amount > 0 ? '+' : '') + currentAllocTx.amount.toFixed(2).replace('.', ',') + ' €';
+    const amtEl = document.getElementById('alloc-modal-tx-amt');
+    if (amtEl) amtEl.textContent = amtStr;
+
+    const sender = currentAllocTx.raw_payer_name || currentAllocTx.raw_payer_email || '—';
+    const senderEl = document.getElementById('alloc-modal-tx-sender');
+    if (senderEl) senderEl.textContent = sender;
+
+    const reason = currentAllocTx.purpose || currentAllocTx.subject || currentAllocTx.raw_text || '—';
+    const reasonEl = document.getElementById('alloc-modal-tx-reason');
+    if (reasonEl) reasonEl.textContent = reason;
+
+    // Form inputs
+    document.getElementById('alloc-form-tx-id').value = currentAllocTx.id;
+    const payerSelect = document.getElementById('alloc-payer-select');
+
+    let defaultPayer = '';
+    if (currentAllocTx.matched_player_id) {
+        defaultPayer = String(currentAllocTx.matched_player_id);
+    } else if (currentAllocTx.suggestion && currentAllocTx.suggestion.player_id) {
+        defaultPayer = String(currentAllocTx.suggestion.player_id);
+    } else if (currentAllocTx.matched_guest_alias) {
+        defaultPayer = 'ignored:' + currentAllocTx.matched_guest_alias;
+    }
+    if (payerSelect) payerSelect.value = defaultPayer;
+    document.getElementById('alloc-form-payer-id').value = defaultPayer;
+    
+    const searchEl = document.getElementById('alloc-rec-search');
+    if (searchEl) searchEl.value = '';
+
+    // Auto-preselect open receivables
+    autoPreselectReceivables(currentAllocTx, defaultPayer);
+
+    renderAllocModalTable();
+    updateAllocationLiveSummary();
+
+    const modal = document.getElementById('allocation-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeAllocationModal() {
+    const modal = document.getElementById('allocation-modal');
+    if (modal) modal.style.display = 'none';
+    currentAllocTx = null;
+    currentAllocSelections = {};
+}
+
+function autoPreselectReceivables(tx, payerKey) {
+    if (!payerKey) return;
+    let pid = null;
+    let gAlias = null;
+    if (payerKey.startsWith('ignored:')) {
+        gAlias = payerKey.slice(8);
+    } else {
+        pid = parseInt(payerKey, 10);
+    }
+
+    let payerRecs = ALL_RECEIVABLES.filter(r => {
+        if (pid && r.player_id === pid) return true;
+        if (gAlias && r.guest_alias === gAlias) return true;
+        return false;
+    });
+
+    let openRecs = payerRecs.filter(r => r.status === 'open' || r.status === 'partial');
+    let remAmt = tx.amount;
+    if (remAmt <= 0) return;
+
+    const purposeLower = ((tx.purpose || '') + ' ' + (tx.subject || '')).toLowerCase();
+
+    // Prioritize period match in purpose
+    openRecs.sort((a, b) => {
+        const aMatch = a.period && purposeLower.includes(a.period.toLowerCase()) ? 1 : 0;
+        const bMatch = b.period && purposeLower.includes(b.period.toLowerCase()) ? 1 : 0;
+        if (bMatch !== aMatch) return bMatch - aMatch;
+        const rank = { membership_due: 1, match_guest: 2, special: 3 };
+        return (rank[a.kind] || 99) - (rank[b.kind] || 99);
+    });
+
+    for (const r of openRecs) {
+        if (remAmt <= 0) break;
+        const needed = (r.open_amount !== undefined && r.open_amount !== null) ? r.open_amount : r.amount;
+        if (needed <= 0) continue;
+        if (remAmt >= needed) {
+            currentAllocSelections[r.id] = { amount: needed, mark_settled: true };
+            remAmt -= needed;
+        } else if (remAmt > 0) {
+            currentAllocSelections[r.id] = { amount: remAmt, mark_settled: false };
+            remAmt = 0;
+        }
+    }
+}
+
+function onAllocPayerChanged() {
+    const payerSelect = document.getElementById('alloc-payer-select');
+    const payerVal = payerSelect ? payerSelect.value : '';
+    document.getElementById('alloc-form-payer-id').value = payerVal;
+
+    if (Object.keys(currentAllocSelections).length === 0 && currentAllocTx) {
+        autoPreselectReceivables(currentAllocTx, payerVal);
+    }
+    renderAllocModalTable();
+    updateAllocationLiveSummary();
+}
+
+function filterModalRecsPayerOnly() {
+    allocFilterPayerOnly = true;
+    renderAllocModalTable();
+}
+
+function filterModalRecsAll() {
+    allocFilterPayerOnly = false;
+    renderAllocModalTable();
+}
+
+function renderAllocModalTable() {
+    const tbody = document.getElementById('alloc-modal-tbody');
+    if (!tbody) return;
+
+    const payerSelect = document.getElementById('alloc-payer-select');
+    const payerVal = payerSelect ? payerSelect.value : '';
+    let pid = null;
+    let gAlias = null;
+    if (payerVal.startsWith('ignored:')) {
+        gAlias = payerVal.slice(8);
+    } else if (payerVal) {
+        pid = parseInt(payerVal, 10);
+    }
+
+    const searchInput = document.getElementById('alloc-rec-search');
+    const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+    let list = ALL_RECEIVABLES.slice();
+
+    if (allocFilterPayerOnly && (pid || gAlias)) {
+        list = list.filter(r => {
+            if (currentAllocSelections[r.id]) return true;
+            if (pid && r.player_id === pid) return true;
+            if (gAlias && r.guest_alias === gAlias) return true;
+            return false;
+        });
+    }
+
+    if (searchTerm) {
+        list = list.filter(r => {
+            const txt = (r.player_name + ' ' + r.title + ' ' + (r.note || '') + ' ' + (r.period || '') + ' ' + (r.match_date || '')).toLowerCase();
+            return txt.includes(searchTerm);
+        });
+    }
+
+    list.sort((a, b) => {
+        const aSel = currentAllocSelections[a.id] ? 1 : 0;
+        const bSel = currentAllocSelections[b.id] ? 1 : 0;
+        if (bSel !== aSel) return bSel - aSel;
+        const aOpen = (a.status === 'open' || a.status === 'partial') ? 1 : 0;
+        const bOpen = (b.status === 'open' || b.status === 'partial') ? 1 : 0;
+        if (bOpen !== aOpen) return bOpen - aOpen;
+        return b.id - a.id;
+    });
+
+    if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 18px;">Keine passenden Posten gefunden. Klicke oben auf "Alle offenen Posten" oder passe die Suche an.</td></tr>';
+        return;
+    }
+
+    let html = '';
+    list.forEach(r => {
+        const isSelected = !!currentAllocSelections[r.id];
+        const selObj = currentAllocSelections[r.id] || {};
+        const openAmt = (r.open_amount !== undefined && r.open_amount !== null) ? r.open_amount : r.amount;
+        const currentAmt = isSelected ? (selObj.amount !== undefined ? selObj.amount : openAmt) : openAmt;
+        const isMarkSettled = isSelected ? (selObj.mark_settled !== undefined ? selObj.mark_settled : false) : false;
+
+        let kindBadge = '';
+        if (r.kind === 'membership_due') {
+            kindBadge = '<span style="background: rgba(123, 82, 197, 0.2); color: #c9c2d8; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(123, 82, 197, 0.4);">🏛️ Beitrag</span>';
+        } else if (r.kind === 'match_guest') {
+            kindBadge = '<span style="background: rgba(0, 188, 212, 0.15); color: #80deea; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(0, 188, 212, 0.35);">⚽ Gast</span>';
+        } else {
+            kindBadge = '<span style="background: rgba(255, 193, 7, 0.2); color: #ffe082; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(255, 193, 7, 0.4);">⭐ Sonder</span>';
+        }
+
+        const rowBg = isSelected ? 'rgba(123, 82, 197, 0.15)' : 'transparent';
+        const rowBorder = isSelected ? 'rgba(123, 82, 197, 0.4)' : 'rgba(255, 255, 255, 0.05)';
+
+        html += `
+            <tr style="background: ${rowBg}; border-bottom: 1px solid ${rowBorder};">
+                <td style="padding: 8px; text-align: center;">
+                    <input type="checkbox" onchange="toggleAllocRow(${r.id})" ${isSelected ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
+                </td>
+                <td style="padding: 8px;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        ${kindBadge}
+                        <strong style="color: #ffffff;">${escapeHtml(r.title)}</strong>
+                    </div>
+                    ${r.note ? `<div style="font-size: 10.5px; color: var(--text-muted); margin-top: 1px;">💬 ${escapeHtml(r.note)}</div>` : ''}
+                </td>
+                <td style="padding: 8px; font-size: 12px; color: #ffffff;">
+                    ${escapeHtml(r.player_name || '—')}
+                </td>
+                <td style="padding: 8px; font-size: 11.5px; color: var(--text-muted); white-space: nowrap;">
+                    ${escapeHtml(r.period || r.due_date || r.match_date || '—')}
+                </td>
+                <td style="padding: 8px; text-align: right; font-weight: 600; color: #ffffff; white-space: nowrap;">
+                    ${r.amount.toFixed(2).replace('.', ',')} €
+                </td>
+                <td style="padding: 8px; text-align: right; font-weight: 700; white-space: nowrap;">
+                    <span style="color: ${openAmt > 0 ? '#ff8888' : '#88ff88'};">${openAmt.toFixed(2).replace('.', ',')} €</span>
+                </td>
+                <td style="padding: 8px; text-align: right; white-space: nowrap;">
+                    <div style="display: inline-flex; align-items: center; gap: 4px;">
+                        <input type="number" step="0.50" min="0" max="${r.amount + 100}" 
+                               value="${currentAmt.toFixed(2)}" 
+                               ${isSelected ? '' : 'disabled'}
+                               onchange="onAllocAmtChanged(${r.id}, this.value)" 
+                               oninput="onAllocAmtChanged(${r.id}, this.value)"
+                               style="width: 75px; text-align: right; background: var(--bg-surface); border: 1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}; color: #ffffff; padding: 4px 6px; border-radius: 4px; font-size: 12px;">
+                        <span style="font-size: 11px; color: var(--text-muted);">€</span>
+                    </div>
+                </td>
+                <td style="padding: 8px; text-align: center; white-space: nowrap;">
+                    <label style="display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: ${isMarkSettled ? '#88ff88' : 'var(--text-muted)'}; cursor: pointer;" title="Diesen Posten als vollständig erledigt markieren (auch bei Teilzahlung)">
+                        <input type="checkbox" onchange="toggleAllocSettle(${r.id}, this.checked)" ${isMarkSettled ? 'checked' : ''} ${isSelected ? '' : 'disabled'}>
+                        <span>✓</span>
+                    </label>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+}
+
+function toggleAllocRow(recId) {
+    const rec = ALL_RECEIVABLES.find(r => r.id === recId);
+    if (!rec) return;
+
+    if (currentAllocSelections[recId]) {
+        delete currentAllocSelections[recId];
+    } else {
+        let allocatedSoFar = 0;
+        for (let k in currentAllocSelections) {
+            allocatedSoFar += currentAllocSelections[k].amount;
+        }
+        let remTx = currentAllocTx ? Math.max(0, currentAllocTx.amount - allocatedSoFar) : 0;
+        let openAmt = (rec.open_amount !== undefined && rec.open_amount !== null) ? rec.open_amount : rec.amount;
+        let assignAmt = remTx > 0 ? Math.min(remTx, openAmt) : openAmt;
+        currentAllocSelections[recId] = {
+            amount: assignAmt,
+            mark_settled: (assignAmt >= openAmt)
+        };
+    }
+    renderAllocModalTable();
+    updateAllocationLiveSummary();
+}
+
+function onAllocAmtChanged(recId, val) {
+    if (!currentAllocSelections[recId]) return;
+    const num = parseFloat(val) || 0.0;
+    currentAllocSelections[recId].amount = num;
+    const rec = ALL_RECEIVABLES.find(r => r.id === recId);
+    const openAmt = rec ? ((rec.open_amount !== undefined && rec.open_amount !== null) ? rec.open_amount : rec.amount) : 0;
+    if (num >= openAmt && openAmt > 0) {
+        currentAllocSelections[recId].mark_settled = true;
+    }
+    updateAllocationLiveSummary();
+}
+
+function toggleAllocSettle(recId, checked) {
+    if (!currentAllocSelections[recId]) return;
+    currentAllocSelections[recId].mark_settled = checked;
+    updateAllocationLiveSummary();
+}
+
+function updateAllocationLiveSummary() {
+    if (!currentAllocTx) return;
+    const txTotal = currentAllocTx.amount || 0;
+    let allocatedTotal = 0;
+    for (let k in currentAllocSelections) {
+        allocatedTotal += parseFloat(currentAllocSelections[k].amount) || 0;
+    }
+    const rem = txTotal - allocatedTotal;
+
+    const totalEl = document.getElementById('alloc-live-total');
+    if (totalEl) totalEl.textContent = (txTotal > 0 ? '+' : '') + txTotal.toFixed(2).replace('.', ',') + ' €';
+
+    const allocEl = document.getElementById('alloc-live-allocated');
+    if (allocEl) allocEl.textContent = allocatedTotal.toFixed(2).replace('.', ',') + ' €';
+
+    const remEl = document.getElementById('alloc-live-rem');
+    if (remEl) {
+        remEl.textContent = (rem >= 0 ? '+' : '') + rem.toFixed(2).replace('.', ',') + ' €';
+        if (Math.abs(rem) < 0.005) {
+            remEl.style.color = '#88ff88';
+        } else if (rem > 0) {
+            remEl.style.color = '#80deea';
+        } else {
+            remEl.style.color = '#ff8888';
+        }
+    }
+
+    const msgEl = document.getElementById('alloc-live-status-msg');
+    if (msgEl) {
+        const payerSelect = document.getElementById('alloc-payer-select');
+        const payerText = payerSelect && payerSelect.selectedIndex >= 0 ? payerSelect.options[payerSelect.selectedIndex].text.split('(')[0].trim() : 'Spieler';
+
+        if (Math.abs(rem) < 0.005) {
+            msgEl.innerHTML = '<span style="color: #88ff88; font-weight: 700;">✓ Betrag geht exakt auf.</span>';
+        } else if (rem > 0) {
+            msgEl.innerHTML = `ℹ️ Rest <strong>${rem.toFixed(2).replace('.', ',')} €</strong> verbleibt als Guthaben für ${escapeHtml(payerText)}.`;
+        } else {
+            msgEl.innerHTML = `<span style="color: #ff8888; font-weight: 700;">⚠️ ${Math.abs(rem).toFixed(2).replace('.', ',')} € Überbelegung (Zugeordnet > Erhalten)!</span>`;
+        }
+    }
+}
+
+function handleAllocSubmit() {
+    if (!currentAllocTx) return false;
+    const payerSelect = document.getElementById('alloc-payer-select');
+    const payerVal = payerSelect ? payerSelect.value : '';
+    if (!payerVal) {
+        alert('Bitte wähle oben einen Zahler / Spieler aus.');
+        return false;
+    }
+
+    const allocations = [];
+    for (let k in currentAllocSelections) {
+        const item = currentAllocSelections[k];
+        if (item.amount > 0 || item.mark_settled) {
+            allocations.push({
+                receivable_id: parseInt(k, 10),
+                amount: item.amount,
+                mark_settled: !!item.mark_settled
+            });
+        }
+    }
+
+    document.getElementById('alloc-form-payer-id').value = payerVal;
+    const remBox = document.getElementById('alloc-remember-ident');
+    document.getElementById('alloc-form-remember').value = (remBox && remBox.checked) ? '1' : '0';
+    document.getElementById('alloc-form-json').value = JSON.stringify(allocations);
+    return true;
+}
+
+// --- RECEIVABLES TABLE FILTERING ---
+let currentRecKind = 'all';
+let currentRecStatus = 'open_only';
+
+function filterReceivablesByKind(kind, btn) {
+    currentRecKind = kind;
+    const btns = document.querySelectorAll('.rec-kind-filter-btn');
+    btns.forEach(b => {
+        if (b === btn) {
+            b.style.background = 'var(--accent)';
+            b.style.color = '#fff';
+        } else {
+            b.style.background = 'transparent';
+            b.style.color = 'var(--text-muted)';
+        }
+    });
+    filterReceivablesTable();
+}
+
+function filterReceivablesByStatus(status, btn) {
+    currentRecStatus = status;
+    const btns = document.querySelectorAll('.rec-status-filter-btn');
+    btns.forEach(b => {
+        if (b === btn) {
+            b.style.background = status === 'open_only' ? 'rgba(220, 53, 69, 0.25)' : (status === 'settled_only' ? 'rgba(40, 167, 69, 0.25)' : 'var(--accent)');
+            b.style.color = status === 'open_only' ? '#ff8888' : (status === 'settled_only' ? '#88ff88' : '#fff');
+        } else {
+            b.style.background = 'transparent';
+            b.style.color = 'var(--text-muted)';
+        }
+    });
+    filterReceivablesTable();
+}
+
+function filterReceivablesTable() {
+    const input = document.getElementById('receivable-search-input');
+    const term = input ? input.value.trim().toLowerCase() : '';
+    const rows = document.querySelectorAll('.rec-row');
+
+    rows.forEach(r => {
+        const kind = r.getAttribute('data-kind');
+        const status = r.getAttribute('data-status');
+        const isOpen = r.getAttribute('data-open') === '1';
+        const search = r.getAttribute('data-search') || '';
+
+        let matchKind = (currentRecKind === 'all' || kind === currentRecKind);
+        let matchStatus = true;
+        if (currentRecStatus === 'open_only') {
+            matchStatus = isOpen;
+        } else if (currentRecStatus === 'settled_only') {
+            matchStatus = (status === 'settled' || status === 'waived');
+        }
+
+        let matchSearch = !term || search.includes(term);
+
+        r.style.display = (matchKind && matchStatus && matchSearch) ? '' : 'none';
+    });
+}
+
+// --- SONDERPOSTEN MODAL ---
+function openSpecialModal() {
+    const m = document.getElementById('special-receivable-modal');
+    if (m) m.style.display = 'flex';
+}
+
+function closeSpecialModal() {
+    const m = document.getElementById('special-receivable-modal');
+    if (m) m.style.display = 'none';
+}
+
+function switchSpecialMode(mode) {
+    const matchEl = document.getElementById('special-mode-match');
+    const manualEl = document.getElementById('special-mode-manual');
+    if (mode === 'match') {
+        if (matchEl) matchEl.style.display = 'block';
+        if (manualEl) manualEl.style.display = 'none';
+    } else {
+        if (matchEl) matchEl.style.display = 'none';
+        if (manualEl) manualEl.style.display = 'block';
+    }
+}
+
+function filterSpecialPlayerCheckboxes() {
+    const input = document.getElementById('special-player-search');
+    const term = input ? input.value.trim().toLowerCase() : '';
+    const labels = document.querySelectorAll('.special-player-label');
+    labels.forEach(l => {
+        const search = l.getAttribute('data-search') || '';
+        l.style.display = (!term || search.includes(term)) ? 'flex' : 'none';
+    });
+}
+
+function toggleAllSpecialPlayers(checked) {
+    const list = document.getElementById('special-player-list');
+    if (!list) return;
+    const inputs = list.querySelectorAll('input[type="checkbox"]');
+    inputs.forEach(inp => {
+        const parentLabel = inp.closest('.special-player-label');
+        if (!parentLabel || parentLabel.style.display !== 'none') {
+            inp.checked = checked;
+        }
+    });
+}
+
+// --- BEITRAGS-SOLL MODAL ---
+function openManualDueModal() {
+    const m = document.getElementById('manual-due-modal');
+    if (m) m.style.display = 'flex';
+}
+
+function closeManualDueModal() {
+    const m = document.getElementById('manual-due-modal');
+    if (m) m.style.display = 'none';
+}
+
+// Initialize filters on page load
+document.addEventListener('DOMContentLoaded', function() {
+    filterReceivablesTable();
+});
 </script>
 {% endblock %}

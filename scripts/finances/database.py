@@ -60,30 +60,6 @@ def create_finance_tables(connection):
         WHERE tx_code IS NOT NULL AND tx_code != ''
     """)
 
-    # Migration: add note column for PayPal payment notes
-    try:
-        connection.execute("ALTER TABLE finance_transactions ADD COLUMN note TEXT DEFAULT NULL")
-    except Exception:
-        pass  # Column already exists
-
-    # Migration: track who paid on behalf of whom
-    try:
-        connection.execute("ALTER TABLE payment_allocations ADD COLUMN paid_by_player_id INTEGER DEFAULT NULL")
-    except Exception:
-        pass
-    try:
-        connection.execute("ALTER TABLE payment_allocations ADD COLUMN paid_by_user_id INTEGER DEFAULT NULL")
-    except Exception:
-        pass
-    try:
-        connection.execute("ALTER TABLE payment_allocations ADD COLUMN guest_alias TEXT DEFAULT NULL")
-    except Exception:
-        pass
-    try:
-        connection.execute("ALTER TABLE player_membership_status ADD COLUMN member_since TEXT DEFAULT NULL")
-    except Exception:
-        pass
-
     connection.execute("""
         CREATE TABLE IF NOT EXISTS payment_identities (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,6 +96,10 @@ def create_finance_tables(connection):
             allocated_amount REAL NOT NULL,
             payment_method TEXT NOT NULL CHECK (payment_method IN ('paypal', 'bank', 'cash', 'waived')),
             note TEXT,
+            paid_by_player_id INTEGER DEFAULT NULL,
+            paid_by_user_id INTEGER DEFAULT NULL,
+            guest_alias TEXT DEFAULT NULL,
+            receivable_id INTEGER DEFAULT NULL,
             created_at TEXT NOT NULL,
             FOREIGN KEY (transaction_id) REFERENCES finance_transactions(id) ON DELETE SET NULL
         )
@@ -137,14 +117,45 @@ def create_finance_tables(connection):
         CREATE INDEX IF NOT EXISTS idx_allocations_match_date
         ON payment_allocations(match_date)
     """)
+    connection.execute("""
+        CREATE INDEX IF NOT EXISTS idx_allocations_receivable
+        ON payment_allocations(receivable_id)
+    """)
 
     connection.execute("""
         CREATE TABLE IF NOT EXISTS player_membership_status (
             player_id INTEGER PRIMARY KEY,
             status TEXT NOT NULL DEFAULT 'guest' CHECK (status IN ('member', 'guest')),
+            member_since TEXT DEFAULT NULL,
             updated_at TEXT NOT NULL
         )
     """)
+
+    # Migrations for existing databases
+    try:
+        connection.execute("ALTER TABLE finance_transactions ADD COLUMN note TEXT DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        connection.execute("ALTER TABLE payment_allocations ADD COLUMN paid_by_player_id INTEGER DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        connection.execute("ALTER TABLE payment_allocations ADD COLUMN paid_by_user_id INTEGER DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        connection.execute("ALTER TABLE payment_allocations ADD COLUMN guest_alias TEXT DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        connection.execute("ALTER TABLE player_membership_status ADD COLUMN member_since TEXT DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        connection.execute("ALTER TABLE payment_allocations ADD COLUMN receivable_id INTEGER DEFAULT NULL")
+    except Exception:
+        pass
 
     connection.execute("""
         CREATE TABLE IF NOT EXISTS finance_archives (
@@ -158,6 +169,58 @@ def create_finance_tables(connection):
             notes TEXT
         )
     """)
+
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS finance_receivables (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind TEXT NOT NULL CHECK (kind IN ('membership_due', 'match_guest', 'special')),
+            player_id INTEGER,
+            guest_alias TEXT,
+            period TEXT,
+            match_date TEXT,
+            due_date TEXT,
+            amount REAL NOT NULL,
+            title TEXT NOT NULL,
+            note TEXT,
+            special_group_id TEXT,
+            status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'partial', 'settled', 'waived')),
+            source TEXT NOT NULL DEFAULT 'rule' CHECK (source IN ('rule', 'manual')),
+            manual_settled INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+
+    connection.execute("""
+        CREATE INDEX IF NOT EXISTS idx_receivables_player
+        ON finance_receivables(player_id)
+    """)
+    connection.execute("""
+        CREATE INDEX IF NOT EXISTS idx_receivables_guest_alias
+        ON finance_receivables(guest_alias)
+    """)
+    connection.execute("""
+        CREATE INDEX IF NOT EXISTS idx_receivables_period
+        ON finance_receivables(period)
+    """)
+    connection.execute("""
+        CREATE INDEX IF NOT EXISTS idx_receivables_match_date
+        ON finance_receivables(match_date)
+    """)
+    connection.execute("""
+        CREATE INDEX IF NOT EXISTS idx_receivables_status
+        ON finance_receivables(status)
+    """)
+    connection.execute("""
+        CREATE INDEX IF NOT EXISTS idx_receivables_special_group
+        ON finance_receivables(special_group_id)
+    """)
+
+    # Migration: add manual_settled column if missing
+    try:
+        connection.execute("ALTER TABLE finance_receivables ADD COLUMN manual_settled INTEGER NOT NULL DEFAULT 0")
+    except Exception:
+        pass
 
     connection.commit()
 
@@ -375,16 +438,17 @@ def add_payment_allocation(
     paid_by_player_id: int | None = None,
     paid_by_user_id: int | None = None,
     guest_alias: str | None = None,
+    receivable_id: int | None = None,
 ) -> int:
-    """Record a payment allocation linking transaction/cash to a debt/event."""
+    """Record a payment allocation linking transaction/cash to a debt/event/receivable."""
     now = get_cologne_timestamp_str()
     cursor = connection.execute(
         """
         INSERT INTO payment_allocations (
             transaction_id, fee_type, event_id, match_date, player_id,
             attendee_id, period, allocated_amount, payment_method, note,
-            paid_by_player_id, paid_by_user_id, guest_alias, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            paid_by_player_id, paid_by_user_id, guest_alias, receivable_id, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             transaction_id,
@@ -400,6 +464,7 @@ def add_payment_allocation(
             paid_by_player_id,
             paid_by_user_id,
             guest_alias.strip() if guest_alias else None,
+            receivable_id,
             now,
         ),
     )
@@ -447,6 +512,253 @@ def delete_allocation(connection, allocation_id: int):
     """Delete a payment allocation."""
     connection.execute("DELETE FROM payment_allocations WHERE id = ?", (allocation_id,))
     connection.commit()
+
+
+def create_receivable(
+    connection,
+    kind: str,
+    amount: float,
+    title: str,
+    player_id: int | None = None,
+    guest_alias: str | None = None,
+    period: str | None = None,
+    match_date: str | None = None,
+    due_date: str | None = None,
+    note: str | None = None,
+    special_group_id: str | None = None,
+    status: str = "open",
+    source: str = "rule",
+    manual_settled: int = 0,
+) -> int:
+    """Create a new receivable record in finance_receivables."""
+    now = get_cologne_timestamp_str()
+    cursor = connection.execute(
+        """
+        INSERT INTO finance_receivables (
+            kind, player_id, guest_alias, period, match_date, due_date,
+            amount, title, note, special_group_id, status, source,
+            manual_settled, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            kind,
+            player_id,
+            guest_alias.strip() if guest_alias else None,
+            period,
+            match_date,
+            due_date or match_date,
+            round(float(amount), 2),
+            title.strip(),
+            note.strip() if note else None,
+            special_group_id,
+            status,
+            source,
+            1 if manual_settled else 0,
+            now,
+            now,
+        ),
+    )
+    connection.commit()
+    return cursor.lastrowid
+
+
+def get_receivable_by_id(connection, receivable_id: int) -> dict | None:
+    """Fetch a single receivable by ID, enriched with paid_amount and open_amount."""
+    row = connection.execute(
+        "SELECT * FROM finance_receivables WHERE id = ?", (receivable_id,)
+    ).fetchone()
+    if not row:
+        return None
+    r = dict(row)
+    alloc_sum_row = connection.execute(
+        "SELECT COALESCE(SUM(allocated_amount), 0.0) AS paid FROM payment_allocations WHERE receivable_id = ?",
+        (receivable_id,)
+    ).fetchone()
+    paid_sum = float(alloc_sum_row["paid"]) if alloc_sum_row else 0.0
+    r["paid_amount"] = paid_sum
+    if r.get("manual_settled") or r["status"] in ("settled", "waived"):
+        r["open_amount"] = 0.0
+    else:
+        r["open_amount"] = max(0.0, float(r["amount"]) - paid_sum)
+    return r
+
+
+def get_receivables(
+    connection,
+    player_id: int | None = None,
+    guest_alias: str | None = None,
+    status: str | None = None,
+    kind: str | None = None,
+    period: str | None = None,
+    match_date: str | None = None,
+    search: str | None = None,
+    special_group_id: str | None = None,
+) -> list[dict]:
+    """Fetch receivables with optional filtering, enriched with paid_amount and open_amount."""
+    query = "SELECT * FROM finance_receivables WHERE 1=1"
+    params = []
+
+    if player_id is not None:
+        query += " AND player_id = ?"
+        params.append(player_id)
+    if guest_alias is not None:
+        query += " AND LOWER(guest_alias) = LOWER(?)"
+        params.append(guest_alias)
+    if status is not None and status != "all":
+        query += " AND status = ?"
+        params.append(status)
+    if kind is not None and kind != "all":
+        query += " AND kind = ?"
+        params.append(kind)
+    if period is not None and period != "all":
+        query += " AND period = ?"
+        params.append(period)
+    if match_date is not None:
+        query += " AND match_date = ?"
+        params.append(match_date)
+    if special_group_id is not None:
+        query += " AND special_group_id = ?"
+        params.append(special_group_id)
+    if search:
+        s = f"%{search.strip().lower()}%"
+        query += " AND (LOWER(title) LIKE ? OR LOWER(note) LIKE ? OR LOWER(guest_alias) LIKE ?)"
+        params.extend([s, s, s])
+
+    query += " ORDER BY CASE WHEN due_date IS NOT NULL THEN due_date ELSE created_at END DESC, id DESC"
+    cursor = connection.execute(query, params)
+    recs = [dict(row) for row in cursor.fetchall()]
+    if not recs:
+        return []
+
+    alloc_rows = connection.execute(
+        "SELECT receivable_id, COALESCE(SUM(allocated_amount), 0.0) AS paid FROM payment_allocations WHERE receivable_id IS NOT NULL GROUP BY receivable_id"
+    ).fetchall()
+    alloc_map = {row["receivable_id"]: float(row["paid"]) for row in alloc_rows}
+    for r in recs:
+        paid_sum = alloc_map.get(r["id"], 0.0)
+        r["paid_amount"] = paid_sum
+        if r.get("manual_settled") or r["status"] in ("settled", "waived"):
+            r["open_amount"] = 0.0
+        else:
+            r["open_amount"] = max(0.0, float(r["amount"]) - paid_sum)
+    return recs
+
+
+def update_receivable(
+    connection,
+    receivable_id: int,
+    status: str | None = None,
+    amount: float | None = None,
+    title: str | None = None,
+    note: str | None = None,
+    manual_settled: int | None = None,
+):
+    """Update attributes or status of a receivable."""
+    now = get_cologne_timestamp_str()
+    updates = ["updated_at = ?"]
+    params = [now]
+
+    if status is not None:
+        updates.append("status = ?")
+        params.append(status)
+    if amount is not None:
+        updates.append("amount = ?")
+        params.append(round(float(amount), 2))
+    if title is not None:
+        updates.append("title = ?")
+        params.append(title.strip())
+    if note is not None:
+        updates.append("note = ?")
+        params.append(note.strip() if note else None)
+    if manual_settled is not None:
+        updates.append("manual_settled = ?")
+        params.append(1 if manual_settled else 0)
+
+    params.append(receivable_id)
+    connection.execute(
+        f"UPDATE finance_receivables SET {', '.join(updates)} WHERE id = ?",
+        params,
+    )
+    connection.commit()
+
+
+def delete_receivable(connection, receivable_id: int) -> bool:
+    """Delete a receivable if no confirmed transaction allocations depend on it."""
+    has_allocs = connection.execute(
+        "SELECT COUNT(*) as cnt FROM payment_allocations WHERE receivable_id = ?",
+        (receivable_id,),
+    ).fetchone()["cnt"]
+    if has_allocs > 0:
+        return False
+    connection.execute("DELETE FROM finance_receivables WHERE id = ?", (receivable_id,))
+    connection.commit()
+    return True
+
+
+def get_allocations_for_receivable(connection, receivable_id: int) -> list[dict]:
+    """Retrieve all payment allocations for a specific receivable."""
+    cursor = connection.execute(
+        "SELECT * FROM payment_allocations WHERE receivable_id = ? ORDER BY id ASC",
+        (receivable_id,),
+    )
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def create_special_receivables_group(
+    connection,
+    title: str,
+    amount_per_person: float,
+    player_ids: list[int] | None = None,
+    guest_aliases: list[str] | None = None,
+    due_date: str | None = None,
+    note: str | None = None,
+) -> tuple[str, int]:
+    """
+    Batch-create special receivables for a group of players and/or guest aliases.
+    Returns (special_group_id, created_count).
+    """
+    import uuid
+    group_id = f"special-{uuid.uuid4().hex[:8]}"
+    count = 0
+
+    if player_ids:
+        for pid in player_ids:
+            create_receivable(
+                connection,
+                kind="special",
+                amount=amount_per_person,
+                title=title,
+                player_id=pid,
+                guest_alias=None,
+                due_date=due_date,
+                note=note,
+                special_group_id=group_id,
+                status="open",
+                source="manual",
+            )
+            count += 1
+
+    if guest_aliases:
+        for alias in guest_aliases:
+            clean_a = alias.strip()
+            if not clean_a:
+                continue
+            create_receivable(
+                connection,
+                kind="special",
+                amount=amount_per_person,
+                title=title,
+                player_id=None,
+                guest_alias=clean_a,
+                due_date=due_date,
+                note=note,
+                special_group_id=group_id,
+                status="open",
+                source="manual",
+            )
+            count += 1
+
+    return group_id, count
 
 
 def get_all_player_membership_statuses(connection) -> dict[int, str]:
