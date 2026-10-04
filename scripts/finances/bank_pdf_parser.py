@@ -282,7 +282,10 @@ def parse_bank_csv(content_or_file) -> list[dict]:
     reader = csv.DictReader(io.StringIO(raw_text), delimiter=delimiter)
     transactions = []
 
-    for row in reader:
+    for raw_row in reader:
+        # Normalize and strip keys and values
+        row = {str(k).strip(): (v.strip() if isinstance(v, str) else v) for k, v in raw_row.items() if k is not None}
+
         date_raw = (
             row.get("Datum")
             or row.get("Buchungstag")
@@ -295,37 +298,73 @@ def parse_bank_csv(content_or_file) -> list[dict]:
             row.get("Beschreibung")
             or row.get("Buchungstext")
             or row.get("Vorgang")
+            or row.get("Umsatzart")
+            or row.get("Textschluessel")
             or "Überweisung"
         )
         amt_raw = (
             row.get("Betrag")
+            or row.get("Betrag (EUR)")
             or row.get("Umsatz")
+            or row.get("Umsatz (EUR)")
             or row.get("Amount")
             or "0,00"
         )
         payer_raw = (
             row.get("Auftraggeber")
             or row.get("Auftraggeber/Empfänger")
+            or row.get("Auftraggeber / Empfänger")
+            or row.get("Auftraggeber/Zahlungsempfänger")
             or row.get("Name")
             or row.get("Name Zahlungsbeteiligter")
+            or row.get("Zahlungsbeteiligter")
+            or row.get("Begünstigter/Zahlungspflichtiger")
+            or row.get("Beguenstigter/Zahlungspflichtiger")
+            or row.get("Zahlungspflichtiger")
+            or row.get("Partnername")
             or ""
         )
-        note_raw = (
-            row.get("Verwendungszweck")
-            or row.get("Notiz")
-            or row.get("Note")
-            or ""
-        )
+
+        # Collect all purpose/note fields and combine non-empty distinct parts
+        note_parts = []
+        for field in (
+            "Verwendungszweck",
+            "Verwendungszweck 1",
+            "Verwendungszweck 2",
+            "Verwendungszweck 3",
+            "SVWZ",
+            "Betreff",
+            "Notiz",
+            "Note",
+            "Hinweis",
+            "Zweck",
+            "Bemerkung",
+        ):
+            val = row.get(field)
+            if val and val not in note_parts:
+                note_parts.append(val)
+        note_raw = " ".join(note_parts)
+
         tx_code = (
             row.get("Transaktionscode")
             or row.get("Referenz")
             or row.get("End-to-End-Referenz")
+            or row.get("End-to-End-Ref.")
+            or row.get("EREF")
+            or row.get("Kundenreferenz")
+            or row.get("Mandatsreferenz")
             or ""
         )
 
         amount = parse_german_amount(amt_raw)
-        date_iso = parse_date_to_iso(date_raw)
+        # Check Soll/Haben flag
+        sh = (row.get("Soll/Haben-Kennzeichen") or row.get("Soll/Haben") or "").strip().upper()
+        if sh in ("S", "SOLL") and amount > 0:
+            amount = -amount
+        elif sh in ("H", "HABEN") and amount < 0:
+            amount = abs(amount)
 
+        date_iso = parse_date_to_iso(date_raw)
         if not date_iso:
             continue
 

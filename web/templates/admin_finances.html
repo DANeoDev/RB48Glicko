@@ -3,6 +3,12 @@
 {% block title %}{{ t('finances.title', 'Finanzen & Beitragsverwaltung · RB48') }}{% endblock %}
 
 {% block content %}
+<style>
+@keyframes uploadSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
 <div class="page-container" style="max-width: 1400px; width: 100%; margin: 30px auto; padding: 0 20px; box-sizing: border-box;">
     <div class="account-card" style="padding: 28px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; box-sizing: border-box;">
         
@@ -658,16 +664,47 @@
         <!-- TAB 4: CSV IMPORT & TRANSACTIONS -->
         {% if active_tab == 'import' %}
         <div style="display: flex; flex-direction: column; gap: 24px;">
-            <div style="background: var(--bg-surface-alt); border: 1px dashed var(--accent); border-radius: 8px; padding: 24px;">
+            <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 24px;">
                 <h3 style="margin: 0 0 8px 0; color: #ffffff; font-size: 16px;">📥 Bank-Kontoauszüge (PDF/CSV) & PayPal CSV hochladen</h3>
                 <p class="muted" style="margin: 0 0 16px 0; font-size: 13px;">
                     Lade hier deine Kontoauszüge als <strong>PDF (Deutsche Skatbank / VR-Bank)</strong> oder <strong>CSV-Dateien (PayPal, Bank)</strong> hoch. Du kannst auch <strong>mehrere Dateien gleichzeitig</strong> auswählen. PDF-Auszüge werden automatisch in CSV umgewandelt und in <code>data/finances/skatbank/</code> archiviert; PayPal-Dateien in <code>data/finances/paypal/</code>.
                 </p>
-                <form method="post" action="{{ url_for('finances.upload_csv') }}" enctype="multipart/form-data" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                    <input type="file" name="files" multiple accept=".csv,.pdf,text/csv,application/pdf" required style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: #ffffff; font-size: 13px;">
-                    <button type="submit" class="primary" style="padding: 9px 20px; font-weight: 600; cursor: pointer;">
-                        📤 Datei(en) importieren & analysieren
-                    </button>
+                
+                <form id="upload-form" method="post" action="{{ url_for('finances.upload_csv') }}" enctype="multipart/form-data" onsubmit="return handleUploadSubmit(event);">
+                    <input type="file" id="upload-file-input" name="files" multiple accept=".csv,.pdf,text/csv,application/pdf" style="display: none;" onchange="handleFilesSelected(this.files)">
+                    
+                    <!-- Drag & Drop Zone -->
+                    <div id="upload-dropzone" onclick="document.getElementById('upload-file-input').click()"
+                         ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleFileDrop(event)"
+                         style="border: 2px dashed rgba(123, 82, 197, 0.5); background: rgba(123, 82, 197, 0.05); border-radius: 8px; padding: 24px 20px; text-align: center; cursor: pointer; transition: all .2s ease;">
+                        <div style="font-size: 32px; margin-bottom: 6px;">📂</div>
+                        <div style="font-size: 14px; font-weight: 600; color: #ffffff;">Dateien hier hineinziehen oder klicken zum Auswählen</div>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Unterstützt mehrere Dateien gleichzeitig: PDF (Skatbank Auszüge) & CSV (PayPal, Bank)</div>
+                    </div>
+
+                    <!-- Selected Files Feedback Area -->
+                    <div id="upload-files-preview" style="display: none; margin-top: 14px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span id="upload-files-count" style="font-size: 12.5px; font-weight: 700; color: #80deea;">0 Dateien ausgewählt</span>
+                            <button type="button" class="secondary" onclick="clearSelectedFiles()" style="font-size: 11px; padding: 2px 8px; color: var(--text-muted); cursor: pointer;">
+                                ✕ Auswahl leeren
+                            </button>
+                        </div>
+                        <div id="upload-files-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 6px; padding: 8px;">
+                            <!-- Dynamically populated -->
+                        </div>
+                    </div>
+
+                    <!-- Upload Action & Progress -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px; flex-wrap: wrap; gap: 12px;">
+                        <button type="submit" id="upload-submit-btn" class="primary" style="padding: 10px 24px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;" disabled>
+                            📤 Datei(en) importieren & analysieren
+                        </button>
+                        <div id="upload-status-indicator" style="display: none; font-size: 12.5px; color: #80deea; align-items: center; gap: 8px;">
+                            <span class="upload-spinner" style="display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(128,222,234,0.3); border-top-color: #80deea; border-radius: 50%; animation: uploadSpin 0.8s linear infinite;"></span>
+                            <span>⏳ Dateien werden verarbeitet & Zahlungen zugeordnet... Bitte warten!</span>
+                        </div>
+                    </div>
                 </form>
             </div>
 
@@ -773,6 +810,11 @@
                                             </span>
                                         </div>
                                         <div style="font-size: 11px; color: var(--text-muted);">{{ tx.suggestion.reason }}</div>
+                                        {% if tx.cleared_debts_preview %}
+                                            <div style="margin-top: 4px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 4px; padding: 3px 6px; font-size: 11px; color: #38bdf8; line-height: 1.3;" title="Offene Posten, die durch diesen Betrag bei Bestätigung beglichen werden">
+                                                🎯 <strong>Begleicht:</strong> {{ tx.cleared_debts_preview }}
+                                            </div>
+                                        {% endif %}
                                     {% else %}
                                         <span class="muted" style="font-size: 12px;">Kein Vorschlag</span>
                                     {% endif %}
@@ -808,6 +850,11 @@
                                                     <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 6px; padding: 6px 8px; text-align: left; max-width: 340px; margin-bottom: 2px;">
                                                         <div style="font-size: 10.5px; font-weight: 700; color: #ffe082;">💡 Intelligenter Zuordnungsvorschlag:</div>
                                                         <div style="font-size: 11px; color: #ffffff; margin-top: 2px;">{{ tx.proxy_suggestion.summary_text }}</div>
+                                                        {% if tx.proxy_suggestion.cleared_debts_summary %}
+                                                            <div style="margin-top: 4px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 4px; padding: 4px 6px; font-size: 10.5px; color: #38bdf8; line-height: 1.35;">
+                                                                🎯 <strong>Begleicht konkret:</strong> {{ tx.proxy_suggestion.cleared_debts_summary }}
+                                                            </div>
+                                                        {% endif %}
                                                         <form method="post" action="{{ url_for('finances.apply_suggestion') }}" style="margin-top: 5px; margin-bottom: 0;">
                                                             <input type="hidden" name="tx_id" value="{{ tx.id }}">
                                                             <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 10.5px; padding: 3px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
@@ -854,54 +901,82 @@
                                                                 <span style="font-size: 10.5px; color: var(--text-muted); width: 55px;">Zahler:</span>
                                                                 <select name="paid_by_player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; flex: 1;">
                                                                     <option value="">{% if tx.raw_payer_name %}{{ tx.raw_payer_name }} (Zahler){% else %}-- Zahler wählen --{% endif %}</option>
-                                                            <optgroup label="Registrierte Spieler & Gäste">
-                                                                {% for p in player_list %}
-                                                                    <option value="{{ p.player_id }}" {% if (tx.suggestion and tx.suggestion.player_id == p.player_id) or (tx.matched_player_id == p.player_id) %}selected{% endif %}>{{ p.name }}</option>
-                                                                {% endfor %}
-                                                            </optgroup>
-                                                            {% if ignored_aliases %}
-                                                            <optgroup label="Ignorierte Aliase / Externe Gäste">
-                                                                {% for ign in ignored_aliases %}
-                                                                    <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
-                                                                {% endfor %}
-                                                            </optgroup>
-                                                            {% endif %}
-                                                        </select>
-                                                    </div>
+                                                                    <optgroup label="🔴 Spieler mit offenen Beträgen">
+                                                                        {% for p in player_list if p.has_open_debts %}
+                                                                            <option value="{{ p.player_id }}" {% if (tx.suggestion and tx.suggestion.player_id == p.player_id) or (tx.matched_player_id == p.player_id) %}selected{% endif %}>{{ p.name }} (🔴 {{ p.open_debts_short_summary }})</option>
+                                                                        {% endfor %}
+                                                                    </optgroup>
+                                                                    <optgroup label="✓ Spieler ohne offene Beträge">
+                                                                        {% for p in player_list if not p.has_open_debts %}
+                                                                            <option value="{{ p.player_id }}" {% if (tx.suggestion and tx.suggestion.player_id == p.player_id) or (tx.matched_player_id == p.player_id) %}selected{% endif %}>{{ p.name }}</option>
+                                                                        {% endfor %}
+                                                                    </optgroup>
+                                                                    {% if ignored_aliases_with_debts %}
+                                                                    <optgroup label="🔴 Externe Gäste mit offenen Beträgen">
+                                                                        {% for ign in ignored_aliases_with_debts if ign.has_open_debts %}
+                                                                            <option value="ignored:{{ ign.name }}">{{ ign.name }} (🔴 {{ ign.open_debts_short_summary }})</option>
+                                                                        {% endfor %}
+                                                                    </optgroup>
+                                                                    <optgroup label="✓ Weitere externe Gäste">
+                                                                        {% for ign in ignored_aliases_with_debts if not ign.has_open_debts %}
+                                                                            <option value="ignored:{{ ign.name }}">{{ ign.name }} (Extern)</option>
+                                                                        {% endfor %}
+                                                                    </optgroup>
+                                                                    {% endif %}
+                                                                </select>
+                                                            </div>
 
-                                                    <div id="split-slots-{{ tx.id }}" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
-                                                        {% for i in range(tx.proxy_num_kicks) %}
-                                                        <div style="display: flex; gap: 4px; align-items: center;">
-                                                            <span style="font-size: 10.5px; color: var(--text-muted); width: 60px;">Gast {{ i + 1 }}:</span>
-                                                            <select name="guest_{{ i }}" class="split-guest-select" data-form-id="{{ tx.id }}" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 3px 4px; border-radius: 4px; flex: 1;">
-                                                                <option value="">-- Gast {{ i + 1 }} --</option>
-                                                                <optgroup label="Reguläre Gäste">
-                                                                    {% for p in player_list if p.status == 'guest' %}
-                                                                        <option value="{{ p.player_id }}">{{ p.name }}</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                {% if ignored_aliases %}
-                                                                <optgroup label="Ignorierte Aliase / Externe Gäste">
-                                                                    {% for ign in ignored_aliases %}
-                                                                        <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                                {% endif %}
-                                                                <optgroup label="Mitglieder">
-                                                                    {% for p in player_list if p.status == 'member' %}
-                                                                        <option value="{{ p.player_id }}">{{ p.name }}</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
-                                                            </select>
-                                                            <span style="font-size: 11px; color: var(--text-muted); white-space: nowrap;">3,50 €</span>
-                                                        </div>
-                                                        {% endfor %}
+                                                            <div id="split-slots-{{ tx.id }}" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+                                                                {% for i in range(tx.proxy_num_kicks) %}
+                                                                <div style="display: flex; gap: 4px; align-items: center;">
+                                                                    <span style="font-size: 10.5px; color: var(--text-muted); width: 60px;">Gast {{ i + 1 }}:</span>
+                                                                    <select name="guest_{{ i }}" class="split-guest-select" data-form-id="{{ tx.id }}" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 3px 4px; border-radius: 4px; flex: 1;">
+                                                                        <option value="">-- Gast {{ i + 1 }} --</option>
+                                                                        <optgroup label="🔴 Gäste mit offenen Beiträgen">
+                                                                            {% for p in player_list if p.status == 'guest' and p.has_open_debts %}
+                                                                                <option value="{{ p.player_id }}">{{ p.name }} (🔴 {{ p.open_debts_short_summary }})</option>
+                                                                            {% endfor %}
+                                                                        </optgroup>
+                                                                        {% if ignored_aliases_with_debts %}
+                                                                        <optgroup label="🔴 Externe Gäste mit offenen Beiträgen">
+                                                                            {% for ign in ignored_aliases_with_debts if ign.has_open_debts %}
+                                                                                <option value="ignored:{{ ign.name }}">{{ ign.name }} (🔴 {{ ign.open_debts_short_summary }})</option>
+                                                                            {% endfor %}
+                                                                        </optgroup>
+                                                                        {% endif %}
+                                                                        <optgroup label="✓ Weitere Gäste">
+                                                                            {% for p in player_list if p.status == 'guest' and not p.has_open_debts %}
+                                                                                <option value="{{ p.player_id }}">{{ p.name }}</option>
+                                                                            {% endfor %}
+                                                                        </optgroup>
+                                                                        {% if ignored_aliases_with_debts %}
+                                                                        <optgroup label="✓ Weitere Externe">
+                                                                            {% for ign in ignored_aliases_with_debts if not ign.has_open_debts %}
+                                                                                <option value="ignored:{{ ign.name }}">{{ ign.name }} (Extern)</option>
+                                                                        {% endfor %}
+                                                                        </optgroup>
+                                                                        {% endif %}
+                                                                        <optgroup label="Mitglieder">
+                                                                            {% for p in player_list if p.status == 'member' %}
+                                                                                <option value="{{ p.player_id }}">{{ p.name }}{% if p.has_open_debts %} (🔴 {{ p.open_debts_short_summary }}){% endif %}</option>
+                                                                            {% endfor %}
+                                                                        </optgroup>
+                                                                    </select>
+                                                                    <span style="font-size: 11px; color: var(--text-muted); white-space: nowrap;">3,50 €</span>
+                                                                </div>
+                                                                {% endfor %}
+                                                            </div>
+                                                            <div style="display: flex; gap: 6px; align-items: center;">
+                                                                <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;">
+                                                                    <input type="checkbox" name="remember_identity" value="1" checked> 💾 Merken
+                                                                </label>
+                                                                <button type="submit" class="primary" style="font-size: 11px; padding: 4px 10px; cursor: pointer;" onclick="return prepareSplitAllocations('{{ tx.id }}')">
+                                                                    🔀 Aufteilen & Begleichen
+                                                                </button>
+                                                            </div>
+                                                        </form>
                                                     </div>
-                                                    <div style="display: flex; gap: 6px; align-items: center;">
-                                                        <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;">
-                                                            <input type="checkbox" name="remember_identity" value="1" checked> 💾 Merken
-                                                        </label>
-                                                        <button type="submit" class="primary" style="font-size: 11px; padding: 4px 10px; cursor: pointer;" onclick="return prepareSplitAllocations('{{ tx.id }}')">
+                                                </details>
                                                             🔀 Aufteilen & Begleichen
                                                         </button>
                                                     </div>
@@ -913,43 +988,64 @@
                                                     <summary style="font-size: 10.5px; color: var(--text-muted); cursor: pointer;">Oder: Einfache Einzelzuordnung →</summary>
                                                     <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end; margin-top: 4px;">
                                                         <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                        <div style="display: flex; gap: 4px; align-items: center;">
-                                                            <span style="font-size: 10.5px; color: var(--text-muted);">Zahler:</span>
-                                                            <select name="player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11.5px; padding: 3px 6px; border-radius: 4px;">
+                                                        <div style="display: flex; gap: 4px; align-items: center; width: 100%;">
+                                                            <span style="font-size: 10.5px; color: var(--text-muted); width: 65px; white-space: nowrap;">Zahler:</span>
+                                                            <select name="player_id" onchange="updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this)" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 3px 6px; border-radius: 4px; flex: 1;">
                                                                 <option value="">-- Spieler wählen --</option>
-                                                                <optgroup label="Registrierte Spieler & Gäste">
-                                                                    {% for p in player_list %}
+                                                                <optgroup label="🔴 Spieler mit offenen Beträgen">
+                                                                    {% for p in player_list if p.has_open_debts %}
+                                                                        <option value="{{ p.player_id }}" {% if tx.suggestion and tx.suggestion.player_id == p.player_id %}selected{% endif %}>{{ p.name }} (🔴 {{ p.open_debts_short_summary }})</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                <optgroup label="✓ Spieler ohne offene Beträge">
+                                                                    {% for p in player_list if not p.has_open_debts %}
                                                                         <option value="{{ p.player_id }}" {% if tx.suggestion and tx.suggestion.player_id == p.player_id %}selected{% endif %}>{{ p.name }}</option>
                                                                     {% endfor %}
                                                                 </optgroup>
-                                                                {% if ignored_aliases %}
-                                                                <optgroup label="Ignorierte Aliase / Externe Gäste">
-                                                                    {% for ign in ignored_aliases %}
-                                                                        <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                                                {% if ignored_aliases_with_debts %}
+                                                                <optgroup label="🔴 Externe Gäste mit offenen Beträgen">
+                                                                    {% for ign in ignored_aliases_with_debts if ign.has_open_debts %}
+                                                                        <option value="ignored:{{ ign.name }}">{{ ign.name }} (🔴 {{ ign.open_debts_short_summary }})</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                <optgroup label="✓ Weitere externe Gäste">
+                                                                    {% for ign in ignored_aliases_with_debts if not ign.has_open_debts %}
+                                                                        <option value="ignored:{{ ign.name }}">{{ ign.name }} (Extern)</option>
                                                                     {% endfor %}
                                                                 </optgroup>
                                                                 {% endif %}
                                                             </select>
                                                         </div>
-                                                        <div style="display: flex; gap: 4px; align-items: center;">
-                                                            <span style="font-size: 10.5px; color: var(--text-muted);">Begleicht für:</span>
-                                                            <select name="beneficiary_player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px;">
-                                                                <option value="">-- Für sich selbst --</option>
-                                                                <optgroup label="Gäste & Spieler">
-                                                                    {% for p in player_list %}
+                                                        <div style="display: flex; gap: 4px; align-items: center; width: 100%;">
+                                                            <span style="font-size: 10.5px; color: var(--text-muted); width: 65px; white-space: nowrap;">Begleicht für:</span>
+                                                            <select name="beneficiary_player_id" onchange="const rem = this.closest('form').querySelector('input[name=remember_identity]'); if (rem && this.value) { rem.checked = false; } updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this);" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; flex: 1;">
+                                                                <option value="">-- Für sich selbst (Zahler) --</option>
+                                                                <optgroup label="🔴 Spieler mit offenen Beträgen">
+                                                                    {% for p in player_list if p.has_open_debts %}
+                                                                        <option value="{{ p.player_id }}">{{ p.name }} (🔴 {{ p.open_debts_short_summary }})</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                <optgroup label="✓ Spieler ohne offene Beträge">
+                                                                    {% for p in player_list if not p.has_open_debts %}
                                                                         <option value="{{ p.player_id }}">{{ p.name }}</option>
                                                                     {% endfor %}
                                                                 </optgroup>
-                                                                {% if ignored_aliases %}
-                                                                <optgroup label="Ignorierte Aliase / Externe">
-                                                                    {% for ign in ignored_aliases %}
-                                                                        <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                                                {% if ignored_aliases_with_debts %}
+                                                                <optgroup label="🔴 Externe Gäste mit offenen Beträgen">
+                                                                    {% for ign in ignored_aliases_with_debts if ign.has_open_debts %}
+                                                                        <option value="ignored:{{ ign.name }}">{{ ign.name }} (🔴 {{ ign.open_debts_short_summary }})</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                <optgroup label="✓ Weitere externe Gäste">
+                                                                    {% for ign in ignored_aliases_with_debts if not ign.has_open_debts %}
+                                                                        <option value="ignored:{{ ign.name }}">{{ ign.name }} (Extern)</option>
                                                                     {% endfor %}
                                                                 </optgroup>
                                                                 {% endif %}
                                                             </select>
                                                         </div>
-                                                        <div style="display: flex; gap: 4px; align-items: center;">
+                                                        <div id="manual-settle-preview-split-{{ tx.id }}" style="display:none; margin-top: 4px; font-size: 11px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 4px; padding: 4px 6px; color: #38bdf8; text-align: left; width: 100%; line-height: 1.35;"></div>
+                                                        <div style="display: flex; gap: 4px; align-items: center; margin-top: 2px;">
                                                             <label style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;">
                                                                 <input type="checkbox" name="remember_identity" value="1" checked> 💾
                                                             </label>
@@ -983,23 +1079,35 @@
                                                 </div>
 
                                                 {# Detailed assignment form (who paid + who does it settle for) #}
-                                                <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end; margin: 0;">
+                                                <form method="post" action="{{ url_for('finances.assign_transaction') }}" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end; margin: 0; width: 100%; max-width: 340px;">
                                                     <input type="hidden" name="tx_id" value="{{ tx.id }}">
-                                                    <div style="display: flex; gap: 4px; align-items: center;">
-                                                        <span style="font-size: 11px; color: var(--text-muted);">Zahler:</span>
-                                                        <select name="player_id" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11.5px; padding: 3px 6px; border-radius: 4px;">
+                                                    <div style="display: flex; gap: 4px; align-items: center; width: 100%;">
+                                                        <span style="font-size: 11px; color: var(--text-muted); width: 65px; white-space: nowrap;">Zahler:</span>
+                                                        <select name="player_id" onchange="updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this)" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11.5px; padding: 3px 6px; border-radius: 4px; flex: 1;">
                                                             <option value="">-- Zahler wählen --</option>
-                                                            <optgroup label="Registrierte Spieler & Gäste">
-                                                                {% for p in player_list %}
+                                                            <optgroup label="🔴 Spieler mit offenen Beträgen">
+                                                                {% for p in player_list if p.has_open_debts %}
+                                                                    <option value="{{ p.player_id }}" {% if (tx.matched_player_id == p.player_id) or (not tx.matched_player_id and tx.suggestion and tx.suggestion.player_id == p.player_id) %}selected{% endif %}>
+                                                                        {{ p.name }} (🔴 {{ p.open_debts_short_summary }})
+                                                                    </option>
+                                                                {% endfor %}
+                                                            </optgroup>
+                                                            <optgroup label="✓ Spieler ohne offene Beträge">
+                                                                {% for p in player_list if not p.has_open_debts %}
                                                                     <option value="{{ p.player_id }}" {% if (tx.matched_player_id == p.player_id) or (not tx.matched_player_id and tx.suggestion and tx.suggestion.player_id == p.player_id) %}selected{% endif %}>
                                                                         {{ p.name }}
                                                                     </option>
                                                                 {% endfor %}
                                                             </optgroup>
-                                                            {% if ignored_aliases %}
-                                                            <optgroup label="Ignorierte Aliase / Externe Gäste">
-                                                                {% for ign in ignored_aliases %}
-                                                                    <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                                            {% if ignored_aliases_with_debts %}
+                                                            <optgroup label="🔴 Externe Gäste mit offenen Beträgen">
+                                                                {% for ign in ignored_aliases_with_debts if ign.has_open_debts %}
+                                                                    <option value="ignored:{{ ign.name }}">{{ ign.name }} (🔴 {{ ign.open_debts_short_summary }})</option>
+                                                                {% endfor %}
+                                                            </optgroup>
+                                                            <optgroup label="✓ Weitere externe Gäste">
+                                                                {% for ign in ignored_aliases_with_debts if not ign.has_open_debts %}
+                                                                    <option value="ignored:{{ ign.name }}">{{ ign.name }} (Extern)</option>
                                                                 {% endfor %}
                                                             </optgroup>
                                                             {% endif %}
@@ -1008,30 +1116,37 @@
 
                                                     <details style="font-size: 11px; width: 100%; text-align: left;">
                                                         <summary style="cursor: pointer; color: #80deea; font-size: 10.5px;">Für wen anders bezahlt? (z. B. Malte, Paul) →</summary>
-                                                        <div style="margin-top: 4px; display: flex; gap: 4px; align-items: center;">
-                                                            <span style="font-size: 10.5px; color: var(--text-muted); white-space: nowrap;">Begleicht für:</span>
-                                                            <select name="beneficiary_player_id" onchange="const rem = this.closest('form').querySelector('input[name=remember_identity]'); if (rem && this.value) { rem.checked = false; }" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; width: 100%;">
+                                                        <div style="margin-top: 4px; display: flex; gap: 4px; align-items: center; width: 100%;">
+                                                            <span style="font-size: 10.5px; color: var(--text-muted); width: 65px; white-space: nowrap;">Begleicht für:</span>
+                                                            <select name="beneficiary_player_id" onchange="const rem = this.closest('form').querySelector('input[name=remember_identity]'); if (rem && this.value) { rem.checked = false; } updateManualPreview('{{ tx.id }}', {{ tx.amount }}, this);" style="background: var(--bg-surface); border: 1px solid var(--border); color: #ffffff; font-size: 11px; padding: 2px 4px; border-radius: 4px; flex: 1;">
                                                                 <option value="">-- Für sich selbst (Zahler) --</option>
-                                                                <optgroup label="Gastspieler">
-                                                                    {% for p in player_list if p.status == 'guest' %}
+                                                                <optgroup label="🔴 Spieler mit offenen Beträgen">
+                                                                    {% for p in player_list if p.has_open_debts %}
+                                                                        <option value="{{ p.player_id }}">{{ p.name }} (🔴 {{ p.open_debts_short_summary }})</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                <optgroup label="✓ Spieler ohne offene Beträge">
+                                                                    {% for p in player_list if not p.has_open_debts %}
                                                                         <option value="{{ p.player_id }}">{{ p.name }}</option>
                                                                     {% endfor %}
                                                                 </optgroup>
-                                                                {% if ignored_aliases %}
-                                                                <optgroup label="Ignorierte Aliase / Externe Gäste">
-                                                                    {% for ign in ignored_aliases %}
-                                                                        <option value="ignored:{{ ign }}">{{ ign }} (Extern)</option>
+                                                                {% if ignored_aliases_with_debts %}
+                                                                <optgroup label="🔴 Externe Gäste mit offenen Beträgen">
+                                                                    {% for ign in ignored_aliases_with_debts if ign.has_open_debts %}
+                                                                        <option value="ignored:{{ ign.name }}">{{ ign.name }} (🔴 {{ ign.open_debts_short_summary }})</option>
+                                                                    {% endfor %}
+                                                                </optgroup>
+                                                                <optgroup label="✓ Weitere externe Gäste">
+                                                                    {% for ign in ignored_aliases_with_debts if not ign.has_open_debts %}
+                                                                        <option value="ignored:{{ ign.name }}">{{ ign.name }} (Extern)</option>
                                                                     {% endfor %}
                                                                 </optgroup>
                                                                 {% endif %}
-                                                                <optgroup label="Mitglieder (auch ehem. Gäste)">
-                                                                    {% for p in player_list if p.status == 'member' %}
-                                                                        <option value="{{ p.player_id }}">{{ p.name }}</option>
-                                                                    {% endfor %}
-                                                                </optgroup>
                                                             </select>
                                                         </div>
                                                     </details>
+
+                                                    <div id="manual-settle-preview-{{ tx.id }}" style="display:none; margin-top: 4px; font-size: 11px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 4px; padding: 4px 6px; color: #38bdf8; text-align: left; width: 100%; line-height: 1.35;"></div>
 
                                                     <div style="display: flex; gap: 4px; align-items: center; margin-top: 2px;">
                                                         <label style="font-size: 10.5px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; cursor: pointer;" title="Nur den Zahler merken (nicht dauerhaft mit dem Begünstigten verknüpfen)">
@@ -1440,6 +1555,242 @@ function prepareSplitAllocations(txId) {
 // Data for all open debts passed from backend
 const ALL_UNPAID_DEBTS = {{ all_unpaid_entries|tojson if all_unpaid_entries is defined else '[]' }};
 const UNASSIGNED_PAYERS = {{ unassigned_payers|tojson if unassigned_payers is defined else '[]' }};
+const ALL_OPEN_DEBTS = {{ all_open_debts|tojson if all_open_debts is defined else '{}' }};
+const GUEST_FEE_RATE = {{ guest_fee_rate|default(3.5) }};
+
+// --- DYNAMIC LIVE DEBT PREVIEW FOR MANUAL ASSIGNMENT ---
+function updateManualPreview(txId, amount, changedEl) {
+    const form = changedEl.closest('form');
+    if (!form) return;
+    
+    const beneSelect = form.querySelector('select[name="beneficiary_player_id"]');
+    const payerSelect = form.querySelector('select[name="player_id"]');
+    
+    let targetVal = beneSelect ? beneSelect.value : '';
+    if (!targetVal && payerSelect) {
+        targetVal = payerSelect.value;
+    }
+    
+    let previewEl = form.querySelector('#manual-settle-preview-' + txId) || form.querySelector('#manual-settle-preview-split-' + txId);
+    if (!previewEl) return;
+    
+    if (!targetVal) {
+        previewEl.style.display = 'none';
+        previewEl.innerHTML = '';
+        return;
+    }
+    
+    let key = targetVal;
+    if (typeof key === 'string' && key.startsWith('ignored:')) {
+        key = key.slice(8);
+    } else {
+        const parsed = parseInt(key, 10);
+        if (!isNaN(parsed)) key = parsed;
+    }
+    
+    const pDebts = ALL_OPEN_DEBTS[key];
+    if (!pDebts || !pDebts.total_open || pDebts.total_open <= 0) {
+        previewEl.style.display = 'block';
+        previewEl.innerHTML = 'ℹ️ <em>Keine offenen Posten im System erfasst (Zahlung auf Vorrat / Guthaben)</em>';
+        return;
+    }
+    
+    let rem = parseFloat(amount);
+    const cleared = [];
+    
+    // 1. Membership dues
+    if (pDebts.dues && pDebts.dues.length > 0) {
+        for (let d of pDebts.dues) {
+            if (rem <= 0) break;
+            const dueAmt = parseFloat(d.amount);
+            const cov = Math.min(rem, dueAmt);
+            cleared.push('Mitgliedsbeitrag ' + d.period + ' (' + cov.toFixed(2).replace('.', ',') + ' €)');
+            rem -= cov;
+        }
+    }
+    
+    // 2. Guest kicks
+    if (pDebts.guest_kicks && pDebts.guest_kicks.length > 0) {
+        const coveredKicks = [];
+        for (let k of pDebts.guest_kicks) {
+            const kAmt = parseFloat(k.amount);
+            if (rem < kAmt) break;
+            const mdate = k.match_date ? k.match_date.slice(5).replace('-', '.') : '';
+            coveredKicks.push(mdate);
+            rem -= kAmt;
+        }
+        if (coveredKicks.length > 0) {
+            const cCount = coveredKicks.length;
+            const cTot = (cCount * GUEST_FEE_RATE).toFixed(2).replace('.', ',');
+            cleared.push(cCount + ' Gastbeitrag' + (cCount > 1 ? 's' : '') + ' (' + coveredKicks.join(', ') + ' – gesamt ' + cTot + ' €)');
+        }
+    }
+    
+    let text = '';
+    if (cleared.length > 0) {
+        text = '🎯 <strong>Begleicht bei Bestätigung:</strong> ' + cleared.join(' + ');
+        if (rem > 0) {
+            text += ' <em>(Rest ' + rem.toFixed(2).replace('.', ',') + ' € als Guthaben)</em>';
+        }
+    } else {
+        text = '🟡 <strong>Anzahlung / Teilbetrag:</strong> ' + amount.toFixed(2).replace('.', ',') + ' € für offene Posten (' + pDebts.total_open.toFixed(2).replace('.', ',') + ' €)';
+    }
+    
+    previewEl.style.display = 'block';
+    previewEl.innerHTML = text;
+}
+
+// --- FILE UPLOAD & DRAG & DROP HANDLING ---
+let selectedUploadFiles = [];
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const dropzone = document.getElementById('upload-dropzone');
+    if (dropzone) {
+        dropzone.style.borderColor = 'var(--accent)';
+        dropzone.style.background = 'rgba(123, 82, 197, 0.18)';
+    }
+}
+
+function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const dropzone = document.getElementById('upload-dropzone');
+    if (dropzone) {
+        dropzone.style.borderColor = 'rgba(123, 82, 197, 0.5)';
+        dropzone.style.background = 'rgba(123, 82, 197, 0.05)';
+    }
+}
+
+function handleFileDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    handleDragLeave(e);
+    if (e.dataTransfer && e.dataTransfer.files) {
+        handleFilesSelected(e.dataTransfer.files);
+    }
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function handleFilesSelected(fileList) {
+    if (!fileList || fileList.length === 0) return;
+    
+    const newFiles = Array.from(fileList);
+    newFiles.forEach(f => {
+        if (!selectedUploadFiles.some(existing => existing.name === f.name && existing.size === f.size)) {
+            selectedUploadFiles.push(f);
+        }
+    });
+    
+    updateUploadFeedbackUI();
+}
+
+function removeSelectedFile(index) {
+    selectedUploadFiles.splice(index, 1);
+    updateUploadFeedbackUI();
+}
+
+function clearSelectedFiles() {
+    selectedUploadFiles = [];
+    const input = document.getElementById('upload-file-input');
+    if (input) input.value = '';
+    updateUploadFeedbackUI();
+}
+
+function updateUploadFeedbackUI() {
+    const previewDiv = document.getElementById('upload-files-preview');
+    const countSpan = document.getElementById('upload-files-count');
+    const listDiv = document.getElementById('upload-files-list');
+    const submitBtn = document.getElementById('upload-submit-btn');
+    
+    if (selectedUploadFiles.length === 0) {
+        if (previewDiv) previewDiv.style.display = 'none';
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '📤 Datei(en) importieren & analysieren';
+            submitBtn.style.opacity = '0.5';
+        }
+        return;
+    }
+    
+    if (previewDiv) previewDiv.style.display = 'block';
+    if (countSpan) {
+        countSpan.textContent = selectedUploadFiles.length + (selectedUploadFiles.length === 1 ? ' Datei ausgewählt (bereit zum Upload)' : ' Dateien ausgewählt (bereit zum Upload)');
+    }
+    
+    if (listDiv) {
+        listDiv.innerHTML = '';
+        selectedUploadFiles.forEach((file, idx) => {
+            const isPdf = file.name.toLowerCase().endsWith('.pdf');
+            const badgeBg = isPdf ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)';
+            const badgeBorder = isPdf ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)';
+            const badgeColor = isPdf ? '#f87171' : '#34d399';
+            const badgeText = isPdf ? 'PDF' : 'CSV';
+            
+            const item = document.createElement('div');
+            item.style.display = 'flex';
+            item.style.justifyContent = 'space-between';
+            item.style.alignItems = 'center';
+            item.style.background = 'rgba(255, 255, 255, 0.04)';
+            item.style.border = '1px solid rgba(255, 255, 255, 0.08)';
+            item.style.borderRadius = '5px';
+            item.style.padding = '6px 10px';
+            item.style.fontSize = '12px';
+            
+            item.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">
+                    <span style="background: ${badgeBg}; border: 1px solid ${badgeBorder}; color: ${badgeColor}; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px;">${badgeText}</span>
+                    <strong style="color: #ffffff; overflow: hidden; text-overflow: ellipsis;">${file.name}</strong>
+                    <span style="color: var(--text-muted); font-size: 11px;">(${formatFileSize(file.size)})</span>
+                </div>
+                <button type="button" onclick="removeSelectedFile(${idx})" style="background: transparent; border: none; color: #ff8888; font-size: 14px; cursor: pointer; padding: 2px 6px;" title="Diese Datei entfernen">✕</button>
+            `;
+            listDiv.appendChild(item);
+        });
+    }
+    
+    if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        submitBtn.innerHTML = '📤 ' + selectedUploadFiles.length + ' Datei' + (selectedUploadFiles.length > 1 ? 'en' : '') + ' importieren & analysieren';
+    }
+}
+
+function handleUploadSubmit(e) {
+    if (selectedUploadFiles.length === 0) {
+        alert('Bitte wähle mindestens eine PDF- oder CSV-Datei aus.');
+        return false;
+    }
+    
+    const submitBtn = document.getElementById('upload-submit-btn');
+    const statusInd = document.getElementById('upload-status-indicator');
+    
+    try {
+        const dataTransfer = new DataTransfer();
+        selectedUploadFiles.forEach(f => dataTransfer.items.add(f));
+        document.getElementById('upload-file-input').files = dataTransfer.files;
+    } catch (err) {
+        console.warn('DataTransfer fallback:', err);
+    }
+    
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.6';
+        submitBtn.innerHTML = '⏳ Wird verarbeitet...';
+    }
+    if (statusInd) {
+        statusInd.style.display = 'inline-flex';
+    }
+    return true;
+}
 
 const GERMAN_MONTHS = [
     'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',

@@ -84,11 +84,15 @@ def parse_paypal_csv(content_or_file) -> list[dict]:
     reader = csv.DictReader(io.StringIO(raw_text), delimiter=delimiter)
     transactions = []
 
-    for row in reader:
+    for raw_row in reader:
+        # Standardize and strip key lookups
+        row = {str(k).strip(): (v.strip() if isinstance(v, str) else v) for k, v in raw_row.items() if k is not None}
+
         # Standardize key lookups across German and English PayPal exports
         date_raw = (
             row.get("Datum")
             or row.get("Date")
+            or row.get("Buchungstag")
             or row.get("datum")
             or ""
         )
@@ -96,13 +100,14 @@ def parse_paypal_csv(content_or_file) -> list[dict]:
             row.get("Uhrzeit")
             or row.get("Time")
             or row.get("uhrzeit")
-            or ""
+            or "00:00:00"
         )
         desc_raw = (
             row.get("Beschreibung")
             or row.get("Description")
             or row.get("Typ")
             or row.get("Type")
+            or row.get("Buchungstext")
             or ""
         )
         curr_raw = (
@@ -121,6 +126,7 @@ def parse_paypal_csv(content_or_file) -> list[dict]:
             row.get("Transaktionscode")
             or row.get("Transaction ID")
             or row.get("Transaktions-ID")
+            or row.get("Referenz")
             or ""
         )
         payer_email = (
@@ -133,11 +139,15 @@ def parse_paypal_csv(content_or_file) -> list[dict]:
         payer_name = (
             row.get("Name")
             or row.get("Absender")
+            or row.get("Auftraggeber")
+            or row.get("Name Zahlungsbeteiligter")
+            or row.get("Sender Name")
+            or row.get("From Name")
             or ""
         )
         # Collect all notes / references across standard and detailed PayPal CSV formats
         candidate_notes = []
-        for field in ("Hinweis", "Betreff", "Notiz", "Note", "Artikelbezeichnung", "Rechnungsnummer"):
+        for field in ("Hinweis", "Betreff", "Notiz", "Note", "Verwendungszweck", "SVWZ", "Artikelbezeichnung", "Rechnungsnummer"):
             val = (row.get(field) or "").strip()
             if val and val not in candidate_notes:
                 candidate_notes.append(val)
@@ -156,6 +166,13 @@ def parse_paypal_csv(content_or_file) -> list[dict]:
         elif impact_raw == "haben" and amount < 0:
             amount = abs(amount)
 
+        # Detect source: if it contains bank-specific fields but no PayPal fields, label as bank
+        is_actually_bank = (
+            ("Auftraggeber" in row or "Verwendungszweck" in row or "SKATBANK" in str(tx_code).upper())
+            and not any(f in row for f in ("Absender E-Mail-Adresse", "From Email Address", "Auswirkung auf Guthaben", "Guthaben"))
+        )
+        source = "bank" if is_actually_bank else "paypal"
+
         # Status: negative or known expense providers
         if amount < 0 or "express-zahlung" in desc_raw.lower() or "eversport" in payer_name.lower():
             status = "expense"
@@ -163,7 +180,7 @@ def parse_paypal_csv(content_or_file) -> list[dict]:
             status = "imported"
 
         transactions.append({
-            "source": "paypal",
+            "source": source,
             "tx_code": tx_code.strip(),
             "date": date_iso,
             "time": time_raw.strip(),

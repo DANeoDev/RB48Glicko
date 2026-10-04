@@ -940,7 +940,8 @@ def test_multi_file_upload_and_directory_storage(clean_finances_env):
     )
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
-    assert "Import erfolgreich" in html
+    assert "Upload erfolgreich" in html
+    assert "Einträge wurden zur Bearbeitung hinzugefügt" in html
 
     # Verify directory contents
     sk_dir = Path("data/finances/skatbank")
@@ -1365,6 +1366,108 @@ def test_admin_finances_import_tab_display(clean_finances_env):
     assert open_list_pos != -1
     assert archive_section_pos != -1
     assert open_list_pos < archive_section_pos, "Archive section must be positioned below the open transactions list!"
+
+
+def test_skatbank_csv_verwendungszweck_and_payer_parsing():
+    """Verify that Skatbank / Bank CSV correctly extracts Verwendungszweck and Auftraggeber."""
+    from scripts.finances.bank_pdf_parser import parse_bank_csv
+    from scripts.finances.paypal_parser import parse_paypal_csv
+
+    bank_csv_text = (
+        '"Buchungstag";"Valutadatum";"Auftraggeber";"Empfänger";"Verwendungszweck";"Betrag";"Währung";"Umsatzart"\n'
+        '"23.09.2026";"23.09.2026";"Stefan Met...";"RB48 e.V.";"Mitgliedsbeitrag 2. Halbjahr 2026";"48,00";"EUR";"Überweisungsgutschr. PN:931"\n'
+        '"24.09.2026";"24.09.2026";"Martin Wagener";"RB48 e.V.";"2x Gastbeitrag 17.09 und 23.09";"7,00";"EUR";"Gutschrift"\n'
+    )
+    rows = parse_bank_csv(bank_csv_text)
+    assert len(rows) == 2
+
+    assert rows[0]["raw_payer_name"] == "Stefan Met..."
+    assert rows[0]["note"] == "Mitgliedsbeitrag 2. Halbjahr 2026"
+    assert rows[0]["amount"] == 48.00
+    assert rows[0]["source"] == "bank"
+
+    assert rows[1]["raw_payer_name"] == "Martin Wagener"
+    assert rows[1]["note"] == "2x Gastbeitrag 17.09 und 23.09"
+    assert rows[1]["amount"] == 7.00
+    assert rows[1]["source"] == "bank"
+
+    # Also test that parse_paypal_csv gracefully detects bank columns as fallback
+    fallback_rows = parse_paypal_csv(bank_csv_text)
+    assert len(fallback_rows) == 2
+    assert fallback_rows[0]["source"] == "bank"
+    assert fallback_rows[0]["raw_payer_name"] == "Stefan Met..."
+    assert fallback_rows[0]["note"] == "Mitgliedsbeitrag 2. Halbjahr 2026"
+
+
+def test_open_debts_and_transaction_cleared_debts_preview(clean_finances_env):
+    """Test get_all_players_open_debts and get_transaction_cleared_debts_preview."""
+    from scripts.finances.reconciliation import (
+        get_all_players_open_debts,
+        get_transaction_cleared_debts_preview,
+    )
+    from scripts.finances.database import get_finances_connection
+    from scripts.database.database import get_connection as get_rb48_connection
+    from scripts.accounts.database import get_accounts_connection
+
+    fin_conn = get_finances_connection()
+    rb_conn = get_rb48_connection()
+    acc_conn = get_accounts_connection()
+
+    all_debts = get_all_players_open_debts(fin_conn, rb_conn, acc_conn)
+    assert isinstance(all_debts, dict)
+
+    # Test preview for member or guest
+    preview_48 = get_transaction_cleared_debts_preview(48.0, 1, all_player_debts=all_debts)
+    assert "Gastbeitrag" in preview_48 or "Mitgliedsbeitrag" in preview_48 or "Keine offenen Posten" in preview_48
+
+    # Test preview for 7€ (2 kicks)
+    preview_7 = get_transaction_cleared_debts_preview(7.0, 2, all_player_debts=all_debts)
+    assert "Gastbeitrag" in preview_7 or "Mitgliedsbeitrag" in preview_7 or "Keine offenen Posten" in preview_7 or "Teilbetrag" in preview_7
+
+    fin_conn.close()
+    rb_conn.close()
+    acc_conn.close()
+
+
+def test_admin_finances_cleared_debts_preview_and_upload_ui_display(clean_finances_env):
+    """Test that admin finances renders drag & drop upload UI and debt preview badges."""
+    from web.app import app
+    from scripts.finances.database import get_finances_connection, insert_transaction
+
+    fin_conn = get_finances_connection()
+    tx_id = insert_transaction(
+        fin_conn,
+        source="bank",
+        tx_code="SKATBANK-TEST-123",
+        date="2026-09-23",
+        time="10:00:00",
+        raw_payer_name="Martin Wagener",
+        raw_payer_email=None,
+        amount=7.00,
+        description="Banküberweisung",
+        status="imported",
+        is_confirmed=0,
+        note="2x Gastbeitrag",
+    )
+    fin_conn.close()
+
+    client = _login_webmaster(app)
+    resp = client.get("/admin/finances?tab=import")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+
+    # Upload UI elements
+    assert 'id="upload-dropzone"' in html
+    assert 'id="upload-file-input"' in html
+    assert 'id="upload-files-preview"' in html
+    assert 'id="upload-submit-btn"' in html
+
+    # Transaction rendered with source and note
+    assert "Martin Wagener" in html
+    assert "2x Gastbeitrag" in html
+    assert "bank" in html
+    assert f'value="{tx_id}"' in html
+
 
 
 

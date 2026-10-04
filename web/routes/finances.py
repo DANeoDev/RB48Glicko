@@ -58,6 +58,8 @@ from scripts.finances.reconciliation import (
     get_finance_summary_metrics,
     get_proxy_payment_suggestion,
     settle_smart_combo_transaction,
+    get_all_players_open_debts,
+    get_transaction_cleared_debts_preview,
     GUEST_FEE_PER_KICK,
     MEMBERSHIP_DUE_PER_HALFYEAR,
 )
@@ -102,6 +104,9 @@ def admin_finances():
 
         # Membership dues overview
         dues_overview = get_membership_dues_overview(selected_period)
+
+        # Comprehensive open debts map (dues + guest kicks) for all players
+        all_open_debts = get_all_players_open_debts(finances_conn, rb48_conn, accounts_conn)
 
         # Transactions
         transactions = get_transactions(finances_conn, limit=200)
@@ -169,6 +174,9 @@ def admin_finances():
             if amount > 0 and not tx.get("is_confirmed"):
                 check_pid = tx.get("matched_player_id") or (tx.get("suggestion") and tx["suggestion"].get("player_id"))
                 if check_pid:
+                    tx["cleared_debts_preview"] = get_transaction_cleared_debts_preview(
+                        amount, check_pid, all_player_debts=all_open_debts
+                    )
                     proxy_sug = get_proxy_payment_suggestion(tx["id"], check_pid)
                     if proxy_sug:
                         tx["is_proxy_candidate"] = True
@@ -218,6 +226,40 @@ def admin_finances():
         # Ignored aliases list (sorted alphabetically)
         ignored_aliases_list = sorted(list(get_ignored_aliases(rb48_conn)))
 
+        # Enrich players and ignored aliases with their debt summaries for dropdown grouping
+        for p in players_with_status:
+            p_debts = all_open_debts.get(p["player_id"])
+            if p_debts and p_debts.get("total_open", 0.0) > 0:
+                p["has_open_debts"] = True
+                p["open_debts_sum"] = p_debts["total_open"]
+                p["open_debts_summary"] = p_debts["summary"]
+                p["open_debts_short_summary"] = p_debts["short_summary"]
+            else:
+                p["has_open_debts"] = False
+                p["open_debts_sum"] = 0.0
+                p["open_debts_summary"] = ""
+                p["open_debts_short_summary"] = ""
+
+        ignored_aliases_with_debts = []
+        for ign in ignored_aliases_list:
+            ign_debts = all_open_debts.get(ign)
+            if ign_debts and ign_debts.get("total_open", 0.0) > 0:
+                ignored_aliases_with_debts.append({
+                    "name": ign,
+                    "has_open_debts": True,
+                    "open_debts_sum": ign_debts["total_open"],
+                    "open_debts_summary": ign_debts["summary"],
+                    "open_debts_short_summary": ign_debts["short_summary"],
+                })
+            else:
+                ignored_aliases_with_debts.append({
+                    "name": ign,
+                    "has_open_debts": False,
+                    "open_debts_sum": 0.0,
+                    "open_debts_summary": "",
+                    "open_debts_short_summary": "",
+                })
+
         dues_view = request.args.get("dues_view", "period")
         available_halfyear_periods = [p for p in available_periods if p.get("type") == "halfyear"]
         dues_matrix = get_membership_dues_matrix(finances_conn=finances_conn, rb48_conn=rb48_conn)
@@ -232,6 +274,8 @@ def admin_finances():
             all_unpaid_entries=all_unpaid_entries,
             unassigned_payers=unassigned_payers,
             ignored_aliases=ignored_aliases_list,
+            ignored_aliases_with_debts=ignored_aliases_with_debts,
+            all_open_debts=all_open_debts,
             players_with_status=players_with_status,
             dues_overview=dues_overview,
             dues_matrix=dues_matrix,
@@ -402,7 +446,23 @@ def upload_csv():
                         break
                     except Exception:
                         continue
-                is_paypal = any(k in text_sample.lower() for k in ("transaktionscode", "handyzahlung", "absender e-mail-adresse"))
+                sample_lower = text_sample.lower()
+                is_bank_indicator = any(k in sample_lower for k in (
+                    "auftraggeber", "verwendungszweck", "skatbank", "buchungstag",
+                    "valutadatum", "iban", "bic", "svwz", "buchungstext", "zahlungsbeteiligter"
+                ))
+                is_paypal_indicator = any(k in sample_lower for k in (
+                    "absender e-mail-adresse", "empfänger e-mail-adresse", "from email address",
+                    "auswirkung auf guthaben", "guthaben", "handyzahlung"
+                ))
+
+                if is_bank_indicator:
+                    is_paypal = False
+                elif is_paypal_indicator:
+                    is_paypal = True
+                else:
+                    is_paypal = "paypal" in sample_lower or (sample_lower.count("@") > 3)
+
                 if is_paypal:
                     pp_target = paypal_dir / filename
                     pp_target.write_bytes(content)
@@ -473,9 +533,13 @@ def upload_csv():
                 else:
                     skipped_duplicates += 1
 
+        open_manual_count = max(0, imported_count - auto_confirmed_count)
+        dup_text = f", {skipped_duplicates} bereits vorhandene Duplikate übersprungen" if skipped_duplicates > 0 else ""
         flash(
-            f"Import erfolgreich: {imported_count} neue Transaktionen aus {processed_files_count} Datei(en) verarbeitet "
-            f"({auto_confirmed_count} automatisch sicher zugeordnet, {skipped_duplicates} bereits vorhandene Duplikate übersprungen).",
+            f"📥 Upload erfolgreich ({processed_files_count} Datei(en) verarbeitet): "
+            f"{imported_count} Einträge wurden zur Bearbeitung hinzugefügt, "
+            f"{auto_confirmed_count} Zuordnungen wurden bereits festgelegt (automatisch sicher zugeordnet), "
+            f"{open_manual_count} noch offen zur manuellen Zuordnung{dup_text}.",
             "success",
         )
         return redirect(url_for("finances.admin_finances", tab="import"))

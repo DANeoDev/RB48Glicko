@@ -1688,18 +1688,38 @@ def get_proxy_payment_suggestion(
                         "amount": GUEST_FEE_PER_KICK,
                     })
 
-        # Build human-readable summary text
+        # Build human-readable summary text and explicit date breakdown
         guest_counts = {}
-        for g in suggested_guests:
+        guest_by_person = {}
+        for g in suggested_guests[:num_kicks]:
             gname = g.get("name") or "Gast"
             guest_counts[gname] = guest_counts.get(gname, 0) + 1
+            mdate = g.get("match_date")
+            guest_by_person.setdefault(gname, []).append(mdate)
+
         guest_summary_parts = [f"{cnt}× {name}" for name, cnt in guest_counts.items()]
         guest_summary_str = ", ".join(guest_summary_parts) if guest_summary_parts else f"{num_kicks}× Gastbeitrag"
 
+        # Explicit date breakdown
+        guest_details_parts = []
+        for gname, mdates in guest_by_person.items():
+            valid_dates = [d[5:].replace("-", ".") for d in mdates if d]
+            if valid_dates:
+                guest_details_parts.append(f"{len(mdates)}× {gname} ({', '.join(valid_dates)})")
+            else:
+                guest_details_parts.append(f"{len(mdates)}× {gname}")
+
+        guest_details_str = ", ".join(guest_details_parts)
+
         if is_combo_split:
-            summary_text = f"{due_amount:.2f}".replace('.', ',') + f" € Beitrag ({payer_name}) + {guest_amount:.2f}".replace('.', ',') + f" € Gäste ({guest_summary_str})"
+            due_str = f"{due_amount:.2f}".replace('.', ',')
+            guest_str = f"{guest_amount:.2f}".replace('.', ',')
+            summary_text = f"{due_str} € Beitrag ({payer_name}) + {guest_str} € Gäste ({guest_summary_str})"
+            cleared_debts_summary = f"Mitgliedsbeitrag {period_hint} ({due_str} € für {payer_name}) + {guest_details_str}"
         else:
-            summary_text = f"{amount:.2f}".replace('.', ',') + f" € Gäste ({guest_summary_str})"
+            amt_str = f"{amount:.2f}".replace('.', ',')
+            summary_text = f"{amt_str} € Gäste ({guest_summary_str})"
+            cleared_debts_summary = f"{amt_str} € ({guest_details_str})"
 
         return {
             "is_proxy_payment": True,
@@ -1714,6 +1734,7 @@ def get_proxy_payment_suggestion(
             "suggested_guests": suggested_guests[:num_kicks],
             "note_hints": note_guest_names,
             "summary_text": summary_text,
+            "cleared_debts_summary": cleared_debts_summary,
         }
     finally:
         finances_conn.close()
@@ -2380,4 +2401,191 @@ def reset_transaction_settlement(transaction_id: int):
         finances_conn.commit()
     finally:
         finances_conn.close()
+
+
+def get_all_players_open_debts(finances_conn=None, rb48_conn=None, accounts_conn=None) -> dict:
+    """
+    Compute open debts for every player and external alias.
+    Returns a dict keyed by player_id (int) or 'ignored:<alias>' (str):
+    {
+        key: {
+            "total_open": float,
+            "guest_kicks_count": int,
+            "guest_kicks": [ {"match_date": "2026-09-23", "amount": 3.50}, ... ],
+            "dues": [ {"period": "2026-H2", "amount": 48.00}, ... ],
+            "summary": "7,00 € offen (2 Kicks: 23.09., 30.09.)",
+            "short_summary": "7,00 € (2 Kicks)",
+            "is_member": bool,
+        }
+    }
+    """
+    close_fin = False
+    close_rb = False
+    close_acc = False
+
+    if finances_conn is None:
+        finances_conn = get_finances_connection()
+        close_fin = True
+    if rb48_conn is None:
+        rb48_conn = get_rb48_connection()
+        close_rb = True
+    if accounts_conn is None:
+        accounts_conn = get_accounts_connection()
+        close_acc = True
+
+    try:
+        debts = {}
+
+        # 1. Unpaid guest kicks across all match history
+        all_unpaid_guests = get_all_unpaid_guest_entries()
+        for g in all_unpaid_guests:
+            raw_pid = g.get("player_id")
+            key = raw_pid
+            if not key and g.get("name"):
+                key = f"ignored:{g['name']}"
+
+            if not key:
+                continue
+
+            entry_amt = float(g.get("fee_required", GUEST_FEE_PER_KICK)) - float(g.get("amount_paid", 0.0))
+            if entry_amt <= 0:
+                continue
+
+            d = debts.setdefault(key, {
+                "total_open": 0.0,
+                "guest_kicks_count": 0,
+                "guest_kicks": [],
+                "dues": [],
+                "summary": "",
+                "short_summary": "",
+                "is_member": False,
+            })
+            d["total_open"] += entry_amt
+            d["guest_kicks_count"] += 1
+            d["guest_kicks"].append({
+                "match_date": g.get("match_date"),
+                "amount": entry_amt,
+            })
+
+        # 2. Unpaid membership dues for members (e.g. 2026-H2)
+        try:
+            dues_ov = get_membership_dues_overview("2026-H2")
+            for m in dues_ov.get("members", []):
+                pid = m["player_id"]
+                due_open = float(m.get("fee_required", 0.0)) - float(m.get("amount_paid", 0.0))
+                # Only if active member and fee > 0
+                if due_open > 0 and m.get("payment_status") in ("unpaid", "partial"):
+                    d = debts.setdefault(pid, {
+                        "total_open": 0.0,
+                        "guest_kicks_count": 0,
+                        "guest_kicks": [],
+                        "dues": [],
+                        "summary": "",
+                        "short_summary": "",
+                        "is_member": True,
+                    })
+                    d["is_member"] = True
+                    d["total_open"] += due_open
+                    d["dues"].append({
+                        "period": "2026-H2",
+                        "amount": due_open,
+                    })
+        except Exception:
+            pass
+
+        # Build human-readable summaries for each player with debts
+        for key, d in debts.items():
+            tot = d["total_open"]
+            parts = []
+            short_parts = []
+
+            for due in d["dues"]:
+                p_amt = f"{due['amount']:.2f}".replace('.', ',')
+                parts.append(f"Beitrag {due['period']} ({p_amt} €)")
+                short_parts.append(f"Beitrag {due['period']}")
+
+            if d["guest_kicks_count"] > 0:
+                dates = [k["match_date"][5:].replace("-", ".") for k in d["guest_kicks"] if k.get("match_date")]
+                dates_str = ", ".join(dates[:4])
+                if len(dates) > 4:
+                    dates_str += f" (+{len(dates) - 4})"
+                kick_sum = sum(k["amount"] for k in d["guest_kicks"])
+                k_amt = f"{kick_sum:.2f}".replace('.', ',')
+                parts.append(f"{d['guest_kicks_count']} Kick{'s' if d['guest_kicks_count'] > 1 else ''}: {dates_str}")
+                short_parts.append(f"{d['guest_kicks_count']} Kick{'s' if d['guest_kicks_count'] > 1 else ''}")
+
+            tot_str = f"{tot:.2f}".replace('.', ',')
+            d["summary"] = f"{tot_str} € offen ({', '.join(parts)})"
+            d["short_summary"] = f"{tot_str} € ({', '.join(short_parts)})"
+
+        return debts
+    finally:
+        if close_fin:
+            finances_conn.close()
+        if close_rb:
+            rb48_conn.close()
+        if close_acc:
+            accounts_conn.close()
+
+
+def get_transaction_cleared_debts_preview(
+    amount: float,
+    player_id: int | str,
+    all_player_debts: dict | None = None,
+    finances_conn=None,
+    rb48_conn=None,
+    accounts_conn=None,
+) -> str:
+    """
+    Given a transaction amount and a candidate target player, determine exactly
+    which open debt items would be settled upon confirmation.
+    """
+    if not player_id:
+        return ""
+
+    if all_player_debts is None:
+        all_player_debts = get_all_players_open_debts(finances_conn, rb48_conn, accounts_conn)
+
+    p_debts = all_player_debts.get(player_id)
+    if not p_debts or p_debts.get("total_open", 0.0) <= 0:
+        return "Keine offenen Posten im System erfasst (Zahlung auf Vorrat / Guthaben)"
+
+    rem = float(amount)
+    cleared_items = []
+
+    # 1. Clear membership dues first if member
+    for due in p_debts.get("dues", []):
+        if rem <= 0:
+            break
+        due_amt = float(due["amount"])
+        covered = min(rem, due_amt)
+        cov_str = f"{covered:.2f}".replace('.', ',')
+        cleared_items.append(f"Mitgliedsbeitrag {due['period']} ({cov_str} €)")
+        rem -= covered
+
+    # 2. Clear oldest guest kicks
+    covered_kicks = []
+    for k in p_debts.get("guest_kicks", []):
+        k_amt = float(k["amount"])
+        if rem < k_amt:
+            break
+        mdate = k.get("match_date", "")
+        mdate_short = mdate[5:].replace("-", ".") if mdate else ""
+        covered_kicks.append(mdate_short)
+        rem -= k_amt
+
+    if covered_kicks:
+        c_count = len(covered_kicks)
+        c_tot = f"{c_count * GUEST_FEE_PER_KICK:.2f}".replace('.', ',')
+        cleared_items.append(f"{c_count} Gastbeitrag{'s' if c_count > 1 else ''} ({', '.join(covered_kicks)} – gesamt {c_tot} €)")
+
+    if not cleared_items:
+        return f"{amount:.2f}".replace('.', ',') + " € (Teilbetrag / Anzahlung)"
+
+    res = " + ".join(cleared_items)
+    if rem > 0:
+        rem_str = f"{rem:.2f}".replace('.', ',')
+        res += f" (Rest {rem_str} € als Guthaben)"
+
+    return res
 
