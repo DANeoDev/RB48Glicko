@@ -2092,3 +2092,104 @@ def test_legacy_schema_migration_without_receivable_id(tmp_path):
 
     conn.close()
 
+
+def test_bulk_mark_receivables_route(clean_finances_env):
+    """Test bulk marking multiple receivables as settled, waived, or open."""
+    from web.app import app
+    client = _login_webmaster(app)
+
+    f_conn = get_finances_connection()
+    # Create 3 special receivables
+    r1 = create_receivable(f_conn, kind="special", amount=10.0, title="Bulk Test 1", player_id=1, status="open")
+    r2 = create_receivable(f_conn, kind="special", amount=15.0, title="Bulk Test 2", player_id=2, status="open")
+    r3 = create_receivable(f_conn, kind="special", amount=20.0, title="Bulk Test 3", player_id=3, status="open")
+    f_conn.close()
+
+    # 1. Bulk mark as settled via list of IDs
+    resp_settle = client.post("/admin/finances/receivables/bulk-mark", data={
+        "receivable_ids": [str(r1), str(r2)],
+        "action": "settled",
+        "period": "2026-H2",
+    }, follow_redirects=True)
+    assert resp_settle.status_code == 200
+
+    f_conn = get_finances_connection()
+    rec1 = get_receivable_by_id(f_conn, r1)
+    rec2 = get_receivable_by_id(f_conn, r2)
+    rec3 = get_receivable_by_id(f_conn, r3)
+    assert rec1["status"] == "settled"
+    assert rec1["manual_settled"] == 1
+    assert rec2["status"] == "settled"
+    assert rec3["status"] == "open"
+    f_conn.close()
+
+    # 2. Bulk mark as waived via comma-separated string (e.g. from JS form)
+    resp_waive = client.post("/admin/finances/receivables/bulk-mark", data={
+        "receivable_ids": f"{r2},{r3}",
+        "action": "waived",
+    }, headers={"X-Requested-With": "XMLHttpRequest"})
+    assert resp_waive.status_code == 200
+    data = resp_waive.get_json()
+    assert data["success"] is True
+    assert data["count"] == 2
+    assert data["action"] == "waived"
+
+    f_conn = get_finances_connection()
+    rec2_w = get_receivable_by_id(f_conn, r2)
+    rec3_w = get_receivable_by_id(f_conn, r3)
+    assert rec2_w["status"] == "waived"
+    assert rec3_w["status"] == "waived"
+    f_conn.close()
+
+    # 3. Bulk mark back to open
+    resp_open = client.post("/admin/finances/receivables/bulk-mark", data={
+        "receivable_ids": [str(r1), str(r2), str(r3)],
+        "action": "open",
+    }, follow_redirects=True)
+    assert resp_open.status_code == 200
+
+    f_conn = get_finances_connection()
+    for rid in (r1, r2, r3):
+        r_item = get_receivable_by_id(f_conn, rid)
+        assert r_item["status"] == "open"
+        assert r_item["manual_settled"] == 0
+    f_conn.close()
+
+
+def test_de_facto_waived_sync_and_override(clean_finances_env):
+    """Test that ended periods with 0 games default to de facto waived and can be overridden by payments."""
+    f_conn = get_finances_connection()
+    rb_conn = get_rb48_connection()
+    acc_conn = get_accounts_connection()
+
+    set_player_membership_status(f_conn, 1, "member")
+
+    # Run sync: 2026-H1 has ended and member 1 has 0 matches
+    sync_res = sync_rule_based_receivables(f_conn, rb_conn, acc_conn)
+    recs = get_receivables(f_conn, player_id=1, kind="membership_due", period="2026-H1")
+    assert len(recs) == 1
+    h1_rec = recs[0]
+    assert h1_rec["status"] == "waived"
+    assert "de facto" in (h1_rec["note"] or "").lower()
+    assert h1_rec["open_amount"] == 0.0
+
+    # Overwrite by assigning a transaction
+    tx_id = insert_transaction(f_conn, "bank", "TX-H1-TEST", "2026-05-01", "12:00:00", "Member 1", "m1@ex.com", 48.0, "imported", 0)
+    alloc_res = allocate_transaction_receivables(
+        transaction_id=tx_id,
+        payer_player_id=1,
+        allocations=[{"receivable_id": h1_rec["id"], "amount": 48.0}],
+    )
+    assert alloc_res["success"] is True
+
+    # Re-sync: should now be settled, overriding de facto waived!
+    sync_rule_based_receivables(f_conn, rb_conn, acc_conn)
+    h1_after = get_receivable_by_id(f_conn, h1_rec["id"])
+    assert h1_after["status"] == "settled"
+    assert h1_after["paid_amount"] == 48.0
+    assert h1_after["open_amount"] == 0.0
+
+    f_conn.close()
+    rb_conn.close()
+    acc_conn.close()
+

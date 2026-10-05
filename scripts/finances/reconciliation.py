@@ -2501,9 +2501,20 @@ def sync_rule_based_receivables(finances_conn=None, rb48_conn=None, accounts_con
             for m in members:
                 pid = m["player_id"]
                 existing = finances_conn.execute(
-                    "SELECT id, status, manual_settled FROM finance_receivables WHERE kind = 'membership_due' AND player_id = ? AND period = ?",
+                    "SELECT id, status, manual_settled, note FROM finance_receivables WHERE kind = 'membership_due' AND player_id = ? AND period = ?",
                     (pid, per),
                 ).fetchone()
+
+                init_status = "open"
+                init_note = None
+                if p_range.get("has_ended"):
+                    games_count = rb48_conn.execute(
+                        "SELECT COUNT(DISTINCT m.match_id) as cnt FROM matches m JOIN match_players mp ON m.match_id = mp.match_id WHERE mp.player_id = ? AND m.date >= ? AND m.date <= ?",
+                        (pid, p_range["start"], p_range["end"]),
+                    ).fetchone()["cnt"] or 0
+                    if games_count == 0:
+                        init_status = "waived"
+                        init_note = "De facto befreit (0 Kicks)"
 
                 if not existing:
                     create_receivable(
@@ -2514,7 +2525,8 @@ def sync_rule_based_receivables(finances_conn=None, rb48_conn=None, accounts_con
                         player_id=pid,
                         period=per,
                         due_date=due_date,
-                        status="open",
+                        status=init_status,
+                        note=init_note,
                         source="rule",
                     )
                     created_dues += 1
@@ -2578,7 +2590,7 @@ def sync_rule_based_receivables(finances_conn=None, rb48_conn=None, accounts_con
             r_per = rec["period"]
             r_mdate = rec["match_date"]
             r_amount = float(rec["amount"])
-            manual_settled = bool(dict(rec).get("manual_settled", 0))
+            manual_settled = int(dict(rec).get("manual_settled", 0) or 0)
 
             if r_kind == "membership_due" and r_pid and r_per:
                 matching_allocs = finances_conn.execute(
@@ -2610,19 +2622,41 @@ def sync_rule_based_receivables(finances_conn=None, rb48_conn=None, accounts_con
                     )
                     linked_allocations += 1
 
-            if manual_settled:
+            if manual_settled == 1:
                 new_status = "settled"
+            elif manual_settled == 2:
+                new_status = "open"
             else:
                 has_waived = any(ma["payment_method"] == "waived" for ma in matching_allocs)
                 total_paid = sum(float(ma["allocated_amount"] or 0.0) for ma in matching_allocs if ma["payment_method"] != "waived")
-                if has_waived:
-                    new_status = "waived"
-                elif total_paid >= r_amount:
+                if total_paid >= r_amount:
                     new_status = "settled"
                 elif total_paid > 0:
                     new_status = "partial"
+                elif has_waived:
+                    new_status = "waived"
                 else:
-                    new_status = "open"
+                    # Check de facto waived for ended periods with 0 kicks
+                    is_de_facto_waived = False
+                    if r_kind == "membership_due" and r_per and r_pid:
+                        p_range = get_period_date_range(r_per)
+                        if p_range.get("has_ended"):
+                            games_cnt = rb48_conn.execute(
+                                "SELECT COUNT(DISTINCT m.match_id) as cnt FROM matches m JOIN match_players mp ON m.match_id = mp.match_id WHERE mp.player_id = ? AND m.date >= ? AND m.date <= ?",
+                                (r_pid, p_range["start"], p_range["end"]),
+                            ).fetchone()["cnt"] or 0
+                            if games_cnt == 0:
+                                is_de_facto_waived = True
+
+                    if is_de_facto_waived:
+                        new_status = "waived"
+                        if not rec["note"] or "de facto" not in (rec["note"] or "").lower():
+                            finances_conn.execute(
+                                "UPDATE finance_receivables SET note = 'De facto befreit (0 Kicks)' WHERE id = ?",
+                                (rid,),
+                            )
+                    else:
+                        new_status = "open"
 
             if new_status != rec["status"]:
                 finances_conn.execute(

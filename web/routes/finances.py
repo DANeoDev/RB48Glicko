@@ -134,9 +134,29 @@ def admin_finances():
                 (r["id"],),
             ).fetchone()["s"] or 0.0
             r["paid_amount"] = float(alloc_sum)
-            r["open_amount"] = max(0.0, float(r["amount"]) - float(alloc_sum))
+            if r.get("manual_settled") == 1 or r["status"] in ("settled", "waived"):
+                r["open_amount"] = 0.0
+            else:
+                r["open_amount"] = max(0.0, float(r["amount"]) - float(alloc_sum))
 
-        open_receivables = [r for r in all_receivables if r["status"] in ("open", "partial") or r.get("open_amount", 0) > 0]
+            p_code = r.get("period")
+            if not p_code:
+                mdate = r.get("match_date") or r.get("due_date")
+                if mdate and len(mdate) >= 7 and mdate[:4].isdigit():
+                    yr = mdate[:4]
+                    try:
+                        mo = int(mdate[5:7])
+                        p_code = f"{yr}-H2" if mo >= 7 else f"{yr}-H1"
+                    except Exception:
+                        p_code = "other"
+                else:
+                    p_code = "other"
+            r["period_code"] = p_code
+            r["is_de_facto_waived"] = bool(r["status"] == "waived" and (
+                "de facto" in (r.get("note") or "").lower() or "0 kicks" in (r.get("note") or "").lower()
+            ))
+
+        open_receivables = [r for r in all_receivables if r["status"] in ("open", "partial") and r.get("open_amount", 0) > 0]
         open_receivables_sum = sum(r.get("open_amount", 0.0) for r in open_receivables)
 
         all_match_dates = [
@@ -1280,13 +1300,14 @@ def mark_receivable_route(receivable_id: int):
     """Mark a receivable as settled, waived, or open (allows manual override)."""
     action = request.form.get("action", "settled")
     new_amount = request.form.get("amount", type=float)
+    period = request.form.get("period") or request.args.get("period", "2026-H2")
 
     finances_conn = get_finances_connection()
     try:
         rec = get_receivable_by_id(finances_conn, receivable_id)
         if not rec:
             flash("Forderung nicht gefunden.", "danger")
-            return redirect(url_for("finances.admin_finances", tab="receivables"))
+            return redirect(url_for("finances.admin_finances", tab="receivables", period=period))
 
         if action == "settled":
             update_receivable(finances_conn, receivable_id, status="settled", manual_settled=1)
@@ -1301,7 +1322,70 @@ def mark_receivable_route(receivable_id: int):
         if new_amount and new_amount > 0:
             update_receivable(finances_conn, receivable_id, amount=new_amount)
 
-        return redirect(url_for("finances.admin_finances", tab="receivables"))
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": True, "action": action, "receivable_id": receivable_id})
+
+        return redirect(url_for("finances.admin_finances", tab="receivables", period=period))
+    finally:
+        finances_conn.close()
+
+
+@finances_bp.route("/receivables/bulk-mark", methods=["POST"])
+@require_webmaster
+def bulk_mark_receivables_route():
+    """Bulk mark multiple receivables as settled, waived, or open simultaneously."""
+    action = request.form.get("action", "settled")
+    period = request.form.get("period") or request.args.get("period", "2026-H2")
+    raw_ids = request.form.getlist("receivable_ids")
+
+    rec_ids = []
+    for item in raw_ids:
+        if "," in str(item):
+            for sub in str(item).split(","):
+                try:
+                    rec_ids.append(int(sub.strip()))
+                except (ValueError, TypeError):
+                    pass
+        else:
+            try:
+                rec_ids.append(int(item))
+            except (ValueError, TypeError):
+                pass
+
+    if not rec_ids:
+        raw_single = request.form.get("receivable_ids", "")
+        for sub in str(raw_single).split(","):
+            try:
+                rec_ids.append(int(sub.strip()))
+            except (ValueError, TypeError):
+                pass
+
+    if not rec_ids:
+        flash("Keine Posten zum Aktualisieren ausgewählt.", "warning")
+        return redirect(url_for("finances.admin_finances", tab="receivables", period=period))
+
+    finances_conn = get_finances_connection()
+    try:
+        manual_val = 1 if action in ("settled", "waived") else 0
+        status_val = action if action in ("settled", "waived", "open") else "settled"
+
+        for rid in rec_ids:
+            update_receivable(finances_conn, rid, status=status_val, manual_settled=manual_val)
+
+        finances_conn.commit()
+
+        action_labels = {
+            "settled": "beglichen",
+            "waived": "befreit / erlassen",
+            "open": "offen",
+        }
+        lbl = action_labels.get(status_val, status_val)
+        flash(f"✓ {len(rec_ids)} Posten gleichzeitig als '{lbl}' markiert.", "success")
+
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": True, "count": len(rec_ids), "action": status_val})
+
+        return redirect(url_for("finances.admin_finances", tab="receivables", period=period))
     finally:
         finances_conn.close()
 

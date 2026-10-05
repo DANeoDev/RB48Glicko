@@ -956,10 +956,21 @@
                         <div style="display: inline-flex; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px;">
                             <button type="button" class="rec-status-filter-btn" data-status="open_only" onclick="filterReceivablesByStatus('open_only', this)" style="padding: 4px 10px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; background: rgba(220, 53, 69, 0.25); color: #ff8888; cursor: pointer;">🔴 Nur Offene & Teilbezahlte</button>
                             <button type="button" class="rec-status-filter-btn" data-status="settled_only" onclick="filterReceivablesByStatus('settled_only', this)" style="padding: 4px 10px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; background: transparent; color: var(--text-muted); cursor: pointer;">🟢 Beglichen</button>
+                            <button type="button" class="rec-status-filter-btn" data-status="waived_only" onclick="filterReceivablesByStatus('waived_only', this)" style="padding: 4px 10px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; background: transparent; color: var(--text-muted); cursor: pointer;">🟡 De facto befreit</button>
                             <button type="button" class="rec-status-filter-btn" data-status="all" onclick="filterReceivablesByStatus('all', this)" style="padding: 4px 10px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; background: transparent; color: var(--text-muted); cursor: pointer;">Alle Status</button>
                         </div>
+                        <!-- Zeitraum Filter -->
+                        <div style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px;">
+                            <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">📅 Zeitraum:</span>
+                            <select id="rec-period-filter" onchange="onReceivablePeriodFilterChanged(this.value)" style="background: transparent; border: none; color: #ffffff; font-size: 12px; font-weight: 600; padding: 4px 2px; cursor: pointer; outline: none;">
+                                <option value="all" style="background: var(--bg-surface-alt); color: #fff;">Alle Zeiträume</option>
+                                {% for p in available_halfyear_periods %}
+                                    <option value="{{ p.value }}" style="background: var(--bg-surface-alt); color: #fff;" {% if selected_period == p.value %}selected{% endif %}>{{ p.value }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
-                    <div style="flex: 1; min-width: 220px; max-width: 350px;">
+                    <div style="flex: 1; min-width: 220px; max-width: 320px;">
                         <input type="text" id="receivable-search-input" oninput="filterReceivablesTable()" placeholder="🔍 Suche nach Spieler, Posten, Datum..." style="width: 100%; box-sizing: border-box; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-size: 12.5px; color: #ffffff;">
                     </div>
                 </div>
@@ -967,11 +978,38 @@
 
             <!-- Receivables Table -->
             <div style="background: var(--bg-surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+                <!-- Bulk Actions Bar -->
+                <div id="receivables-bulk-bar" style="display: none; background: rgba(0, 188, 212, 0.15); border: 1px solid rgba(0, 188, 212, 0.4); border-radius: 8px; padding: 10px 16px; margin-bottom: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-weight: 700; color: #80deea; font-size: 13px;">
+                            <span id="rec-selected-count">0</span> Posten ausgewählt
+                        </span>
+                        <button type="button" class="secondary" onclick="clearReceivableSelection()" style="font-size: 11px; padding: 3px 8px;">Auswahl aufheben</button>
+                    </div>
+                    <form id="rec-bulk-form" method="post" action="{{ url_for('finances.bulk_mark_receivables_route') }}" style="margin: 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <input type="hidden" name="period" value="{{ selected_period }}">
+                        <input type="hidden" name="receivable_ids" id="rec-bulk-ids-input" value="">
+                        <input type="hidden" name="action" id="rec-bulk-action-input" value="settled">
+                        <button type="button" class="primary" onclick="submitReceivablesBulk('settled')" style="background: #28a745; border-color: #28a745; font-size: 12px; font-weight: 700; padding: 6px 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                            ✓ Ausgewählte als beglichen abhaken
+                        </button>
+                        <button type="button" class="secondary" onclick="submitReceivablesBulk('waived')" style="font-size: 12px; padding: 6px 12px; cursor: pointer; color: #ffe082; border-color: rgba(255, 193, 7, 0.4); display: inline-flex; align-items: center; gap: 4px;">
+                            🟡 Ausgewählte befreien
+                        </button>
+                        <button type="button" class="secondary" onclick="submitReceivablesBulk('open')" style="font-size: 12px; padding: 6px 12px; cursor: pointer; color: #ff8888; border-color: rgba(220, 53, 69, 0.4); display: inline-flex; align-items: center; gap: 4px;">
+                            🔴 Ausgewählte auf offen setzen
+                        </button>
+                    </form>
+                </div>
+
                 {% if all_receivables %}
                 <div style="overflow-x: auto;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 13px;" id="receivables-table">
                         <thead>
                             <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-muted); font-size: 12px;">
+                                <th style="padding: 10px 8px; width: 34px; text-align: center;">
+                                    <input type="checkbox" id="rec-master-checkbox" onchange="toggleSelectAllReceivables(this)" title="Alle sichtbaren Posten auswählen" style="cursor: pointer; width: 15px; height: 15px;">
+                                </th>
                                 <th style="padding: 10px 8px;">Art</th>
                                 <th style="padding: 10px 8px;">Spieler / Empfänger</th>
                                 <th style="padding: 10px 8px;">Titel / Verwendungszweck</th>
@@ -985,7 +1023,10 @@
                         </thead>
                         <tbody>
                             {% for r in all_receivables %}
-                            <tr class="rec-row" data-kind="{{ r.kind }}" data-status="{{ r.status }}" data-open="{{ '1' if r.open_amount > 0 or r.status in ('open', 'partial') else '0' }}" data-search="{{ (r.player_name ~ ' ' ~ r.title ~ ' ' ~ (r.note or '') ~ ' ' ~ (r.period or '') ~ ' ' ~ (r.match_date or ''))|lower }}" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); {% if r.status in ('settled', 'waived') %}opacity: 0.75;{% endif %}">
+                            <tr class="rec-row" data-kind="{{ r.kind }}" data-status="{{ r.status }}" data-period="{{ r.period_code }}" data-open="{{ '1' if r.open_amount > 0 and r.status in ('open', 'partial') else '0' }}" data-search="{{ (r.player_name ~ ' ' ~ r.title ~ ' ' ~ (r.note or '') ~ ' ' ~ (r.period or '') ~ ' ' ~ (r.match_date or ''))|lower }}" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); {% if r.status in ('settled', 'waived') %}opacity: 0.85;{% endif %}">
+                                <td style="padding: 10px 8px; text-align: center;">
+                                    <input type="checkbox" class="rec-row-checkbox" value="{{ r.id }}" onchange="updateReceivableBulkBar()" style="cursor: pointer; width: 15px; height: 15px;">
+                                </td>
                                 <td style="padding: 10px 8px; white-space: nowrap;">
                                     {% if r.kind == 'membership_due' %}
                                         <span style="background: rgba(123, 82, 197, 0.2); color: #c9c2d8; font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(123, 82, 197, 0.4);">🏛️ Beitrag</span>
@@ -1030,7 +1071,11 @@
                                     {% elif r.status == 'partial' %}
                                         <span style="background: rgba(255, 193, 7, 0.2); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.4); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">🟡 Teilbezahlt</span>
                                     {% elif r.status == 'waived' %}
-                                        <span style="background: rgba(255, 255, 255, 0.08); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.2); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">⚪ Erlassen</span>
+                                        {% if r.is_de_facto_waived or "de facto" in (r.note or '')|lower %}
+                                            <span style="background: rgba(255, 193, 7, 0.2); color: #ffe082; border: 1px solid rgba(255, 193, 7, 0.4); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;" title="Zeitraum beendet & 0 Kicks: De facto befreit">🟡 De facto befreit (0 Kicks)</span>
+                                        {% else %}
+                                            <span style="background: rgba(255, 255, 255, 0.08); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.2); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">⚪ Erlassen</span>
+                                        {% endif %}
                                     {% else %}
                                         <span style="background: rgba(220, 53, 69, 0.2); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.4); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">🔴 Offen</span>
                                     {% endif %}
@@ -1040,19 +1085,32 @@
                                         {% if r.status != 'settled' %}
                                             <form method="post" action="{{ url_for('finances.mark_receivable_route', receivable_id=r.id) }}" style="margin: 0; display: inline;">
                                                 <input type="hidden" name="action" value="settled">
+                                                <input type="hidden" name="period" value="{{ selected_period }}">
                                                 <button type="submit" class="primary" style="background: #28a745; border-color: #28a745; font-size: 11px; padding: 3px 8px; cursor: pointer;" title="Diesen Posten als vollständig beglichen abhaken (auch bei Teilzahlung)">
                                                     ✓ Abhaken
                                                 </button>
                                             </form>
-                                            <form method="post" action="{{ url_for('finances.mark_receivable_route', receivable_id=r.id) }}" style="margin: 0; display: inline;">
-                                                <input type="hidden" name="action" value="waived">
-                                                <button type="submit" class="secondary" style="font-size: 11px; padding: 3px 8px; cursor: pointer;" title="Posten erlassen (z. B. Befreiung)">
-                                                    ⚪ Erlassen
-                                                </button>
-                                            </form>
+                                            {% if r.status != 'waived' %}
+                                                <form method="post" action="{{ url_for('finances.mark_receivable_route', receivable_id=r.id) }}" style="margin: 0; display: inline;">
+                                                    <input type="hidden" name="action" value="waived">
+                                                    <input type="hidden" name="period" value="{{ selected_period }}">
+                                                    <button type="submit" class="secondary" style="font-size: 11px; padding: 3px 8px; cursor: pointer;" title="Posten erlassen (z. B. Befreiung)">
+                                                        ⚪ Erlassen
+                                                    </button>
+                                                </form>
+                                            {% else %}
+                                                <form method="post" action="{{ url_for('finances.mark_receivable_route', receivable_id=r.id) }}" style="margin: 0; display: inline;">
+                                                    <input type="hidden" name="action" value="open">
+                                                    <input type="hidden" name="period" value="{{ selected_period }}">
+                                                    <button type="submit" class="secondary" style="font-size: 11px; padding: 3px 8px; cursor: pointer; color: #ff8888;" title="Posten auf offen setzen">
+                                                        🔴 Auf Offen
+                                                    </button>
+                                                </form>
+                                            {% endif %}
                                         {% else %}
                                             <form method="post" action="{{ url_for('finances.mark_receivable_route', receivable_id=r.id) }}" style="margin: 0; display: inline;">
                                                 <input type="hidden" name="action" value="open">
+                                                <input type="hidden" name="period" value="{{ selected_period }}">
                                                 <button type="submit" class="secondary" style="font-size: 11px; padding: 3px 8px; cursor: pointer;" title="Posten wieder auf offen stellen">
                                                     ↩ Auf Offen
                                                 </button>
@@ -1060,6 +1118,7 @@
                                         {% endif %}
                                         {% if r.source == 'manual' or r.kind == 'special' %}
                                             <form method="post" action="{{ url_for('finances.delete_receivable_route', receivable_id=r.id) }}" onsubmit="return confirm('Möchtest du diesen Posten wirklich löschen?');" style="margin: 0; display: inline;">
+                                                <input type="hidden" name="period" value="{{ selected_period }}">
                                                 <button type="submit" style="background: transparent; border: none; color: #ff8888; font-size: 13px; cursor: pointer; padding: 2px 4px;" title="Posten löschen">
                                                     🗑️
                                                 </button>
@@ -2626,8 +2685,19 @@ function filterReceivablesByStatus(status, btn) {
     const btns = document.querySelectorAll('.rec-status-filter-btn');
     btns.forEach(b => {
         if (b === btn) {
-            b.style.background = status === 'open_only' ? 'rgba(220, 53, 69, 0.25)' : (status === 'settled_only' ? 'rgba(40, 167, 69, 0.25)' : 'var(--accent)');
-            b.style.color = status === 'open_only' ? '#ff8888' : (status === 'settled_only' ? '#88ff88' : '#fff');
+            if (status === 'open_only') {
+                b.style.background = 'rgba(220, 53, 69, 0.25)';
+                b.style.color = '#ff8888';
+            } else if (status === 'settled_only') {
+                b.style.background = 'rgba(40, 167, 69, 0.25)';
+                b.style.color = '#88ff88';
+            } else if (status === 'waived_only') {
+                b.style.background = 'rgba(255, 193, 7, 0.25)';
+                b.style.color = '#ffe082';
+            } else {
+                b.style.background = 'var(--accent)';
+                b.style.color = '#fff';
+            }
         } else {
             b.style.background = 'transparent';
             b.style.color = 'var(--text-muted)';
@@ -2636,14 +2706,30 @@ function filterReceivablesByStatus(status, btn) {
     filterReceivablesTable();
 }
 
+function onReceivablePeriodFilterChanged(val) {
+    filterReceivablesTable();
+    try {
+        const url = new URL(window.location.href);
+        if (val !== 'all') {
+            url.searchParams.set('period', val);
+        } else {
+            url.searchParams.delete('period');
+        }
+        window.history.replaceState({}, '', url.toString());
+    } catch (e) {}
+}
+
 function filterReceivablesTable() {
     const input = document.getElementById('receivable-search-input');
     const term = input ? input.value.trim().toLowerCase() : '';
+    const periodSelect = document.getElementById('rec-period-filter');
+    const selectedPeriod = periodSelect ? periodSelect.value : 'all';
     const rows = document.querySelectorAll('.rec-row');
 
     rows.forEach(r => {
         const kind = r.getAttribute('data-kind');
         const status = r.getAttribute('data-status');
+        const period = r.getAttribute('data-period') || 'other';
         const isOpen = r.getAttribute('data-open') === '1';
         const search = r.getAttribute('data-search') || '';
 
@@ -2652,13 +2738,97 @@ function filterReceivablesTable() {
         if (currentRecStatus === 'open_only') {
             matchStatus = isOpen;
         } else if (currentRecStatus === 'settled_only') {
-            matchStatus = (status === 'settled' || status === 'waived');
+            matchStatus = (status === 'settled');
+        } else if (currentRecStatus === 'waived_only') {
+            matchStatus = (status === 'waived');
         }
 
+        let matchPeriod = (selectedPeriod === 'all' || period === selectedPeriod);
         let matchSearch = !term || search.includes(term);
 
-        r.style.display = (matchKind && matchStatus && matchSearch) ? '' : 'none';
+        r.style.display = (matchKind && matchStatus && matchPeriod && matchSearch) ? '' : 'none';
     });
+    updateReceivableBulkBar();
+}
+
+// --- MULTI-SELECT & BULK ACTIONS FOR RECEIVABLES ---
+function toggleSelectAllReceivables(masterCheckbox) {
+    const rows = document.querySelectorAll('.rec-row');
+    const checked = masterCheckbox.checked;
+    rows.forEach(r => {
+        if (r.style.display !== 'none') {
+            const cb = r.querySelector('.rec-row-checkbox');
+            if (cb) cb.checked = checked;
+        }
+    });
+    updateReceivableBulkBar();
+}
+
+function updateReceivableBulkBar() {
+    const allVisibleCheckboxes = Array.from(document.querySelectorAll('.rec-row'))
+        .filter(r => r.style.display !== 'none')
+        .map(r => r.querySelector('.rec-row-checkbox'))
+        .filter(Boolean);
+
+    const checkedBoxes = Array.from(document.querySelectorAll('.rec-row-checkbox:checked'));
+    const count = checkedBoxes.length;
+
+    const countEl = document.getElementById('rec-selected-count');
+    if (countEl) countEl.textContent = count;
+
+    const bulkBar = document.getElementById('receivables-bulk-bar');
+    if (bulkBar) {
+        bulkBar.style.display = count > 0 ? 'flex' : 'none';
+    }
+
+    const masterCheckbox = document.getElementById('rec-master-checkbox');
+    if (masterCheckbox) {
+        const visibleChecked = allVisibleCheckboxes.filter(cb => cb.checked);
+        if (allVisibleCheckboxes.length > 0 && visibleChecked.length === allVisibleCheckboxes.length) {
+            masterCheckbox.checked = true;
+            masterCheckbox.indeterminate = false;
+        } else if (visibleChecked.length > 0) {
+            masterCheckbox.checked = false;
+            masterCheckbox.indeterminate = true;
+        } else {
+            masterCheckbox.checked = false;
+            masterCheckbox.indeterminate = false;
+        }
+    }
+}
+
+function clearReceivableSelection() {
+    document.querySelectorAll('.rec-row-checkbox').forEach(cb => { cb.checked = false; });
+    const masterCheckbox = document.getElementById('rec-master-checkbox');
+    if (masterCheckbox) {
+        masterCheckbox.checked = false;
+        masterCheckbox.indeterminate = false;
+    }
+    updateReceivableBulkBar();
+}
+
+function submitReceivablesBulk(action) {
+    const checkedBoxes = Array.from(document.querySelectorAll('.rec-row-checkbox:checked'));
+    if (checkedBoxes.length === 0) {
+        alert('Bitte mindestens einen Posten auswählen.');
+        return;
+    }
+    const ids = checkedBoxes.map(cb => cb.value);
+
+    const actionLabel = action === 'settled' ? 'als beglichen abhaken' : (action === 'waived' ? 'befreien / erlassen' : 'auf offen zurücksetzen');
+    if (!confirm(`Möchtest du wirklich ${ids.length} Posten gleichzeitig ${actionLabel}?`)) {
+        return;
+    }
+
+    const idsInput = document.getElementById('rec-bulk-ids-input');
+    const actionInput = document.getElementById('rec-bulk-action-input');
+    const form = document.getElementById('rec-bulk-form');
+
+    if (idsInput && actionInput && form) {
+        idsInput.value = ids.join(',');
+        actionInput.value = action;
+        form.submit();
+    }
 }
 
 // --- SONDERPOSTEN MODAL ---

@@ -571,7 +571,7 @@ def get_receivable_by_id(connection, receivable_id: int) -> dict | None:
     ).fetchone()
     paid_sum = float(alloc_sum_row["paid"]) if alloc_sum_row else 0.0
     r["paid_amount"] = paid_sum
-    if r.get("manual_settled") or r["status"] in ("settled", "waived"):
+    if r.get("manual_settled") == 1 or r["status"] in ("settled", "waived"):
         r["open_amount"] = 0.0
     else:
         r["open_amount"] = max(0.0, float(r["amount"]) - paid_sum)
@@ -632,7 +632,7 @@ def get_receivables(
     for r in recs:
         paid_sum = alloc_map.get(r["id"], 0.0)
         r["paid_amount"] = paid_sum
-        if r.get("manual_settled") or r["status"] in ("settled", "waived"):
+        if r.get("manual_settled") == 1 or r["status"] in ("settled", "waived"):
             r["open_amount"] = 0.0
         else:
             r["open_amount"] = max(0.0, float(r["amount"]) - paid_sum)
@@ -667,7 +667,7 @@ def update_receivable(
         params.append(note.strip() if note else None)
     if manual_settled is not None:
         updates.append("manual_settled = ?")
-        params.append(1 if manual_settled else 0)
+        params.append(int(manual_settled))
 
     params.append(receivable_id)
     connection.execute(
