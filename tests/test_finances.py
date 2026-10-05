@@ -2049,3 +2049,46 @@ def test_finance_ai_service(clean_finances_env, monkeypatch):
     res = suggest_transaction_allocation_ai(tx, recs, players)
     assert res is None
 
+
+def test_legacy_schema_migration_without_receivable_id(tmp_path):
+    """Test that existing databases lacking receivable_id migrate seamlessly without OperationalError."""
+    import sqlite3
+    db_file = tmp_path / "legacy_finances.db"
+    conn = sqlite3.connect(str(db_file))
+    conn.row_factory = sqlite3.Row
+
+    # Create ancient payment_allocations table without receivable_id or proxy columns
+    conn.execute("""
+        CREATE TABLE payment_allocations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_id INTEGER,
+            fee_type TEXT NOT NULL,
+            event_id INTEGER,
+            match_date TEXT,
+            player_id INTEGER,
+            attendee_id INTEGER,
+            period TEXT,
+            allocated_amount REAL NOT NULL,
+            payment_method TEXT NOT NULL,
+            note TEXT,
+            created_at TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+
+    # Now run create_finance_tables on this legacy database
+    create_finance_tables(conn)
+
+    # Verify column exists and index was created
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(payment_allocations)").fetchall()]
+    assert "receivable_id" in cols
+    assert "paid_by_player_id" in cols
+    assert "paid_by_user_id" in cols
+    assert "guest_alias" in cols
+
+    idx_rows = conn.execute("PRAGMA index_list(payment_allocations)").fetchall()
+    idx_names = [r["name"] for r in idx_rows]
+    assert "idx_allocations_receivable" in idx_names
+
+    conn.close()
+

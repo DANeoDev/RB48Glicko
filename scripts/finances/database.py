@@ -105,6 +105,18 @@ def create_finance_tables(connection):
         )
     """)
 
+    # Migrations for existing payment_allocations table before creating indices
+    for col, col_def in [
+        ("paid_by_player_id", "INTEGER DEFAULT NULL"),
+        ("paid_by_user_id", "INTEGER DEFAULT NULL"),
+        ("guest_alias", "TEXT DEFAULT NULL"),
+        ("receivable_id", "INTEGER DEFAULT NULL"),
+    ]:
+        try:
+            connection.execute(f"ALTER TABLE payment_allocations ADD COLUMN {col} {col_def}")
+        except Exception:
+            pass
+
     connection.execute("""
         CREATE INDEX IF NOT EXISTS idx_allocations_event
         ON payment_allocations(event_id, attendee_id)
@@ -130,30 +142,13 @@ def create_finance_tables(connection):
             updated_at TEXT NOT NULL
         )
     """)
-
-    # Migrations for existing databases
-    try:
-        connection.execute("ALTER TABLE finance_transactions ADD COLUMN note TEXT DEFAULT NULL")
-    except Exception:
-        pass
-    try:
-        connection.execute("ALTER TABLE payment_allocations ADD COLUMN paid_by_player_id INTEGER DEFAULT NULL")
-    except Exception:
-        pass
-    try:
-        connection.execute("ALTER TABLE payment_allocations ADD COLUMN paid_by_user_id INTEGER DEFAULT NULL")
-    except Exception:
-        pass
-    try:
-        connection.execute("ALTER TABLE payment_allocations ADD COLUMN guest_alias TEXT DEFAULT NULL")
-    except Exception:
-        pass
     try:
         connection.execute("ALTER TABLE player_membership_status ADD COLUMN member_since TEXT DEFAULT NULL")
     except Exception:
         pass
+
     try:
-        connection.execute("ALTER TABLE payment_allocations ADD COLUMN receivable_id INTEGER DEFAULT NULL")
+        connection.execute("ALTER TABLE finance_transactions ADD COLUMN note TEXT DEFAULT NULL")
     except Exception:
         pass
 
