@@ -486,6 +486,12 @@ def calculate_match_details(
             player_delta = tm_weight * (updated_virtual.rating - virtual_player.rating)
             delta_b = player_delta
 
+    calculated_rating_delta = (
+        player_delta
+        if player_delta is not None
+        else (delta_a if player_team == "a" else (delta_b if player_team == "b" else delta_a))
+    )
+
     return {
         "team_a_rating": team_a_rating.rating,
         "team_a_rd": team_a_rating.rd,
@@ -493,7 +499,7 @@ def calculate_match_details(
         "team_b_rd": team_b_rating.rd,
         "team_a_expected": team_a_expected,
         "team_b_expected": team_b_expected,
-        "rating_delta": delta_a,
+        "rating_delta": calculated_rating_delta,
         "delta_a": delta_a,
         "delta_b": delta_b,
         "player_delta": player_delta,
@@ -595,7 +601,11 @@ def build_match_history(
             "is_draw": is_draw,
             "goals_for": goals_for,
             "goals_against": goals_against,
-            "individual_player_delta": details.get("player_delta"),
+            "individual_player_delta": (
+                details.get("player_delta")
+                if details.get("player_delta") is not None
+                else details.get("rating_delta")
+            ),
             **details,
         })
 

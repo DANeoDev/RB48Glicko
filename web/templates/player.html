@@ -345,7 +345,7 @@
                         <th style="text-align: center;">{{ t('stats.losses', 'N') }}</th>
                         <th style="text-align: center;">{{ t('stats.win_rate', 'Siegquote') }}</th>
                         {% if has_tier('glicko_user') %}
-                        <th style="text-align: center;">{{ t('player.delta_avg', 'Ø Delta') }}</th>
+                        <th style="text-align: center;" title="{{ t('player.delta_total_title', 'Summe der Rating-Deltas (E-Rating) in gemeinsamen/gegnerischen Spielen') }}">{{ t('player.delta_total', 'Δ E-Rating') }}</th>
                         {% endif %}
                     </tr>
                 </thead>
@@ -410,8 +410,8 @@ window.allMatchesData = [
         is_win: {{ 'true' if match['is_win'] else 'false' }},
         is_loss: {{ 'true' if match['is_loss'] else 'false' }},
         is_draw: {{ 'true' if match['is_draw'] else 'false' }},
-        delta: {{ match['rating_delta'] if (show_player_glicko and match['rating_delta'] is not none) else 'null' }},
-        player_delta: {{ match['rating_delta'] if (show_player_glicko and match['rating_delta'] is not none) else 'null' }},
+        delta: {{ match['individual_player_delta'] if (show_player_glicko and match['individual_player_delta'] is not none) else ('null' if not show_player_glicko else (match['player_delta'] if match['player_delta'] is not none else (match['rating_delta'] if match['rating_delta'] is not none else 'null'))) }},
+        player_delta: {{ match['individual_player_delta'] if (show_player_glicko and match['individual_player_delta'] is not none) else ('null' if not show_player_glicko else (match['player_delta'] if match['player_delta'] is not none else (match['rating_delta'] if match['rating_delta'] is not none else 'null'))) }},
         own_team_ids: {{ match['own_team_ids'] | tojson }},
         opp_team_ids: {{ match['opp_team_ids'] | tojson }}
     }{% if not loop.last %},{% endif %}

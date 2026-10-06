@@ -238,6 +238,13 @@ class MatchCenterFrontendTests(unittest.TestCase):
         self.assertIsNotNone(details_p2["player_delta"])
         # High RD player 1 should gain more rating than low RD player 2 on the same winning team
         self.assertGreater(details_p1["player_delta"], details_p2["player_delta"])
+        self.assertEqual(details_p1["rating_delta"], details_p1["player_delta"])
+
+        # Player 3 on losing Team B must have negative delta and rating_delta == player_delta
+        details_p3 = calculate_match_details(match, team_a, team_b, match_ratings, TOTAL, player_id=3)
+        self.assertIsNotNone(details_p3["player_delta"])
+        self.assertLess(details_p3["player_delta"], 0)
+        self.assertEqual(details_p3["rating_delta"], details_p3["player_delta"])
 
     def test_match_center_get_with_players_and_date_and_pitch(self):
         with self.app.test_client() as client:

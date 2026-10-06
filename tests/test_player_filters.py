@@ -148,6 +148,43 @@ class TestPlayerFilters(unittest.TestCase):
         self.assertIn("Persönliche Spielhistorie", html)
         self.assertIn("corr-modal", html)
 
+    def test_correlation_map_deltas_include_negative_sums(self):
+        conn = get_connection()
+        try:
+            players = get_players(conn)
+            matches = build_match_history(conn, players, player_id=1, rating_type=TOTAL)
+            self.assertGreater(len(matches), 0)
+
+            # Check individual_player_delta signs match match results
+            for m in matches:
+                delta = m.get("individual_player_delta")
+                if delta is not None:
+                    if m["is_win"]:
+                        self.assertGreater(delta, 0.0)
+                    elif m["is_loss"]:
+                        self.assertLess(delta, 0.0)
+
+            # Check that teammate delta sum produces both positive and negative values across teammates
+            teammate_deltas = {}
+            for m in matches:
+                match_delta = m.get("individual_player_delta", 0.0) or 0.0
+                for tid in m["own_team_ids"]:
+                    teammate_deltas[tid] = teammate_deltas.get(tid, 0.0) + match_delta
+
+            has_negative = any(d < 0 for d in teammate_deltas.values())
+            self.assertTrue(has_negative, "Teammate deltas must include negative sums for losing teammate records")
+        finally:
+            conn.close()
+
+        # Also check page HTML renders the updated table header
+        user_id = self.create_user_session(player_id=1)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        resp = self.client.get("/player/1")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("Δ E-Rating", html)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -456,6 +456,8 @@ TRANSLATIONS_DE = {
     "player.corr_table_winrate": "Siegquote",
     "player.corr_table_delta": "Rating-Delta",
     "player.corr_table_goals": "Tore",
+    "player.delta_total": "Δ E-Rating",
+    "player.delta_total_title": "Summe der Rating-Deltas (E-Rating) in gemeinsamen bzw. gegnerischen Spielen.",
 
     # =========================================================================
     # Match Center

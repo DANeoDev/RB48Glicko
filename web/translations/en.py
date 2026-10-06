@@ -441,6 +441,8 @@ TRANSLATIONS_EN = {
     "player.corr_table_winrate": "Win Rate",
     "player.corr_table_delta": "Rating Delta",
     "player.corr_table_goals": "Goals",
+    "player.delta_total": "Δ E-Rating",
+    "player.delta_total_title": "Sum of rating deltas (E-Rating) in shared or opposing matches.",
 
     # Match Center
     "match_center.title": "Match Center",

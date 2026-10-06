@@ -148,7 +148,7 @@
                     </div>
                     <div>
                         <div>${st.wins}S - ${st.draws}U - ${st.losses}N</div>
-                        ${hasGlicko ? `<div><strong>${sign}${st.delta.toFixed(1)}</strong> Delta</div>` : ''}
+                        ${hasGlicko ? `<div><strong style="color: ${st.delta > 0 ? '#88ff88' : (st.delta < 0 ? '#ff8888' : 'inherit')}">${sign}${st.delta.toFixed(1)}</strong> Δ E-Rating</div>` : ''}
                     </div>
                 </div>
                 <div style="margin-top: 6px; font-size: 10px; color: #a89ec4; text-align: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
@@ -170,7 +170,7 @@
                          onclick="window.PlayerCorrelationMap.selectPlayerAndFilter(${st.playerId})"
                          title="Klicken, um nach ${st.name} zu filtern">
                         <span style="font-weight: 600; color: ${isActive ? '#80deea' : '#ffffff'};">${st.name}</span>
-                        <span style="font-size: 11px; color: var(--text-muted);">${st.wins}S-${st.draws}U-${st.losses}N ${hasGlicko ? `· <strong style="color:${st.delta>=0?'#88ff88':'#ff8888'}">${sign}${st.delta.toFixed(1)}</strong>` : ''}</span>
+                        <span style="font-size: 11px; color: var(--text-muted);">${st.wins}S-${st.draws}U-${st.losses}N ${hasGlicko ? `· <strong style="color:${st.delta>0?'#88ff88':(st.delta<0?'#ff8888':'inherit')}">${sign}${st.delta.toFixed(1)}</strong> Δ` : ''}</span>
                     </div>
                 `;
             }).join("");
