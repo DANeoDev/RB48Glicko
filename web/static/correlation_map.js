@@ -196,8 +196,19 @@
         const ttWidth = tooltipEl.offsetWidth || 230;
         const ttHeight = tooltipEl.offsetHeight || 90;
 
-        let posX = e.clientX - containerRect.left;
-        let posY = e.clientY - containerRect.top;
+        // Support both mouse event (clientX) and touch event / simulated coords
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+        if (clientX === undefined && e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else if (clientX === undefined && e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX;
+            clientY = e.changedTouches[0].clientY;
+        }
+
+        let posX = (clientX !== undefined) ? (clientX - containerRect.left) : (containerRect.width / 2);
+        let posY = (clientY !== undefined) ? (clientY - containerRect.top) : (containerRect.height / 2);
 
         let transY = "-100%";
         if (posY - ttHeight - 16 < 0) {
@@ -209,7 +220,7 @@
         }
 
         const halfW = ttWidth / 2;
-        const marginX = 10;
+        const marginX = 8;
         let clampedX = Math.max(halfW + marginX, Math.min(containerRect.width - halfW - marginX, posX));
 
         tooltipEl.style.left = `${clampedX}px`;
@@ -396,7 +407,14 @@
             node.addEventListener("mouseenter", (e) => showTooltip(e, [st], pid));
             node.addEventListener("mousemove", (e) => showTooltip(e, [st], pid));
             node.addEventListener("mouseleave", scheduleHideTooltip);
-            node.addEventListener("click", () => selectPlayerAndFilter(pid));
+            // On touch devices, single tap shows tooltip, double/explicit action filters
+            node.addEventListener("click", (e) => {
+                if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                    showTooltip(e, [st], pid);
+                } else {
+                    selectPlayerAndFilter(pid);
+                }
+            });
         });
 
         // Attach events for clusters & petals
@@ -408,6 +426,10 @@
                 hubCircle.addEventListener("mouseenter", (e) => showTooltip(e, group, null));
                 hubCircle.addEventListener("mousemove", (e) => showTooltip(e, group, null));
                 hubCircle.addEventListener("mouseleave", scheduleHideTooltip);
+                hubCircle.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    showTooltip(e, group, null);
+                });
             }
         });
 
@@ -421,8 +443,19 @@
             petalEl.addEventListener("mouseleave", scheduleHideTooltip);
             petalEl.addEventListener("click", (e) => {
                 e.stopPropagation();
-                selectPlayerAndFilter(pid);
+                if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                    showTooltip(e, group, pid);
+                } else {
+                    selectPlayerAndFilter(pid);
+                }
             });
+        });
+
+        // Tap on SVG background dismisses tooltip
+        svgEl.addEventListener("click", (e) => {
+            if (!e.target.closest(".corr-node") && !e.target.closest(".corr-cluster") && !e.target.closest(".corr-petal-node")) {
+                hideTooltip();
+            }
         });
 
         // Render breakdown table
