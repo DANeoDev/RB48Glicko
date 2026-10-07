@@ -645,8 +645,16 @@
         return div.innerHTML;
     }
 
-    function buildSelectOptions(teamA, teamB, defaultPlaceholder) {
+    function buildSelectOptions(teamA, teamB, defaultPlaceholder, isBoxSession, boxPlayers) {
         let html = `<option value="">-- ${defaultPlaceholder} --</option>`;
+        if (isBoxSession && boxPlayers && boxPlayers.length > 0) {
+            html += `<optgroup label="{{ t('matches.box_evening_candidates', 'Spieler des Box-Abends') }}">`;
+            boxPlayers.forEach(p => {
+                html += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+            });
+            html += `</optgroup>`;
+            return html;
+        }
         if (teamA && teamA.length > 0) {
             html += `<optgroup label="{{ t('matches.team_a', 'Team A') }}">`;
             teamA.forEach(p => {
@@ -731,17 +739,33 @@
                 return;
             }
 
-            if (matchInfoEl) {
-                matchInfoEl.textContent = `${matchId} (${data.match_date}) · Frist: ${data.deadline_formatted}`;
+            const isBox = !!data.is_box_session;
+            const titleEl = document.getElementById('mvp-modal-title');
+            const descEl = document.querySelector('.mvp-modal-desc');
+
+            if (isBox) {
+                if (titleEl) titleEl.innerHTML = `🏅 {{ t('matches.box_mvp_modal_title', 'Box-Abend MVP & Stimmen vergeben') }}`;
+                if (descEl) descEl.textContent = `{{ t('matches.box_mvp_modal_desc', 'Vergib bis zu 3 Stimmen für die besten Spieler des gesamten Box-Abends (1., 2. und 3. Platz). Es können auch nur 1 oder 2 Stimmen vergeben werden.') }}`;
+                if (matchInfoEl) {
+                    const matchNums = (data.box_matches || []).join(', ');
+                    matchInfoEl.textContent = `Box-Abend (${data.match_date}) · ${matchNums} · Frist: ${data.deadline_formatted}`;
+                }
+            } else {
+                if (titleEl) titleEl.innerHTML = `🏅 {{ t('matches.mvp_modal_title', 'Match MVP & Stimmen vergeben') }}`;
+                if (descEl) descEl.textContent = `{{ t('matches.mvp_modal_desc', 'Vergib bis zu 3 Stimmen für die besten Spieler der Partie (1., 2. und 3. Platz). Es können auch nur 1 oder 2 Stimmen vergeben werden.') }}`;
+                if (matchInfoEl) {
+                    matchInfoEl.textContent = `${matchId} (${data.match_date}) · Frist: ${data.deadline_formatted}`;
+                }
             }
 
             const teamA = data.team_a_players || [];
             const teamB = data.team_b_players || [];
+            const boxPlayers = data.box_players || [];
             const userVotes = data.user_votes || (data.user_vote ? [data.user_vote] : []);
 
-            if (slot1) slot1.innerHTML = buildSelectOptions(teamA, teamB, '{{ t('matches.select_player_placeholder', 'Spieler auswählen') }}');
-            if (slot2) slot2.innerHTML = buildSelectOptions(teamA, teamB, '{{ t('matches.slot_optional_placeholder', 'Keine 2. Stimme (Optional)') }}');
-            if (slot3) slot3.innerHTML = buildSelectOptions(teamA, teamB, '{{ t('matches.slot_optional_placeholder', 'Keine 3. Stimme (Optional)') }}');
+            if (slot1) slot1.innerHTML = buildSelectOptions(teamA, teamB, '{{ t('matches.select_player_placeholder', 'Spieler auswählen') }}', isBox, boxPlayers);
+            if (slot2) slot2.innerHTML = buildSelectOptions(teamA, teamB, '{{ t('matches.slot_optional_placeholder', 'Keine 2. Stimme (Optional)') }}', isBox, boxPlayers);
+            if (slot3) slot3.innerHTML = buildSelectOptions(teamA, teamB, '{{ t('matches.slot_optional_placeholder', 'Keine 3. Stimme (Optional)') }}', isBox, boxPlayers);
 
             if (userVotes.length > 0) {
                 if (slot1 && userVotes[0]) slot1.value = String(userVotes[0]);
@@ -749,7 +773,8 @@
                 if (slot3 && userVotes[2]) slot3.value = String(userVotes[2]);
 
                 if (statusMsg) {
-                    statusMsg.textContent = `Du hast aktuell ${userVotes.length} Stimme(n) vergeben. Du kannst deine Stimmen jederzeit bis zum Fristende anpassen.`;
+                    const eveningWord = isBox ? 'für den Box-Abend ' : '';
+                    statusMsg.textContent = `Du hast aktuell ${userVotes.length} Stimme(n) ${eveningWord}vergeben. Du kannst deine Stimmen jederzeit bis zum Fristende anpassen.`;
                     statusMsg.style.display = 'block';
                 }
             }
@@ -825,21 +850,24 @@
                         statusMsg.style.display = 'block';
                     }
 
-                    // Update UI on match card without page reload
-                    const matchCard = document.querySelector(`.match[data-match-id="${matchId}"]`);
-                    if (matchCard) {
-                        matchCard.setAttribute('data-user-voted', 'true');
-                        const btn = matchCard.querySelector('.match-mvp-btn');
-                        if (btn) {
-                            btn.classList.remove('pulse');
-                            btn.classList.add('voted');
-                            btn.innerHTML = '⭐ {{ t('matches.mvp_voted_badge', 'MVP gewählt') }}';
+                    // Update UI on match cards (all games of this Box evening or single match) without page reload
+                    const affectedMatchIds = (result.box_matches && result.box_matches.length > 0) ? result.box_matches : [matchId];
+                    affectedMatchIds.forEach(mId => {
+                        const matchCard = document.querySelector(`.match[data-match-id="${mId}"]`);
+                        if (matchCard) {
+                            matchCard.setAttribute('data-user-voted', 'true');
+                            const btn = matchCard.querySelector('.match-mvp-btn');
+                            if (btn) {
+                                btn.classList.remove('pulse');
+                                btn.classList.add('voted');
+                                btn.innerHTML = '⭐ {{ t('matches.mvp_voted_badge', 'MVP gewählt') }}';
+                            }
+                            const banner = matchCard.querySelector('.match-mvp-banner');
+                            if (banner) {
+                                banner.innerHTML = '<span>⭐ {{ t('matches.mvp_banner_voted_short', 'Du hast für den MVP gestimmt. Klicke hier, um deine Wahl zu ändern.') }}</span>';
+                            }
                         }
-                        const banner = matchCard.querySelector('.match-mvp-banner');
-                        if (banner) {
-                            banner.innerHTML = '<span>⭐ {{ t('matches.mvp_banner_voted_short', 'Du hast für den MVP gestimmt. Klicke hier, um deine Wahl zu ändern.') }}</span>';
-                        }
-                    }
+                    });
 
                     setTimeout(() => {
                         closeModal();
@@ -927,13 +955,23 @@
                 return;
             }
 
-            if (matchInfoEl) {
-                matchInfoEl.textContent = `Match ${data.match_id} (${data.match_date})`;
-            }
-
-            if (votersCountEl) {
-                const count = data.total_voters || 0;
-                votersCountEl.textContent = `${count} Teilnehmer haben abgestimmt`;
+            if (data.is_box_session) {
+                if (matchInfoEl) {
+                    const matchNums = (data.box_matches || []).join(', ');
+                    matchInfoEl.textContent = `Box-Abend (${data.match_date}) · ${matchNums}`;
+                }
+                if (votersCountEl) {
+                    const count = data.total_voters || 0;
+                    votersCountEl.textContent = `${count} Teilnehmer haben für den Box-Abend abgestimmt`;
+                }
+            } else {
+                if (matchInfoEl) {
+                    matchInfoEl.textContent = `Match ${data.match_id} (${data.match_date})`;
+                }
+                if (votersCountEl) {
+                    const count = data.total_voters || 0;
+                    votersCountEl.textContent = `${count} Teilnehmer haben abgestimmt`;
+                }
             }
 
             if (candidatesEl) {

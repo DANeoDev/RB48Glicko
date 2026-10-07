@@ -282,7 +282,8 @@ class MvpVotingTests(unittest.TestCase):
             "can_vote", "deadline_formatted", "deadline_iso", "is_open",
             "match_date", "match_id", "mvp_player_ids", "gold_player_ids",
             "silver_player_ids", "bronze_player_ids", "success",
-            "team_a_players", "team_b_players", "user_vote", "user_votes"
+            "team_a_players", "team_b_players", "user_vote", "user_votes",
+            "is_box_session", "box_matches", "canonical_match_id", "box_players",
         })
 
         # Check match history HTML rendering
@@ -292,4 +293,129 @@ class MvpVotingTests(unittest.TestCase):
         # Should have MVP vote button and banner
         self.assertIn("match-mvp-btn", html)
         self.assertIn("match-mvp-banner", html)
+
+    def test_self_voting_disallowed_api_and_db(self):
+        """Users must strictly never be allowed to vote for themselves as MVP (neither slot 1, 2, nor 3)."""
+        main_conn = get_connection()
+        tz = ZoneInfo("Europe/Berlin")
+        today_str = datetime.now(tz).strftime("%Y-%m-%d")
+        test_mid = "TEST_SELF_VOTE"
+        try:
+            self.ensure_player(main_conn, 301, "Self Voter")
+            self.ensure_player(main_conn, 302, "Teammate One")
+            self.ensure_player(main_conn, 303, "Opponent One")
+            main_conn.execute("INSERT OR REPLACE INTO matches (match_id, date, pitch, players_a, players_b, goals_a, goals_b) VALUES (?, ?, 'hf', 2, 1, 3, 1)", (test_mid, today_str))
+            main_conn.execute("DELETE FROM match_players WHERE match_id = ?", (test_mid,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 301, 'a')", (test_mid,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 302, 'a')", (test_mid,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 303, 'b')", (test_mid,))
+            main_conn.commit()
+        finally:
+            main_conn.close()
+
+        u_self, _ = self.create_user(role="user", linked_player_id=301)
+        self.login_user(u_self)
+
+        # 1. Self-voting in slot 1 is rejected with 400
+        res1 = self.client.post(f"/api/matches/{test_mid}/mvp-vote", json={"voted_player_id": 301})
+        self.assertEqual(res1.status_code, 400)
+        self.assertIn("selbst", res1.get_json()["error"])
+
+        # 2. Self-voting in slot 2 is rejected with 400
+        res2 = self.client.post(f"/api/matches/{test_mid}/mvp-vote", json={"voted_player_ids": [302, 301]})
+        self.assertEqual(res2.status_code, 400)
+        self.assertIn("selbst", res2.get_json()["error"])
+
+        # 3. Self-voting directly in database function raises ValueError
+        acc_conn = get_accounts_connection()
+        try:
+            with self.assertRaises(ValueError) as ctx:
+                record_match_mvp_vote(acc_conn, test_mid, u_self, 301)
+            self.assertIn("selbst", str(ctx.exception))
+        finally:
+            acc_conn.close()
+
+        # 4. Status endpoint excludes the current user from selectable candidates
+        res_status = self.client.get(f"/api/matches/{test_mid}/mvp-status")
+        data = res_status.get_json()
+        cand_ids = [p["id"] for p in data["team_a_players"]] + [p["id"] for p in data["team_b_players"]]
+        self.assertNotIn(301, cand_ids)
+        self.assertIn(302, cand_ids)
+        self.assertIn(303, cand_ids)
+
+        # 5. Legitimate vote for teammate succeeds
+        res_ok = self.client.post(f"/api/matches/{test_mid}/mvp-vote", json={"voted_player_id": 302})
+        self.assertEqual(res_ok.status_code, 200)
+
+    def test_box_evening_unified_mvp_voting(self):
+        """Box appointments on the same date share a single unified MVP election for the entire evening."""
+        main_conn = get_connection()
+        tz = ZoneInfo("Europe/Berlin")
+        today_str = datetime.now(tz).strftime("%Y-%m-%d")
+        mid1 = f"{today_str}-1"
+        mid2 = f"{today_str}-2"
+
+        try:
+            for pid in (401, 402, 403, 404, 405):
+                self.ensure_player(main_conn, pid, f"Player {pid}")
+
+            # Game 1: 401 & 402 vs 403
+            main_conn.execute("INSERT OR REPLACE INTO matches (match_id, date, pitch, players_a, players_b, goals_a, goals_b) VALUES (?, ?, 'box', 2, 1, 5, 4)", (mid1, today_str))
+            main_conn.execute("DELETE FROM match_players WHERE match_id = ?", (mid1,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 401, 'a')", (mid1,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 402, 'a')", (mid1,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 403, 'b')", (mid1,))
+
+            # Game 2: 401 & 404 vs 405 (Player 404 and 405 only played game 2, Player 402 only played game 1)
+            main_conn.execute("INSERT OR REPLACE INTO matches (match_id, date, pitch, players_a, players_b, goals_a, goals_b) VALUES (?, ?, 'box', 2, 1, 3, 3)", (mid2, today_str))
+            main_conn.execute("DELETE FROM match_players WHERE match_id = ?", (mid2,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 401, 'a')", (mid2,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 404, 'a')", (mid2,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 405, 'b')", (mid2,))
+            main_conn.commit()
+        finally:
+            main_conn.close()
+
+        invalidate_stats_cache()
+
+        # User linked to Player 402 (who only played in game 1)
+        u402, _ = self.create_user(role="user", linked_player_id=402)
+        self.login_user(u402)
+
+        # Check status for game 2: 402 can vote because they participated in the Box evening!
+        res_s2 = self.client.get(f"/api/matches/{mid2}/mvp-status")
+        self.assertEqual(res_s2.status_code, 200)
+        d2 = res_s2.get_json()
+        self.assertTrue(d2["is_box_session"])
+        self.assertEqual(d2["canonical_match_id"], mid1)
+        self.assertTrue(d2["can_vote"])
+        # Candidates include players from both games (401, 403, 404, 405), excluding self (402)
+        all_cands = [p["id"] for p in d2["box_players"]]
+        self.assertNotIn(402, all_cands)
+        self.assertIn(401, all_cands)
+        self.assertIn(404, all_cands)
+        self.assertIn(405, all_cands)
+
+        # Player 402 votes for Player 404 (who only played in game 2) via game 2's endpoint
+        vote_res = self.client.post(f"/api/matches/{mid2}/mvp-vote", json={"voted_player_ids": [404, 401]})
+        self.assertEqual(vote_res.status_code, 200)
+        v_data = vote_res.get_json()
+        self.assertTrue(v_data["success"])
+        self.assertTrue(v_data["is_box_session"])
+        self.assertEqual(v_data["canonical_match_id"], mid1)
+        self.assertEqual(v_data["box_matches"], [mid1, mid2])
+
+        # Status for game 1 now also reflects the recorded vote
+        res_s1 = self.client.get(f"/api/matches/{mid1}/mvp-status")
+        d1 = res_s1.get_json()
+        self.assertEqual(d1["user_votes"], [404, 401])
+        self.assertEqual(d1["user_vote"], 404)
+
+        # Match history renders both cards as voted
+        res_hist = self.client.get("/matches")
+        self.assertEqual(res_hist.status_code, 200)
+        hist_html = res_hist.get_data(as_text=True)
+        self.assertIn(f'data-match-id="{mid1}"', hist_html)
+        self.assertIn(f'data-match-id="{mid2}"', hist_html)
+
 

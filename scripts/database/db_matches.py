@@ -178,3 +178,66 @@ def get_player_stats(connection):
             player_stats[rating_type]["win_percent"] = (wins / games * 100) if games else 0
 
     return stats
+
+
+def get_box_session_matches(connection_or_matches, match_id: str) -> list[dict]:
+    """
+    If match_id belongs to a Box appointment (pitch == 'box'), return all Box matches on that same date,
+    sorted by match_id.
+    If not a Box match or not found, returns a list containing only the match itself (if found), or [].
+    Accepts either an open sqlite3 Connection or a dictionary mapping match_id -> match_dict.
+    """
+    if isinstance(connection_or_matches, dict):
+        match = connection_or_matches.get(match_id)
+        if not match:
+            return []
+        if str(match.get("pitch", "")).lower() != "box":
+            return [match]
+        m_date = match.get("date")
+        box_matches = [
+            m for m in connection_or_matches.values()
+            if m.get("date") == m_date and str(m.get("pitch", "")).lower() == "box"
+        ]
+        return sorted(box_matches, key=lambda x: str(x.get("match_id", "")))
+    else:
+        row = connection_or_matches.execute(
+            "SELECT match_id, date, pitch FROM matches WHERE match_id = ?",
+            (str(match_id),)
+        ).fetchone()
+        if not row:
+            return []
+        if str(row["pitch"]).lower() != "box":
+            return [{"match_id": row["match_id"], "date": row["date"], "pitch": row["pitch"]}]
+        m_date = row["date"]
+        rows = connection_or_matches.execute(
+            "SELECT match_id, date, pitch FROM matches WHERE date = ? AND LOWER(pitch) = 'box' ORDER BY match_id",
+            (m_date,)
+        ).fetchall()
+        return [{"match_id": r["match_id"], "date": r["date"], "pitch": r["pitch"]} for r in rows]
+
+
+def get_canonical_mvp_match_id(connection_or_matches, match_id: str) -> str:
+    """
+    For Box matches, all games on the same date belong to a single unified evening appointment.
+    Returns the first match_id on that date as the canonical election ID.
+    For non-Box matches (e.g. HF) or unrecorded matches, returns match_id itself.
+    """
+    box_matches = get_box_session_matches(connection_or_matches, match_id)
+    if box_matches:
+        return str(box_matches[0]["match_id"])
+    return str(match_id)
+
+
+def get_box_session_participants(connection, match_ids: list[str]) -> set[int]:
+    """
+    Return the set of all unique player_ids that participated in any of the specified match_ids.
+    """
+    if not match_ids:
+        return set()
+    placeholders = ",".join("?" for _ in match_ids)
+    rows = connection.execute(
+        f"SELECT DISTINCT player_id FROM match_players WHERE match_id IN ({placeholders})",
+        [str(m) for m in match_ids]
+    ).fetchall()
+    return {int(r["player_id"]) for r in rows}
+

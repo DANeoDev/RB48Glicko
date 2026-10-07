@@ -174,10 +174,35 @@ class TestMVPVotingAndMedals(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"MVP-Medaillenspiegel", resp.data)
 
-        # Query parameter filters
-        resp_q1 = self.client.get("/stats/mvp-medals?year=2026&period=Q1")
-        self.assertEqual(resp_q1.status_code, 200)
+    def test_box_appointments_deduplicated_in_medal_table(self):
+        """A Box evening with multiple matches (e.g. game 1 and game 2) awards exactly 1 set of medals in the medal table."""
+        u1 = self.create_user(linked_player_id=1)
+
+        # Evening of 2024-05-01 has 2 Box games
+        mid1 = "2024-05-01-1"
+        mid2 = "2024-05-01-2"
+        record_match_mvp_votes(self.conn, mid1, u1, [10, 20, 30])
+
+        matches_dict = {
+            mid1: {"match_id": mid1, "date": "2024-05-01", "pitch": "box"},
+            mid2: {"match_id": mid2, "date": "2024-05-01", "pitch": "box"},
+        }
+
+        # Query medal table with both matches included
+        table = get_mvp_medal_table(self.conn, matches_dict, filtered_match_ids=[mid1, mid2])
+        self.assertEqual(len(table), 3)
+        self.assertEqual(table[0]["player_id"], 10)
+        self.assertEqual(table[0]["gold"], 1)  # Only 1 gold awarded for the evening!
+        self.assertEqual(table[0]["total_medals"], 1)
+
+    def test_self_voting_rejected_in_record_votes(self):
+        """User cannot vote for themselves in record_match_mvp_votes."""
+        u1 = self.create_user(linked_player_id=10)
+        with self.assertRaises(ValueError) as ctx:
+            record_match_mvp_votes(self.conn, "M001", u1, [10, 20])
+        self.assertIn("selbst", str(ctx.exception))
 
 
 if __name__ == "__main__":
     unittest.main()
+

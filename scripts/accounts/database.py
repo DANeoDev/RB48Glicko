@@ -1389,12 +1389,20 @@ def record_match_mvp_vote(
     voted_player_id_3: int | None = None,
 ) -> bool:
     """Record or update an anonymous ranked MVP vote (1 to 3 distinct players) for a match."""
+    # Prevent self-voting if voter is linked to a player
+    user_row = connection.execute(
+        "SELECT player_id FROM users WHERE id = ?", (int(voter_user_id),)
+    ).fetchone()
+    voter_player_id = int(user_row["player_id"]) if user_row and user_row["player_id"] else None
+
     now_iso = get_cologne_timestamp_str()
     # Normalize: ensure no duplicates in votes
     seen = set()
     votes = []
     for pid in [voted_player_id, voted_player_id_2, voted_player_id_3]:
         if pid is not None and int(pid) > 0 and pid not in seen:
+            if voter_player_id and int(pid) == voter_player_id:
+                raise ValueError("Du darfst dich nicht selbst als MVP wählen.")
             seen.add(pid)
             votes.append(int(pid))
 
@@ -1596,6 +1604,7 @@ def get_mvp_medal_table(
 ) -> list[dict]:
     """
     Aggregate Gold, Silver, and Bronze MVP medals across matches.
+    For Box appointments, deduplicates matches by date so each Box evening awards medals only once.
     Returns a sorted list of player records:
     [
         {
@@ -1609,14 +1618,15 @@ def get_mvp_medal_table(
         }
     ]
     """
-    podium_map = get_match_mvp_podium(connection, match_ids=filtered_match_ids)
+    candidate_mids = filtered_match_ids if filtered_match_ids is not None else list(all_matches_dict.keys())
+    podium_map = get_match_mvp_podium(connection, match_ids=candidate_mids)
 
     # Filter out matches where voting is still open (akute Abstimmungen nicht involvieren!)
     valid_mids = set()
-    candidate_mids = filtered_match_ids if filtered_match_ids is not None else list(all_matches_dict.keys())
     for mid in candidate_mids:
         m = all_matches_dict.get(mid)
         if m is None:
+            valid_mids.add(mid)
             continue
         m_date = m.get("date")
         if m_date:
@@ -1628,10 +1638,22 @@ def get_mvp_medal_table(
         valid_mids.add(mid)
 
     player_medals: dict[int, dict[str, int]] = {}
+    seen_box_dates = set()
 
-    for m_id, p_info in podium_map.items():
+    for m_id, p_info in sorted(podium_map.items(), key=lambda x: str(x[0])):
         if m_id not in valid_mids:
             continue
+        if not p_info.get("details"):
+            continue
+
+        m = all_matches_dict.get(m_id)
+        if m and str(m.get("pitch", "")).lower() == "box":
+            m_date = m.get("date")
+            if m_date:
+                if m_date in seen_box_dates:
+                    continue
+                seen_box_dates.add(m_date)
+
         for pid in p_info.get("gold", []):
             entry = player_medals.setdefault(pid, {"gold": 0, "silver": 0, "bronze": 0})
             entry["gold"] += 1

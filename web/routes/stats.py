@@ -34,7 +34,15 @@ from scripts.analysis.history_snapshots import (
 from scripts.analysis.model_analysis import analyze_model
 from scripts.analysis.synergies import get_community_synergies
 from scripts.database.database import get_connection
-from scripts.database.db_matches import get_player_stats, get_matches, get_match_teams
+from scripts.database.db_matches import (
+    get_player_stats,
+    get_matches,
+    get_match_teams,
+    get_all_match_players,
+    get_canonical_mvp_match_id,
+    get_box_session_matches,
+    get_box_session_participants,
+)
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_player_rating_history, get_ratings
 from scripts.frontend.view_models import (
@@ -256,14 +264,38 @@ def match_history():
     curr_user = get_current_user()
     curr_user_player_id = curr_user.get("player_id") if curr_user else None
 
+    # Group Box matches by date to resolve unified Box evening MVP appointments
+    date_box_matches = {}
+    for m in matches:
+        if str(m.get("pitch", "")).lower() == "box":
+            date_box_matches.setdefault(m["date"], []).append(m)
+
+    match_canonical_id = {}
+    box_evening_participants = {}
+    for m in matches:
+        mid = m["match_id"]
+        if str(m.get("pitch", "")).lower() == "box":
+            b_list = sorted(date_box_matches[m["date"]], key=lambda x: str(x["match_id"]))
+            can_id = b_list[0]["match_id"]
+            match_canonical_id[mid] = can_id
+            if can_id not in box_evening_participants:
+                p_set = set()
+                for bm in b_list:
+                    p_set.update(bm.get("team_a_ids", []))
+                    p_set.update(bm.get("team_b_ids", []))
+                box_evening_participants[can_id] = p_set
+        else:
+            match_canonical_id[mid] = mid
+
+    all_needed_mids = list(set(list(match_canonical_id.keys()) + list(match_canonical_id.values())))
+
     acc_conn = get_accounts_connection()
     try:
         opted_out_player_ids = get_opted_out_player_ids(acc_conn)
-        match_ids = [m["match_id"] for m in matches]
-        all_mvp_podiums = get_match_mvp_podium(acc_conn, match_ids=match_ids)
+        all_mvp_podiums = get_match_mvp_podium(acc_conn, match_ids=all_needed_mids)
         user_mvp_votes = {}
         if curr_user and curr_user.get("id"):
-            user_mvp_votes = get_user_mvp_votes_for_matches(acc_conn, curr_user["id"], match_ids=match_ids)
+            user_mvp_votes = get_user_mvp_votes_for_matches(acc_conn, curr_user["id"], match_ids=all_needed_mids)
     finally:
         acc_conn.close()
 
@@ -271,17 +303,27 @@ def match_history():
     match_voting_status = {}
     for m in matches:
         mid = m["match_id"]
+        can_id = match_canonical_id[mid]
+        is_box = (str(m.get("pitch", "")).lower() == "box")
         m_date = m.get("date", "")
         deadline = get_match_mvp_deadline(m_date)
         is_open = now_dt <= deadline
 
-        participant_ids = m.get("team_a_ids", []) + m.get("team_b_ids", [])
+        if is_box:
+            participant_ids = box_evening_participants.get(can_id, set())
+        else:
+            participant_ids = set(m.get("team_a_ids", []) + m.get("team_b_ids", []))
+
         can_vote = bool(is_open and curr_user_player_id and curr_user_player_id in participant_ids)
-        user_votes_list = user_mvp_votes.get(mid, [])
+        user_votes_list = user_mvp_votes.get(can_id, [])
+        if not user_votes_list:
+            user_votes_list = user_mvp_votes.get(mid, [])
         user_vote_1 = user_votes_list[0] if user_votes_list else None
 
         # MVP podium: shown once voting is closed
-        raw_podium = all_mvp_podiums.get(mid, {})
+        raw_podium = all_mvp_podiums.get(can_id, {})
+        if not raw_podium.get("details"):
+            raw_podium = all_mvp_podiums.get(mid, {})
         has_votes = bool(raw_podium.get("details"))
         podium = raw_podium if not is_open else {}
         gold_ids = podium.get("gold", [])
@@ -300,6 +342,8 @@ def match_history():
             "bronze_player_ids": bronze_ids,
             "deadline_str": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
             "deadline_short": deadline.strftime("%d.%m., %H:%M"),
+            "is_box_session": is_box,
+            "canonical_match_id": can_id,
         }
 
     GAMES_PER_PAGE = 12
@@ -410,6 +454,10 @@ def cast_mvp_vote(match_id):
     if len(voted_player_ids) != len(set(voted_player_ids)):
         return jsonify({"success": False, "error": "Die Stimmen müssen an verschiedene Spieler vergeben werden."}), 400
 
+    # Disallow self-voting
+    if player_id in voted_player_ids:
+        return jsonify({"success": False, "error": "Du darfst dich nicht selbst als MVP wählen."}), 400
+
     conn = get_connection()
     try:
         matches = get_matches(conn)
@@ -417,13 +465,30 @@ def cast_mvp_vote(match_id):
         if not match:
             return jsonify({"success": False, "error": f"Match '{match_id}' wurde nicht gefunden."}), 404
 
-        team_a, team_b = get_match_teams(conn, match_id)
-        participants = set(team_a + team_b)
+        is_box = (str(match.get("pitch", "")).lower() == "box")
+        if is_box:
+            box_matches = sorted(
+                [m for m in matches.values() if m.get("date") == match["date"] and str(m.get("pitch", "")).lower() == "box"],
+                key=lambda x: x["match_id"]
+            )
+            canonical_match_id = box_matches[0]["match_id"]
+            box_mids = [m["match_id"] for m in box_matches]
+            all_players_map = get_all_match_players(conn)
+            participants = set()
+            for bmid in box_mids:
+                for p in all_players_map.get(bmid, []):
+                    participants.add(int(p["player_id"]))
+        else:
+            canonical_match_id = match_id
+            box_mids = [match_id]
+            team_a, team_b = get_match_teams(conn, match_id)
+            participants = set(team_a + team_b)
     finally:
         conn.close()
 
     if player_id not in participants:
-        return jsonify({"success": False, "error": "Nur Spieler, die an diesem Match teilgenommen haben, dürfen für den MVP stimmen."}), 403
+        err_msg = "Nur Spieler, die an diesem Box-Abend teilgenommen haben, dürfen für den MVP stimmen." if is_box else "Nur Spieler, die an diesem Match teilgenommen haben, dürfen für den MVP stimmen."
+        return jsonify({"success": False, "error": err_msg}), 403
 
     match_date = match["date"]
     if not is_match_mvp_voting_open(match_date):
@@ -432,20 +497,27 @@ def cast_mvp_vote(match_id):
 
     for pid in voted_player_ids:
         if pid not in participants:
-            return jsonify({"success": False, "error": "Alle gewählten Spieler müssen an diesem Match teilgenommen haben."}), 400
+            err_msg = "Alle gewählten Spieler müssen an diesem Box-Abend teilgenommen haben." if is_box else "Alle gewählten Spieler müssen an diesem Match teilgenommen haben."
+            return jsonify({"success": False, "error": err_msg}), 400
 
     acc_conn = get_accounts_connection()
     try:
-        record_match_mvp_votes(acc_conn, match_id, user["id"], voted_player_ids)
+        record_match_mvp_votes(acc_conn, canonical_match_id, user["id"], voted_player_ids)
+    except ValueError as ve:
+        return jsonify({"success": False, "error": str(ve)}), 400
     finally:
         acc_conn.close()
 
+    msg = "Deine Stimmen für den Box-Abend wurden erfolgreich und anonym gespeichert!" if is_box else "Deine Stimmen wurden erfolgreich und anonym gespeichert!"
     return jsonify({
         "success": True,
         "match_id": match_id,
+        "canonical_match_id": canonical_match_id,
+        "is_box_session": is_box,
+        "box_matches": box_mids,
         "voted_player_ids": voted_player_ids,
         "voted_player_id": voted_player_ids[0] if voted_player_ids else None,
-        "message": "Deine Stimmen wurden erfolgreich und anonym gespeichert!",
+        "message": msg,
     })
 
 
@@ -461,21 +533,45 @@ def get_mvp_status(match_id):
         if not match:
             return jsonify({"success": False, "error": f"Match '{match_id}' wurde nicht gefunden."}), 404
 
-        team_a, team_b = get_match_teams(conn, match_id)
         players = get_players(conn)
+        is_box = (str(match.get("pitch", "")).lower() == "box")
+        if is_box:
+            box_matches = sorted(
+                [m for m in matches.values() if m.get("date") == match["date"] and str(m.get("pitch", "")).lower() == "box"],
+                key=lambda x: x["match_id"]
+            )
+            canonical_match_id = box_matches[0]["match_id"]
+            box_mids = [m["match_id"] for m in box_matches]
+            all_players_map = get_all_match_players(conn)
+            all_part_ids = set()
+            for bmid in box_mids:
+                for p in all_players_map.get(bmid, []):
+                    all_part_ids.add(int(p["player_id"]))
+            participants = list(all_part_ids)
+            team_a, team_b = [], []
+        else:
+            canonical_match_id = match_id
+            box_mids = [match_id]
+            team_a, team_b = get_match_teams(conn, match_id)
+            participants = team_a + team_b
     finally:
         conn.close()
 
-    participants = team_a + team_b
     match_date = match["date"]
     deadline = get_match_mvp_deadline(match_date)
     is_open = is_match_mvp_voting_open(match_date)
 
     acc_conn = get_accounts_connection()
     try:
-        user_votes = get_user_match_mvp_votes(acc_conn, match_id, user["id"]) if user and user.get("id") else []
-        podium_map = get_match_mvp_podium(acc_conn, match_ids=[match_id])
-        podium = podium_map.get(match_id, {}) if not is_open else {}
+        user_votes = get_user_match_mvp_votes(acc_conn, canonical_match_id, user["id"]) if user and user.get("id") else []
+        if not user_votes and canonical_match_id != match_id and user and user.get("id"):
+            user_votes = get_user_match_mvp_votes(acc_conn, match_id, user["id"])
+        podium_map = get_match_mvp_podium(acc_conn, match_ids=[canonical_match_id, match_id])
+        podium = podium_map.get(canonical_match_id, {})
+        if not podium.get("details"):
+            podium = podium_map.get(match_id, {})
+        if is_open:
+            podium = {}
     finally:
         acc_conn.close()
 
@@ -485,9 +581,26 @@ def get_mvp_status(match_id):
         aliases = players.get(pid, {}).get("aliases", [])
         return {"id": pid, "name": aliases[0] if aliases else f"Player {pid}"}
 
+    # Filter out current user from candidate choices (no self-voting)
+    if is_box:
+        box_candidate_ids = sorted(
+            [pid for pid in participants if pid != curr_user_player_id],
+            key=lambda pid: (players.get(pid, {}).get("aliases", [f"Player {pid}"])[0]).lower()
+        )
+        box_players = [player_info(pid) for pid in box_candidate_ids]
+        team_a_players = box_players
+        team_b_players = []
+    else:
+        team_a_players = [player_info(pid) for pid in team_a if pid != curr_user_player_id]
+        team_b_players = [player_info(pid) for pid in team_b if pid != curr_user_player_id]
+        box_players = []
+
     return jsonify({
         "success": True,
         "match_id": match_id,
+        "canonical_match_id": canonical_match_id,
+        "is_box_session": is_box,
+        "box_matches": box_mids,
         "match_date": match_date,
         "is_open": is_open,
         "deadline_iso": deadline.isoformat(),
@@ -499,8 +612,9 @@ def get_mvp_status(match_id):
         "gold_player_ids": podium.get("gold", []),
         "silver_player_ids": podium.get("silver", []),
         "bronze_player_ids": podium.get("bronze", []),
-        "team_a_players": [player_info(pid) for pid in team_a],
-        "team_b_players": [player_info(pid) for pid in team_b],
+        "team_a_players": team_a_players,
+        "team_b_players": team_b_players,
+        "box_players": box_players,
     })
 
 
@@ -517,6 +631,17 @@ def get_mvp_results(match_id):
         if not match:
             return jsonify({"success": False, "error": f"Match '{match_id}' wurde nicht gefunden."}), 404
         players = get_players(conn)
+        is_box = (str(match.get("pitch", "")).lower() == "box")
+        if is_box:
+            box_matches = sorted(
+                [m for m in matches.values() if m.get("date") == match["date"] and str(m.get("pitch", "")).lower() == "box"],
+                key=lambda x: x["match_id"]
+            )
+            canonical_match_id = box_matches[0]["match_id"]
+            box_mids = [m["match_id"] for m in box_matches]
+        else:
+            canonical_match_id = match_id
+            box_mids = [match_id]
     finally:
         conn.close()
 
@@ -526,7 +651,11 @@ def get_mvp_results(match_id):
 
     acc_conn = get_accounts_connection()
     try:
-        res = get_match_mvp_results(acc_conn, match_id, players_dict=players)
+        res = get_match_mvp_results(acc_conn, canonical_match_id, players_dict=players)
+        if res.get("total_voters", 0) == 0 and canonical_match_id != match_id:
+            alt_res = get_match_mvp_results(acc_conn, match_id, players_dict=players)
+            if alt_res.get("total_voters", 0) > 0:
+                res = alt_res
     finally:
         acc_conn.close()
 
@@ -541,6 +670,9 @@ def get_mvp_results(match_id):
     return jsonify({
         "success": True,
         "match_id": match_id,
+        "canonical_match_id": canonical_match_id,
+        "is_box_session": is_box,
+        "box_matches": box_mids,
         "match_date": match_date,
         "is_open": False,
         "deadline_formatted": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
