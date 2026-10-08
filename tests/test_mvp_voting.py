@@ -11,8 +11,11 @@ from zoneinfo import ZoneInfo
 from scripts.accounts.auth import register_user
 from scripts.accounts.database import (
     approve_user,
+    cleanup_and_consolidate_box_mvp_votes,
     get_accounts_connection,
+    get_all_matches_mvp_summaries,
     get_match_mvp_deadline,
+    get_match_mvp_results,
     get_match_mvp_winners,
     get_user_match_mvp_vote,
     get_user_mvp_votes_for_matches,
@@ -20,9 +23,12 @@ from scripts.accounts.database import (
     link_user_to_player,
     mark_email_verified,
     record_match_mvp_vote,
+    record_match_mvp_votes,
     update_user_role,
 )
 from scripts.database.database import get_connection, main as init_database
+from scripts.database.db_matches import get_matches
+from scripts.database.db_players import get_players
 from web.app import create_app
 from web.services.cache import invalidate_stats_cache
 
@@ -505,5 +511,176 @@ class MvpVotingTests(unittest.TestCase):
         d_part = res_api_part.get_json()
         self.assertTrue(d_part["can_vote"])
         self.assertIsNone(d_part["restriction_reason"])
+
+    def test_box_evening_voting_override_prevents_split_votes(self):
+        """
+        Verify fix for user bug:
+        Voting on Game 1, then voting again on Game 2 of a Box evening must update the vote
+        on the canonical match ID and NOT record separate votes for Game 1 and Game 2.
+        """
+        main_conn = get_connection()
+        tz = ZoneInfo("Europe/Berlin")
+        today = datetime.now(tz).date().strftime("%Y-%m-%d")
+        mid1 = f"{today}-1"
+        mid2 = f"{today}-2"
+        try:
+            for pid in (601, 602, 603, 604):
+                self.ensure_player(main_conn, pid, f"Player {pid}")
+            main_conn.execute("INSERT OR REPLACE INTO matches (match_id, date, pitch, players_a, players_b, goals_a, goals_b) VALUES (?, ?, 'box', 2, 2, 5, 3)", (mid1, today))
+            main_conn.execute("DELETE FROM match_players WHERE match_id = ?", (mid1,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 601, 'a')", (mid1,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 602, 'b')", (mid1,))
+
+            main_conn.execute("INSERT OR REPLACE INTO matches (match_id, date, pitch, players_a, players_b, goals_a, goals_b) VALUES (?, ?, 'box', 2, 2, 4, 2)", (mid2, today))
+            main_conn.execute("DELETE FROM match_players WHERE match_id = ?", (mid2,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 601, 'a')", (mid2,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 603, 'a')", (mid2,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 604, 'b')", (mid2,))
+            main_conn.commit()
+        finally:
+            main_conn.close()
+        invalidate_stats_cache()
+
+        u_voter, _ = self.create_user(role="user", linked_player_id=601)
+        self.login_user(u_voter)
+
+        # 1. Voter votes via Game 1 (mid1) endpoint for Player 602
+        res1 = self.client.post(f"/api/matches/{mid1}/mvp-vote", json={"voted_player_ids": [602]})
+        self.assertEqual(res1.status_code, 200)
+        d1 = res1.get_json()
+        self.assertTrue(d1["success"])
+        self.assertEqual(d1["canonical_match_id"], mid2)
+
+        # In DB, the vote must be on canonical ID mid2
+        acc_conn = get_accounts_connection()
+        try:
+            votes = acc_conn.execute("SELECT match_id, voter_user_id, voted_player_id FROM match_mvp_votes WHERE voter_user_id = ?", (u_voter,)).fetchall()
+            self.assertEqual(len(votes), 1)
+            self.assertEqual(votes[0]["match_id"], mid2)
+            self.assertEqual(votes[0]["voted_player_id"], 602)
+        finally:
+            acc_conn.close()
+
+        # 2. Voter votes again via Game 2 (mid2) endpoint, updating choices to Player 604 and 603
+        res2 = self.client.post(f"/api/matches/{mid2}/mvp-vote", json={"voted_player_ids": [604, 603]})
+        self.assertEqual(res2.status_code, 200)
+
+        # In DB, there must STILL be exactly 1 vote row for this user! NOT 2 rows!
+        acc_conn = get_accounts_connection()
+        main_conn = get_connection()
+        try:
+            votes = acc_conn.execute("SELECT match_id, voter_user_id, voted_player_id, voted_player_id_2 FROM match_mvp_votes WHERE voter_user_id = ?", (u_voter,)).fetchall()
+            self.assertEqual(len(votes), 1)
+            self.assertEqual(votes[0]["match_id"], mid2)
+            self.assertEqual(votes[0]["voted_player_id"], 604)
+            self.assertEqual(votes[0]["voted_player_id_2"], 603)
+
+            # 3. Check Webmaster MVP summaries: exactly ONE election for this Box evening, exactly 1 voter
+            matches = get_matches(main_conn)
+            players = get_players(main_conn)
+            summaries = get_all_matches_mvp_summaries(acc_conn, players_dict=players, matches_dict=matches)
+            box_summaries = [s for s in summaries if s["match_id"] in (mid1, mid2)]
+            self.assertEqual(len(box_summaries), 1)
+            summary = box_summaries[0]
+            self.assertEqual(summary["match_id"], mid2)
+            self.assertEqual(summary["total_voters"], 1)
+            self.assertTrue(summary["is_box_session"])
+            self.assertEqual(summary["gold_names"], ["Player 604"])
+        finally:
+            acc_conn.close()
+            main_conn.close()
+
+    def test_multi_account_single_vote_per_player(self):
+        """
+        Verify that multiple accounts linked to the same player cannot vote more than once.
+        A subsequent vote by another account linked to the same player replaces the earlier vote.
+        """
+        main_conn = get_connection()
+        tz = ZoneInfo("Europe/Berlin")
+        today = datetime.now(tz).date().strftime("%Y-%m-%d")
+        mid = f"TEST_MULTI_ACC_{today}"
+        try:
+            for pid in (701, 702, 703):
+                self.ensure_player(main_conn, pid, f"Player {pid}")
+            main_conn.execute("INSERT OR REPLACE INTO matches (match_id, date, pitch, players_a, players_b, goals_a, goals_b) VALUES (?, ?, 'hf', 2, 1, 3, 2)", (mid, today))
+            main_conn.execute("DELETE FROM match_players WHERE match_id = ?", (mid,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 701, 'a')", (mid,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 702, 'a')", (mid,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 703, 'b')", (mid,))
+            main_conn.commit()
+        finally:
+            main_conn.close()
+        invalidate_stats_cache()
+
+        # Two accounts linked to Player 701
+        u1, _ = self.create_user(role="user", linked_player_id=701)
+        u2, _ = self.create_user(role="user", linked_player_id=701)
+
+        # Account 1 votes for Player 702
+        self.login_user(u1)
+        res1 = self.client.post(f"/api/matches/{mid}/mvp-vote", json={"voted_player_ids": [702]})
+        self.assertEqual(res1.status_code, 200)
+
+        # Account 2 votes for Player 703
+        self.login_user(u2)
+        res2 = self.client.post(f"/api/matches/{mid}/mvp-vote", json={"voted_player_ids": [703]})
+        self.assertEqual(res2.status_code, 200)
+
+        acc_conn = get_accounts_connection()
+        try:
+            # Only 1 vote must exist in the database for Player 701
+            all_votes = acc_conn.execute("""
+                SELECT v.* FROM match_mvp_votes v
+                JOIN users u ON v.voter_user_id = u.id
+                WHERE u.player_id = 701 AND v.match_id = ?
+            """, (mid,)).fetchall()
+            self.assertEqual(len(all_votes), 1)
+            self.assertEqual(all_votes[0]["voter_user_id"], u2)
+            self.assertEqual(all_votes[0]["voted_player_id"], 703)
+        finally:
+            acc_conn.close()
+
+    def test_cleanup_and_consolidate_historical_box_split_votes(self):
+        """
+        Verify historical database consolidation:
+        If split votes existed from prior bug across sibling Box matches (e.g. 2026-09-02-1 and 2026-09-02-2),
+        cleanup_and_consolidate_box_mvp_votes merges/cleans them onto the canonical match ID.
+        """
+        main_conn = get_connection()
+        date_str = "2026-09-02"
+        mid1 = f"{date_str}-1"
+        mid2 = f"{date_str}-2"
+        try:
+            for pid in (801, 802, 803):
+                self.ensure_player(main_conn, pid, f"Player {pid}")
+            main_conn.execute("INSERT OR REPLACE INTO matches (match_id, date, pitch, players_a, players_b, goals_a, goals_b) VALUES (?, ?, 'box', 1, 1, 5, 3)", (mid1, date_str))
+            main_conn.execute("INSERT OR REPLACE INTO matches (match_id, date, pitch, players_a, players_b, goals_a, goals_b) VALUES (?, ?, 'box', 1, 1, 4, 2)", (mid2, date_str))
+            main_conn.commit()
+            matches = get_matches(main_conn)
+        finally:
+            main_conn.close()
+
+        u_voter, _ = self.create_user(role="user", linked_player_id=801)
+        acc_conn = get_accounts_connection()
+        try:
+            # Artificially insert split votes on both mid1 and mid2 simulating legacy bug
+            acc_conn.execute("INSERT OR REPLACE INTO match_mvp_votes (match_id, voter_user_id, voted_player_id, created_at) VALUES (?, ?, ?, '2026-09-02T22:00:00')", (mid1, u_voter, 802))
+            acc_conn.execute("INSERT OR REPLACE INTO match_mvp_votes (match_id, voter_user_id, voted_player_id, created_at) VALUES (?, ?, ?, '2026-09-02T22:15:00')", (mid2, u_voter, 803))
+            acc_conn.commit()
+
+            # Confirm 2 rows exist before consolidation
+            count_pre = acc_conn.execute("SELECT COUNT(*) as c FROM match_mvp_votes WHERE voter_user_id = ?", (u_voter,)).fetchone()["c"]
+            self.assertEqual(count_pre, 2)
+
+            # Run consolidation
+            cleanup_and_consolidate_box_mvp_votes(acc_conn, matches_dict=matches)
+
+            # After consolidation, only 1 row on mid2 should remain (the newer vote 803)
+            remaining = acc_conn.execute("SELECT match_id, voted_player_id FROM match_mvp_votes WHERE voter_user_id = ?", (u_voter,)).fetchall()
+            self.assertEqual(len(remaining), 1)
+            self.assertEqual(remaining[0]["match_id"], mid2)
+            self.assertEqual(remaining[0]["voted_player_id"], 803)
+        finally:
+            acc_conn.close()
 
 

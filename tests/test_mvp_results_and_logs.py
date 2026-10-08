@@ -173,7 +173,8 @@ class MvpResultsAndLogsTests(unittest.TestCase):
             self.assertEqual(len(summaries), 2)
             m_ids = [s["match_id"] for s in summaries]
             self.assertIn("2026-07-08-1", m_ids)
-            self.assertIn("2026-07-15-1", m_ids)
+            # 2026-07-15 is a Box evening with 2 games; votes are consolidated onto the canonical ID 2026-07-15-2
+            self.assertIn("2026-07-15-2", m_ids)
 
             for s in summaries:
                 self.assertIn("voter_count", s)

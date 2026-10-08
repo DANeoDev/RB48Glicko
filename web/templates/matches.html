@@ -805,6 +805,9 @@
                     errorMsg.style.display = 'block';
                 }
                 return;
+            if (data.canonical_match_id) {
+                currentMatchId = data.canonical_match_id;
+                if (targetMatchIdInput) targetMatchIdInput.value = data.canonical_match_id;
             }
 
             const isBox = !!data.is_box_session;

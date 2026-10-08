@@ -1156,6 +1156,7 @@ TRANSLATIONS_EN = {
     "admin.mvp_no_summaries": "No MVP election results available yet.",
     "admin.mvp_secret_ballot_notice": "🔒 Complete ballot secrecy: No logs of who voted when or for whom are displayed. Webmasters only see aggregated election results and vote breakdowns.",
     "admin.nav_mvp_logs": "MVP Results",
+    "admin.mvp_box_evening_title": "Box Evening",
     "planner.archive_past": "Archive Past Matchdays",
     "planner.confirm_archive_past": "Are you sure you want to archive and remove all past matchdays prior to today? An automatic backup will be created.",
     "planner.archive_past_success": "{count} past matchdays were successfully archived.",

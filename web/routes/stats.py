@@ -43,6 +43,7 @@ from scripts.database.db_matches import (
     get_canonical_mvp_match_id,
     get_box_session_matches,
     get_box_session_participants,
+    natural_match_sort_key,
 )
 from scripts.database.db_players import get_players
 from scripts.database.db_ratings import get_player_rating_history, get_ratings
@@ -289,7 +290,7 @@ def match_history():
     for m in matches:
         mid = m["match_id"]
         if str(m.get("pitch", "")).lower() == "box":
-            b_list = sorted(date_box_matches[m["date"]], key=lambda x: str(x["match_id"]))
+            b_list = sorted(date_box_matches[m["date"]], key=natural_match_sort_key)
             can_id = b_list[-1]["match_id"]
             match_canonical_id[mid] = can_id
             if can_id not in box_evening_participants:
@@ -505,11 +506,8 @@ def cast_mvp_vote(match_id):
 
         is_box = (str(match.get("pitch", "")).lower() == "box")
         if is_box:
-            box_matches = sorted(
-                [m for m in matches.values() if m.get("date") == match["date"] and str(m.get("pitch", "")).lower() == "box"],
-                key=lambda x: x["match_id"]
-            )
-            canonical_match_id = box_matches[-1]["match_id"]
+            box_matches = get_box_session_matches(matches, match_id)
+            canonical_match_id = box_matches[-1]["match_id"] if box_matches else match_id
             box_mids = [m["match_id"] for m in box_matches]
             all_players_map = get_all_match_players(conn)
             participants = set()
@@ -540,7 +538,7 @@ def cast_mvp_vote(match_id):
 
     acc_conn = get_accounts_connection()
     try:
-        record_match_mvp_votes(acc_conn, canonical_match_id, user["id"], voted_player_ids)
+        record_match_mvp_votes(acc_conn, canonical_match_id, user["id"], voted_player_ids, session_match_ids=box_mids)
     except ValueError as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
     finally:
@@ -574,11 +572,8 @@ def get_mvp_status(match_id):
         players = get_players(conn)
         is_box = (str(match.get("pitch", "")).lower() == "box")
         if is_box:
-            box_matches = sorted(
-                [m for m in matches.values() if m.get("date") == match["date"] and str(m.get("pitch", "")).lower() == "box"],
-                key=lambda x: x["match_id"]
-            )
-            canonical_match_id = box_matches[-1]["match_id"]
+            box_matches = get_box_session_matches(matches, match_id)
+            canonical_match_id = box_matches[-1]["match_id"] if box_matches else match_id
             box_mids = [m["match_id"] for m in box_matches]
             all_players_map = get_all_match_players(conn)
             all_part_ids = set()
@@ -692,11 +687,8 @@ def get_mvp_results(match_id):
         players = get_players(conn)
         is_box = (str(match.get("pitch", "")).lower() == "box")
         if is_box:
-            box_matches = sorted(
-                [m for m in matches.values() if m.get("date") == match["date"] and str(m.get("pitch", "")).lower() == "box"],
-                key=lambda x: x["match_id"]
-            )
-            canonical_match_id = box_matches[-1]["match_id"]
+            box_matches = get_box_session_matches(matches, match_id)
+            canonical_match_id = box_matches[-1]["match_id"] if box_matches else match_id
             box_mids = [m["match_id"] for m in box_matches]
         else:
             canonical_match_id = match_id

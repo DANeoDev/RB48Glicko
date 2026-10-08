@@ -224,6 +224,11 @@ def create_account_tables(connection):
     # Normalize existing dashboard/index bubbles to root '/'
     connection.execute("UPDATE noise_bubbles SET page_path = '/' WHERE page_path IN ('/dashboard', '/index', '/dashboard/', '/index/')")
 
+    try:
+        cleanup_and_consolidate_box_mvp_votes(connection)
+    except Exception:
+        pass
+
     connection.commit()
 
 
@@ -1406,13 +1411,16 @@ def record_match_mvp_vote(
     voted_player_id: int,
     voted_player_id_2: int | None = None,
     voted_player_id_3: int | None = None,
+    session_match_ids: list[str] | None = None,
 ) -> bool:
-    """Record or update an anonymous ranked MVP vote (1 to 3 distinct players) for a match."""
+    """Record or update an anonymous ranked MVP vote (1 to 3 distinct players) for a match or session."""
     # Prevent self-voting if voter is linked to a player
     user_row = connection.execute(
         "SELECT player_id FROM users WHERE id = ?", (int(voter_user_id),)
     ).fetchone()
     voter_player_id = int(user_row["player_id"]) if user_row and user_row["player_id"] else None
+
+    all_session_mids = list(set([str(match_id)] + [str(m) for m in (session_match_ids or [])]))
 
     now_iso = get_cologne_timestamp_str()
     # Normalize: ensure no duplicates in votes
@@ -1429,6 +1437,26 @@ def record_match_mvp_vote(
     p2 = votes[1] if len(votes) > 1 else None
     p3 = votes[2] if len(votes) > 2 else None
 
+    # Step 1: Clean up any prior votes by this user account on other match IDs of this session
+    if len(all_session_mids) > 1:
+        other_mids = [m for m in all_session_mids if m != str(match_id)]
+        placeholders = ",".join("?" for _ in other_mids)
+        connection.execute(
+            f"DELETE FROM match_mvp_votes WHERE voter_user_id = ? AND match_id IN ({placeholders})",
+            [int(voter_user_id)] + other_mids
+        )
+
+    # Step 2: Ensure strictly one vote per player profile (across any other accounts linked to this player)
+    if voter_player_id:
+        all_placeholders = ",".join("?" for _ in all_session_mids)
+        connection.execute(f"""
+            DELETE FROM match_mvp_votes
+            WHERE voter_user_id != ? AND match_id IN ({all_placeholders}) AND voter_user_id IN (
+                SELECT id FROM users WHERE player_id = ?
+            )
+        """, [int(voter_user_id)] + all_session_mids + [voter_player_id])
+
+    # Step 3: Insert or update the canonical vote
     connection.execute("""
         INSERT INTO match_mvp_votes (match_id, voter_user_id, voted_player_id, voted_player_id_2, voted_player_id_3, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -1447,12 +1475,13 @@ def record_match_mvp_votes(
     match_id: str,
     voter_user_id: int,
     voted_player_ids: list[int],
+    session_match_ids: list[str] | None = None,
 ) -> bool:
     """Record ranked MVP votes from a list of player IDs (up to 3)."""
     p1 = voted_player_ids[0] if len(voted_player_ids) > 0 else 0
     p2 = voted_player_ids[1] if len(voted_player_ids) > 1 else None
     p3 = voted_player_ids[2] if len(voted_player_ids) > 2 else None
-    return record_match_mvp_vote(connection, match_id, voter_user_id, p1, p2, p3)
+    return record_match_mvp_vote(connection, match_id, voter_user_id, p1, p2, p3, session_match_ids=session_match_ids)
 
 
 def get_user_match_mvp_votes(connection, match_id: str, voter_user_id: int) -> list[int]:
@@ -1773,7 +1802,7 @@ def get_match_mvp_results(
     placeholders = ",".join("?" for _ in target_mids)
 
     cnt_row = connection.execute(
-        f"SELECT COUNT(*) as cnt FROM match_mvp_votes WHERE match_id IN ({placeholders})",
+        f"SELECT COUNT(DISTINCT voter_user_id) as cnt FROM match_mvp_votes WHERE match_id IN ({placeholders})",
         target_mids
     ).fetchone()
     total_voters = cnt_row["cnt"] if cnt_row else 0
@@ -1844,16 +1873,22 @@ def get_match_mvp_results(
         else:
             c["rank"] = 1
 
-    # Extract anonymous ballots (strictly without voter_user_id or created_at)
+    # Extract unique anonymous ballots per voter_user_id (newest if multiple exist)
     ballot_rows = connection.execute(
-        f"""SELECT voted_player_id, voted_player_id_2, voted_player_id_3
+        f"""SELECT voter_user_id, voted_player_id, voted_player_id_2, voted_player_id_3, created_at
             FROM match_mvp_votes
-            WHERE match_id IN ({placeholders})""",
+            WHERE match_id IN ({placeholders})
+            ORDER BY created_at DESC, id DESC""",
         target_mids
     ).fetchall()
 
+    seen_voters = set()
     raw_ballots = []
     for b in ballot_rows:
+        v_uid = b["voter_user_id"]
+        if v_uid in seen_voters:
+            continue
+        seen_voters.add(v_uid)
         raw_ballots.append({
             "rank1": format_player(b["voted_player_id"]),
             "rank2": format_player(b["voted_player_id_2"]),
@@ -1884,13 +1919,107 @@ def get_match_mvp_results(
     }
 
 
-def get_all_matches_mvp_summaries(connection, players_dict: dict | None = None) -> list[dict]:
+def cleanup_and_consolidate_box_mvp_votes(connection, matches_dict: dict | None = None) -> int:
+    """
+    Consolidates any historical Box match MVP votes recorded on non-canonical match IDs
+    into the canonical evening match ID, and eliminates duplicate votes so that each
+    user account and linked player has at most one vote per match or Box evening.
+    Returns the number of cleaned up / consolidated votes.
+    """
+    if matches_dict is None:
+        try:
+            from scripts.database.database import get_connection as get_main_db
+            from scripts.database.db_matches import get_matches
+            main_conn = get_main_db()
+            try:
+                matches_dict = get_matches(main_conn)
+            finally:
+                main_conn.close()
+        except Exception:
+            matches_dict = {}
+
+    if not matches_dict:
+        return 0
+
+    from scripts.database.db_matches import natural_match_sort_key
+    date_box_matches = {}
+    for mid, m in matches_dict.items():
+        if str(m.get("pitch", "")).lower() == "box":
+            date_box_matches.setdefault(m.get("date"), []).append(m)
+
+    non_canonical_to_canonical = {}
+    for d, b_list in date_box_matches.items():
+        if len(b_list) > 1:
+            sorted_b = sorted(b_list, key=natural_match_sort_key)
+            can_id = str(sorted_b[-1]["match_id"])
+            for bm in sorted_b[:-1]:
+                non_canonical_to_canonical[str(bm["match_id"])] = can_id
+
+    cleaned_count = 0
+    # For each non-canonical match ID with votes
+    for old_mid, can_mid in non_canonical_to_canonical.items():
+        rows = connection.execute(
+            "SELECT * FROM match_mvp_votes WHERE match_id = ?", (old_mid,)
+        ).fetchall()
+        for r in rows:
+            voter_id = r["voter_user_id"]
+            can_row = connection.execute(
+                "SELECT * FROM match_mvp_votes WHERE match_id = ? AND voter_user_id = ?",
+                (can_mid, voter_id)
+            ).fetchone()
+            if can_row:
+                # If old vote is newer, copy choices over
+                if r["created_at"] > can_row["created_at"]:
+                    connection.execute("""
+                        UPDATE match_mvp_votes
+                        SET voted_player_id = ?, voted_player_id_2 = ?, voted_player_id_3 = ?, created_at = ?
+                        WHERE id = ?
+                    """, (r["voted_player_id"], r["voted_player_id_2"], r["voted_player_id_3"], r["created_at"], can_row["id"]))
+                connection.execute("DELETE FROM match_mvp_votes WHERE id = ?", (r["id"],))
+                cleaned_count += 1
+            else:
+                connection.execute(
+                    "UPDATE match_mvp_votes SET match_id = ? WHERE id = ?",
+                    (can_mid, r["id"])
+                )
+                cleaned_count += 1
+
+    # Also deduplicate any multiple accounts linked to the same player voting for the same match
+    dup_rows = connection.execute("""
+        SELECT u.player_id, v.match_id
+        FROM match_mvp_votes v
+        JOIN users u ON v.voter_user_id = u.id
+        WHERE u.player_id IS NOT NULL AND u.player_id > 0
+        GROUP BY u.player_id, v.match_id
+        HAVING COUNT(*) > 1
+    """).fetchall()
+    for dup in dup_rows:
+        pid = dup["player_id"]
+        mid = dup["match_id"]
+        votes_for_p = connection.execute("""
+            SELECT v.id, v.created_at
+            FROM match_mvp_votes v
+            JOIN users u ON v.voter_user_id = u.id
+            WHERE u.player_id = ? AND v.match_id = ?
+            ORDER BY v.created_at DESC, v.id DESC
+        """, (pid, mid)).fetchall()
+        for older in votes_for_p[1:]:
+            connection.execute("DELETE FROM match_mvp_votes WHERE id = ?", (older["id"],))
+            cleaned_count += 1
+
+    connection.commit()
+    return cleaned_count
+
+
+def get_all_matches_mvp_summaries(connection, players_dict: dict | None = None, matches_dict: dict | None = None) -> list[dict]:
     """
     Returns aggregated MVP election summaries across all matches with votes, ordered by most recent vote.
     STRICT PRIVACY GUARANTEE: Never exposes individual voter choices.
     """
+    cleanup_and_consolidate_box_mvp_votes(connection, matches_dict=matches_dict)
+
     rows = connection.execute("""
-        SELECT match_id, COUNT(*) as voter_count, MAX(created_at) as last_vote_at
+        SELECT match_id, COUNT(DISTINCT voter_user_id) as voter_count, MAX(created_at) as last_vote_at
         FROM match_mvp_votes
         GROUP BY match_id
         ORDER BY last_vote_at DESC
@@ -1899,9 +2028,20 @@ def get_all_matches_mvp_summaries(connection, players_dict: dict | None = None) 
     summaries = []
     for r in rows:
         m_id = r["match_id"]
-        res = get_match_mvp_results(connection, m_id, players_dict=players_dict)
+        m_info = matches_dict.get(m_id, {}) if matches_dict else {}
+        is_box = str(m_info.get("pitch", "")).lower() == "box"
+        box_mids = [m_id]
+        if is_box and matches_dict:
+            box_mids = [m["match_id"] for m in matches_dict.values() if m.get("date") == m_info.get("date") and str(m.get("pitch", "")).lower() == "box"]
+
+        target_mids = box_mids if is_box else [m_id]
+        res = get_match_mvp_results(connection, m_id, players_dict=players_dict, match_ids=target_mids)
         res["voter_count"] = r["voter_count"]
+        res["total_voters"] = res.get("total_voters", r["voter_count"])
         res["last_vote_at"] = r["last_vote_at"]
+        res["is_box_session"] = is_box
+        res["match_date"] = m_info.get("date", "")
+        res["box_matches"] = box_mids
         gold_names = [c["player_name"] for c in res["candidates"] if c["medal"] == "gold"]
         silver_names = [c["player_name"] for c in res["candidates"] if c["medal"] == "silver"]
         bronze_names = [c["player_name"] for c in res["candidates"] if c["medal"] == "bronze"]

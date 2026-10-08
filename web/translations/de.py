@@ -1178,6 +1178,7 @@ TRANSLATIONS_DE = {
     "admin.mvp_no_summaries": "Bisher liegen keine MVP-Wahlergebnisse vor.",
     "admin.mvp_secret_ballot_notice": "🔒 Vollständiges Stimmgeheimnis gewahrt: Es wird nicht angezeigt, wer wann oder für wen abgestimmt hat. Auch Webmaster sehen ausschließlich die anonymen Wahlergebnisse und Stimmverteilungen.",
     "admin.nav_mvp_logs": "MVP-Ergebnisse",
+    "admin.mvp_box_evening_title": "Box-Abend",
     "planner.archive_past": "Zurückliegende archivieren",
     "planner.confirm_archive_past": "Möchtest du wirklich alle zurückliegenden Spieltage vor dem heutigen Tag archivieren und aus der aktiven Liste entfernen? Ein automatisches Backup wird dabei erstellt.",
     "planner.archive_past_success": "{count} vergangene Spieltage wurden erfolgreich archiviert.",

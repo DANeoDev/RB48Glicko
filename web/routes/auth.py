@@ -49,6 +49,7 @@ from scripts.accounts.psychology import (
     get_psychology_personas,
 )
 from scripts.database.database import get_connection as get_main_connection
+from scripts.database.db_matches import get_matches
 from scripts.database.db_players import get_players, set_player_positions
 from scripts.planner.database import get_planner_connection, get_attendance_logs, get_attendance_logs_count, get_all_events
 from web.services.cache import invalidate_stats_cache
@@ -259,9 +260,10 @@ def admin_users(default_tab="users"):
         for u in users:
             u["actual_tier"] = get_actual_tier(u).name.lower()
         players = get_players(main_conn)
+        matches = get_matches(main_conn)
         notifications = get_webmaster_notifications(connection, curr_user["id"], limit=40)
         unseen_notifications_count = get_unseen_webmaster_notifications_count(connection, curr_user["id"])
-        mvp_match_summaries = get_all_matches_mvp_summaries(connection, players_dict=players)
+        mvp_match_summaries = get_all_matches_mvp_summaries(connection, players_dict=players, matches_dict=matches)
         return render_template(
             "admin_users.html",
             active_tab=active_tab,

@@ -180,10 +180,23 @@ def get_player_stats(connection):
     return stats
 
 
+def natural_match_sort_key(match_item):
+    """
+    Sort key for match items/IDs to correctly handle numeric suffixes (e.g. '2026-09-02-2' vs '2026-09-02-10').
+    """
+    mid = str(match_item.get("match_id", "") if isinstance(match_item, dict) else match_item)
+    parts = mid.rsplit("-", 1)
+    if len(parts) == 2 and parts[1].isdigit():
+        return (parts[0], int(parts[1]))
+    if mid.isdigit():
+        return ("", int(mid))
+    return (mid, 0)
+
+
 def get_box_session_matches(connection_or_matches, match_id: str) -> list[dict]:
     """
     If match_id belongs to a Box appointment (pitch == 'box'), return all Box matches on that same date,
-    sorted by match_id.
+    sorted by natural match_id sequence.
     If not a Box match or not found, returns a list containing only the match itself (if found), or [].
     Accepts either an open sqlite3 Connection or a dictionary mapping match_id -> match_dict.
     """
@@ -198,7 +211,7 @@ def get_box_session_matches(connection_or_matches, match_id: str) -> list[dict]:
             m for m in connection_or_matches.values()
             if m.get("date") == m_date and str(m.get("pitch", "")).lower() == "box"
         ]
-        return sorted(box_matches, key=lambda x: str(x.get("match_id", "")))
+        return sorted(box_matches, key=natural_match_sort_key)
     else:
         row = connection_or_matches.execute(
             "SELECT match_id, date, pitch FROM matches WHERE match_id = ?",
@@ -210,10 +223,11 @@ def get_box_session_matches(connection_or_matches, match_id: str) -> list[dict]:
             return [{"match_id": row["match_id"], "date": row["date"], "pitch": row["pitch"]}]
         m_date = row["date"]
         rows = connection_or_matches.execute(
-            "SELECT match_id, date, pitch FROM matches WHERE date = ? AND LOWER(pitch) = 'box' ORDER BY match_id",
+            "SELECT match_id, date, pitch FROM matches WHERE date = ? AND LOWER(pitch) = 'box'",
             (m_date,)
         ).fetchall()
-        return [{"match_id": r["match_id"], "date": r["date"], "pitch": r["pitch"]} for r in rows]
+        result = [{"match_id": r["match_id"], "date": r["date"], "pitch": r["pitch"]} for r in rows]
+        return sorted(result, key=natural_match_sort_key)
 
 
 def get_canonical_mvp_match_id(connection_or_matches, match_id: str) -> str:
@@ -224,7 +238,8 @@ def get_canonical_mvp_match_id(connection_or_matches, match_id: str) -> str:
     """
     box_matches = get_box_session_matches(connection_or_matches, match_id)
     if box_matches:
-        return str(box_matches[-1]["match_id"])
+        sorted_box = sorted(box_matches, key=natural_match_sort_key)
+        return str(sorted_box[-1]["match_id"])
     return str(match_id)
 
 
