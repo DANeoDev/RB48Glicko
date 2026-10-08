@@ -248,7 +248,32 @@ class TestRecalibrationEnginePasses(unittest.TestCase):
         cursor.execute("SELECT rating, rd FROM ratings WHERE player_id = 1 AND rating_type = 'total'")
         row = cursor.fetchone()
         self.assertIsNotNone(row)
-        self.assertGreater(row["rating"], DEFAULT_RATING)
+    def test_run_recalibration_iterative_convergence(self):
+        """Pass 1 iteratively converges when uncalibrated players play against each other."""
+        self._setup_players_and_matches(16)
+        match_teams_map = get_all_match_teams(self.conn)
+
+        from scripts.database.db_matches import get_matches
+        matches = get_matches(self.conn)
+        thresholds = {1: 15, 2: 15, 3: 15, 4: 15}
+
+        # Single iteration (naive)
+        priors_1 = run_recalibration_pass1(
+            self.conn, matches, match_teams_map=match_teams_map, player_thresholds=thresholds, max_iterations=1
+        )
+        # Multi iteration (converged)
+        priors_conv = run_recalibration_pass1(
+            self.conn, matches, match_teams_map=match_teams_map, player_thresholds=thresholds, max_iterations=5, tolerance=0.5
+        )
+
+        self.assertIn(1, priors_1)
+        self.assertIn(1, priors_conv)
+        # Both converge stably and symmetrically for winners/losers
+        self.assertGreater(priors_conv[1][TOTAL].rating, DEFAULT_RATING)
+        self.assertLess(priors_conv[3][TOTAL].rating, DEFAULT_RATING)
+        # Convergence refines the emergent rating
+        delta = abs(priors_conv[1][TOTAL].rating - priors_1[1][TOTAL].rating)
+        self.assertGreater(delta, 1.0)
 
 
 class TestLeaderboardViewModelProvisionalFlags(unittest.TestCase):

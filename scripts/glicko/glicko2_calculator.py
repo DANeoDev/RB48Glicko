@@ -484,36 +484,37 @@ def update_match(connection, match, ratings, engine, debug_player=None):
     update_session(connection, [match], ratings, engine, debug_player)
 
 
-def run_recalibration_pass1(
+def _run_single_pass1_step(
     connection,
     matches,
-    initial_calibrations=None,
-    match_teams_map=None,
-    player_thresholds=None,
+    sessions,
+    engine,
+    match_teams_map,
+    player_thresholds,
+    current_priors=None,
+    alpha=0.5,
 ):
     """
-    Pass 1: Discover emergent latent ratings at the calibration threshold for eligible players.
-    Simulates chronological sessions from initial priors.
-    Returns:
-        calibrated_priors: dict[player_id -> {TOTAL: Rating, BOX: Rating, HF: Rating}]
+    Executes a single step of Pass 1 prior discovery.
+    When current_priors is present, ratings_world seeds established priors for provisional players,
+    freezing them during their provisional window so opponents face their realistic strength.
+    Each player's own discovery path (ratings_discovery) strictly starts from uncalibrated defaults.
     """
-    engine = Glicko2()
-    if match_teams_map is None and connection is not None:
-        match_teams_map = get_all_match_teams(connection)
+    prepared = prepare_glicko_table(
+        connection, matches, {}, match_teams_map=match_teams_map
+    )
+    ratings_world = glicko_table_to_ratings(prepared)
+    if current_priors:
+        for pid, pr in current_priors.items():
+            if pid in ratings_world:
+                for rtype in (TOTAL, BOX, HF):
+                    ratings_world[pid][rtype] = Rating(
+                        pr[rtype].rating, pr[rtype].rd, pr[rtype].sigma
+                    )
 
-    # Initial table from calibrations or default
-    if isinstance(initial_calibrations, dict) and any(isinstance(v, dict) and TOTAL in v for v in initial_calibrations.values()):
-        ratings = glicko_table_to_ratings(initial_calibrations)
-    else:
-        prepared = prepare_glicko_table(connection, matches, initial_calibrations or {}, match_teams_map=match_teams_map)
-        ratings = glicko_table_to_ratings(prepared)
-
-    if player_thresholds is None:
-        player_thresholds = compute_player_thresholds(connection, matches, match_teams_map=match_teams_map)
-
-    sessions = group_matches_by_date(matches)
-    games_played_p1 = defaultdict(int)
-    calibrated_priors = {}
+    ratings_discovery = glicko_table_to_ratings(prepared)
+    games_played = defaultdict(int)
+    new_discovered = {}
 
     for session_date, session_matches in sessions.items():
         player_games = {}
@@ -547,93 +548,207 @@ def run_recalibration_pass1(
             else:
                 res1 = res2 = DRAW
 
-            t1_total = calculate_team_rating(team1_ids, team1_total, ratings, TOTAL)
-            t2_total = calculate_team_rating(team2_ids, team2_total, ratings, TOTAL)
-            t1_pitch = calculate_team_rating(team1_ids, team1_total, ratings, pitch_type)
-            t2_pitch = calculate_team_rating(team2_ids, team2_total, ratings, pitch_type)
+            # Teammates and opponents are valued via ratings_world
+            t1_total = calculate_team_rating(team1_ids, team1_total, ratings_world, TOTAL)
+            t2_total = calculate_team_rating(team2_ids, team2_total, ratings_world, TOTAL)
+            t1_pitch = calculate_team_rating(team1_ids, team1_total, ratings_world, pitch_type)
+            t2_pitch = calculate_team_rating(team2_ids, team2_total, ratings_world, pitch_type)
 
             for pid in team1_ids:
                 player_games.setdefault(pid, {}).setdefault(TOTAL, []).append((
                     t1_total, t2_total, res1,
-                    calculate_teammates_rd(pid, team1_ids, team1_total, ratings, TOTAL),
+                    calculate_teammates_rd(pid, team1_ids, team1_total, ratings_world, TOTAL),
                     team1_total, mid,
                 ))
                 player_games[pid].setdefault(pitch_type, []).append((
                     t1_pitch, t2_pitch, res1,
-                    calculate_teammates_rd(pid, team1_ids, team1_total, ratings, pitch_type),
+                    calculate_teammates_rd(pid, team1_ids, team1_total, ratings_world, pitch_type),
                     team1_total, mid,
                 ))
 
             for pid in team2_ids:
                 player_games.setdefault(pid, {}).setdefault(TOTAL, []).append((
                     t2_total, t1_total, res2,
-                    calculate_teammates_rd(pid, team2_ids, team2_total, ratings, TOTAL),
+                    calculate_teammates_rd(pid, team2_ids, team2_total, ratings_world, TOTAL),
                     team2_total, mid,
                 ))
                 player_games[pid].setdefault(pitch_type, []).append((
                     t2_pitch, t1_pitch, res2,
-                    calculate_teammates_rd(pid, team2_ids, team2_total, ratings, pitch_type),
+                    calculate_teammates_rd(pid, team2_ids, team2_total, ratings_world, pitch_type),
                     team2_total, mid,
                 ))
 
         for pid, rtypes in player_games.items():
-            prev_games = games_played_p1[pid]
+            prev_games = games_played[pid]
             session_p_mids = [g[5] for g in rtypes[TOTAL]]
             total_games = prev_games + len(session_p_mids)
             p_thresh = player_thresholds.get(pid, CALIBRATION_THRESHOLD)
 
-            if prev_games < p_thresh and total_games >= p_thresh and pid not in calibrated_priors:
+            # 1. Update ratings_discovery for player's own discovery trajectory
+            if prev_games < p_thresh:
                 needed = p_thresh - prev_games
                 mids_up = set(session_p_mids[:needed])
 
                 games_up_tot = [g for g in rtypes[TOTAL] if g[5] in mids_up]
-                r_tot_thresh = engine.update_player_session(ratings[pid][TOTAL], games_up_tot)
+                r_tot_thresh = engine.update_player_session(ratings_discovery[pid][TOTAL], games_up_tot)
 
                 games_up_box = [g for g in rtypes.get(BOX, []) if g[5] in mids_up]
                 if games_up_box:
-                    r_box_thresh = engine.update_player_session(ratings[pid][BOX], games_up_box)
+                    r_box_thresh = engine.update_player_session(ratings_discovery[pid][BOX], games_up_box)
                 else:
-                    r_box_thresh = Rating(ratings[pid][BOX].rating, ratings[pid][BOX].rd, ratings[pid][BOX].sigma)
+                    r_box_thresh = Rating(ratings_discovery[pid][BOX].rating, ratings_discovery[pid][BOX].rd, ratings_discovery[pid][BOX].sigma)
 
                 games_up_hf = [g for g in rtypes.get(HF, []) if g[5] in mids_up]
                 if games_up_hf:
-                    r_hf_thresh = engine.update_player_session(ratings[pid][HF], games_up_hf)
+                    r_hf_thresh = engine.update_player_session(ratings_discovery[pid][HF], games_up_hf)
                 else:
-                    r_hf_thresh = Rating(ratings[pid][HF].rating, ratings[pid][HF].rd, ratings[pid][HF].sigma)
+                    r_hf_thresh = Rating(ratings_discovery[pid][HF].rating, ratings_discovery[pid][HF].rd, ratings_discovery[pid][HF].sigma)
 
-                calibrated_priors[pid] = {
-                    TOTAL: Rating(r_tot_thresh.rating, r_tot_thresh.rd, r_tot_thresh.sigma),
-                    BOX: Rating(r_box_thresh.rating, r_box_thresh.rd, r_box_thresh.sigma),
-                    HF: Rating(r_hf_thresh.rating, r_hf_thresh.rd, r_hf_thresh.sigma),
-                }
+                if total_games >= p_thresh and pid not in new_discovered:
+                    if current_priors and pid in current_priors:
+                        # Damped relaxation update: (1 - alpha) * prior_old + alpha * prior_new
+                        d_tot_r = (1.0 - alpha) * current_priors[pid][TOTAL].rating + alpha * r_tot_thresh.rating
+                        d_tot_rd = (1.0 - alpha) * current_priors[pid][TOTAL].rd + alpha * r_tot_thresh.rd
+                        d_box_r = (1.0 - alpha) * current_priors[pid][BOX].rating + alpha * r_box_thresh.rating
+                        d_box_rd = (1.0 - alpha) * current_priors[pid][BOX].rd + alpha * r_box_thresh.rd
+                        d_hf_r = (1.0 - alpha) * current_priors[pid][HF].rating + alpha * r_hf_thresh.rating
+                        d_hf_rd = (1.0 - alpha) * current_priors[pid][HF].rd + alpha * r_hf_thresh.rd
+                        new_discovered[pid] = {
+                            TOTAL: Rating(d_tot_r, d_tot_rd, r_tot_thresh.sigma),
+                            BOX: Rating(d_box_r, d_box_rd, r_box_thresh.sigma),
+                            HF: Rating(d_hf_r, d_hf_rd, r_hf_thresh.sigma),
+                        }
+                    else:
+                        new_discovered[pid] = {
+                            TOTAL: Rating(r_tot_thresh.rating, r_tot_thresh.rd, r_tot_thresh.sigma),
+                            BOX: Rating(r_box_thresh.rating, r_box_thresh.rd, r_box_thresh.sigma),
+                            HF: Rating(r_hf_thresh.rating, r_hf_thresh.rd, r_hf_thresh.sigma),
+                        }
 
                 games_after_tot = [g for g in rtypes[TOTAL] if g[5] not in mids_up]
-                ratings[pid][TOTAL] = engine.update_player_session(r_tot_thresh, games_after_tot) if games_after_tot else r_tot_thresh
-
+                ratings_discovery[pid][TOTAL] = engine.update_player_session(r_tot_thresh, games_after_tot) if games_after_tot else r_tot_thresh
                 games_after_box = [g for g in rtypes.get(BOX, []) if g[5] not in mids_up]
-                ratings[pid][BOX] = engine.update_player_session(r_box_thresh, games_after_box) if games_after_box else r_box_thresh
-
+                ratings_discovery[pid][BOX] = engine.update_player_session(r_box_thresh, games_after_box) if games_after_box else r_box_thresh
                 games_after_hf = [g for g in rtypes.get(HF, []) if g[5] not in mids_up]
-                ratings[pid][HF] = engine.update_player_session(r_hf_thresh, games_after_hf) if games_after_hf else r_hf_thresh
+                ratings_discovery[pid][HF] = engine.update_player_session(r_hf_thresh, games_after_hf) if games_after_hf else r_hf_thresh
             else:
                 for rtype, games in rtypes.items():
-                    ratings[pid][rtype] = engine.update_player_session(ratings[pid][rtype], games)
+                    ratings_discovery[pid][rtype] = engine.update_player_session(ratings_discovery[pid][rtype], games)
 
-            games_played_p1[pid] = total_games
+            # 2. Update ratings_world for opponent-facing strength (Option A* Surgical Split)
+            if current_priors and pid in current_priors:
+                if total_games <= p_thresh:
+                    pass  # Frozen during provisional window
+                elif prev_games < p_thresh and total_games > p_thresh:
+                    needed = p_thresh - prev_games
+                    mids_up = set(session_p_mids[:needed])
+                    for rtype, games in rtypes.items():
+                        ga = [g for g in games if g[5] not in mids_up]
+                        if ga:
+                            ratings_world[pid][rtype] = engine.update_player_session(ratings_world[pid][rtype], ga)
+                else:
+                    for rtype, games in rtypes.items():
+                        ratings_world[pid][rtype] = engine.update_player_session(ratings_world[pid][rtype], games)
+            else:
+                for rtype, games in rtypes.items():
+                    ratings_world[pid][rtype] = engine.update_player_session(ratings_world[pid][rtype], games)
+
+            games_played[pid] = total_games
 
         # Inactivity tick
-        for pid in ratings:
-            if pid not in session_active_players:
-                ratings[pid][TOTAL].rd = min(ratings[pid][TOTAL].rd + INACTIVITY_RD_TICK, DEFAULT_RD)
-            for pitch_type in session_pitches:
-                pitch_active = {
-                    p for p in session_active_players
-                    if p in player_games and pitch_type in player_games[p]
-                }
-                if pid not in pitch_active:
-                    ratings[pid][pitch_type].rd = min(ratings[pid][pitch_type].rd + INACTIVITY_RD_TICK, DEFAULT_RD)
+        for pid in ratings_world:
+            p_thresh = player_thresholds.get(pid, CALIBRATION_THRESHOLD)
+            is_frozen = (
+                current_priors
+                and pid in current_priors
+                and games_played[pid] < p_thresh
+            )
+            if not is_frozen:
+                if pid not in session_active_players:
+                    ratings_world[pid][TOTAL].rd = min(ratings_world[pid][TOTAL].rd + INACTIVITY_RD_TICK, DEFAULT_RD)
+                for pitch_type in session_pitches:
+                    pitch_active = {
+                        p for p in session_active_players
+                        if p in player_games and pitch_type in player_games[p]
+                    }
+                    if pid not in pitch_active:
+                        ratings_world[pid][pitch_type].rd = min(ratings_world[pid][pitch_type].rd + INACTIVITY_RD_TICK, DEFAULT_RD)
 
-    return calibrated_priors
+    return new_discovered
+
+
+def run_recalibration_pass1(
+    connection,
+    matches,
+    initial_calibrations=None,
+    match_teams_map=None,
+    player_thresholds=None,
+    max_iterations=5,
+    tolerance=0.5,
+    relaxation=0.5,
+):
+    """
+    Pass 1: Discover emergent latent ratings at the calibration threshold for eligible players.
+    Uses bounded iterative prior convergence (damped Jacobi fixed-point iteration) to resolve
+    simultaneous uncalibrated encounters without newcomer bleed.
+
+    Args:
+        max_iterations: Maximum number of convergence passes (default 5).
+        tolerance: Maximum change in rating points across all players to declare convergence (default 0.5).
+        relaxation: Damping parameter in (0, 1] for fixed-point stability (default 0.5).
+
+    Returns:
+        calibrated_priors: dict[player_id -> {TOTAL: Rating, BOX: Rating, HF: Rating}]
+    """
+    engine = Glicko2()
+    if match_teams_map is None and connection is not None:
+        match_teams_map = get_all_match_teams(connection)
+
+    if player_thresholds is None:
+        player_thresholds = compute_player_thresholds(connection, matches, match_teams_map=match_teams_map)
+
+    sessions = group_matches_by_date(matches)
+
+    # Initial pass (k = 0): everyone discovers from uncalibrated 1500 priors
+    priors = _run_single_pass1_step(
+        connection=connection,
+        matches=matches,
+        sessions=sessions,
+        engine=engine,
+        match_teams_map=match_teams_map,
+        player_thresholds=player_thresholds,
+        current_priors=None,
+        alpha=1.0,
+    )
+
+    if max_iterations <= 1 or not priors:
+        return priors
+
+    # Iterative refinement passes (k = 1..max_iterations-1)
+    for iteration in range(1, max_iterations):
+        new_priors = _run_single_pass1_step(
+            connection=connection,
+            matches=matches,
+            sessions=sessions,
+            engine=engine,
+            match_teams_map=match_teams_map,
+            player_thresholds=player_thresholds,
+            current_priors=priors,
+            alpha=relaxation,
+        )
+
+        max_delta = 0.0
+        for pid, p_r in new_priors.items():
+            if pid in priors:
+                d = abs(p_r[TOTAL].rating - priors[pid][TOTAL].rating)
+                if d > max_delta:
+                    max_delta = d
+
+        priors = new_priors
+        if max_delta < tolerance:
+            break
+
+    return priors
 
 
 def write_match_ratings(connection, match_id, ratings):
