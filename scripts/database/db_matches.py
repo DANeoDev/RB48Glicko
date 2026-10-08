@@ -219,12 +219,12 @@ def get_box_session_matches(connection_or_matches, match_id: str) -> list[dict]:
 def get_canonical_mvp_match_id(connection_or_matches, match_id: str) -> str:
     """
     For Box matches, all games on the same date belong to a single unified evening appointment.
-    Returns the first match_id on that date as the canonical election ID.
+    Returns the last match_id on that date as the canonical election ID.
     For non-Box matches (e.g. HF) or unrecorded matches, returns match_id itself.
     """
     box_matches = get_box_session_matches(connection_or_matches, match_id)
     if box_matches:
-        return str(box_matches[0]["match_id"])
+        return str(box_matches[-1]["match_id"])
     return str(match_id)
 
 

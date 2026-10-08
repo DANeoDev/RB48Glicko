@@ -387,7 +387,7 @@ class MvpVotingTests(unittest.TestCase):
         self.assertEqual(res_s2.status_code, 200)
         d2 = res_s2.get_json()
         self.assertTrue(d2["is_box_session"])
-        self.assertEqual(d2["canonical_match_id"], mid1)
+        self.assertEqual(d2["canonical_match_id"], mid2)
         self.assertTrue(d2["can_vote"])
         # Candidates include players from both games (401, 403, 404, 405), excluding self (402)
         all_cands = [p["id"] for p in d2["box_players"]]
@@ -396,26 +396,50 @@ class MvpVotingTests(unittest.TestCase):
         self.assertIn(404, all_cands)
         self.assertIn(405, all_cands)
 
+        # Before voting: match history shows voting UI ONLY on the last game of the day (mid2)
+        res_pre_hist = self.client.get("/matches")
+        self.assertEqual(res_pre_hist.status_code, 200)
+        pre_html = res_pre_hist.get_data(as_text=True)
+        self.assertIn(f'data-match-id="{mid2}" data-can-vote="true"', pre_html)
+        self.assertIn(f'data-match-id="{mid1}" data-can-vote="false"', pre_html)
+
         # Player 402 votes for Player 404 (who only played in game 2) via game 2's endpoint
         vote_res = self.client.post(f"/api/matches/{mid2}/mvp-vote", json={"voted_player_ids": [404, 401]})
         self.assertEqual(vote_res.status_code, 200)
         v_data = vote_res.get_json()
         self.assertTrue(v_data["success"])
         self.assertTrue(v_data["is_box_session"])
-        self.assertEqual(v_data["canonical_match_id"], mid1)
+        self.assertEqual(v_data["canonical_match_id"], mid2)
         self.assertEqual(v_data["box_matches"], [mid1, mid2])
 
-        # Status for game 1 now also reflects the recorded vote
+        # Status for game 1 now also reflects the recorded vote via evening pooling
         res_s1 = self.client.get(f"/api/matches/{mid1}/mvp-status")
         d1 = res_s1.get_json()
         self.assertEqual(d1["user_votes"], [404, 401])
         self.assertEqual(d1["user_vote"], 404)
 
-        # Match history renders both cards as voted
+        # Match history renders both cards, but voting button & banner are ONLY on the last match of the day (mid2)
         res_hist = self.client.get("/matches")
         self.assertEqual(res_hist.status_code, 200)
         hist_html = res_hist.get_data(as_text=True)
         self.assertIn(f'data-match-id="{mid1}"', hist_html)
         self.assertIn(f'data-match-id="{mid2}"', hist_html)
+
+        # Split html per match card to verify exact presence/absence of MVP voting UI
+        # In reverse chronological history, mid2 (last game of day) comes before mid1 (earlier game)
+        start2 = hist_html.find(f'data-match-id="{mid2}"')
+        start1 = hist_html.find(f'data-match-id="{mid1}"')
+        self.assertTrue(start2 != -1 and start1 != -1 and start2 < start1)
+        m2_section = hist_html[start2:start1]
+        m1_section = hist_html[start1:start1 + 2500]
+
+        # mid2 (last match of the day) has the MVP button and banner
+        self.assertIn("match-mvp-btn", m2_section)
+        self.assertIn("match-mvp-banner", m2_section)
+        self.assertIn("Box-MVP gewählt", m2_section)
+
+        # mid1 (earlier match) does NOT have the MVP button or banner ("nur eine Karte und ein Symbol über dem letzten Spiel")
+        self.assertNotIn("match-mvp-btn", m1_section)
+        self.assertNotIn("match-mvp-banner", m1_section)
 
 

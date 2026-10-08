@@ -276,7 +276,7 @@ def match_history():
         mid = m["match_id"]
         if str(m.get("pitch", "")).lower() == "box":
             b_list = sorted(date_box_matches[m["date"]], key=lambda x: str(x["match_id"]))
-            can_id = b_list[0]["match_id"]
+            can_id = b_list[-1]["match_id"]
             match_canonical_id[mid] = can_id
             if can_id not in box_evening_participants:
                 p_set = set()
@@ -309,22 +309,31 @@ def match_history():
         deadline = get_match_mvp_deadline(m_date)
         is_open = now_dt <= deadline
 
+        # For Box matches, only the last match of the day displays the MVP voting UI (card & symbol)
+        is_last_match_of_day = (mid == can_id) if is_box else True
+
         if is_box:
             participant_ids = box_evening_participants.get(can_id, set())
         else:
             participant_ids = set(m.get("team_a_ids", []) + m.get("team_b_ids", []))
 
-        can_vote = bool(is_open and curr_user_player_id and curr_user_player_id in participant_ids)
+        can_vote = bool(is_open and curr_user_player_id and curr_user_player_id in participant_ids and is_last_match_of_day)
         user_votes_list = user_mvp_votes.get(can_id, [])
-        if not user_votes_list:
-            user_votes_list = user_mvp_votes.get(mid, [])
+        if not user_votes_list and is_box:
+            for bm in date_box_matches.get(m_date, []):
+                if user_mvp_votes.get(bm["match_id"]):
+                    user_votes_list = user_mvp_votes.get(bm["match_id"])
+                    break
         user_vote_1 = user_votes_list[0] if user_votes_list else None
 
         # MVP podium: shown once voting is closed
         raw_podium = all_mvp_podiums.get(can_id, {})
-        if not raw_podium.get("details"):
-            raw_podium = all_mvp_podiums.get(mid, {})
-        has_votes = bool(raw_podium.get("details"))
+        if not raw_podium.get("details") and is_box:
+            for bm in date_box_matches.get(m_date, []):
+                if all_mvp_podiums.get(bm["match_id"], {}).get("details"):
+                    raw_podium = all_mvp_podiums.get(bm["match_id"], {})
+                    break
+        has_votes = bool(raw_podium.get("details") and is_last_match_of_day)
         podium = raw_podium if not is_open else {}
         gold_ids = podium.get("gold", [])
         silver_ids = podium.get("silver", [])
@@ -343,6 +352,7 @@ def match_history():
             "deadline_str": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
             "deadline_short": deadline.strftime("%d.%m., %H:%M"),
             "is_box_session": is_box,
+            "is_last_match_of_day": is_last_match_of_day,
             "canonical_match_id": can_id,
         }
 
@@ -471,7 +481,7 @@ def cast_mvp_vote(match_id):
                 [m for m in matches.values() if m.get("date") == match["date"] and str(m.get("pitch", "")).lower() == "box"],
                 key=lambda x: x["match_id"]
             )
-            canonical_match_id = box_matches[0]["match_id"]
+            canonical_match_id = box_matches[-1]["match_id"]
             box_mids = [m["match_id"] for m in box_matches]
             all_players_map = get_all_match_players(conn)
             participants = set()
@@ -540,7 +550,7 @@ def get_mvp_status(match_id):
                 [m for m in matches.values() if m.get("date") == match["date"] and str(m.get("pitch", "")).lower() == "box"],
                 key=lambda x: x["match_id"]
             )
-            canonical_match_id = box_matches[0]["match_id"]
+            canonical_match_id = box_matches[-1]["match_id"]
             box_mids = [m["match_id"] for m in box_matches]
             all_players_map = get_all_match_players(conn)
             all_part_ids = set()
@@ -564,11 +574,21 @@ def get_mvp_status(match_id):
     acc_conn = get_accounts_connection()
     try:
         user_votes = get_user_match_mvp_votes(acc_conn, canonical_match_id, user["id"]) if user and user.get("id") else []
-        if not user_votes and canonical_match_id != match_id and user and user.get("id"):
+        if not user_votes and is_box and user and user.get("id"):
+            for bmid in box_mids:
+                user_votes = get_user_match_mvp_votes(acc_conn, bmid, user["id"])
+                if user_votes:
+                    break
+        elif not user_votes and canonical_match_id != match_id and user and user.get("id"):
             user_votes = get_user_match_mvp_votes(acc_conn, match_id, user["id"])
-        podium_map = get_match_mvp_podium(acc_conn, match_ids=[canonical_match_id, match_id])
+        podium_map = get_match_mvp_podium(acc_conn, match_ids=list(set([canonical_match_id, match_id] + box_mids)))
         podium = podium_map.get(canonical_match_id, {})
-        if not podium.get("details"):
+        if not podium.get("details") and is_box:
+            for bmid in box_mids:
+                if podium_map.get(bmid, {}).get("details"):
+                    podium = podium_map.get(bmid, {})
+                    break
+        elif not podium.get("details"):
             podium = podium_map.get(match_id, {})
         if is_open:
             podium = {}
@@ -637,7 +657,7 @@ def get_mvp_results(match_id):
                 [m for m in matches.values() if m.get("date") == match["date"] and str(m.get("pitch", "")).lower() == "box"],
                 key=lambda x: x["match_id"]
             )
-            canonical_match_id = box_matches[0]["match_id"]
+            canonical_match_id = box_matches[-1]["match_id"]
             box_mids = [m["match_id"] for m in box_matches]
         else:
             canonical_match_id = match_id
@@ -652,7 +672,13 @@ def get_mvp_results(match_id):
     acc_conn = get_accounts_connection()
     try:
         res = get_match_mvp_results(acc_conn, canonical_match_id, players_dict=players)
-        if res.get("total_voters", 0) == 0 and canonical_match_id != match_id:
+        if res.get("total_voters", 0) == 0 and is_box:
+            for bmid in box_mids:
+                alt_res = get_match_mvp_results(acc_conn, bmid, players_dict=players)
+                if alt_res.get("total_voters", 0) > 0:
+                    res = alt_res
+                    break
+        elif res.get("total_voters", 0) == 0 and canonical_match_id != match_id:
             alt_res = get_match_mvp_results(acc_conn, match_id, players_dict=players)
             if alt_res.get("total_voters", 0) > 0:
                 res = alt_res

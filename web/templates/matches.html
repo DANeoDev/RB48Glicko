@@ -183,10 +183,10 @@
                                 type="button"
                                 class="match-mvp-btn{% if user_vote %} voted{% else %} pulse{% endif %}"
                                 data-match-id="{{ match['match_id'] }}"
-                                title="{% if user_vote %}{{ t('matches.mvp_btn_title_voted', deadline=v_status.get('deadline_short', '')) }}{% else %}{{ t('matches.mvp_btn_title', deadline=v_status.get('deadline_short', '')) }}{% endif %}"
+                                title="{% if user_vote %}{% if v_status.get('is_box_session') %}{{ t('matches.box_mvp_btn_title_voted', deadline=v_status.get('deadline_short', '')) }}{% else %}{{ t('matches.mvp_btn_title_voted', deadline=v_status.get('deadline_short', '')) }}{% endif %}{% else %}{% if v_status.get('is_box_session') %}{{ t('matches.box_mvp_btn_title', deadline=v_status.get('deadline_short', '')) }}{% else %}{{ t('matches.mvp_btn_title', deadline=v_status.get('deadline_short', '')) }}{% endif %}{% endif %}"
                                 onclick="event.stopPropagation(); window.openMvpVoteModal && window.openMvpVoteModal('{{ match['match_id'] }}');"
                             >
-                                ⭐ {% if user_vote %}{{ t('matches.mvp_voted_badge', 'MVP gewählt') }}{% else %}{{ t('matches.mvp_vote_badge', 'MVP wählen') }}{% endif %}
+                                ⭐ {% if user_vote %}{% if v_status.get('is_box_session') %}{{ t('matches.box_mvp_voted_badge', 'Box-MVP gewählt') }}{% else %}{{ t('matches.mvp_voted_badge', 'MVP gewählt') }}{% endif %}{% else %}{% if v_status.get('is_box_session') %}{{ t('matches.box_mvp_vote_badge', 'Box-MVP wählen') }}{% else %}{{ t('matches.mvp_vote_badge', 'MVP wählen') }}{% endif %}{% endif %}
                             </button>
                         {% elif not v_status.get('is_open') and v_status.get('has_votes') %}
                             <button
@@ -196,7 +196,7 @@
                                 title="{{ t('matches.mvp_results_btn_title', 'Wahlergebnisse anzeigen') }}"
                                 onclick="event.stopPropagation(); window.openMvpResultsModal && window.openMvpResultsModal('{{ match['match_id'] }}');"
                             >
-                                ⭐ {% if user_vote %}{{ t('matches.mvp_voted_badge', 'MVP gewählt') }}{% else %}{{ t('matches.mvp_results_badge', 'MVP-Ergebnis') }}{% endif %}
+                                ⭐ {% if user_vote %}{% if v_status.get('is_box_session') %}{{ t('matches.box_mvp_voted_badge', 'Box-MVP gewählt') }}{% else %}{{ t('matches.mvp_voted_badge', 'MVP gewählt') }}{% endif %}{% else %}{% if v_status.get('is_box_session') %}{{ t('matches.box_mvp_results_badge', 'Box-MVP Ergebnis') }}{% else %}{{ t('matches.mvp_results_badge', 'MVP-Ergebnis') }}{% endif %}{% endif %}
                             </button>
                         {% endif %}
                         {% if has_tier('admin') %}
@@ -215,9 +215,17 @@
                 {% if can_vote %}
                     <div class="match-mvp-banner" onclick="event.stopPropagation(); window.openMvpVoteModal && window.openMvpVoteModal('{{ match['match_id'] }}');">
                         {% if user_vote %}
-                            <span>⭐ {{ t('matches.mvp_banner_voted', deadline=v_status.get('deadline_short', '')) }}</span>
+                            {% if v_status.get('is_box_session') %}
+                                <span>⭐ {{ t('matches.box_mvp_banner_voted', deadline=v_status.get('deadline_short', '')) }}</span>
+                            {% else %}
+                                <span>⭐ {{ t('matches.mvp_banner_voted', deadline=v_status.get('deadline_short', '')) }}</span>
+                            {% endif %}
                         {% else %}
-                            <span>⭐ <strong>{{ t('matches.mvp_banner_open_title', 'MVP-Wahl offen:') }}</strong> {{ t('matches.mvp_banner_open_desc', deadline=v_status.get('deadline_short', '')) }}</span>
+                            {% if v_status.get('is_box_session') %}
+                                <span>⭐ <strong>{{ t('matches.box_mvp_banner_open_title', 'Box-Abend MVP-Wahl offen:') }}</strong> {{ t('matches.box_mvp_banner_open_desc', deadline=v_status.get('deadline_short', '')) }}</span>
+                            {% else %}
+                                <span>⭐ <strong>{{ t('matches.mvp_banner_open_title', 'MVP-Wahl offen:') }}</strong> {{ t('matches.mvp_banner_open_desc', deadline=v_status.get('deadline_short', '')) }}</span>
+                            {% endif %}
                         {% endif %}
                     </div>
                 {% endif %}
@@ -852,6 +860,7 @@
 
                     // Update UI on match cards (all games of this Box evening or single match) without page reload
                     const affectedMatchIds = (result.box_matches && result.box_matches.length > 0) ? result.box_matches : [matchId];
+                    const votedBadge = result.is_box_session ? '⭐ {{ t('matches.box_mvp_voted_badge', 'Box-MVP gewählt') }}' : '⭐ {{ t('matches.mvp_voted_badge', 'MVP gewählt') }}';
                     affectedMatchIds.forEach(mId => {
                         const matchCard = document.querySelector(`.match[data-match-id="${mId}"]`);
                         if (matchCard) {
@@ -860,7 +869,7 @@
                             if (btn) {
                                 btn.classList.remove('pulse');
                                 btn.classList.add('voted');
-                                btn.innerHTML = '⭐ {{ t('matches.mvp_voted_badge', 'MVP gewählt') }}';
+                                btn.innerHTML = votedBadge;
                             }
                             const banner = matchCard.querySelector('.match-mvp-banner');
                             if (banner) {
