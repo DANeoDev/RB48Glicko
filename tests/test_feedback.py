@@ -237,6 +237,14 @@ class FeedbackTests(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_admin_feedback_copy_script_filters_open(self):
+        uid_admin = self.create_user("admin")
+        self.login_user(uid_admin)
+        resp = self.client.get("/admin/feedback")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("card.dataset.status === 'open'", html)
+
 
 if __name__ == "__main__":
     unittest.main()

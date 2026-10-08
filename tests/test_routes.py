@@ -354,6 +354,20 @@ class RouteTests(unittest.TestCase):
         self.assertIn('id="achievements-counter"', html)
         self.assertIn('id="no-achievements-found"', html)
 
+    def test_mobile_navigation_markup_and_css(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('id="nav-mobile-toggle"', html)
+        self.assertIn('class="nav-actions"', html)
+        self.assertIn('id="nav-links"', html)
+
+        # Ensure CSS does not have the rogue !important hiding the mobile toggle globally
+        css_path = Path(__file__).resolve().parents[1] / "web" / "static" / "style.css"
+        css_text = css_path.read_text(encoding="utf-8")
+        self.assertNotIn(".nav-mobile-toggle {\n    display: none !important;", css_text)
+        self.assertIn(".nav-mobile-toggle {\n        display: flex !important;", css_text)
+
 
 if __name__ == "__main__":
     unittest.main()

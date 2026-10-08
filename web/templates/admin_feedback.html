@@ -178,9 +178,9 @@
 
 <script>
 document.getElementById('copy-ai-logs-btn')?.addEventListener('click', () => {
-    const cards = document.querySelectorAll('.feedback-card');
+    const cards = Array.from(document.querySelectorAll('.feedback-card')).filter(card => card.dataset.status === 'open');
     if (!cards.length) {
-        alert('Keine Feedback-Einträge zum Kopieren vorhanden.');
+        alert('Keine offenen (unerledigten) Feedback-Einträge zum Kopieren vorhanden.');
         return;
     }
 

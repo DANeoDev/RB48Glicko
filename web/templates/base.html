@@ -303,7 +303,7 @@
                 </a>
             {% endif %}
         </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
+        <div class="nav-actions">
             {% if current_user and has_tier('user') %}
                 <button type="button" id="nav-noise-toggle-btn" class="nav-noise-btn" onclick="window.RB48Noise.toggle()" title="{{ t('nav.noise_title', 'Make some noise anywhere on the page') }}">
                     {{ t('nav.noise', '📢 Noise') }}
@@ -632,6 +632,21 @@ if (navToggle && navLinks) {
             navToggle.classList.remove("active");
             navToggle.setAttribute("aria-expanded", "false");
         });
+    });
+}
+
+// Profile menu click/tap toggle for mobile & touch devices
+const profileMenu = document.querySelector(".profile-menu");
+const profileBtn = document.querySelector(".profile-button");
+if (profileMenu && profileBtn) {
+    profileBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        profileMenu.classList.toggle("open");
+    });
+    document.addEventListener("click", (e) => {
+        if (!profileMenu.contains(e.target)) {
+            profileMenu.classList.remove("open");
+        }
     });
 }
 </script>
