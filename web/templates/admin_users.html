@@ -9,9 +9,9 @@
             <div>
                 {% if active_tab == 'mvp' %}
                     <h1 style="margin: 0; color: #ffd700; display: flex; align-items: center; gap: 8px;">
-                        <span>⭐</span> {{ t('admin.mvp_logs_title', 'MVP Logs & Wahlergebnisse') }}
+                        <span>🏆</span> {{ t('admin.mvp_logs_title', 'MVP-Wahlergebnisse') }}
                     </h1>
-                    <p class="muted" style="margin-top: 4px;">{{ t('admin.mvp_logs_subtitle', 'Chronologische Wahlaktivität und aggregierte Wahlergebnisse pro Match unter strikter Wahrung des Stimmgeheimnisses.') }}</p>
+                    <p class="muted" style="margin-top: 4px;">{{ t('admin.mvp_logs_subtitle', 'Aggregierte Wahlergebnisse pro Match unter strikter Wahrung des Stimmgeheimnisses.') }}</p>
                 {% else %}
                     <h1 style="margin: 0; color: #ffffff;">{{ t('auth.admin_users_heading', 'User Management') }}</h1>
                     <p class="muted" style="margin-top: 4px;">{{ t('auth.admin_users_sub', 'Review registered accounts, approve memberships, manage player links, and manage account records.') }}</p>
@@ -33,7 +33,7 @@
                         ⚽ {{ t('admin.nav_player_positions', 'Spielerpositionen') }}
                     </a>
                     <a href="{{ url_for('auth.admin_mvp_logs') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; {% if active_tab == 'mvp' %}background: var(--accent); color: #ffffff;{% else %}color: var(--text-muted);{% endif %} border-radius: 4px; transition: all .15s ease;">
-                        ⭐ {{ t('admin.nav_mvp_logs', 'MVP-Logs') }}
+                        🏆 {{ t('admin.nav_mvp_logs', 'MVP-Ergebnisse') }}
                     </a>
                     {% endif %}
                     <a href="{{ url_for('auth.admin_feedback') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
@@ -45,88 +45,34 @@
         </div>
 
         {% if active_tab == 'mvp' %}
-        <!-- Webmaster MVP Logs & Results Tab -->
+        <!-- Webmaster MVP Election Results Tab (Strict Ballot Secrecy) -->
         <div style="font-size: 12px; background: rgba(255, 215, 0, 0.1); border: 1px solid rgba(255, 215, 0, 0.3); border-radius: 6px; padding: 10px 14px; color: #ffd700; margin-bottom: 20px;">
-            {{ t('admin.mvp_secret_ballot_notice', '🔒 Stimmgeheimnis gewahrt: Es wird ausschließlich geloggt, wer wann abgestimmt hat. Gewählte Kandidaten bleiben für alle anonym.') }}
+            {{ t('admin.mvp_secret_ballot_notice', '🔒 Vollständiges Stimmgeheimnis gewahrt: Es wird nicht angezeigt, wer wann oder für wen abgestimmt hat. Auch Webmaster sehen ausschließlich die anonymen Wahlergebnisse und Stimmverteilungen.') }}
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; align-items: start;">
-            <!-- Left Column: Voter Activity Logs (Wer & Wann) -->
-            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 8px; padding: 18px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                    <h3 style="margin: 0; font-size: 15px; color: #ffffff; display: flex; align-items: center; gap: 6px;">
-                        <span>🗳️</span> {{ t('admin.mvp_activity_log_heading', 'Abstimmungs-Aktivitäten (Wer & Wann)') }}
-                    </h3>
-                    <span style="font-size: 12px; color: var(--text-muted);">{{ mvp_voter_logs | length }} {{ t('common.entries', 'Einträge') }}</span>
-                </div>
-
-                {% if mvp_voter_logs %}
-                    <div style="max-height: 520px; overflow-y: auto; padding-right: 4px;">
-                        <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
-                            <thead>
-                                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-muted); font-size: 11px;">
-                                    <th style="padding: 6px 8px;">{{ t('admin.mvp_col_datetime', 'Zeitpunkt') }}</th>
-                                    <th style="padding: 6px 8px;">{{ t('admin.mvp_col_user', 'Benutzer') }}</th>
-                                    <th style="padding: 6px 8px;">{{ t('admin.mvp_col_player', 'Spieler / Name') }}</th>
-                                    <th style="padding: 6px 8px; text-align: right;">{{ t('admin.mvp_col_match', 'Match') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for log in mvp_voter_logs %}
-                                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.04);">
-                                        <td style="padding: 7px 8px; color: var(--text-muted); white-space: nowrap;">
-                                            {{ log.created_at | replace('T', ' ') | truncate(16, True, '') }}
-                                        </td>
-                                        <td style="padding: 7px 8px; font-weight: 600; color: #ffffff;">
-                                            {{ log.username }}
-                                        </td>
-                                        <td style="padding: 7px 8px; color: #c9c2d8;">
-                                            {% if log.player_id and log.player_id in players and players[log.player_id].aliases %}
-                                                {{ players[log.player_id].aliases[0] }}
-                                            {% elif log.attendance_name %}
-                                                {{ log.attendance_name }}
-                                            {% else %}
-                                                <span class="muted">-</span>
-                                            {% endif %}
-                                        </td>
-                                        <td style="padding: 7px 8px; text-align: right;">
-                                            <a href="{{ url_for('stats.match_history') }}#d-{{ log.match_id.rsplit('-', 1)[0] }}" style="color: #80deea; text-decoration: none; font-weight: 600;">
-                                                {{ log.match_id }}
-                                            </a>
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <p class="muted" style="margin: 12px 0; font-size: 13px;">{{ t('admin.mvp_no_logs', 'Bisher wurden noch keine MVP-Stimmen vergeben.') }}</p>
-                {% endif %}
+        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; font-size: 16px; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+                    <span>🏆</span> {{ t('admin.mvp_election_results_heading', 'Match-Wahlergebnisse & Medaillen') }}
+                </h3>
+                <span style="font-size: 12px; color: var(--text-muted);">{{ mvp_match_summaries | length }} {{ t('matches.matches', 'Matches') }}</span>
             </div>
 
-            <!-- Right Column: Match Election Results & Medals -->
-            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 8px; padding: 18px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                    <h3 style="margin: 0; font-size: 15px; color: #ffffff; display: flex; align-items: center; gap: 6px;">
-                        <span>🏆</span> {{ t('admin.mvp_election_results_heading', 'Match-Wahlergebnisse & Medaillen') }}
-                    </h3>
-                    <span style="font-size: 12px; color: var(--text-muted);">{{ mvp_match_summaries | length }} {{ t('matches.matches', 'Matches') }}</span>
-                </div>
-
-                {% if mvp_match_summaries %}
-                    <div style="max-height: 520px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px;">
-                        {% for summary in mvp_match_summaries %}
-                            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 12px 14px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+            {% if mvp_match_summaries %}
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px;">
+                    {% for summary in mvp_match_summaries %}
+                        <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between;">
+                            <div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 6px;">
                                     <div style="display: flex; align-items: center; gap: 8px;">
-                                        <a href="{{ url_for('stats.match_history') }}#d-{{ summary.match_id.rsplit('-', 1)[0] }}" style="font-weight: 700; color: #80deea; text-decoration: none; font-size: 13.5px;">
+                                        <a href="{{ url_for('stats.match_history') }}#d-{{ summary.match_id.rsplit('-', 1)[0] }}" style="font-weight: 700; color: #80deea; text-decoration: none; font-size: 14px;">
                                             Match {{ summary.match_id }}
                                         </a>
                                         <span style="font-size: 11px; color: var(--text-muted);">{{ summary.total_voters }} {{ t('admin.mvp_col_voters', 'Wähler') }}</span>
                                     </div>
                                     <div style="display: flex; align-items: center; gap: 6px;">
                                         {% if summary.gold_names %}
-                                            <span style="font-size: 12px; color: #ffd700; font-weight: 700;">🥇 {{ summary.gold_names | join(', ') }}</span>
+                                            <span style="font-size: 12.5px; color: #ffd700; font-weight: 700;">🥇 {{ summary.gold_names | join(', ') }}</span>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -139,12 +85,12 @@
                                     {% endfor %}
                                 </div>
                             </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p class="muted" style="margin: 12px 0; font-size: 13px;">{{ t('admin.mvp_no_summaries', 'Bisher liegen keine MVP-Wahlergebnisse vor.') }}</p>
-                {% endif %}
-            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="muted" style="margin: 12px 0; font-size: 13px;">{{ t('admin.mvp_no_summaries', 'Bisher liegen keine MVP-Wahlergebnisse vor.') }}</p>
+            {% endif %}
         </div>
 
         {% else %}

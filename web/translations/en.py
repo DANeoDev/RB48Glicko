@@ -379,6 +379,10 @@ TRANSLATIONS_EN = {
     "matches.mvp_rule_system_desc": "Rank 1 (Gold / 3 pts) is required, Rank 2 (Silver / 2 pts) and Rank 3 (Bronze / 1 pt) are optional.",
     "matches.mvp_login_action": "Log in now",
     "matches.mvp_settings_action": "Go to Profile / Settings",
+    "matches.mvp_tab_summary": "Summary",
+    "matches.mvp_tab_details": "Voting Details",
+    "matches.mvp_ballot_number": "Ballot",
+    "matches.mvp_ballots_desc": "Anonymous breakdown of all ballots cast for this match.",
 
     # Pagination
     "pagination.first": "First Page",
@@ -1132,9 +1136,9 @@ TRANSLATIONS_EN = {
     "admin.feedback_export_success": "Logs copied to clipboard!",
 
     # MVP Logs & Results
-    "admin.mvp_logs_title": "MVP Logs & Election Results",
-    "admin.mvp_logs_subtitle": "Chronological voting activity and aggregated match election results with strict voter ballot secrecy.",
-    "admin.mvp_activity_log_heading": "Voting Activity Logs (Who & When)",
+    "admin.mvp_logs_title": "MVP Election Results",
+    "admin.mvp_logs_subtitle": "Aggregated election results per match with strict ballot secrecy.",
+    "admin.mvp_activity_log_heading": "Voting Activity",
     "admin.mvp_election_results_heading": "Match Election Results & Medals",
     "admin.mvp_col_datetime": "Date & Time",
     "admin.mvp_col_user": "User",
@@ -1144,8 +1148,8 @@ TRANSLATIONS_EN = {
     "admin.mvp_col_results": "Results / Votes",
     "admin.mvp_no_logs": "No MVP votes recorded yet.",
     "admin.mvp_no_summaries": "No MVP election results available yet.",
-    "admin.mvp_secret_ballot_notice": "🔒 Secret Ballot Enforced: Only who voted when is logged. Selected candidates remain strictly anonymous.",
-    "admin.nav_mvp_logs": "MVP Logs",
+    "admin.mvp_secret_ballot_notice": "🔒 Complete ballot secrecy: No logs of who voted when or for whom are displayed. Webmasters only see aggregated election results and vote breakdowns.",
+    "admin.nav_mvp_logs": "MVP Results",
     "planner.archive_past": "Archive Past Matchdays",
     "planner.confirm_archive_past": "Are you sure you want to archive and remove all past matchdays prior to today? An automatic backup will be created.",
     "planner.archive_past_success": "{count} past matchdays were successfully archived.",

@@ -143,6 +143,15 @@ class MvpResultsAndLogsTests(unittest.TestCase):
             self.assertEqual(p1["medal"], "gold")
             self.assertEqual(p1["rank"], 1)
 
+            # Check that results contains anonymous ballots
+            self.assertIn("ballots", results)
+            self.assertEqual(len(results["ballots"]), 3)
+            for b in results["ballots"]:
+                self.assertIn("ballot_number", b)
+                self.assertIn("rank1", b)
+                self.assertNotIn("voter_user_id", b)
+                self.assertNotIn("created_at", b)
+
             # Check that results contains NO voter references
             self.assertNotIn("voters", results)
             self.assertNotIn("voter_user_id", results)
@@ -198,6 +207,10 @@ class MvpResultsAndLogsTests(unittest.TestCase):
         self.assertEqual(len(data["candidates"]), 1)
         self.assertEqual(data["candidates"][0]["player_id"], 1)
         self.assertEqual(data["candidates"][0]["medal"], "gold")
+        self.assertIn("ballots", data)
+        self.assertEqual(len(data["ballots"]), 1)
+        self.assertEqual(data["ballots"][0]["ballot_number"], 1)
+        self.assertEqual(data["ballots"][0]["rank1"]["player_id"], 1)
 
     def test_admin_users_mvp_tabs(self):
         """Test that Webmasters see User Management on default tab and MVP Logs on mvp tab."""
@@ -225,16 +238,17 @@ class MvpResultsAndLogsTests(unittest.TestCase):
         self.assertIn(b"User Management", res_wm_users.data)
         self.assertNotIn(b"Abstimmungs-Aktivit", res_wm_users.data)
 
-        # Webmaster on /admin/mvp-logs or /admin/users?tab=mvp sees MVP Logs and NO user table
+        # Webmaster on /admin/mvp-logs or /admin/users?tab=mvp sees MVP election results, strictly NO voter activity logs and NO user names
         res_wm_mvp = self.client.get("/admin/mvp-logs")
         self.assertEqual(res_wm_mvp.status_code, 200)
-        self.assertIn(b"Abstimmungs-Aktivit", res_wm_mvp.data)
-        self.assertIn(u_name.encode("utf-8"), res_wm_mvp.data)
+        self.assertIn("Match-Wahlergebnisse".encode("utf-8"), res_wm_mvp.data)
+        self.assertNotIn(u_name.encode("utf-8"), res_wm_mvp.data)
         self.assertNotIn(b"confirm_delete", res_wm_mvp.data)
 
         res_wm_mvp2 = self.client.get("/admin/users?tab=mvp")
         self.assertEqual(res_wm_mvp2.status_code, 200)
-        self.assertIn(b"Abstimmungs-Aktivit", res_wm_mvp2.data)
+        self.assertIn("Match-Wahlergebnisse".encode("utf-8"), res_wm_mvp2.data)
+        self.assertNotIn(u_name.encode("utf-8"), res_wm_mvp2.data)
 
     def test_medaillenspiegel_excludes_open_voting_matches(self):
         """Matches with voting currently open must NOT show up in MVP-Medaillenspiegel."""

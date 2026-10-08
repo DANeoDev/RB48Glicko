@@ -392,6 +392,10 @@ TRANSLATIONS_DE = {
     "matches.mvp_rule_system_desc": "Platz 1 (Gold / 3 Pkt) ist Pflicht, Platz 2 (Silber / 2 Pkt) und Platz 3 (Bronze / 1 Pkt) sind optional.",
     "matches.mvp_login_action": "Jetzt einloggen",
     "matches.mvp_settings_action": "Zum Profil / Einstellungen",
+    "matches.mvp_tab_summary": "Gesamtergebnis",
+    "matches.mvp_tab_details": "Wahldetails",
+    "matches.mvp_ballot_number": "Stimmzettel",
+    "matches.mvp_ballots_desc": "Anonyme Übersicht aller abgegebenen Stimmzettel für dieses Match.",
 
     # Pagination
     "pagination.first": "Erste Seite",
@@ -1154,9 +1158,9 @@ TRANSLATIONS_DE = {
     "admin.feedback_export_success": "Logs erfolgreich in die Zwischenablage kopiert!",
 
     # MVP Logs & Results
-    "admin.mvp_logs_title": "MVP Logs & Wahlergebnisse",
-    "admin.mvp_logs_subtitle": "Chronologische Wahlaktivität und aggregierte Wahlergebnisse pro Match unter strikter Wahrung des Stimmgeheimnisses.",
-    "admin.mvp_activity_log_heading": "Abstimmungs-Aktivitäten (Wer & Wann)",
+    "admin.mvp_logs_title": "MVP-Wahlergebnisse",
+    "admin.mvp_logs_subtitle": "Aggregierte Wahlergebnisse pro Match unter strikter Wahrung des Stimmgeheimnisses.",
+    "admin.mvp_activity_log_heading": "Abstimmungs-Aktivitäten",
     "admin.mvp_election_results_heading": "Match-Wahlergebnisse & Medaillen",
     "admin.mvp_col_datetime": "Zeitpunkt",
     "admin.mvp_col_user": "Benutzer",
@@ -1166,8 +1170,8 @@ TRANSLATIONS_DE = {
     "admin.mvp_col_results": "Ergebnis / Stimmen",
     "admin.mvp_no_logs": "Bisher wurden noch keine MVP-Stimmen vergeben.",
     "admin.mvp_no_summaries": "Bisher liegen keine MVP-Wahlergebnisse vor.",
-    "admin.mvp_secret_ballot_notice": "🔒 Stimmgeheimnis gewahrt: Es wird ausschließlich geloggt, wer wann abgestimmt hat. Gewählte Kandidaten bleiben für alle anonym.",
-    "admin.nav_mvp_logs": "MVP-Logs",
+    "admin.mvp_secret_ballot_notice": "🔒 Vollständiges Stimmgeheimnis gewahrt: Es wird nicht angezeigt, wer wann oder für wen abgestimmt hat. Auch Webmaster sehen ausschließlich die anonymen Wahlergebnisse und Stimmverteilungen.",
+    "admin.nav_mvp_logs": "MVP-Ergebnisse",
     "planner.archive_past": "Zurückliegende archivieren",
     "planner.confirm_archive_past": "Möchtest du wirklich alle zurückliegenden Spieltage vor dem heutigen Tag archivieren und aus der aktiven Liste entfernen? Ein automatisches Backup wird dabei erstellt.",
     "planner.archive_past_success": "{count} vergangene Spieltage wurden erfolgreich archiviert.",

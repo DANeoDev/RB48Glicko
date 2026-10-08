@@ -1726,39 +1726,62 @@ def get_mvp_voter_activity_logs(connection, limit: int = 100) -> list[dict]:
     return results
 
 
-def get_match_mvp_results(connection, match_id: str, players_dict: dict | None = None) -> dict:
+def get_match_mvp_results(
+    connection,
+    match_id: str,
+    players_dict: dict | None = None,
+    match_ids: list[str] | None = None
+) -> dict:
     """
-    Returns aggregated MVP election results for a single match:
+    Returns aggregated MVP election results and anonymous individual ballots for a match:
     {
         "match_id": match_id,
         "total_voters": int,
-        "candidates": [
+        "candidates": [...],
+        "ballots": [
             {
-                "player_id": int,
-                "player_name": str,
-                "total_votes": int,
-                "rank1": int,
-                "rank2": int,
-                "rank3": int,
-                "medal": "gold" | "silver" | "bronze" | None,
-                "rank": int,
+                "ballot_number": int,
+                "rank1": {"player_id": int, "player_name": str},
+                "rank2": {"player_id": int, "player_name": str} | None,
+                "rank3": {"player_id": int, "player_name": str} | None,
             }
         ]
     }
-    STRICT PRIVACY GUARANTEE: Returns only candidate vote aggregates, never linking voters to candidates.
+    STRICT PRIVACY GUARANTEE: Returns only candidate vote aggregates and anonymous ballots.
+    Never exposes voter identities, user IDs, or timestamps.
     """
+    target_mids = [str(m) for m in match_ids] if match_ids else [str(match_id)]
+    placeholders = ",".join("?" for _ in target_mids)
+
     cnt_row = connection.execute(
-        "SELECT COUNT(*) as cnt FROM match_mvp_votes WHERE match_id = ?",
-        [str(match_id)]
+        f"SELECT COUNT(*) as cnt FROM match_mvp_votes WHERE match_id IN ({placeholders})",
+        target_mids
     ).fetchone()
     total_voters = cnt_row["cnt"] if cnt_row else 0
 
-    podium_map = get_match_mvp_podium(connection, match_ids=[str(match_id)])
+    podium_map = get_match_mvp_podium(connection, match_ids=target_mids)
     match_podium = podium_map.get(str(match_id), {})
+    if not match_podium.get("details"):
+        for m in target_mids:
+            if podium_map.get(m, {}).get("details"):
+                match_podium = podium_map.get(m, {})
+                break
+
     details = match_podium.get("details", {})
     gold_set = set(match_podium.get("gold", []))
     silver_set = set(match_podium.get("silver", []))
     bronze_set = set(match_podium.get("bronze", []))
+
+    def format_player(pid):
+        if pid is None or int(pid) <= 0:
+            return None
+        p_id = int(pid)
+        p_name = f"Player {p_id}"
+        if players_dict and p_id in players_dict:
+            p_aliases = players_dict[p_id].get("aliases", [])
+            if p_aliases:
+                p_name = p_aliases[0]
+        return {"player_id": p_id, "player_name": p_name}
 
     candidates = []
     for pid, s in details.items():
@@ -1772,11 +1795,8 @@ def get_match_mvp_results(connection, match_id: str, players_dict: dict | None =
         elif pid in bronze_set:
             medal = "bronze"
 
-        player_name = f"Player {pid}"
-        if players_dict and pid in players_dict:
-            p_aliases = players_dict[pid].get("aliases", [])
-            if p_aliases:
-                player_name = p_aliases[0]
+        p_info = format_player(pid)
+        player_name = p_info["player_name"] if p_info else f"Player {pid}"
 
         candidates.append({
             "player_id": pid,
@@ -1805,10 +1825,43 @@ def get_match_mvp_results(connection, match_id: str, players_dict: dict | None =
         else:
             c["rank"] = 1
 
+    # Extract anonymous ballots (strictly without voter_user_id or created_at)
+    ballot_rows = connection.execute(
+        f"""SELECT voted_player_id, voted_player_id_2, voted_player_id_3
+            FROM match_mvp_votes
+            WHERE match_id IN ({placeholders})""",
+        target_mids
+    ).fetchall()
+
+    raw_ballots = []
+    for b in ballot_rows:
+        raw_ballots.append({
+            "rank1": format_player(b["voted_player_id"]),
+            "rank2": format_player(b["voted_player_id_2"]),
+            "rank3": format_player(b["voted_player_id_3"]),
+        })
+
+    # Sort ballots deterministically by chosen candidate names so submission sequence / time cannot be reverse-engineered
+    raw_ballots.sort(key=lambda b: (
+        (b["rank1"]["player_name"] if b["rank1"] else "").lower(),
+        (b["rank2"]["player_name"] if b["rank2"] else "").lower(),
+        (b["rank3"]["player_name"] if b["rank3"] else "").lower()
+    ))
+
+    ballots = []
+    for idx, b in enumerate(raw_ballots, start=1):
+        ballots.append({
+            "ballot_number": idx,
+            "rank1": b["rank1"],
+            "rank2": b["rank2"],
+            "rank3": b["rank3"],
+        })
+
     return {
         "match_id": str(match_id),
         "total_voters": total_voters,
         "candidates": candidates,
+        "ballots": ballots,
     }
 
 

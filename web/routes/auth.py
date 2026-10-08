@@ -41,7 +41,6 @@ from scripts.accounts.database import (
     update_feedback_status,
     update_user_password,
     update_user_profile,
-    get_mvp_voter_activity_logs,
     get_all_matches_mvp_summaries,
 )
 from scripts.accounts.psychology import (
@@ -262,7 +261,6 @@ def admin_users(default_tab="users"):
         players = get_players(main_conn)
         notifications = get_webmaster_notifications(connection, curr_user["id"], limit=40)
         unseen_notifications_count = get_unseen_webmaster_notifications_count(connection, curr_user["id"])
-        mvp_voter_logs = get_mvp_voter_activity_logs(connection, limit=50)
         mvp_match_summaries = get_all_matches_mvp_summaries(connection, players_dict=players)
         return render_template(
             "admin_users.html",
@@ -271,7 +269,6 @@ def admin_users(default_tab="users"):
             players=players,
             notifications=notifications,
             unseen_notifications_count=unseen_notifications_count,
-            mvp_voter_logs=mvp_voter_logs,
             mvp_match_summaries=mvp_match_summaries,
         )
     finally:

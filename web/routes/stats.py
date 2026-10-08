@@ -696,15 +696,16 @@ def get_mvp_results(match_id):
 
     acc_conn = get_accounts_connection()
     try:
-        res = get_match_mvp_results(acc_conn, canonical_match_id, players_dict=players)
+        target_mids = box_mids if is_box else [match_id]
+        res = get_match_mvp_results(acc_conn, canonical_match_id, players_dict=players, match_ids=target_mids)
         if res.get("total_voters", 0) == 0 and is_box:
             for bmid in box_mids:
-                alt_res = get_match_mvp_results(acc_conn, bmid, players_dict=players)
+                alt_res = get_match_mvp_results(acc_conn, bmid, players_dict=players, match_ids=[bmid])
                 if alt_res.get("total_voters", 0) > 0:
                     res = alt_res
                     break
         elif res.get("total_voters", 0) == 0 and canonical_match_id != match_id:
-            alt_res = get_match_mvp_results(acc_conn, match_id, players_dict=players)
+            alt_res = get_match_mvp_results(acc_conn, match_id, players_dict=players, match_ids=[match_id])
             if alt_res.get("total_voters", 0) > 0:
                 res = alt_res
     finally:
@@ -729,6 +730,7 @@ def get_mvp_results(match_id):
         "deadline_formatted": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
         "total_voters": res["total_voters"],
         "candidates": res["candidates"],
+        "ballots": res.get("ballots", []),
     })
 
 

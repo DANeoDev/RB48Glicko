@@ -1135,7 +1135,47 @@ a:hover { color: var(--accent-hover); }
     gap: 4px;
 }
 
+.mvp-results-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 10px;
+}
+
+.mvp-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--text-muted, #9E9A94);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mvp-tab-btn:hover {
+    color: #ffffff;
+    border-color: rgba(123, 82, 197, 0.6);
+    background: rgba(123, 82, 197, 0.15);
+}
+
+.mvp-tab-btn.active {
+    background: rgba(123, 82, 197, 0.35);
+    border-color: #7B52C5;
+    color: #ffd700;
+    box-shadow: 0 0 8px rgba(123, 82, 197, 0.3);
+}
+
 @media (max-width: 600px) {
+    .mvp-tab-btn {
+        padding: 5px 10px;
+        font-size: 12px;
+    }
     .mvp-modal-card {
         padding: 16px 14px;
         max-height: 92vh;
