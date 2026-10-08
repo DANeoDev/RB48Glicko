@@ -25,6 +25,10 @@ from scripts.glicko.glicko2 import (  # noqa: E402
     IGNORED_RD,
     INACTIVITY_RD_TICK,
 )
+from scripts.glicko.glicko2_calculator import (  # noqa: E402
+    CALIBRATION_THRESHOLD,
+    INACTIVITY_RETIREMENT_DAYS,
+)
 from scripts.matches.match_entry import (  # noqa: E402
     CERTAINTY_LEVELS,
 )
@@ -84,6 +88,7 @@ def generate_markdown() -> str:
    - [Multi-Track Engine (TOTAL, BOX, HF)](#multi-track-engine-total-box-hf)
    - [Anonymous / Ignored Guest Players (\\(\\text{{IGNORED\\_RD}} = {IGNORED_RD:g}\\))](#anonymous--ignored-guest-players-ignored_rd--{IGNORED_RD:g})
    - [New Player Entry Certainty Calibration (5-Step Prior)](#new-player-entry-certainty-calibration-5-step-prior)
+   - [Retrospective Prior Recalibration (Option A* Surgical Split)](#retrospective-prior-recalibration-option-a-surgical-split)
    - [Order Invariance Proof](#order-invariance-proof)
 7. [Glossary & Reference Formulas](#7-glossary--reference-formulas)
 
@@ -382,6 +387,24 @@ This transforms new player creation from an arbitrary default into a **true Baye
 
 ---
 
+### Retrospective Prior Recalibration (Option A* Surgical Split)
+In multi-player team sports, uncalibrated newcomers entering at default values ($r = {DEFAULT_RATING:g}, \\mathrm{{RD}} = {DEFAULT_RD:g}$) cause **Newcomer Bleed**:
+1. Their high RD inflates the pooled team RD, which depresses teammate update clarity $w_{{\\mathrm{{team}}}}$ and penalizes established teammates.
+2. Opponents face an inaccurately evaluated squad.
+
+To eliminate Newcomer Bleed while preventing double-counting of initial games, the RB48 engine executes a **Two-Pass Retrospective Prior Recalibration**:
+- **Dual-Criterion Threshold ($T$):**
+  - Active players: $T = {CALIBRATION_THRESHOLD}$ games.
+  - Historical players inactive for $> {INACTIVITY_RETIREMENT_DAYS}$ days: $T = \\max(1, K)$ (calibrated at their career match count $K$).
+- **Pass 1 (Discovery):** Simulates chronological history from initial priors, recording each player's emergent latent skill $(r_T, \\mathrm{{RD}}_T, \\sigma_T)$ at their exact $T$-th match.
+- **Pass 2 (Option A* Surgical Split):** Re-runs chronological history with calibrated priors loaded from match 1. For each calibrated player:
+  - Games $1 \\dots T$: Frozen at the calibrated prior (preventing double counting while protecting teammates from newcomer inflation).
+  - Transition sessions: Matches up to $T$ are anchored; only matches strictly $> T$ update dynamically.
+  - Games $> T$: Normal dynamic updates.
+  - Provisional players ($< {CALIBRATION_THRESHOLD}$ games): Update dynamically from default priors and carry the provisional indicator (⏳).
+
+---
+
 ### Order Invariance Proof
 Because session updates compute total precision \\(I = \\sum w_m I_m\\) and total difference \\(\\Delta = \\sum w_m \\Delta_m\\) by summing over games, addition is commutative:
 $$I_1 + I_2 = I_2 + I_1 \\qquad \\text{{and}} \\qquad \\Delta_1 + \\Delta_2 = \\Delta_2 + \\Delta_1$$
@@ -404,6 +427,7 @@ Swapping the chronological order of two matches on the same date produces the **
 | **System Constant** | \\(\\tau\\) | `{DEFAULT_TAU:g}`. Constrains volatility changes over time. |
 | **Inactivity Tick** | — | `+{INACTIVITY_RD_TICK}` RD per missed matchday date. |
 | **Guest RD** | \\(\\text{{IGNORED\\_RD}}\\) | `{IGNORED_RD:g}`. Assigned to unregistered external players. |
+| **Calibration Threshold** | \\(T\\) | `{CALIBRATION_THRESHOLD}` matches (dual-criterion with `{INACTIVITY_RETIREMENT_DAYS}` days retirement). |
 """
 
 

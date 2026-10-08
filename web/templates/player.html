@@ -56,6 +56,23 @@
 </div>
 {% endif %}
 
+{% if is_provisional %}
+<div class="provisional-banner" style="background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-size: 13px; color: #ffecb3; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 20px;">⏳</span>
+        <div>
+            <strong style="color: #ffd54f;">{{ t('player.provisional_title', 'Provisorische Kalibrierungsphase') }}</strong>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                {{ t('player.provisional_desc', progress=calibration_progress, threshold=calibration_threshold) }}
+            </div>
+        </div>
+    </div>
+    <div style="font-weight: 800; font-size: 15px; color: #ffd54f; white-space: nowrap; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 6px; padding: 4px 10px;">
+        {{ calibration_progress }} / {{ calibration_threshold }}
+    </div>
+</div>
+{% endif %}
+
 <h2>{{ t('player.performance_overview', 'Performance Übersicht') }}</h2>
 
 <table class="ratings-table"{% if rating_diverges and show_player_glicko %} title="How can the ratings diverge even though {{ player_name }} only has games in {{ exclusive_pitch }}? Well, this is a good question, but it works as intended. If you can figure out the reason, send a Mail to the webmaster — he will grant you a reward." style="cursor: help;"{% endif %}>

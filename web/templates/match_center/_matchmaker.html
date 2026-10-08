@@ -49,6 +49,9 @@
 
                             <span class="player-name">
                                 {{ p.aliases[0] if p.aliases else 'Player ' ~ pid }}
+                                {% if p.get('is_provisional') %}
+                                    <span class="provisional-badge" style="font-size: 11px; margin-left: 3px; cursor: help; opacity: 0.85; color: #ffca28;" title="{{ t('match_center.provisional_tooltip', progress=p.get('calibration_progress', 0), threshold=p.get('calibration_threshold', 15)) }}">⏳</span>
+                                {% endif %}
                             </span>
 
                             <span class="player-positions">

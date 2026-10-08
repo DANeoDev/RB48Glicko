@@ -125,6 +125,11 @@ TRANSLATIONS_EN = {
     "stats.th_win_percent_title": "Win percentage: wins divided by games played.",
     "stats.th_delta_win_percent": "Δ W%",
     "stats.th_delta_win_percent_title": "Win percentage in the selected timeframe.",
+    "stats.provisional_badge": "⏳ ({progress}/{threshold})",
+    "stats.provisional_tooltip": "Provisional status: {progress}/{threshold} matches completed. Fully calibrated at {threshold} matches.",
+    "player.provisional_title": "Provisional Calibration Phase",
+    "player.provisional_desc": "This player is in their calibration phase ({progress}/{threshold} matches played). Glicko-2 ratings are retrospectively recalibrated upon reaching {threshold} matches to eliminate newcomer bleed.",
+    "match_center.provisional_tooltip": "Provisional player ({progress}/{threshold} matches played).",
 
     # Model Analysis
     "model_analysis.title": "Model Analysis",
@@ -600,6 +605,9 @@ TRANSLATIONS_EN = {
     "faq.a_conservative_p1": "To avoid ranking players who have played only one lucky match above consistent veterans, RB48 ranks the leaderboard by <strong>Conservative Rating</strong>:",
     "faq.a_conservative_formula": "Conservative Rating = Rating − (3 × RD)",
     "faq.a_conservative_p2": "This represents the statistical 99.7% lower-bound confidence estimate of a player's rating. Active players with established ratings and low RD are rewarded for consistency.",
+    "faq.q_recalibration": "What does the hourglass icon (⏳) mean and how does newcomer recalibration work?",
+    "faq.a_recalibration_p1": "Players with fewer than 15 matches played are marked as <strong>provisional</strong> (⏳). Because newcomers enter with default values, their initial uncertainty could distort team outcomes and teammate ratings (<em>Newcomer Bleed</em>).",
+    "faq.a_recalibration_p2": "Once a player reaches the 15-match threshold (or after over a year of inactivity for historical players), <strong>retrospective prior recalibration</strong> discovers their true latent skill at the end of their introductory period. These values are retrospectively anchored as their baseline prior, preventing double-counting of matches while protecting teammates from newcomer inflation.",
     "faq.q_eval_accuracy": "How is the predictive accuracy of the model evaluated?",
     "faq.a_eval_accuracy": "Under <a href=\"{analysis_url}\" style=\"color: #80deea; font-weight: 600;\">Model Analysis</a>, we continuously track the ECE score, log-loss, and calibration curve of all historical match predictions. If the model predicts a 65% win probability across 100 matches, the favored team should win approximately 65 of those matches.",
     "faq.gated_title": "Detailed Glicko-2 Analysis is Gated",

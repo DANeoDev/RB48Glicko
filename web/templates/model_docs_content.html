@@ -21,6 +21,7 @@
         <a href="#multi-track-engine-total-box-hf" class="doc-toc-link"><span>&bull;</span> <span>Multi-Track Engine (TOTAL, BOX, HF)</span></a>
         <a href="#anonymous--ignored-guest-players-ignored_rd--480" class="doc-toc-link"><span>&bull;</span> <span>Anonymous / Ignored Guest Players (\(\text{IGNORED\_RD} = 480\))</span></a>
         <a href="#new-player-entry-certainty-calibration-5-step-prior" class="doc-toc-link"><span>&bull;</span> <span>New Player Entry Certainty Calibration (5-Step Prior)</span></a>
+        <a href="#retrospective-prior-recalibration-option-a-surgical-split" class="doc-toc-link"><span>&bull;</span> <span>Retrospective Prior Recalibration (Option A* Surgical Split)</span></a>
         <a href="#order-invariance-proof" class="doc-toc-link"><span>&bull;</span> <span>Order Invariance Proof</span></a>
         <a href="#7-glossary--reference-formulas" class="doc-toc-link"><span>&bull;</span> <span>Glossary & Reference Formulas</span></a>
 </div></div>
@@ -341,6 +342,24 @@
 </tr>
 </tbody></table></div>
 <p>This transforms new player creation from an arbitrary default into a <strong>true Bayesian prior</strong>.</p>
+<h3 id="retrospective-prior-recalibration-option-a-surgical-split">Retrospective Prior Recalibration (Option A* Surgical Split)</h3>
+<p>In multi-player team sports, uncalibrated newcomers entering at default values (\(r = 1500, \mathrm{RD} = 348\)) cause <strong>Newcomer Bleed</strong>:</p>
+<ol>
+<li>Their high RD inflates the pooled team RD, which depresses teammate update clarity \(w_{\mathrm{team}}\) and penalizes established teammates.</li>
+<li>Opponents face an inaccurately evaluated squad.</li>
+</ol>
+<p>To eliminate Newcomer Bleed while preventing double-counting of initial games, the RB48 engine executes a <strong>Two-Pass Retrospective Prior Recalibration</strong>:</p>
+<ul>
+<li><strong>Dual-Criterion Threshold (\(T\)):</strong></li>
+<li>Active players: \(T = 15\) games.</li>
+<li>Historical players inactive for \(> 365\) days: \(T = \max(1, K)\) (calibrated at their career match count \(K\)).</li>
+<li><strong>Pass 1 (Discovery):</strong> Simulates chronological history from initial priors, recording each player's emergent latent skill \((r_T, \mathrm{RD}_T, \sigma_T)\) at their exact \(T\)-th match.</li>
+<li>**Pass 2 (Option A* Surgical Split):** Re-runs chronological history with calibrated priors loaded from match 1. For each calibrated player:</li>
+<li>Games \(1 \dots T\): Frozen at the calibrated prior (preventing double counting while protecting teammates from newcomer inflation).</li>
+<li>Transition sessions: Matches up to \(T\) are anchored; only matches strictly \(> T\) update dynamically.</li>
+<li>Games \(> T\): Normal dynamic updates.</li>
+<li>Provisional players (\(< 15\) games): Update dynamically from default priors and carry the provisional indicator (⏳).</li>
+</ul>
 <h3 id="order-invariance-proof">Order Invariance Proof</h3>
 <p>Because session updates compute total precision \(I = \sum w_m I_m\) and total difference \(\Delta = \sum w_m \Delta_m\) by summing over games, addition is commutative:</p>
 <div class="doc-formula-box">$$I_1 + I_2 = I_2 + I_1 \qquad \text{and} \qquad \Delta_1 + \Delta_2 = \Delta_2 + \Delta_1$$</div>
@@ -404,6 +423,11 @@
 <td style="text-align: left;"><strong>Guest RD</strong></td>
 <td style="text-align: center;">\(\text{IGNORED\_RD}\)</td>
 <td style="text-align: left;"><span class="doc-pill">480</span>. Assigned to unregistered external players.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Calibration Threshold</strong></td>
+<td style="text-align: center;">\(T\)</td>
+<td style="text-align: left;"><span class="doc-pill">15</span> matches (dual-criterion with <span class="doc-pill">365</span> days retirement).</td>
 </tr>
 </tbody></table></div>
 </section>

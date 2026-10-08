@@ -4,7 +4,7 @@ import threading
 from scripts.database.database import get_connection
 from scripts.database.db_matches import get_player_stats
 from scripts.database.db_players import get_players
-from scripts.database.db_ratings import get_ratings
+from scripts.database.db_ratings import get_ratings, get_player_calibrated_priors
 from scripts.analysis.history_snapshots import compute_historical_snapshots, get_matchday_metadata_map
 from scripts.analysis.streaks import get_dashboard_streaks
 from scripts.analysis.synergies import get_community_synergies
@@ -47,7 +47,8 @@ def get_cached_stats_data(connection=None):
             synergies = get_community_synergies(connection, min_games=5, exclude_player_ids=stats_opted_out)
             streaks = get_dashboard_streaks(connection)
             historical_snapshots = compute_historical_snapshots(connection)
-            leaderboard_base = build_leaderboard(ratings, players, player_stats, deltas=deltas)
+            calibrated_priors = get_player_calibrated_priors(connection)
+            leaderboard_base = build_leaderboard(ratings, players, player_stats, deltas=deltas, calibrated_priors=calibrated_priors)
 
             _stats_cache = {
                 "ratings": ratings,
@@ -58,6 +59,7 @@ def get_cached_stats_data(connection=None):
                 "streaks": streaks,
                 "historical_snapshots": historical_snapshots,
                 "leaderboard_base": leaderboard_base,
+                "calibrated_priors": calibrated_priors,
             }
             return _stats_cache
         finally:

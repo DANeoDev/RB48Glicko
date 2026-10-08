@@ -131,6 +131,11 @@ TRANSLATIONS_DE = {
     "stats.th_win_percent_title": "Siegquote: Gewonnene Spiele geteilt durch absolvierte Spiele.",
     "stats.th_delta_win_percent": "Δ S%",
     "stats.th_delta_win_percent_title": "Veränderung der Siegquote im gewählten Zeitraum.",
+    "stats.provisional_badge": "⏳ ({progress}/{threshold})",
+    "stats.provisional_tooltip": "Provisorische Einstufung: {progress}/{threshold} Spiele absolviert. Vollständig kalibriert ab {threshold} Spielen.",
+    "player.provisional_title": "Provisorische Kalibrierungsphase",
+    "player.provisional_desc": "Dieser Spieler befindet sich in der Einspielphase ({progress}/{threshold} Spiele absolviert). Das Glicko-2 Rating wird nach {threshold} Spielen retrospektiv rekalibriert, um Einstiegsverzerrungen zu eliminieren.",
+    "match_center.provisional_tooltip": "Provisorischer Spieler ({progress}/{threshold} Spiele absolviert).",
 
     # =========================================================================
     # Model Analysis (Polished for clarity & Wednesday standard matchdays)
@@ -619,6 +624,9 @@ TRANSLATIONS_DE = {
     "faq.a_conservative_p1": "Damit Spieler nach einem einzigen glücklichen Sieg nicht sofort an langjährigen Stammspielern vorbeiziehen, sortiert RB48 die Rangliste nach dem <strong>Konservativen Rating</strong>:",
     "faq.a_conservative_formula": "Konservatives Rating = Rating − (3 × RD)",
     "faq.a_conservative_p2": "Das entspricht der statistischen 99,7%-Untergrenze der Leistungserwartung. Aktive, konstante Spieler mit niedriger RD werden für ihre Zuverlässigkeit belohnt.",
+    "faq.q_recalibration": "Was bedeutet das Sanduhr-Symbol (⏳) und wie funktioniert die Rekalibrierung von Neueinsteigern?",
+    "faq.a_recalibration_p1": "Spieler mit weniger als 15 absolvierten Partien gelten als <strong>provisorisch</strong> (⏳). Da neue Spieler mit pauschalen Standardwerten starten, könnte ihre anfängliche Unsicherheit das Teamergebnis und die Wertungen ihrer Mitspieler verzerren (<em>Newcomer Bleed</em>).",
+    "faq.a_recalibration_p2": "Sobald ein Spieler die 15-Spiele-Schwelle erreicht (oder nach über einem Jahr Inaktivität bei historischen Spielern), ermittelt die <strong>retrospektive Prior-Rekalibrierung</strong> seine wahre Spielstärke zum Abschluss der Eingewöhnungsphase. Diese Werte werden rückwirkend als fundierter Einstiegspunkt fixiert, sodass frühere Partien weder doppelt gezählt noch Mitspieler ungerechtfertigt belastet werden.",
     "faq.q_eval_accuracy": "Wie wird die Vorhersagegenauigkeit des Modells überprüft?",
     "faq.a_eval_accuracy": "Unter <a href=\"{analysis_url}\" style=\"color: #80deea; font-weight: 600;\">Modellanalyse</a> überwachen wir kontinuierlich ECE-Score, Log-Loss und die Kalibrierungskurve aller vergangenen Spieltagsprognosen. Sagt das Modell in 100 Spielen eine 65%-Chance voraus, sollte das favorisierte Team in rund 65 dieser Spiele auch tatsächlich gewinnen.",
     "faq.gated_title": "Detaillierte Glicko-2-Analyse ist geschützt",

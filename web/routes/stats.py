@@ -46,7 +46,7 @@ from scripts.database.db_matches import (
     natural_match_sort_key,
 )
 from scripts.database.db_players import get_players
-from scripts.database.db_ratings import get_player_rating_history, get_ratings
+from scripts.database.db_ratings import get_player_rating_history, get_ratings, get_player_calibrated_priors
 from scripts.frontend.view_models import (
     build_match_history,
 )
@@ -140,6 +140,7 @@ def player_profile(player_id):
         players = get_players(connection)
         ratings = get_ratings(connection)
         player_stats = get_player_stats(connection)
+        calibrated_priors = get_player_calibrated_priors(connection)
         rating_history = get_player_rating_history(connection, player_id)
         selected_rating_type = request.args.get("rating_type", "total").lower()
         selected_rating_type = selected_rating_type if selected_rating_type in ("total", "box", "hf") else "total"
@@ -245,6 +246,14 @@ def player_profile(player_id):
     is_player_stats_opted_out = player_id in stats_opted_out_player_ids
     show_player_glicko = has_tier(Tier.GLICKO_USER) and not is_player_opted_out
 
+    p_stat = player_stats.get(player_id, {})
+    total_career_games = p_stat.get("total", {}).get("games", 0)
+    p_prior = calibrated_priors.get(player_id, {}).get("total") if isinstance(calibrated_priors.get(player_id), dict) else None
+    calibration_threshold = p_prior.get("threshold", 15) if (p_prior and isinstance(p_prior, dict)) else 15
+    is_calibrated = (player_id in calibrated_priors) or (total_career_games >= calibration_threshold)
+    is_provisional = not is_calibrated
+    calibration_progress = min(total_career_games, calibration_threshold)
+
     return render_template(
         "player.html",
         player=players[player_id],
@@ -264,6 +273,10 @@ def player_profile(player_id):
         is_player_opted_out=is_player_opted_out,
         is_player_stats_opted_out=is_player_stats_opted_out,
         show_player_glicko=show_player_glicko,
+        is_provisional=is_provisional,
+        is_calibrated=is_calibrated,
+        calibration_threshold=calibration_threshold,
+        calibration_progress=calibration_progress,
     )
 
 

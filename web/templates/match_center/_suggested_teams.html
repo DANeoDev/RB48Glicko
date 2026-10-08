@@ -56,6 +56,9 @@
                                 if players[pid].aliases
                                 else 'Player ' ~ pid
                             }}
+                            {% if players[pid].get('is_provisional') %}
+                                <span class="provisional-badge" style="font-size: 11px; margin-left: 2px; cursor: help; opacity: 0.85; color: #ffca28;" title="{{ t('match_center.provisional_tooltip', progress=players[pid].get('calibration_progress', 0), threshold=players[pid].get('calibration_threshold', 15)) }}">⏳</span>
+                            {% endif %}
 
                             <span
                                 class="position-info"
@@ -102,6 +105,9 @@
                                 if players[pid].aliases
                                 else 'Player ' ~ pid
                             }}
+                            {% if players[pid].get('is_provisional') %}
+                                <span class="provisional-badge" style="font-size: 11px; margin-left: 2px; cursor: help; opacity: 0.85; color: #ffca28;" title="{{ t('match_center.provisional_tooltip', progress=players[pid].get('calibration_progress', 0), threshold=players[pid].get('calibration_threshold', 15)) }}">⏳</span>
+                            {% endif %}
 
                             <span
                                 class="position-info"

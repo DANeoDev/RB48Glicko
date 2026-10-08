@@ -5,7 +5,8 @@ from flask import Blueprint, render_template, request, jsonify
 
 from scripts.accounts.database import get_accounts_connection
 from scripts.database.database import get_connection
-from scripts.database.db_ratings import get_ratings
+from scripts.database.db_ratings import get_ratings, get_player_calibrated_priors
+from scripts.database.db_matches import get_player_stats
 from scripts.database.db_players import get_players, get_alias_lookup, add_alias, get_ignored_aliases, add_ignored_alias
 from scripts.matches.match_entry import (
     add_match,
@@ -538,6 +539,18 @@ def match_center():
             team_b = parse_result.get("team_b_ids", [])
             external_a = parse_result.get("external_a", 0)
             external_b = parse_result.get("external_b", 0)
+
+        p_stats = get_player_stats(connection)
+        calibrated_priors = get_player_calibrated_priors(connection)
+        for pid, pdata in players.items():
+            tot_g = p_stats.get(pid, {}).get("total", {}).get("games", 0)
+            p_prior = calibrated_priors.get(pid, {}).get("total") if isinstance(calibrated_priors.get(pid), dict) else None
+            p_thresh = p_prior.get("threshold", 15) if (p_prior and isinstance(p_prior, dict)) else 15
+            is_cal = (pid in calibrated_priors) or (tot_g >= p_thresh)
+            pdata["is_calibrated"] = is_cal
+            pdata["is_provisional"] = not is_cal
+            pdata["calibration_threshold"] = p_thresh
+            pdata["calibration_progress"] = min(tot_g, p_thresh)
 
         player_names = {}
         for pid, data in players.items():

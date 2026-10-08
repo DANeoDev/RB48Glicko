@@ -453,6 +453,9 @@
                 <td>{{ '—' if is_opted_out else loop.index }}</td>
                 <td>
                     <a href="{{ url_for('stats.player_profile', player_id=player['player_id']) }}">{{ player["alias"] }}</a>
+                    {% if player.get('is_provisional') %}
+                        <span class="provisional-badge" style="font-size: 11px; margin-left: 4px; cursor: help; opacity: 0.85; color: #ffca28;" title="{{ t('stats.provisional_tooltip', progress=player.get('calibration_progress', 0), threshold=player.get('calibration_threshold', 15)) }}">⏳ ({{ player.get('calibration_progress', 0) }}/{{ player.get('calibration_threshold', 15) }})</span>
+                    {% endif %}
                     {% if has_tier('webmaster') %}
                         {% if player['player_id'] in opted_out_player_ids %}
                             <span style="font-size: 10px; opacity: 0.7; color: #ffc107;" title="Glicko-2 Opt-out aktiv">🔒 Opt-out</span>

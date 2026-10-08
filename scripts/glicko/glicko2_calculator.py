@@ -5,6 +5,7 @@ historical match ratings and current ratings across Total, BOX, and HF pitches,
 and persists the results into the database.
 """
 
+from collections import defaultdict
 from datetime import datetime
 import math
 import os
@@ -13,9 +14,13 @@ import shutil
 import sqlite3
 
 from scripts.database.database import get_connection, get_database_file
-from scripts.database.db_matches import get_matches, get_match_teams
+from scripts.database.db_matches import get_matches, get_match_teams, get_all_match_teams
 from scripts.database.db_players import get_players
-from scripts.database.db_ratings import get_calibrations
+from scripts.database.db_ratings import (
+    get_calibrations,
+    get_player_calibrated_priors,
+    save_player_calibrated_priors,
+)
 from scripts.glicko.glicko2 import (
     Glicko2,
     Rating,
@@ -31,6 +36,9 @@ from scripts.glicko.glicko2 import (
     HF,
     INACTIVITY_RD_TICK,
 )
+
+CALIBRATION_THRESHOLD = 15
+INACTIVITY_RETIREMENT_DAYS = 365
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -175,22 +183,83 @@ def group_matches_by_date(matches):
     return sessions
 
 
-def calculate_glicko(connection, matches, prepared_glicko, debug_player=None):
-    engine = Glicko2()
-    ratings = glicko_table_to_ratings(prepared_glicko)
-    sessions = group_matches_by_date(matches)
+def compute_player_thresholds(
+    connection=None,
+    matches=None,
+    match_teams_map=None,
+    standard_threshold=CALIBRATION_THRESHOLD,
+    inactivity_days=INACTIVITY_RETIREMENT_DAYS,
+):
+    """
+    Computes per-player calibration thresholds based on the dual-criterion model:
+    1. Standard threshold: 15 games.
+    2. Second criterion: If a player has < 15 games across history and has been inactive
+       for > 1 year (> 365 days) after their last game, their calibration threshold is set
+       to their maximum match count k = max(1, count).
+    """
+    if matches is None and connection is not None:
+        matches = get_matches(connection)
+    elif matches is None:
+        matches = {}
 
-    for session_date, session_matches in sessions.items():
-        # Pre-session snapshot written for all matches on this date
-        current_glicko = ratings_to_glicko_table(ratings)
-        for match in session_matches:
-            write_match_ratings(connection, match["match_id"], current_glicko)
-        update_session(connection, session_matches, ratings, engine, debug_player)
+    match_list = list(matches.values()) if isinstance(matches, dict) else list(matches)
+    if match_teams_map is None and connection is not None:
+        match_teams_map = get_all_match_teams(connection)
 
-    return ratings_to_glicko_table(ratings)
+    p_total_games = {}
+    p_last_date = {}
+    max_date_str = "1900-01-01"
+
+    for m in match_list:
+        mid = m["match_id"]
+        d_str = m["date"][:10]
+        if d_str > max_date_str:
+            max_date_str = d_str
+        if match_teams_map is not None:
+            team_a, team_b = match_teams_map.get(mid, ([], []))
+        elif connection is not None:
+            team_a, team_b = get_match_teams(connection, mid)
+        else:
+            team_a, team_b = [], []
+
+        for pid in team_a + team_b:
+            p_total_games.setdefault(pid, set()).add(mid)
+            p_last_date[pid] = max(p_last_date.get(pid, d_str), d_str)
+
+    ref_dt = datetime.now().date()
+    if max_date_str != "1900-01-01":
+        m_dt = datetime.strptime(max_date_str, "%Y-%m-%d").date()
+        if m_dt > ref_dt:
+            ref_dt = m_dt
+
+    player_thresh = {}
+
+    for pid, g_set in p_total_games.items():
+        cnt = len(g_set)
+        if cnt >= standard_threshold:
+            player_thresh[pid] = standard_threshold
+        else:
+            p_dt = datetime.strptime(p_last_date[pid], "%Y-%m-%d").date()
+            if (ref_dt - p_dt).days > inactivity_days:
+                player_thresh[pid] = max(1, cnt)
+            else:
+                player_thresh[pid] = standard_threshold
+
+    if connection is not None:
+        try:
+            for row in connection.execute("SELECT player_id FROM players"):
+                p_id = row["player_id"]
+                if p_id not in player_thresh:
+                    player_thresh[p_id] = standard_threshold
+        except Exception:
+            pass
+
+    return player_thresh
 
 
 def get_first_alias(connection, player_id):
+    if connection is None:
+        return f"Player {player_id}"
     row = connection.execute(
         "SELECT alias FROM aliases WHERE player_id = ? ORDER BY alias LIMIT 1",
         (player_id,),
@@ -219,12 +288,28 @@ def select_debug_player(connection):
         print("Please enter a valid player number.")
 
 
-def update_session(connection, session_matches, ratings, engine, debug_player=None, match_teams_map=None):
+def update_session(
+    connection,
+    session_matches,
+    ratings,
+    engine,
+    debug_player=None,
+    match_teams_map=None,
+    retro_calibrated=False,
+    player_thresholds=None,
+    calibrated_players=None,
+    games_played_tracker=None,
+):
     """
     Update ratings for a session (all matches played on the same calendar date).
 
     Evidence from all matches in the session is pooled together before updating
     player ratings and RDs simultaneously, eliminating intra-session order dependency.
+
+    When retro_calibrated is active, implements Option A* Surgical Split:
+    - Calibrated players with games <= threshold are frozen (preventing double counting).
+    - Transition sessions update only matches strictly after threshold.
+    - Graduated players update dynamically with all session matches.
     """
     if not session_matches:
         return
@@ -246,6 +331,7 @@ def update_session(connection, session_matches, ratings, engine, debug_player=No
             team1_ids, team2_ids = match_teams_map.get(mid, ([], []))
         else:
             team1_ids, team2_ids = get_match_teams(connection, mid)
+
         if not team1_ids or not team2_ids:
             continue
 
@@ -282,6 +368,7 @@ def update_session(connection, session_matches, ratings, engine, debug_player=No
                 res1,
                 calculate_teammates_rd(player_id, team1_ids, team1_total, ratings, TOTAL),
                 team1_total,
+                mid,
             ))
             player_games[player_id].setdefault(pitch_type, []).append((
                 t1_pitch,
@@ -289,6 +376,7 @@ def update_session(connection, session_matches, ratings, engine, debug_player=No
                 res1,
                 calculate_teammates_rd(player_id, team1_ids, team1_total, ratings, pitch_type),
                 team1_total,
+                mid,
             ))
 
         for player_id in team2_ids:
@@ -298,6 +386,7 @@ def update_session(connection, session_matches, ratings, engine, debug_player=No
                 res2,
                 calculate_teammates_rd(player_id, team2_ids, team2_total, ratings, TOTAL),
                 team2_total,
+                mid,
             ))
             player_games[player_id].setdefault(pitch_type, []).append((
                 t2_pitch,
@@ -305,31 +394,75 @@ def update_session(connection, session_matches, ratings, engine, debug_player=No
                 res2,
                 calculate_teammates_rd(player_id, team2_ids, team2_total, ratings, pitch_type),
                 team2_total,
+                mid,
             ))
 
     # Apply session batch update for all active players
     for player_id, rtypes in player_games.items():
-        for rtype, games in rtypes.items():
-            ratings[player_id][rtype] = engine.update_player_session(
-                ratings[player_id][rtype],
-                games,
-            )
+        session_p_mids = [g[5] for g in rtypes[TOTAL]]
+        num_session_matches = len(session_p_mids)
+
+        if retro_calibrated and calibrated_players and player_id in calibrated_players:
+            p_thresh = player_thresholds.get(player_id, CALIBRATION_THRESHOLD) if player_thresholds else CALIBRATION_THRESHOLD
+            prev_games = games_played_tracker[player_id] if games_played_tracker is not None else 0
+            total_games = prev_games + num_session_matches
+
+            if total_games <= p_thresh:
+                # Option A: Frozen during initial calibration window (1..p_thresh)
+                pass
+            elif prev_games < p_thresh and total_games > p_thresh:
+                # Surgical Split in transition session:
+                needed = p_thresh - prev_games
+                mids_up_to_thresh = set(session_p_mids[:needed])
+                for rtype, games in rtypes.items():
+                    games_after = [g for g in games if g[5] not in mids_up_to_thresh]
+                    if games_after:
+                        ratings[player_id][rtype] = engine.update_player_session(
+                            ratings[player_id][rtype],
+                            games_after,
+                        )
+            else:
+                # Graduated player (prev_games >= p_thresh)
+                for rtype, games in rtypes.items():
+                    ratings[player_id][rtype] = engine.update_player_session(
+                        ratings[player_id][rtype],
+                        games,
+                    )
+            if games_played_tracker is not None:
+                games_played_tracker[player_id] = total_games
+        else:
+            if games_played_tracker is not None:
+                games_played_tracker[player_id] = games_played_tracker.get(player_id, 0) + num_session_matches
+            for rtype, games in rtypes.items():
+                ratings[player_id][rtype] = engine.update_player_session(
+                    ratings[player_id][rtype],
+                    games,
+                )
 
     # Apply inactivity tick once per session for inactive players
     for player_id in ratings:
-        if player_id not in session_active_players:
-            ratings[player_id][TOTAL].rd = min(
-                ratings[player_id][TOTAL].rd + INACTIVITY_RD_TICK, DEFAULT_RD
-            )
-        for pitch_type in session_pitches:
-            pitch_active = {
-                pid for pid in session_active_players
-                if pid in player_games and pitch_type in player_games[pid]
-            }
-            if player_id not in pitch_active:
-                ratings[player_id][pitch_type].rd = min(
-                    ratings[player_id][pitch_type].rd + INACTIVITY_RD_TICK, DEFAULT_RD
+        p_thresh = player_thresholds.get(player_id, CALIBRATION_THRESHOLD) if player_thresholds else CALIBRATION_THRESHOLD
+        is_anchored = (
+            retro_calibrated
+            and calibrated_players is not None
+            and player_id in calibrated_players
+            and games_played_tracker is not None
+            and games_played_tracker.get(player_id, 0) < p_thresh
+        )
+        if not is_anchored:
+            if player_id not in session_active_players:
+                ratings[player_id][TOTAL].rd = min(
+                    ratings[player_id][TOTAL].rd + INACTIVITY_RD_TICK, DEFAULT_RD
                 )
+            for pitch_type in session_pitches:
+                pitch_active = {
+                    pid for pid in session_active_players
+                    if pid in player_games and pitch_type in player_games[pid]
+                }
+                if player_id not in pitch_active:
+                    ratings[player_id][pitch_type].rd = min(
+                        ratings[player_id][pitch_type].rd + INACTIVITY_RD_TICK, DEFAULT_RD
+                    )
 
     if debug_player and debug_player in session_active_players:
         print(f"\nDEBUG PLAYER: {get_first_alias(connection, debug_player)}")
@@ -351,7 +484,161 @@ def update_match(connection, match, ratings, engine, debug_player=None):
     update_session(connection, [match], ratings, engine, debug_player)
 
 
+def run_recalibration_pass1(
+    connection,
+    matches,
+    initial_calibrations=None,
+    match_teams_map=None,
+    player_thresholds=None,
+):
+    """
+    Pass 1: Discover emergent latent ratings at the calibration threshold for eligible players.
+    Simulates chronological sessions from initial priors.
+    Returns:
+        calibrated_priors: dict[player_id -> {TOTAL: Rating, BOX: Rating, HF: Rating}]
+    """
+    engine = Glicko2()
+    if match_teams_map is None and connection is not None:
+        match_teams_map = get_all_match_teams(connection)
+
+    # Initial table from calibrations or default
+    if isinstance(initial_calibrations, dict) and any(isinstance(v, dict) and TOTAL in v for v in initial_calibrations.values()):
+        ratings = glicko_table_to_ratings(initial_calibrations)
+    else:
+        prepared = prepare_glicko_table(connection, matches, initial_calibrations or {}, match_teams_map=match_teams_map)
+        ratings = glicko_table_to_ratings(prepared)
+
+    if player_thresholds is None:
+        player_thresholds = compute_player_thresholds(connection, matches, match_teams_map=match_teams_map)
+
+    sessions = group_matches_by_date(matches)
+    games_played_p1 = defaultdict(int)
+    calibrated_priors = {}
+
+    for session_date, session_matches in sessions.items():
+        player_games = {}
+        session_active_players = set()
+        session_pitches = set()
+
+        for match in session_matches:
+            mid = match["match_id"]
+            if match_teams_map is not None:
+                team1_ids, team2_ids = match_teams_map.get(mid, ([], []))
+            elif connection is not None:
+                team1_ids, team2_ids = get_match_teams(connection, mid)
+            else:
+                team1_ids, team2_ids = [], []
+
+            if not team1_ids or not team2_ids:
+                continue
+
+            team1_total = match["players_a"]
+            team2_total = match["players_b"]
+
+            pitch_type = BOX if match["pitch"] == "box" else HF
+            session_pitches.add(pitch_type)
+            session_active_players.update(team1_ids)
+            session_active_players.update(team2_ids)
+
+            if match["goals_a"] > match["goals_b"]:
+                res1, res2 = WIN, LOSS
+            elif match["goals_a"] < match["goals_b"]:
+                res1, res2 = LOSS, WIN
+            else:
+                res1 = res2 = DRAW
+
+            t1_total = calculate_team_rating(team1_ids, team1_total, ratings, TOTAL)
+            t2_total = calculate_team_rating(team2_ids, team2_total, ratings, TOTAL)
+            t1_pitch = calculate_team_rating(team1_ids, team1_total, ratings, pitch_type)
+            t2_pitch = calculate_team_rating(team2_ids, team2_total, ratings, pitch_type)
+
+            for pid in team1_ids:
+                player_games.setdefault(pid, {}).setdefault(TOTAL, []).append((
+                    t1_total, t2_total, res1,
+                    calculate_teammates_rd(pid, team1_ids, team1_total, ratings, TOTAL),
+                    team1_total, mid,
+                ))
+                player_games[pid].setdefault(pitch_type, []).append((
+                    t1_pitch, t2_pitch, res1,
+                    calculate_teammates_rd(pid, team1_ids, team1_total, ratings, pitch_type),
+                    team1_total, mid,
+                ))
+
+            for pid in team2_ids:
+                player_games.setdefault(pid, {}).setdefault(TOTAL, []).append((
+                    t2_total, t1_total, res2,
+                    calculate_teammates_rd(pid, team2_ids, team2_total, ratings, TOTAL),
+                    team2_total, mid,
+                ))
+                player_games[pid].setdefault(pitch_type, []).append((
+                    t2_pitch, t1_pitch, res2,
+                    calculate_teammates_rd(pid, team2_ids, team2_total, ratings, pitch_type),
+                    team2_total, mid,
+                ))
+
+        for pid, rtypes in player_games.items():
+            prev_games = games_played_p1[pid]
+            session_p_mids = [g[5] for g in rtypes[TOTAL]]
+            total_games = prev_games + len(session_p_mids)
+            p_thresh = player_thresholds.get(pid, CALIBRATION_THRESHOLD)
+
+            if prev_games < p_thresh and total_games >= p_thresh and pid not in calibrated_priors:
+                needed = p_thresh - prev_games
+                mids_up = set(session_p_mids[:needed])
+
+                games_up_tot = [g for g in rtypes[TOTAL] if g[5] in mids_up]
+                r_tot_thresh = engine.update_player_session(ratings[pid][TOTAL], games_up_tot)
+
+                games_up_box = [g for g in rtypes.get(BOX, []) if g[5] in mids_up]
+                if games_up_box:
+                    r_box_thresh = engine.update_player_session(ratings[pid][BOX], games_up_box)
+                else:
+                    r_box_thresh = Rating(ratings[pid][BOX].rating, ratings[pid][BOX].rd, ratings[pid][BOX].sigma)
+
+                games_up_hf = [g for g in rtypes.get(HF, []) if g[5] in mids_up]
+                if games_up_hf:
+                    r_hf_thresh = engine.update_player_session(ratings[pid][HF], games_up_hf)
+                else:
+                    r_hf_thresh = Rating(ratings[pid][HF].rating, ratings[pid][HF].rd, ratings[pid][HF].sigma)
+
+                calibrated_priors[pid] = {
+                    TOTAL: Rating(r_tot_thresh.rating, r_tot_thresh.rd, r_tot_thresh.sigma),
+                    BOX: Rating(r_box_thresh.rating, r_box_thresh.rd, r_box_thresh.sigma),
+                    HF: Rating(r_hf_thresh.rating, r_hf_thresh.rd, r_hf_thresh.sigma),
+                }
+
+                games_after_tot = [g for g in rtypes[TOTAL] if g[5] not in mids_up]
+                ratings[pid][TOTAL] = engine.update_player_session(r_tot_thresh, games_after_tot) if games_after_tot else r_tot_thresh
+
+                games_after_box = [g for g in rtypes.get(BOX, []) if g[5] not in mids_up]
+                ratings[pid][BOX] = engine.update_player_session(r_box_thresh, games_after_box) if games_after_box else r_box_thresh
+
+                games_after_hf = [g for g in rtypes.get(HF, []) if g[5] not in mids_up]
+                ratings[pid][HF] = engine.update_player_session(r_hf_thresh, games_after_hf) if games_after_hf else r_hf_thresh
+            else:
+                for rtype, games in rtypes.items():
+                    ratings[pid][rtype] = engine.update_player_session(ratings[pid][rtype], games)
+
+            games_played_p1[pid] = total_games
+
+        # Inactivity tick
+        for pid in ratings:
+            if pid not in session_active_players:
+                ratings[pid][TOTAL].rd = min(ratings[pid][TOTAL].rd + INACTIVITY_RD_TICK, DEFAULT_RD)
+            for pitch_type in session_pitches:
+                pitch_active = {
+                    p for p in session_active_players
+                    if p in player_games and pitch_type in player_games[p]
+                }
+                if pid not in pitch_active:
+                    ratings[pid][pitch_type].rd = min(ratings[pid][pitch_type].rd + INACTIVITY_RD_TICK, DEFAULT_RD)
+
+    return calibrated_priors
+
+
 def write_match_ratings(connection, match_id, ratings):
+    if connection is None:
+        return
     for player_id, rating_types in ratings.items():
         for rating_type, rating in rating_types.items():
             connection.execute(
@@ -369,6 +656,8 @@ def write_match_ratings(connection, match_id, ratings):
 
 
 def write_glicko(connection, glickos):
+    if connection is None:
+        return
     for player_id, rating_types in glickos.items():
         for rating_type, rating in rating_types.items():
             connection.execute(
@@ -385,10 +674,72 @@ def write_glicko(connection, glickos):
     connection.commit()
 
 
-def recalculate_glicko2_ratings(connection=None, create_backup=True, debug_player=None):
+def calculate_glicko(
+    connection,
+    matches,
+    prepared_glicko,
+    debug_player=None,
+    match_teams_map=None,
+    retro_calibrated=True,
+    calibrated_priors=None,
+    player_thresholds=None,
+):
+    """
+    Compute Glicko-2 ratings chronologically across all matches.
+    When retro_calibrated is True, executes Two-Pass Retrospective Prior Calibration
+    with Option A* Surgical Split to eliminate Newcomer Bleed.
+    """
+    engine = Glicko2()
+    ratings = glicko_table_to_ratings(prepared_glicko)
+    if match_teams_map is None and connection is not None:
+        match_teams_map = get_all_match_teams(connection)
+
+    if retro_calibrated:
+        if player_thresholds is None:
+            player_thresholds = compute_player_thresholds(connection, matches, match_teams_map=match_teams_map)
+        if calibrated_priors is None:
+            calibrated_priors = run_recalibration_pass1(
+                connection, matches, prepared_glicko, match_teams_map, player_thresholds
+            )
+
+        # Seed calibrated players with their discovered priors from match 1
+        for pid, priors in calibrated_priors.items():
+            if pid not in ratings:
+                ratings[pid] = {}
+            for rtype in (TOTAL, BOX, HF):
+                p_r = priors[rtype]
+                ratings[pid][rtype] = Rating(p_r.rating, p_r.rd, p_r.sigma)
+
+    sessions = group_matches_by_date(matches)
+    games_played_tracker = defaultdict(int) if retro_calibrated else None
+    calibrated_players = set(calibrated_priors.keys()) if (retro_calibrated and calibrated_priors) else set()
+
+    for session_date, session_matches in sessions.items():
+        # Pre-session snapshot written for all matches on this date
+        current_glicko = ratings_to_glicko_table(ratings)
+        for match in session_matches:
+            write_match_ratings(connection, match["match_id"], current_glicko)
+        update_session(
+            connection,
+            session_matches,
+            ratings,
+            engine,
+            debug_player=debug_player,
+            match_teams_map=match_teams_map,
+            retro_calibrated=retro_calibrated,
+            player_thresholds=player_thresholds,
+            calibrated_players=calibrated_players,
+            games_played_tracker=games_played_tracker,
+        )
+
+    return ratings_to_glicko_table(ratings)
+
+
+def recalculate_glicko2_ratings(connection=None, create_backup=True, debug_player=None, retro_calibrated=True):
     """
     Full recalculation of Glicko-2 ratings from scratch across all matches in the database.
     Optionally creates an archival SQLite database backup first.
+    Executes Two-Pass Retrospective Prior Recalibration (Option A* Surgical Split) by default.
     Returns a dict with execution statistics and backup metadata.
     """
     backup_file = None
@@ -399,10 +750,29 @@ def recalculate_glicko2_ratings(connection=None, create_backup=True, debug_playe
     should_close = connection is None
     try:
         matches = get_matches(conn)
+        match_teams_map = get_all_match_teams(conn)
         calibrations = get_calibrations(conn)
         clear_ratings(conn)
-        prepared_glicko = prepare_glicko_table(conn, matches, calibrations)
-        glickos = calculate_glicko(conn, matches, prepared_glicko, debug_player)
+        player_thresholds = compute_player_thresholds(conn, matches, match_teams_map)
+        prepared_glicko = prepare_glicko_table(conn, matches, calibrations, match_teams_map=match_teams_map)
+
+        calibrated_priors = None
+        if retro_calibrated:
+            calibrated_priors = run_recalibration_pass1(
+                conn, matches, prepared_glicko, match_teams_map, player_thresholds
+            )
+            save_player_calibrated_priors(conn, calibrated_priors, thresholds=player_thresholds)
+
+        glickos = calculate_glicko(
+            conn,
+            matches,
+            prepared_glicko,
+            debug_player=debug_player,
+            match_teams_map=match_teams_map,
+            retro_calibrated=retro_calibrated,
+            calibrated_priors=calibrated_priors,
+            player_thresholds=player_thresholds,
+        )
         write_glicko(conn, glickos)
         try:
             from scripts.docs.generate_model_docs import update_docs_file
@@ -414,6 +784,7 @@ def recalculate_glicko2_ratings(connection=None, create_backup=True, debug_playe
             "backup_file": backup_file.name if backup_file else None,
             "matches_count": len(matches),
             "players_count": len(glickos),
+            "calibrated_players_count": len(calibrated_priors) if calibrated_priors else 0,
         }
     finally:
         if should_close:

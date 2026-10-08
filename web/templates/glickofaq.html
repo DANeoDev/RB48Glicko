@@ -278,6 +278,16 @@
             </div>
 
             <div class="faq-item">
+                <h3>{{ t('faq.q_recalibration', 'Was bedeutet das Sanduhr-Symbol (⏳) und wie funktioniert die Rekalibrierung von Neueinsteigern?') }}</h3>
+                <p>
+                    {{ t('faq.a_recalibration_p1') | safe }}
+                </p>
+                <p>
+                    {{ t('faq.a_recalibration_p2') | safe }}
+                </p>
+            </div>
+
+            <div class="faq-item">
                 <h3>{{ t('faq.q_eval_accuracy', 'How is the predictive accuracy of the model evaluated?') }}</h3>
                 <p>
                     {{ t('faq.a_eval_accuracy', analysis_url=url_for('stats.model_analysis')) | safe }}

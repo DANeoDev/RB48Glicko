@@ -339,8 +339,12 @@ def build_leaderboard(
     players: dict,
     stats: dict,
     deltas: dict | None = None,
+    calibrated_priors: dict | None = None,
+    player_thresholds: dict | None = None,
 ) -> list[dict]:
     deltas = deltas or {}
+    calibrated_priors = calibrated_priors or {}
+    player_thresholds = player_thresholds or {}
     default_deltas = {
         "game": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
         "month": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
@@ -351,9 +355,30 @@ def build_leaderboard(
     for player_id, rating in ratings.items():
         player_stats = stats.get(player_id, {})
         p_deltas = deltas.get(player_id, {})
+        total_games = 0
+        if isinstance(player_stats, dict):
+            tot_val = player_stats.get("total", {})
+            if isinstance(tot_val, dict):
+                total_games = tot_val.get("games", 0)
+            elif isinstance(tot_val, (int, float)):
+                total_games = int(tot_val)
+            else:
+                total_games = player_stats.get("games", 0)
+        elif isinstance(player_stats, (int, float)):
+            total_games = int(player_stats)
+        p_prior = calibrated_priors.get(player_id, {}).get("total") if isinstance(calibrated_priors.get(player_id), dict) else None
+        thresh = p_prior.get("threshold", 15) if (p_prior and isinstance(p_prior, dict)) else player_thresholds.get(player_id, 15)
+        is_cal = (player_id in calibrated_priors) or (total_games >= thresh)
+        is_prov = not is_cal
+        progress = min(total_games, thresh)
+
         leaderboard.append({
             "player_id": player_id,
             "alias": players[player_id]["aliases"][0],
+            "is_calibrated": is_cal,
+            "is_provisional": is_prov,
+            "calibration_threshold": thresh,
+            "calibration_progress": progress,
             "total": {
                 "rating": rating["total"]["rating"],
                 "rd": rating["total"]["rd"],

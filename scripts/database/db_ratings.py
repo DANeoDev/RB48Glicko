@@ -1,3 +1,6 @@
+from datetime import datetime
+
+
 def get_calibrations(connection):
     cursor = connection.execute("""
         SELECT player_id, rating, rd, sigma
@@ -174,3 +177,114 @@ def get_player_rating_history(connection, player_id):
         })
 
     return history
+
+
+def get_player_calibrated_priors(connection):
+    """
+    Return a mapping of player_id -> {rating_type -> {rating, rd, sigma, threshold, is_auto, calibrated_at}}.
+    Ensures table exists if not yet created.
+    """
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS player_calibrated_priors (
+            player_id INTEGER NOT NULL,
+            rating_type TEXT NOT NULL,
+            rating REAL NOT NULL,
+            rd REAL NOT NULL,
+            sigma REAL NOT NULL,
+            threshold INTEGER NOT NULL,
+            is_auto INTEGER NOT NULL DEFAULT 1,
+            calibrated_at TEXT NOT NULL,
+            PRIMARY KEY (player_id, rating_type),
+            FOREIGN KEY (player_id) REFERENCES players(player_id)
+        )
+    """)
+    rows = connection.execute("""
+        SELECT player_id, rating_type, rating, rd, sigma, threshold, is_auto, calibrated_at
+        FROM player_calibrated_priors
+        ORDER BY player_id, rating_type
+    """).fetchall()
+
+    priors = {}
+    for row in rows:
+        pid = row["player_id"]
+        rtype = row["rating_type"]
+        if pid not in priors:
+            priors[pid] = {}
+        priors[pid][rtype] = {
+            "rating": row["rating"],
+            "rd": row["rd"],
+            "sigma": row["sigma"],
+            "threshold": row["threshold"],
+            "is_auto": row["is_auto"],
+            "calibrated_at": row["calibrated_at"],
+        }
+    return priors
+
+
+def save_player_calibrated_priors(connection, priors, thresholds=None, is_auto=1, calibrated_at=None):
+    """
+    Persist discovered or updated calibrated priors for players across rating types.
+    priors can be either:
+      - dict of player_id -> {rating_type: {"rating": float, "rd": float, "sigma": float, ...}}
+      - dict of player_id -> {rating_type: Rating(...)}
+      - dict of player_id -> Rating(...)  (interpreted as TOTAL prior)
+    thresholds can optionally be provided as a dict of player_id -> int.
+    Also syncs the TOTAL rating to the legacy calibrations table.
+    """
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS player_calibrated_priors (
+            player_id INTEGER NOT NULL,
+            rating_type TEXT NOT NULL,
+            rating REAL NOT NULL,
+            rd REAL NOT NULL,
+            sigma REAL NOT NULL,
+            threshold INTEGER NOT NULL,
+            is_auto INTEGER NOT NULL DEFAULT 1,
+            calibrated_at TEXT NOT NULL,
+            PRIMARY KEY (player_id, rating_type),
+            FOREIGN KEY (player_id) REFERENCES players(player_id)
+        )
+    """)
+    cal_time = calibrated_at or datetime.now().isoformat()
+    thresholds = thresholds or {}
+
+    for player_id, p_val in priors.items():
+        thresh = thresholds.get(player_id, 15)
+        # Check structure: dict of rating_types or single Rating/dict
+        if isinstance(p_val, dict) and any(k in ("total", "box", "hf") for k in p_val.keys()):
+            for rtype, r_data in p_val.items():
+                r = r_data["rating"] if isinstance(r_data, dict) else r_data.rating
+                rd = r_data["rd"] if isinstance(r_data, dict) else r_data.rd
+                sigma = r_data["sigma"] if isinstance(r_data, dict) else r_data.sigma
+                p_thresh = r_data.get("threshold", thresh) if isinstance(r_data, dict) else thresh
+                connection.execute("""
+                    INSERT INTO player_calibrated_priors (player_id, rating_type, rating, rd, sigma, threshold, is_auto, calibrated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(player_id, rating_type) DO UPDATE SET
+                        rating = excluded.rating,
+                        rd = excluded.rd,
+                        sigma = excluded.sigma,
+                        threshold = excluded.threshold,
+                        is_auto = excluded.is_auto,
+                        calibrated_at = excluded.calibrated_at
+                """, (player_id, rtype, r, rd, sigma, p_thresh, is_auto, cal_time))
+                if rtype == "total":
+                    set_calibration(connection, player_id, r, rd, sigma)
+        else:
+            r = p_val["rating"] if isinstance(p_val, dict) else p_val.rating
+            rd = p_val["rd"] if isinstance(p_val, dict) else p_val.rd
+            sigma = p_val["sigma"] if isinstance(p_val, dict) else p_val.sigma
+            for rtype in ("total", "box", "hf"):
+                connection.execute("""
+                    INSERT INTO player_calibrated_priors (player_id, rating_type, rating, rd, sigma, threshold, is_auto, calibrated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(player_id, rating_type) DO UPDATE SET
+                        rating = excluded.rating,
+                        rd = excluded.rd,
+                        sigma = excluded.sigma,
+                        threshold = excluded.threshold,
+                        is_auto = excluded.is_auto,
+                        calibrated_at = excluded.calibrated_at
+                """, (player_id, rtype, r, rd, sigma, thresh, is_auto, cal_time))
+            set_calibration(connection, player_id, r, rd, sigma)
+    connection.commit()
