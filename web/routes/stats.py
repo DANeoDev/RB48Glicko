@@ -318,6 +318,18 @@ def match_history():
             participant_ids = set(m.get("team_a_ids", []) + m.get("team_b_ids", []))
 
         can_vote = bool(is_open and curr_user_player_id and curr_user_player_id in participant_ids and is_last_match_of_day)
+        show_voting_ui = bool(is_open and is_last_match_of_day)
+        if can_vote:
+            restriction_reason = None
+        elif not curr_user:
+            restriction_reason = "not_logged_in"
+        elif not curr_user_player_id:
+            restriction_reason = "not_linked"
+        elif curr_user_player_id not in participant_ids:
+            restriction_reason = "not_participant"
+        else:
+            restriction_reason = "not_eligible"
+
         user_votes_list = user_mvp_votes.get(can_id, [])
         if not user_votes_list and is_box:
             for bm in date_box_matches.get(m_date, []):
@@ -342,6 +354,8 @@ def match_history():
         match_voting_status[mid] = {
             "is_open": is_open,
             "can_vote": can_vote,
+            "show_voting_ui": show_voting_ui,
+            "restriction_reason": restriction_reason,
             "has_votes": has_votes,
             "user_vote": user_vote_1,
             "user_votes": user_votes_list,
@@ -596,6 +610,16 @@ def get_mvp_status(match_id):
         acc_conn.close()
 
     can_vote = bool(is_open and curr_user_player_id and curr_user_player_id in participants)
+    if can_vote:
+        restriction_reason = None
+    elif not user:
+        restriction_reason = "not_logged_in"
+    elif not curr_user_player_id:
+        restriction_reason = "not_linked"
+    elif curr_user_player_id not in participants:
+        restriction_reason = "not_participant"
+    else:
+        restriction_reason = "not_eligible"
 
     def player_info(pid):
         aliases = players.get(pid, {}).get("aliases", [])
@@ -626,6 +650,7 @@ def get_mvp_status(match_id):
         "deadline_iso": deadline.isoformat(),
         "deadline_formatted": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
         "can_vote": can_vote,
+        "restriction_reason": restriction_reason,
         "user_vote": user_votes[0] if user_votes else None,
         "user_votes": user_votes,
         "mvp_player_ids": podium.get("gold", []),

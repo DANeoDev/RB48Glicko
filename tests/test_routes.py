@@ -366,7 +366,7 @@ class RouteTests(unittest.TestCase):
         css_path = Path(__file__).resolve().parents[1] / "web" / "static" / "style.css"
         css_text = css_path.read_text(encoding="utf-8")
         self.assertNotIn(".nav-mobile-toggle {\n    display: none !important;", css_text)
-        self.assertIn(".nav-mobile-toggle {\n        display: flex !important;", css_text)
+        self.assertIn("display: inline-flex !important;", css_text)
 
 
 if __name__ == "__main__":

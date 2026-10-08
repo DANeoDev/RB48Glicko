@@ -170,21 +170,22 @@
             {% set silver_ids = v_status.get("silver_player_ids", []) %}
             {% set bronze_ids = v_status.get("bronze_player_ids", []) %}
             {% set can_vote = v_status.get("can_vote", False) %}
+            {% set show_voting_ui = v_status.get("show_voting_ui", (v_status.get("is_open") and v_status.get("is_last_match_of_day", True))) %}
             {% set user_vote = v_status.get("user_vote") %}
-            <div class="match" {% if match.date != prev_date.val %}id="d-{{ match.date }}" data-match-date="{{ match.date }}"{% set prev_date.val = match.date %}{% endif %} data-match-id="{{ match['match_id'] }}" data-can-vote="{{ 'true' if can_vote else 'false' }}" data-user-voted="{{ 'true' if user_vote else 'false' }}">
+            <div class="match" {% if match.date != prev_date.val %}id="d-{{ match.date }}" data-match-date="{{ match.date }}"{% set prev_date.val = match.date %}{% endif %} data-match-id="{{ match['match_id'] }}" data-can-vote="{{ 'true' if can_vote else 'false' }}" data-show-voting-ui="{{ 'true' if show_voting_ui else 'false' }}" data-user-voted="{{ 'true' if user_vote else 'false' }}">
                 <div class="match-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <span>{{ match["match_id"] }} — {{ match["pitch"] | upper }}</span>
                         <span style="font-size: 11px; opacity: 0.8; font-weight: normal; margin-left: 8px;">{{ match.get("date_formatted", match["date"]) }} · {{ match.get("short_label", "") }}</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        {% if can_vote %}
+                        {% if show_voting_ui %}
                             <button
                                 type="button"
-                                class="match-mvp-btn{% if user_vote %} voted{% else %} pulse{% endif %}"
+                                class="match-mvp-btn{% if user_vote %} voted{% elif can_vote %} pulse{% else %} restricted{% endif %}"
                                 data-match-id="{{ match['match_id'] }}"
-                                title="{% if user_vote %}{% if v_status.get('is_box_session') %}{{ t('matches.box_mvp_btn_title_voted', deadline=v_status.get('deadline_short', '')) }}{% else %}{{ t('matches.mvp_btn_title_voted', deadline=v_status.get('deadline_short', '')) }}{% endif %}{% else %}{% if v_status.get('is_box_session') %}{{ t('matches.box_mvp_btn_title', deadline=v_status.get('deadline_short', '')) }}{% else %}{{ t('matches.mvp_btn_title', deadline=v_status.get('deadline_short', '')) }}{% endif %}{% endif %}"
-                                onclick="event.stopPropagation(); window.openMvpVoteModal && window.openMvpVoteModal('{{ match['match_id'] }}');"
+                                title="{% if user_vote %}{% if v_status.get('is_box_session') %}{{ t('matches.box_mvp_btn_title_voted', deadline=v_status.get('deadline_short', '')) }}{% else %}{{ t('matches.mvp_btn_title_voted', deadline=v_status.get('deadline_short', '')) }}{% endif %}{% elif can_vote %}{% if v_status.get('is_box_session') %}{{ t('matches.box_mvp_btn_title', deadline=v_status.get('deadline_short', '')) }}{% else %}{{ t('matches.mvp_btn_title', deadline=v_status.get('deadline_short', '')) }}{% endif %}{% else %}{{ t('matches.mvp_restricted_btn_title', 'MVP-Wahl offen — Klicke für Details zur Stimmberechtigung') }}{% endif %}"
+                                onclick="event.stopPropagation(); window.handleMvpClick && window.handleMvpClick('{{ match['match_id'] }}', {{ 'true' if can_vote else 'false' }});"
                             >
                                 ⭐ {% if user_vote %}{% if v_status.get('is_box_session') %}{{ t('matches.box_mvp_voted_badge', 'Box-MVP gewählt') }}{% else %}{{ t('matches.mvp_voted_badge', 'MVP gewählt') }}{% endif %}{% else %}{% if v_status.get('is_box_session') %}{{ t('matches.box_mvp_vote_badge', 'Box-MVP wählen') }}{% else %}{{ t('matches.mvp_vote_badge', 'MVP wählen') }}{% endif %}{% endif %}
                             </button>
@@ -212,19 +213,25 @@
                         {% endif %}
                     </div>
                 </div>
-                {% if can_vote %}
-                    <div class="match-mvp-banner" onclick="event.stopPropagation(); window.openMvpVoteModal && window.openMvpVoteModal('{{ match['match_id'] }}');">
+                {% if show_voting_ui %}
+                    <div class="match-mvp-banner" onclick="event.stopPropagation(); window.handleMvpClick && window.handleMvpClick('{{ match['match_id'] }}', {{ 'true' if can_vote else 'false' }});">
                         {% if user_vote %}
                             {% if v_status.get('is_box_session') %}
                                 <span>⭐ {{ t('matches.box_mvp_banner_voted', deadline=v_status.get('deadline_short', '')) }}</span>
                             {% else %}
                                 <span>⭐ {{ t('matches.mvp_banner_voted', deadline=v_status.get('deadline_short', '')) }}</span>
                             {% endif %}
-                        {% else %}
+                        {% elif can_vote %}
                             {% if v_status.get('is_box_session') %}
                                 <span>⭐ <strong>{{ t('matches.box_mvp_banner_open_title', 'Box-Abend MVP-Wahl offen:') }}</strong> {{ t('matches.box_mvp_banner_open_desc', deadline=v_status.get('deadline_short', '')) }}</span>
                             {% else %}
                                 <span>⭐ <strong>{{ t('matches.mvp_banner_open_title', 'MVP-Wahl offen:') }}</strong> {{ t('matches.mvp_banner_open_desc', deadline=v_status.get('deadline_short', '')) }}</span>
+                            {% endif %}
+                        {% else %}
+                            {% if v_status.get('is_box_session') %}
+                                <span>⭐ <strong>{{ t('matches.box_mvp_banner_open_title', 'Box-Abend MVP-Wahl offen:') }}</strong> {{ t('matches.mvp_banner_restricted_desc', 'Frist: {deadline}. Klicke hier für Details zur Stimmberechtigung.', deadline=v_status.get('deadline_short', '')) }}</span>
+                            {% else %}
+                                <span>⭐ <strong>{{ t('matches.mvp_banner_open_title', 'MVP-Wahl offen:') }}</strong> {{ t('matches.mvp_banner_restricted_desc', 'Frist: {deadline}. Klicke hier für Details zur Stimmberechtigung.', deadline=v_status.get('deadline_short', '')) }}</span>
                             {% endif %}
                         {% endif %}
                     </div>
@@ -473,6 +480,40 @@
 
         <div class="mvp-modal-footer" style="margin-top: 20px; display: flex; justify-content: flex-end;">
             <button type="button" class="secondary" id="btn-cancel-mvp-results">{{ t('common.close', 'Schließen') }}</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-bg" id="mvp-restriction-modal" style="display: none;">
+    <div class="modal mvp-modal-card" role="dialog" aria-modal="true" aria-labelledby="mvp-restriction-modal-title">
+        <div class="mvp-modal-header">
+            <h3 id="mvp-restriction-modal-title">ℹ️ {{ t('matches.mvp_restriction_modal_title', 'Information zur MVP-Abstimmung') }}</h3>
+            <button type="button" class="mvp-modal-close" id="btn-close-mvp-restriction" aria-label="{{ t('common.close', 'Schließen') }}">&times;</button>
+        </div>
+        <div class="mvp-modal-match-info" id="mvp-restriction-match-info"></div>
+
+        <div id="mvp-restriction-reason-box" style="margin: 12px 0 16px; padding: 12px 14px; border-radius: 8px; background: rgba(223, 194, 137, 0.08); border: 1px solid rgba(223, 194, 137, 0.35); color: #dfc289; font-size: 13.5px; line-height: 1.45;">
+            <!-- Populated dynamically via JS based on user status -->
+        </div>
+
+        <div class="mvp-rules-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(123, 82, 197, 0.35); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+            <div style="font-size: 13px; font-weight: 700; color: #ffd700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                <span>📋</span>
+                <span>{{ t('matches.mvp_rules_heading', 'Wer darf bei der MVP-Wahl abstimmen?') }}</span>
+            </div>
+            <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-muted, #9E9A94); line-height: 1.55; display: flex; flex-direction: column; gap: 8px;">
+                <li><strong style="color: #ffffff;">{{ t('matches.mvp_rule_participants_bold', 'Nur aktive Mitspieler:') }}</strong> {{ t('matches.mvp_rule_participants_desc', 'Abstimmen dürfen ausschließlich Spieler, die an dieser Partie bzw. dem Box-Abend teilgenommen haben.') }}</li>
+                <li><strong style="color: #ffffff;">{{ t('matches.mvp_rule_linking_bold', 'Verknüpftes Profil:') }}</strong> {{ t('matches.mvp_rule_linking_desc', 'Dein RB48-Account muss mit deinem Spielerprofil verknüpft sein.') }}</li>
+                <li><strong style="color: #ffffff;">{{ t('matches.mvp_rule_no_self_bold', 'Keine Selbstwahl:') }}</strong> {{ t('matches.mvp_rule_no_self_desc', 'Du kannst dich nicht selbst zum MVP wählen.') }}</li>
+                <li><strong style="color: #ffffff;">{{ t('matches.mvp_rule_system_bold', 'Gewichtung:') }}</strong> {{ t('matches.mvp_rule_system_desc', 'Platz 1 (Gold / 3 Pkt) ist Pflicht, Platz 2 (Silber / 2 Pkt) und Platz 3 (Bronze / 1 Pkt) sind optional.') }}</li>
+            </ul>
+        </div>
+
+        <div class="mvp-modal-footer" style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" class="secondary" id="btn-cancel-mvp-restriction">{{ t('common.close', 'Schließen') }}</button>
+            <a href="{{ url_for('auth.login', next=request.path) }}" class="primary" id="btn-mvp-restriction-action" style="display: none; background: linear-gradient(135deg, #7B52C5, #582DA1); color: #ffffff; text-decoration: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 13px; border: 1px solid rgba(255, 215, 0, 0.4);">
+                {{ t('matches.mvp_login_action', 'Jetzt einloggen') }}
+            </a>
         </div>
     </div>
 </div>
@@ -1048,20 +1089,136 @@
     window.openMvpResultsModal = openResultsModal;
 })();
 
+(function() {
+    const modal = document.getElementById('mvp-restriction-modal');
+    const closeBtn = document.getElementById('btn-close-mvp-restriction');
+    const cancelBtn = document.getElementById('btn-cancel-mvp-restriction');
+    const matchInfoEl = document.getElementById('mvp-restriction-match-info');
+    const reasonBox = document.getElementById('mvp-restriction-reason-box');
+    const actionBtn = document.getElementById('btn-mvp-restriction-action');
+
+    function closeModal() {
+        if (!modal) return;
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal && (modal.classList.contains('active') || modal.style.display === 'flex')) {
+            closeModal();
+        }
+    });
+
+    async function openRestrictionModal(matchId) {
+        if (!modal) return;
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+
+        if (matchInfoEl) matchInfoEl.textContent = `Match: ${matchId}`;
+        if (reasonBox) {
+            reasonBox.innerHTML = '<span>{{ t('common.loading', 'Lade Details...') }}</span>';
+        }
+        if (actionBtn) {
+            actionBtn.style.display = 'none';
+        }
+
+        try {
+            const resp = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mvp-status`);
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                if (reasonBox) reasonBox.textContent = data.error || 'Fehler beim Laden der Stimmberechtigung.';
+                return;
+            }
+
+            const isBox = !!data.is_box_session;
+            const matchNums = isBox ? (data.box_matches || []).join(', ') : matchId;
+            const titleLabel = isBox ? `Box-Abend (${data.match_date}) · ${matchNums}` : `${matchId} (${data.match_date})`;
+            if (matchInfoEl) {
+                matchInfoEl.textContent = `${titleLabel} · Frist: ${data.deadline_formatted}`;
+            }
+
+            const reason = data.restriction_reason;
+            if (reason === 'not_logged_in') {
+                if (reasonBox) {
+                    reasonBox.innerHTML = `<strong>🔒 Nicht angemeldet:</strong> Du bist aktuell als Gast unterwegs. Nur angemeldete Spieler, die an diesem Spieltag teilgenommen haben, können abstimmen.`;
+                }
+                if (actionBtn) {
+                    actionBtn.textContent = '🔑 {{ t('matches.mvp_login_action', 'Jetzt einloggen') }}';
+                    actionBtn.href = "{{ url_for('auth.login', next=request.path) }}";
+                    actionBtn.style.display = 'inline-flex';
+                }
+            } else if (reason === 'not_linked') {
+                if (reasonBox) {
+                    reasonBox.innerHTML = `<strong>⚠️ Kein Spielerprofil verknüpft:</strong> Dein Benutzerkonto ist noch keinem Spielerprofil zugeordnet. Verknüpfe dein Profil in den Einstellungen, um abstimmen zu können.`;
+                }
+                if (actionBtn) {
+                    actionBtn.textContent = '⚙️ {{ t('matches.mvp_settings_action', 'Zum Profil / Einstellungen') }}';
+                    actionBtn.href = "{{ url_for('auth.settings') }}";
+                    actionBtn.style.display = 'inline-flex';
+                }
+            } else if (reason === 'not_participant') {
+                if (reasonBox) {
+                    const eveningContext = isBox ? 'an diesem Box-Abend' : 'an diesem Match';
+                    reasonBox.innerHTML = `<strong>🚫 Nicht aufgestellt:</strong> Du warst ${eveningContext} nicht als aktiver Spieler eingetragen. Um Manipulationen zu vermeiden, dürfen nur anwesende Spieler abstimmen.`;
+                }
+                if (actionBtn) {
+                    actionBtn.style.display = 'none';
+                }
+            } else {
+                if (reasonBox) {
+                    reasonBox.innerHTML = `<strong>ℹ️ Stimmabgabe aktuell nicht möglich:</strong> Entweder ist die Frist abgelaufen oder du bist für dieses Match nicht stimmberechtigt.`;
+                }
+                if (actionBtn) {
+                    actionBtn.style.display = 'none';
+                }
+            }
+        } catch (err) {
+            console.error('Failed to load restriction details:', err);
+            if (reasonBox) {
+                reasonBox.textContent = 'Netzwerkfehler beim Laden der Stimmberechtigungs-Details.';
+            }
+        }
+    }
+
+    window.openMvpRestrictionModal = openRestrictionModal;
+})();
+
+window.handleMvpClick = function(matchId, canVote) {
+    if (canVote) {
+        if (window.openMvpVoteModal) window.openMvpVoteModal(matchId);
+    } else {
+        if (window.openMvpRestrictionModal) window.openMvpRestrictionModal(matchId);
+    }
+};
+
 document.querySelectorAll(".match").forEach(match => {
     match.addEventListener("click", (e) => {
         if (e.target.closest('button') || e.target.closest('a') || e.target.closest('.modal') || e.target.closest('.modal-bg')) return;
         
         const canVote = match.getAttribute('data-can-vote') === 'true';
+        const showVotingUi = match.getAttribute('data-show-voting-ui') === 'true';
         const userVoted = match.getAttribute('data-user-voted') === 'true';
         const isHeaderOrBanner = !!e.target.closest('.match-header, .match-mvp-banner');
         
-        // Only clicking the upper card header or the MVP banner triggers acute MVP voting modal
-        if (isHeaderOrBanner && canVote && !userVoted) {
+        // Clicking the upper card header or the MVP banner triggers MVP voting or restriction modal
+        if (isHeaderOrBanner && showVotingUi) {
             const mid = match.getAttribute('data-match-id');
-            if (mid && window.openMvpVoteModal) {
-                window.openMvpVoteModal(mid);
-                return;
+            if (mid) {
+                if (canVote && !userVoted && window.openMvpVoteModal) {
+                    window.openMvpVoteModal(mid);
+                    return;
+                } else if (!canVote && window.openMvpRestrictionModal) {
+                    window.openMvpRestrictionModal(mid);
+                    return;
+                }
             }
         }
         // All other clicks (or clicks after voting) toggle the rating details

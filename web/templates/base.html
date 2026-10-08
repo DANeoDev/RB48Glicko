@@ -9,11 +9,54 @@
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='images/RB48_logo.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/RB48_logo.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2.4">
-    <link rel="stylesheet" href="{{ url_for('static', filename='footer.css') }}?v=2.2">
-    <link rel="stylesheet" href="{{ url_for('static', filename='noise.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2.5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='footer.css') }}?v=2.5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='noise.css') }}?v=2.5">
     {% block head %}{% endblock %}
     <style>
+        /* Immediate cache-proof & old Safari-proof mobile toggle rules */
+        @media (max-width: 820px) {
+            .nav-mobile-toggle {
+                display: inline-flex !important;
+                display: -webkit-inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 40px !important;
+                height: 40px !important;
+                min-width: 40px !important;
+                padding: 7px !important;
+                background: rgba(123, 82, 197, 0.25) !important;
+                border: 1.5px solid #7B52C5 !important;
+                border-radius: 8px !important;
+                color: #ffffff !important;
+                cursor: pointer !important;
+                flex-shrink: 0 !important;
+                -webkit-tap-highlight-color: transparent !important;
+                box-sizing: border-box !important;
+            }
+            .nav-mobile-toggle .nav-icon-menu { display: block !important; color: #ffffff !important; }
+            .nav-mobile-toggle .nav-icon-close { display: none !important; color: #ffffff !important; }
+            .nav-mobile-toggle.active .nav-icon-menu { display: none !important; }
+            .nav-mobile-toggle.active .nav-icon-close { display: block !important; }
+            .nav-mobile-toggle .nav-hamburger-bar { display: none !important; }
+            .nav-actions {
+                display: flex !important;
+                display: -webkit-flex !important;
+                align-items: center !important;
+                flex-shrink: 0 !important;
+            }
+            .nav-actions > * + * {
+                margin-left: 6px !important; /* Fallback spacing for older Safari without flex gap */
+            }
+        }
+        @media (max-width: 600px) {
+            #nav-noise-mode-btn { display: none !important; }
+        }
+        @media (max-width: 480px) {
+            #nav-noise-toggle-btn { display: none !important; }
+            .logo { height: 32px !important; max-width: 85px !important; }
+        }
+
         .card { background: var(--modal-bg) !important; }
         .modal { background: var(--modal-bg) !important; border-color: var(--accent-dark) !important; color: var(--text-main); }
         .modal h1, .modal h2, .modal h3, .modal h4, .modal strong { color: var(--text-main); }
@@ -302,6 +345,9 @@
                     {{ t('nav.gallery', 'Gallery') }} <span class="nav-lock-icon">🔒</span>
                 </a>
             {% endif %}
+            {% if current_user and has_tier('user') %}
+                <a href="#" onclick="window.RB48Noise && window.RB48Noise.toggle(); return false;" class="nav-drawer-noise-link" style="color: #ffd770;">📢 {{ t('nav.noise', 'Noise machen') }}</a>
+            {% endif %}
         </div>
         <div class="nav-actions">
             {% if current_user and has_tier('user') %}
@@ -385,7 +431,16 @@
                    class="lang-toggle-btn {% if current_lang == 'en' %}active{% endif %}" 
                    title="English">EN</a>
             </div>
-            <button type="button" class="nav-mobile-toggle" id="nav-mobile-toggle" aria-label="Menü umschalten" aria-expanded="false">
+            <button type="button" class="nav-mobile-toggle" id="nav-mobile-toggle" aria-label="{{ t('nav.toggle_menu', 'Menü umschalten') }}" aria-expanded="false" title="{{ t('nav.toggle_menu', 'Menü') }}">
+                <svg class="nav-icon-menu" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+                <svg class="nav-icon-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="18" x2="18" y2="6"></line>
+                </svg>
                 <span class="nav-hamburger-bar"></span>
                 <span class="nav-hamburger-bar"></span>
                 <span class="nav-hamburger-bar"></span>

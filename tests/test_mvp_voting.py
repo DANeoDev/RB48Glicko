@@ -284,6 +284,7 @@ class MvpVotingTests(unittest.TestCase):
             "silver_player_ids", "bronze_player_ids", "success",
             "team_a_players", "team_b_players", "user_vote", "user_votes",
             "is_box_session", "box_matches", "canonical_match_id", "box_players",
+            "restriction_reason",
         })
 
         # Check match history HTML rendering
@@ -441,5 +442,68 @@ class MvpVotingTests(unittest.TestCase):
         # mid1 (earlier match) does NOT have the MVP button or banner ("nur eine Karte und ein Symbol über dem letzten Spiel")
         self.assertNotIn("match-mvp-btn", m1_section)
         self.assertNotIn("match-mvp-banner", m1_section)
+
+    def test_mvp_voting_ui_and_restriction_for_unlinked_and_guest_users(self):
+        """MVP voting UI must be visible for guest & unlinked users with restriction guidance modal."""
+        main_conn = get_connection()
+        tz = ZoneInfo("Europe/Berlin")
+        today = datetime.now(tz).date().strftime("%Y-%m-%d")
+        mid = "TEST_RESTRICT_MATCH"
+        try:
+            self.ensure_player(main_conn, 501, "Player 501")
+            self.ensure_player(main_conn, 502, "Player 502")
+            self.ensure_player(main_conn, 503, "Player 503")
+            self.ensure_player(main_conn, 504, "Player 504")
+            main_conn.execute("INSERT OR REPLACE INTO matches (match_id, date, pitch, players_a, players_b, goals_a, goals_b) VALUES (?, ?, 'box', 2, 2, 3, 2)", (mid, today))
+            main_conn.execute("DELETE FROM match_players WHERE match_id = ?", (mid,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 501, 'a')", (mid,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 502, 'a')", (mid,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 503, 'b')", (mid,))
+            main_conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, 504, 'b')", (mid,))
+            main_conn.commit()
+        finally:
+            main_conn.close()
+        invalidate_stats_cache()
+
+        # 1. Guest user (not logged in)
+        with self.client.session_transaction() as sess:
+            sess.clear()
+        res_matches = self.client.get("/matches")
+        self.assertEqual(res_matches.status_code, 200)
+        html = res_matches.get_data(as_text=True)
+        self.assertIn('data-show-voting-ui="true"', html)
+        self.assertIn('data-can-vote="false"', html)
+        self.assertIn('class="match-mvp-btn restricted"', html)
+        self.assertIn('mvp-restriction-modal', html)
+
+        res_api_guest = self.client.get(f"/api/matches/{mid}/mvp-status")
+        self.assertEqual(res_api_guest.status_code, 200)
+        d_guest = res_api_guest.get_json()
+        self.assertFalse(d_guest["can_vote"])
+        self.assertEqual(d_guest["restriction_reason"], "not_logged_in")
+
+        # 2. Logged-in user without linked player profile
+        u_unlinked, _ = self.create_user(role="user", linked_player_id=None)
+        self.login_user(u_unlinked)
+        res_api_unlinked = self.client.get(f"/api/matches/{mid}/mvp-status")
+        d_unlinked = res_api_unlinked.get_json()
+        self.assertFalse(d_unlinked["can_vote"])
+        self.assertEqual(d_unlinked["restriction_reason"], "not_linked")
+
+        # 3. Logged-in user with linked player profile who did NOT participate
+        u_nonpart, _ = self.create_user(role="user", linked_player_id=999)
+        self.login_user(u_nonpart)
+        res_api_nonpart = self.client.get(f"/api/matches/{mid}/mvp-status")
+        d_nonpart = res_api_nonpart.get_json()
+        self.assertFalse(d_nonpart["can_vote"])
+        self.assertEqual(d_nonpart["restriction_reason"], "not_participant")
+
+        # 4. Logged-in participant
+        u_part, _ = self.create_user(role="user", linked_player_id=501)
+        self.login_user(u_part)
+        res_api_part = self.client.get(f"/api/matches/{mid}/mvp-status")
+        d_part = res_api_part.get_json()
+        self.assertTrue(d_part["can_vote"])
+        self.assertIsNone(d_part["restriction_reason"])
 
 
