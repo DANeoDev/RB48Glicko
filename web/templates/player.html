@@ -49,6 +49,13 @@
 </div>
 {% endif %}
 
+{% if is_player_stats_opted_out %}
+<div style="background: rgba(220, 53, 69, 0.15); border: 1px solid rgba(220, 53, 69, 0.35); border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-size: 13px; color: #ff9999; display: flex; align-items: center; gap: 8px;">
+    <span>📊</span>
+    <span>{{ t('player.stats_opt_out_notice', 'Dieser Spieler hat die Anzeige seiner Siegesstatistiken (Siege, Niederlagen, Siegquote) und Synergiewerte deaktiviert. Nur die Anzahl der Spiele bleibt sichtbar.') }}</span>
+</div>
+{% endif %}
+
 <h2>{{ t('player.performance_overview', 'Performance Übersicht') }}</h2>
 
 <table class="ratings-table"{% if rating_diverges and show_player_glicko %} title="How can the ratings diverge even though {{ player_name }} only has games in {{ exclusive_pitch }}? Well, this is a good question, but it works as intended. If you can figure out the reason, send a Mail to the webmaster — he will grant you a reward." style="cursor: help;"{% endif %}>
@@ -74,9 +81,9 @@
 <td>{{ ratings[rating_type]["rd"] | round | int }}</td>
 {% endif %}
 <td>{{ stats[rating_type]["games"] }}</td>
-<td>{{ stats[rating_type]["wins"] }}</td>
-<td>{{ stats[rating_type]["losses"] }}</td>
-<td>{{ stats[rating_type]["win_percent"] | round(1) }}%</td>
+<td>{% if is_player_stats_opted_out %}—{% else %}{{ stats[rating_type]["wins"] }}{% endif %}</td>
+<td>{% if is_player_stats_opted_out %}—{% else %}{{ stats[rating_type]["losses"] }}{% endif %}</td>
+<td>{% if is_player_stats_opted_out %}—{% else %}{{ stats[rating_type]["win_percent"] | round(1) }}%{% endif %}</td>
 </tr>
 {% endfor %}
 </tbody>
@@ -109,9 +116,11 @@
     </div>
 
     <!-- Correlation Map Modal Button -->
+    {% if not is_player_stats_opted_out %}
     <button type="button" class="correlation-map-toggle" id="correlation-map-toggle" onclick="window.PlayerCorrelationMap && window.PlayerCorrelationMap.openModal()">
         <span>{{ t('player.correlation_map_btn', '🗺️ Korrelationsmap') }}</span>
     </button>
+    {% endif %}
 
     <!-- Drawer Toggle Button on the Right -->
     <button type="button" class="filter-drawer-toggle" id="filter-drawer-toggle" onclick="window.PlayerFilter && window.PlayerFilter.toggleDrawer()">
@@ -420,6 +429,8 @@ window.allMatchesData = [
 window.playersMap = {{ players_map | tojson }};
 window.currentPlayerId = {{ player_id }};
 window.userHasGlickoTier = {{ 'true' if show_player_glicko else 'false' }};
+window.isPlayerStatsOptedOut = {{ 'true' if is_player_stats_opted_out else 'false' }};
+window.statsOptedOutPlayerIds = {{ (stats_opted_out_player_ids | list) | tojson }};
 </script>
 <script src="{{ url_for('static', filename='player_filters.js') }}"></script>
 <script src="{{ url_for('static', filename='correlation_map.js') }}"></script>

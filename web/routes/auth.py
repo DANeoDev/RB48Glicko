@@ -649,10 +649,12 @@ def update_profile():
             flash("Invalid image format. Supported formats: PNG, JPG, WEBP, GIF.", "warning")
 
     glicko_opt_out = 1 if request.form.get("glicko_opt_out") else 0
+    stats_opt_out = 1 if request.form.get("stats_opt_out") else 0
 
     conn = get_accounts_connection()
     try:
         old_opt_out = int(user.get("glicko_opt_out") or 0)
+        old_stats_opt_out = int(user.get("stats_opt_out") or 0)
         old_attendance_name = user.get("attendance_name") or user["username"]
         current_linked_id = user.get("player_id")
 
@@ -662,7 +664,11 @@ def update_profile():
             attendance_name=attendance_name if attendance_name else user["username"],
             avatar_file=avatar_file,
             glicko_opt_out=glicko_opt_out,
+            stats_opt_out=stats_opt_out,
         )
+
+        if glicko_opt_out != old_opt_out or stats_opt_out != old_stats_opt_out:
+            invalidate_stats_cache()
 
         if glicko_opt_out != old_opt_out:
             record_webmaster_notification(
@@ -671,6 +677,15 @@ def update_profile():
                 user["id"],
                 user["username"],
                 f"Glicko-Opt-Out {'aktiviert' if glicko_opt_out else 'deaktiviert'}",
+            )
+
+        if stats_opt_out != old_stats_opt_out:
+            record_webmaster_notification(
+                conn,
+                "opt_out_changed",
+                user["id"],
+                user["username"],
+                f"Stat-Opt-Out {'aktiviert' if stats_opt_out else 'deaktiviert'}",
             )
 
         if attendance_name and attendance_name != old_attendance_name:

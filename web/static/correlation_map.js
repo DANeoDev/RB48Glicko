@@ -51,21 +51,27 @@
     }
 
     function calculateStats(mode) {
+        if (window.isPlayerStatsOptedOut) {
+            return [];
+        }
         const statsMap = {};
         const matchesData = window.allMatchesData || [];
         const pMap = window.playersMap || {};
         const cPlayerId = window.currentPlayerId;
+        const optedOutSet = new Set((window.statsOptedOutPlayerIds || []).map(Number));
 
         matchesData.forEach(m => {
             const playerIds = (mode === "teammates") ? (m.own_team_ids || []) : (m.opp_team_ids || []);
             const matchDelta = (m.delta !== null && m.delta !== undefined) ? Number(m.delta) : (Number(m.player_delta) || 0.0);
 
             playerIds.forEach(pid => {
-                if (pid === cPlayerId) return;
-                if (!statsMap[pid]) {
-                    statsMap[pid] = {
-                        playerId: pid,
-                        name: pMap[pid] || ("Player #" + pid),
+                const numericPid = Number(pid);
+                if (numericPid === cPlayerId) return;
+                if (optedOutSet.has(numericPid)) return;
+                if (!statsMap[numericPid]) {
+                    statsMap[numericPid] = {
+                        playerId: numericPid,
+                        name: pMap[numericPid] || ("Player #" + numericPid),
                         games: 0,
                         wins: 0,
                         draws: 0,
@@ -75,7 +81,7 @@
                         goalsAgainst: 0
                     };
                 }
-                const st = statsMap[pid];
+                const st = statsMap[numericPid];
                 st.games++;
                 if (m.is_win) st.wins++;
                 else if (m.is_loss) st.losses++;

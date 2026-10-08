@@ -338,26 +338,42 @@
             if (statGames) statGames.textContent = count;
             const statSub = document.getElementById("stat-total-games-sub");
             if (statSub) statSub.textContent = `von ${totalCount} Spielen`;
+
             const statRec = document.getElementById("stat-filtered-record");
-            if (statRec) statRec.textContent = `${wins}S - ${draws}U - ${losses}N`;
             const statWin = document.getElementById("stat-filtered-winrate");
-            if (statWin) statWin.textContent = `${winRate.toFixed(1)}%`;
-
             const deltaEl = document.getElementById("stat-filtered-delta");
-            if (deltaEl) {
-                const sign = totalDelta > 0 ? "+" : "";
-                deltaEl.textContent = `${sign}${totalDelta.toFixed(1)}`;
-                deltaEl.className = "stat-num " + (totalDelta > 0 ? "delta-pos" : (totalDelta < 0 ? "delta-neg" : ""));
-            }
-
             const goalsEl = document.getElementById("stat-filtered-goals");
-            if (goalsEl) {
-                const diffSign = goalDiff > 0 ? "+" : "";
-                goalsEl.textContent = `${diffSign}${goalDiff}`;
-                goalsEl.className = "stat-num " + (goalDiff > 0 ? "delta-pos" : (goalDiff < 0 ? "delta-neg" : ""));
-                const avgSign = avgDiff > 0 ? "+" : "";
-                const goalsSub = document.getElementById("stat-filtered-goals-sub");
-                if (goalsSub) goalsSub.textContent = `(${goalsFor}:${goalsAgainst} · Ø ${avgSign}${avgDiff.toFixed(1)})`;
+            const goalsSub = document.getElementById("stat-filtered-goals-sub");
+
+            if (window.isPlayerStatsOptedOut) {
+                if (statRec) statRec.textContent = "—";
+                if (statWin) statWin.textContent = "—";
+                if (deltaEl) {
+                    deltaEl.textContent = "—";
+                    deltaEl.className = "stat-num";
+                }
+                if (goalsEl) {
+                    goalsEl.textContent = "—";
+                    goalsEl.className = "stat-num";
+                }
+                if (goalsSub) goalsSub.textContent = "";
+            } else {
+                if (statRec) statRec.textContent = `${wins}S - ${draws}U - ${losses}N`;
+                if (statWin) statWin.textContent = `${winRate.toFixed(1)}%`;
+
+                if (deltaEl) {
+                    const sign = totalDelta > 0 ? "+" : "";
+                    deltaEl.textContent = `${sign}${totalDelta.toFixed(1)}`;
+                    deltaEl.className = "stat-num " + (totalDelta > 0 ? "delta-pos" : (totalDelta < 0 ? "delta-neg" : ""));
+                }
+
+                if (goalsEl) {
+                    const diffSign = goalDiff > 0 ? "+" : "";
+                    goalsEl.textContent = `${diffSign}${goalDiff}`;
+                    goalsEl.className = "stat-num " + (goalDiff > 0 ? "delta-pos" : (goalDiff < 0 ? "delta-neg" : ""));
+                    const avgSign = avgDiff > 0 ? "+" : "";
+                    if (goalsSub) goalsSub.textContent = `(${goalsFor}:${goalsAgainst} · Ø ${avgSign}${avgDiff.toFixed(1)})`;
+                }
             }
         }
 

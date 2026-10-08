@@ -12,6 +12,7 @@ from scripts.accounts.database import (
     link_user_to_player,
     update_user_profile,
     get_opted_out_player_ids,
+    get_stats_opted_out_player_ids,
 )
 from web.app import create_app
 from web.services.security import Tier, get_actual_tier
@@ -208,6 +209,154 @@ class GlickoOptOutTest(unittest.TestCase):
         html = resp.data.decode("utf-8")
         self.assertIn("const userHasOptOut = true;", html)
         self.assertIn('currentSortColumn = "games";', html)
+
+
+class StatOptOutTest(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_accounts_db = Path(self.temp_dir.name) / "test_accounts.db"
+        os.environ["RB48_ACCOUNTS_DATABASE_FILE"] = str(self.test_accounts_db)
+
+        self.app = create_app()
+        self.app.config["TESTING"] = True
+        self.client = self.app.test_client()
+
+    def tearDown(self):
+        os.environ.pop("RB48_ACCOUNTS_DATABASE_FILE", None)
+        self.temp_dir.cleanup()
+
+    def create_user(self, role="user", verified=True, approved=True, player_id=None, stats_opt_out=0):
+        unique_name = f"stat_usr_{int(time.time() * 1000000)}"
+        email = f"{unique_name}@example.com"
+        user_id, _ = register_user(unique_name, email, "password123", role=role)
+
+        conn = get_accounts_connection()
+        try:
+            if verified:
+                mark_email_verified(conn, user_id)
+            if approved or role in ("admin", "webmaster"):
+                approve_user(conn, user_id, approved=True)
+            if player_id:
+                link_user_to_player(conn, user_id, player_id)
+            if stats_opt_out:
+                update_user_profile(conn, user_id, stats_opt_out=1)
+        finally:
+            conn.close()
+
+        pass_psychology_test(user_id)
+        return get_user(user_id)
+
+    def test_settings_profile_toggle_stats_opt_out(self):
+        user = self.create_user(verified=True, approved=True, stats_opt_out=0)
+        self.assertEqual(user.get("stats_opt_out", 0), 0)
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        # POST to toggle stats_opt_out ON
+        resp = self.client.post("/settings/profile", data={
+            "attendance_name": "TestPlayer",
+            "stats_opt_out": "1",
+        }, follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+
+        updated = get_user(user["id"])
+        self.assertEqual(updated["stats_opt_out"], 1)
+
+        # POST without stats_opt_out -> toggles OFF
+        resp2 = self.client.post("/settings/profile", data={
+            "attendance_name": "TestPlayer",
+        }, follow_redirects=True)
+        self.assertEqual(resp2.status_code, 200)
+
+        restored = get_user(user["id"])
+        self.assertEqual(restored["stats_opt_out"], 0)
+
+    def test_stats_opted_out_player_ids_helper(self):
+        u1 = self.create_user(player_id=10, stats_opt_out=1)
+        u2 = self.create_user(player_id=11, stats_opt_out=0)
+
+        conn = get_accounts_connection()
+        try:
+            opted_out = get_stats_opted_out_player_ids(conn)
+            self.assertIn(10, opted_out)
+            self.assertNotIn(11, opted_out)
+        finally:
+            conn.close()
+
+    def test_stats_leaderboard_masking_with_stat_opt_out(self):
+        self.create_user(player_id=1, stats_opt_out=1)
+
+        viewer = self.create_user(role="user", stats_opt_out=0)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = viewer["id"]
+
+        resp = self.client.get("/stats")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+
+        # Player 1 row must have data-stats-opted-out="true"
+        self.assertIn('data-stats-opted-out="true"', html)
+
+        # Webmaster sees 📊 Stat-Opt-out
+        wm = self.create_user(role="webmaster")
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = wm["id"]
+
+        wm_resp = self.client.get("/stats")
+        self.assertEqual(wm_resp.status_code, 200)
+        wm_html = wm_resp.data.decode("utf-8")
+        self.assertIn("📊 Stat-Opt-out", wm_html)
+
+    def test_player_profile_stat_opt_out_view(self):
+        self.create_user(player_id=1, stats_opt_out=1)
+        viewer = self.create_user(role="user", stats_opt_out=0)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = viewer["id"]
+
+        resp = self.client.get("/player/1")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+
+        # Notice banner for Stat-Opt-Out
+        self.assertIn("📊", html)
+        self.assertTrue("Siegesstatistiken" in html or "win/loss" in html)
+
+        # Correlation map button should be hidden for opted out player
+        self.assertNotIn('id="correlation-map-toggle"', html)
+
+        # window.isPlayerStatsOptedOut must be true
+        self.assertIn("window.isPlayerStatsOptedOut = true;", html)
+
+    def test_synergy_exclusion_helper(self):
+        from scripts.analysis.synergies import filter_synergies_by_excluded_players
+
+        dummy_synergies = {
+            "best_duos": [
+                {"player1_id": 1, "player2_id": 2, "games": 10, "win_rate": 80.0},
+                {"player1_id": 3, "player2_id": 4, "games": 8, "win_rate": 75.0},
+            ],
+            "worst_duos": [
+                {"player1_id": 1, "player2_id": 5, "games": 7, "win_rate": 20.0},
+            ],
+            "kryptonite_rivals": [
+                {"dominant_id": 1, "victim_id": 2, "games": 12},
+                {"dominant_id": 3, "victim_id": 5, "games": 9},
+            ],
+            "balanced_matchups": [
+                {"player1_id": 1, "player2_id": 6, "games": 10},
+            ]
+        }
+
+        filtered = filter_synergies_by_excluded_players(dummy_synergies, {1})
+        # Duo with player 1 must be gone
+        self.assertEqual(len(filtered["best_duos"]), 1)
+        self.assertEqual(filtered["best_duos"][0]["player1_id"], 3)
+        self.assertEqual(len(filtered["worst_duos"]), 0)
+        # Rivalry with player 1 must be gone
+        self.assertEqual(len(filtered["kryptonite_rivals"]), 1)
+        self.assertEqual(filtered["kryptonite_rivals"][0]["dominant_id"], 3)
+        self.assertEqual(len(filtered["balanced_matchups"]), 0)
 
 
 if __name__ == "__main__":

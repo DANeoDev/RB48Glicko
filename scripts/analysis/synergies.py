@@ -3,8 +3,9 @@
 from scripts.database.db_players import get_players
 
 
-def get_community_synergies(connection, min_games=5):
+def get_community_synergies(connection, min_games=5, exclude_player_ids=None):
     """Calculate community-wide duo chemistry, kryptonite rivalries, and balanced matchups."""
+    exclude_set = set(exclude_player_ids) if exclude_player_ids else set()
     players = get_players(connection)
     rows = connection.execute("""
         SELECT m.match_id, m.date, m.goals_a, m.goals_b,
@@ -44,6 +45,8 @@ def get_community_synergies(connection, min_games=5):
         team_a = sorted(m["team_a"])
         for i in range(len(team_a)):
             for j in range(i + 1, len(team_a)):
+                if exclude_set and (team_a[i] in exclude_set or team_a[j] in exclude_set):
+                    continue
                 pair = (team_a[i], team_a[j])
                 if pair not in duo_stats:
                     duo_stats[pair] = {"games": 0, "wins": 0, "draws": 0, "losses": 0, "goals_for": 0, "goals_against": 0}
@@ -61,6 +64,8 @@ def get_community_synergies(connection, min_games=5):
         team_b = sorted(m["team_b"])
         for i in range(len(team_b)):
             for j in range(i + 1, len(team_b)):
+                if exclude_set and (team_b[i] in exclude_set or team_b[j] in exclude_set):
+                    continue
                 pair = (team_b[i], team_b[j])
                 if pair not in duo_stats:
                     duo_stats[pair] = {"games": 0, "wins": 0, "draws": 0, "losses": 0, "goals_for": 0, "goals_against": 0}
@@ -77,6 +82,8 @@ def get_community_synergies(connection, min_games=5):
         # Opponent rivalries (Team A vs Team B)
         for pa in team_a:
             for pb in team_b:
+                if exclude_set and (pa in exclude_set or pb in exclude_set):
+                    continue
                 p1, p2 = min(pa, pb), max(pa, pb)
                 if (p1, p2) not in rival_stats:
                     rival_stats[(p1, p2)] = {"games": 0, "p1_wins": 0, "draws": 0, "p2_wins": 0, "p1_goals": 0, "p2_goals": 0}
@@ -169,4 +176,17 @@ def get_community_synergies(connection, min_games=5):
         "worst_duos": worst_duos,
         "kryptonite_rivals": kryptonite_rivals[:10],
         "balanced_matchups": balanced_matchups[:10]
+    }
+
+
+def filter_synergies_by_excluded_players(synergies: dict, exclude_player_ids: set) -> dict:
+    """Filter out any duo or rivalry that contains an excluded (opted-out) player ID."""
+    if not exclude_player_ids or not synergies:
+        return synergies
+    exclude_set = set(exclude_player_ids)
+    return {
+        "best_duos": [d for d in synergies.get("best_duos", []) if d["player1_id"] not in exclude_set and d["player2_id"] not in exclude_set],
+        "worst_duos": [d for d in synergies.get("worst_duos", []) if d["player1_id"] not in exclude_set and d["player2_id"] not in exclude_set],
+        "kryptonite_rivals": [r for r in synergies.get("kryptonite_rivals", []) if r["dominant_id"] not in exclude_set and r["victim_id"] not in exclude_set],
+        "balanced_matchups": [b for b in synergies.get("balanced_matchups", []) if b["player1_id"] not in exclude_set and b["player2_id"] not in exclude_set],
     }

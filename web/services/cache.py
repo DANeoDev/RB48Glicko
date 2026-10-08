@@ -35,7 +35,16 @@ def get_cached_stats_data(connection=None):
             players = get_players(connection)
             player_stats = get_player_stats(connection)
             deltas = compute_leaderboard_deltas(connection, ratings, players)
-            synergies = get_community_synergies(connection, min_games=5)
+            try:
+                from scripts.accounts.database import get_accounts_connection, get_stats_opted_out_player_ids
+                acc_conn = get_accounts_connection()
+                try:
+                    stats_opted_out = get_stats_opted_out_player_ids(acc_conn)
+                finally:
+                    acc_conn.close()
+            except Exception:
+                stats_opted_out = set()
+            synergies = get_community_synergies(connection, min_games=5, exclude_player_ids=stats_opted_out)
             streaks = get_dashboard_streaks(connection)
             historical_snapshots = compute_historical_snapshots(connection)
             leaderboard_base = build_leaderboard(ratings, players, player_stats, deltas=deltas)

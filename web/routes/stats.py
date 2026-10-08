@@ -15,6 +15,7 @@ from scripts.utils.timezone import COLOGNE_TZ, get_cologne_now
 from scripts.accounts.database import (
     get_accounts_connection,
     get_opted_out_player_ids,
+    get_stats_opted_out_player_ids,
     get_user_by_player_id,
     get_user_seen_achievements,
     mark_user_achievements_seen,
@@ -32,7 +33,7 @@ from scripts.analysis.history_snapshots import (
     get_matchday_metadata_map,
 )
 from scripts.analysis.model_analysis import analyze_model
-from scripts.analysis.synergies import get_community_synergies
+from scripts.analysis.synergies import get_community_synergies, filter_synergies_by_excluded_players
 from scripts.database.database import get_connection
 from scripts.database.db_matches import (
     get_player_stats,
@@ -82,15 +83,23 @@ def stats():
     cached = get_cached_stats_data()
 
     leaderboard = [dict(p) for p in cached["leaderboard_base"]]
-    synergies = cached["synergies"]
     streaks = cached["streaks"]
     historical_snapshots = cached["historical_snapshots"]
 
     acc_conn = get_accounts_connection()
     try:
         opted_out_player_ids = get_opted_out_player_ids(acc_conn)
+        stats_opted_out_player_ids = get_stats_opted_out_player_ids(acc_conn)
     finally:
         acc_conn.close()
+
+    synergies = filter_synergies_by_excluded_players(cached["synergies"], stats_opted_out_player_ids)
+    if stats_opted_out_player_ids:
+        streaks = {
+            "active_win_streaks": [s for s in streaks.get("active_win_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
+            "all_time_win_streaks": [s for s in streaks.get("all_time_win_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
+            "most_improved": streaks.get("most_improved", [])
+        }
 
     curr_user = get_current_user()
     user_has_opt_out = bool(curr_user and curr_user.get("glicko_opt_out"))
@@ -106,6 +115,7 @@ def stats():
         synergies=synergies,
         streaks=streaks,
         opted_out_player_ids=opted_out_player_ids,
+        stats_opted_out_player_ids=stats_opted_out_player_ids,
         historical_snapshots=historical_snapshots,
     )
 
@@ -225,11 +235,13 @@ def player_profile(player_id):
         linked_user = get_user_by_player_id(acc_conn, player_id)
         linked_user = dict(linked_user) if linked_user else None
         opted_out_player_ids = get_opted_out_player_ids(acc_conn)
+        stats_opted_out_player_ids = get_stats_opted_out_player_ids(acc_conn)
     finally:
         acc_conn.close()
 
     players_map = {pid: p["aliases"][0] for pid, p in players.items()}
     is_player_opted_out = (player_id in opted_out_player_ids) and not has_tier(Tier.WEBMASTER)
+    is_player_stats_opted_out = player_id in stats_opted_out_player_ids
     show_player_glicko = has_tier(Tier.GLICKO_USER) and not is_player_opted_out
 
     return render_template(
@@ -247,7 +259,9 @@ def player_profile(player_id):
         linked_user=linked_user,
         players_map=players_map,
         opted_out_player_ids=opted_out_player_ids,
+        stats_opted_out_player_ids=stats_opted_out_player_ids,
         is_player_opted_out=is_player_opted_out,
+        is_player_stats_opted_out=is_player_stats_opted_out,
         show_player_glicko=show_player_glicko,
     )
 
@@ -1004,9 +1018,15 @@ def api_players_list():
 def api_community_synergies():
     """Return community synergy duos and rivalries."""
     min_games = request.args.get("min_games", 5, type=int)
+    acc_conn = get_accounts_connection()
+    try:
+        stats_opted_out_player_ids = get_stats_opted_out_player_ids(acc_conn)
+    finally:
+        acc_conn.close()
+
     connection = get_connection()
     try:
-        synergies = get_community_synergies(connection, min_games=min_games)
+        synergies = get_community_synergies(connection, min_games=min_games, exclude_player_ids=stats_opted_out_player_ids)
     finally:
         connection.close()
     return jsonify(synergies)

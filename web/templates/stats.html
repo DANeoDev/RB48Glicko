@@ -424,25 +424,27 @@
         <tbody>
             {% for player in leaderboard %}
             {% set is_opted_out = (player['player_id'] in opted_out_player_ids) and not has_tier('webmaster') %}
+            {% set is_stats_opted_out = player['player_id'] in stats_opted_out_player_ids %}
             <tr
                 data-player-id="{{ player['player_id'] }}"
                 data-opted-out="{{ 'true' if is_opted_out else 'false' }}"
+                data-stats-opted-out="{{ 'true' if is_stats_opted_out else 'false' }}"
                 {% for pitch in ["total", "box", "hf"] %}
                     data-{{ pitch }}-conservative="{{ 0 if is_opted_out else player[pitch]['conservative'] }}"
                     data-{{ pitch }}-rating="{{ 0 if is_opted_out else player[pitch]['rating'] }}"
                     data-{{ pitch }}-rd="{{ 999 if is_opted_out else player[pitch]['rd'] }}"
                     data-{{ pitch }}-games="{{ player[pitch]['games'] }}"
-                    data-{{ pitch }}-wins="{{ player[pitch]['wins'] }}"
-                    data-{{ pitch }}-losses="{{ player[pitch]['losses'] }}"
-                    data-{{ pitch }}-win-percent="{{ player[pitch]['win_percent'] }}"
+                    data-{{ pitch }}-wins="{{ 0 if is_stats_opted_out else player[pitch]['wins'] }}"
+                    data-{{ pitch }}-losses="{{ 0 if is_stats_opted_out else player[pitch]['losses'] }}"
+                    data-{{ pitch }}-win-percent="{{ 0 if is_stats_opted_out else player[pitch]['win_percent'] }}"
                     {% for interval in ["game", "month", "quarter", "year"] %}
                         data-{{ pitch }}-delta-{{ interval }}-conservative="{{ 0 if is_opted_out else player[pitch]['deltas'][interval]['conservative'] }}"
                         data-{{ pitch }}-delta-{{ interval }}-rating="{{ 0 if is_opted_out else player[pitch]['deltas'][interval]['rating'] }}"
                         data-{{ pitch }}-delta-{{ interval }}-rd="{{ 0 if is_opted_out else player[pitch]['deltas'][interval]['rd'] }}"
                         data-{{ pitch }}-delta-{{ interval }}-games="{{ player[pitch]['deltas'][interval]['games'] }}"
-                        data-{{ pitch }}-delta-{{ interval }}-wins="{{ player[pitch]['deltas'][interval]['wins'] }}"
-                        data-{{ pitch }}-delta-{{ interval }}-losses="{{ player[pitch]['deltas'][interval]['losses'] }}"
-                        data-{{ pitch }}-delta-{{ interval }}-win-percent="{{ player[pitch]['deltas'][interval]['win_percent'] }}"
+                        data-{{ pitch }}-delta-{{ interval }}-wins="{{ 0 if is_stats_opted_out else player[pitch]['deltas'][interval]['wins'] }}"
+                        data-{{ pitch }}-delta-{{ interval }}-losses="{{ 0 if is_stats_opted_out else player[pitch]['deltas'][interval]['losses'] }}"
+                        data-{{ pitch }}-delta-{{ interval }}-win-percent="{{ 0 if is_stats_opted_out else player[pitch]['deltas'][interval]['win_percent'] }}"
                     {% endfor %}
                     data-{{ pitch }}-delta-game-is-inactivity="{{ 'true' if player[pitch]['deltas']['game'].get('is_inactivity') else 'false' }}"
                     data-{{ pitch }}-delta-game-tooltip="{{ player[pitch]['deltas']['game'].get('tooltip', '') }}"
@@ -451,8 +453,13 @@
                 <td>{{ '—' if is_opted_out else loop.index }}</td>
                 <td>
                     <a href="{{ url_for('stats.player_profile', player_id=player['player_id']) }}">{{ player["alias"] }}</a>
-                    {% if has_tier('webmaster') and player['player_id'] in opted_out_player_ids %}
-                        <span style="font-size: 10px; opacity: 0.7; color: #ffc107;" title="Glicko-2 Opt-out aktiv">🔒 Opt-out</span>
+                    {% if has_tier('webmaster') %}
+                        {% if player['player_id'] in opted_out_player_ids %}
+                            <span style="font-size: 10px; opacity: 0.7; color: #ffc107;" title="Glicko-2 Opt-out aktiv">🔒 Opt-out</span>
+                        {% endif %}
+                        {% if player['player_id'] in stats_opted_out_player_ids %}
+                            <span style="font-size: 10px; opacity: 0.7; color: #80deea;" title="Stat-Opt-out aktiv">📊 Stat-Opt-out</span>
+                        {% endif %}
                     {% endif %}
                 </td>
                 {% for pitch in ["total", "box", "hf"] %}
@@ -475,12 +482,21 @@
                     {% endif %}
                     <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["games"] }}</td>
                     <td data-pitch-cell="{{ pitch }}" class="delta-col delta-games-col" data-delta-type="games" style="display: none;"></td>
-                    <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["wins"] }}</td>
-                    <td data-pitch-cell="{{ pitch }}" class="delta-col delta-wins-col" data-delta-type="wins" style="display: none;"></td>
-                    <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["losses"] }}</td>
-                    <td data-pitch-cell="{{ pitch }}" class="delta-col delta-losses-col" data-delta-type="losses" style="display: none;"></td>
-                    <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["win_percent"] | round(1) }}%</td>
-                    <td data-pitch-cell="{{ pitch }}" class="delta-col delta-win-percent-col" data-delta-type="win-percent" style="display: none;"></td>
+                    {% if is_stats_opted_out %}
+                        <td data-pitch-cell="{{ pitch }}" title="{{ t('stats.stats_hidden_opt_out', 'Statistiken vom Spieler verborgen (Stat-Opt-Out)') }}" style="color: var(--text-muted);">—</td>
+                        <td data-pitch-cell="{{ pitch }}" class="delta-col delta-wins-col" data-delta-type="wins" style="display: none; color: var(--text-muted);">—</td>
+                        <td data-pitch-cell="{{ pitch }}" title="{{ t('stats.stats_hidden_opt_out', 'Statistiken vom Spieler verborgen (Stat-Opt-Out)') }}" style="color: var(--text-muted);">—</td>
+                        <td data-pitch-cell="{{ pitch }}" class="delta-col delta-losses-col" data-delta-type="losses" style="display: none; color: var(--text-muted);">—</td>
+                        <td data-pitch-cell="{{ pitch }}" title="{{ t('stats.stats_hidden_opt_out', 'Statistiken vom Spieler verborgen (Stat-Opt-Out)') }}" style="color: var(--text-muted);">—</td>
+                        <td data-pitch-cell="{{ pitch }}" class="delta-col delta-win-percent-col" data-delta-type="win-percent" style="display: none; color: var(--text-muted);">—</td>
+                    {% else %}
+                        <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["wins"] }}</td>
+                        <td data-pitch-cell="{{ pitch }}" class="delta-col delta-wins-col" data-delta-type="wins" style="display: none;"></td>
+                        <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["losses"] }}</td>
+                        <td data-pitch-cell="{{ pitch }}" class="delta-col delta-losses-col" data-delta-type="losses" style="display: none;"></td>
+                        <td data-pitch-cell="{{ pitch }}">{{ player[pitch]["win_percent"] | round(1) }}%</td>
+                        <td data-pitch-cell="{{ pitch }}" class="delta-col delta-win-percent-col" data-delta-type="win-percent" style="display: none;"></td>
+                    {% endif %}
                 {% endfor %}
             </tr>
             {% endfor %}
@@ -503,6 +519,7 @@ const deltaToggleBtn = document.getElementById("delta-toggle-btn");
 
 const isGlickoUser = {{ 'true' if has_tier('glicko_user') else 'false' }};
 const userHasOptOut = {{ 'true' if (current_user and current_user.get('glicko_opt_out')) else 'false' }};
+window.statsOptedOutPlayerIds = {{ stats_opted_out_player_ids | list | tojson }};
 let currentPitch = "total";
 let currentSortColumn = isGlickoUser ? "conservative" : "games";
 let currentDeltaMode = "game";
@@ -574,9 +591,16 @@ function syncDeltaRowAttributesAndCells() {
             // Update cells for this pitch
             const cells = row.querySelectorAll(`td[data-pitch-cell="${pitch}"].delta-col`);
             const isOptedOut = row.getAttribute("data-opted-out") === "true";
+            const isStatsOptedOut = row.getAttribute("data-stats-opted-out") === "true";
             cells.forEach(cell => {
                 const type = cell.dataset.deltaType;
                 if (isOptedOut && (type === "conservative" || type === "rating" || type === "rd")) {
+                    cell.textContent = "—";
+                    cell.className = `delta-col delta-${type}-col delta-val zero`;
+                    cell.removeAttribute("title");
+                    return;
+                }
+                if (isStatsOptedOut && (type === "wins" || type === "losses" || type === "win-percent")) {
                     cell.textContent = "—";
                     cell.className = `delta-col delta-${type}-col delta-val zero`;
                     cell.removeAttribute("title");
@@ -660,17 +684,26 @@ function updateColumnVisibility() {
 function sortRows(columnAttr) {
     const rows = Array.from(tbody.querySelectorAll("tr"));
     const isRatingSort = columnAttr.includes("conservative") || columnAttr.includes("rating") || columnAttr.includes("rd");
+    const isStatsSort = columnAttr.includes("wins") || columnAttr.includes("losses") || columnAttr.includes("win-percent");
     rows.sort((a, b) => {
         const isOptedOutA = a.getAttribute("data-opted-out") === "true";
         const isOptedOutB = b.getAttribute("data-opted-out") === "true";
         if (isRatingSort && isOptedOutA !== isOptedOutB) {
             return isOptedOutA ? 1 : -1;
         }
+        const isStatsOptedOutA = a.getAttribute("data-stats-opted-out") === "true";
+        const isStatsOptedOutB = b.getAttribute("data-stats-opted-out") === "true";
+        if (isStatsSort && isStatsOptedOutA !== isStatsOptedOutB) {
+            return isStatsOptedOutA ? 1 : -1;
+        }
         const valA = parseFloat(a.getAttribute("data-" + columnAttr)) || 0;
         const valB = parseFloat(b.getAttribute("data-" + columnAttr)) || 0;
         if (valB !== valA) return valB - valA;
-        if (isOptedOutA !== isOptedOutB) {
+        if (isRatingSort && isOptedOutA !== isOptedOutB) {
             return isOptedOutA ? 1 : -1;
+        }
+        if (isStatsSort && isStatsOptedOutA !== isStatsOptedOutB) {
+            return isStatsOptedOutA ? 1 : -1;
         }
         return 0;
     });
@@ -687,10 +720,13 @@ function updateSelectedSortHeader() {
 
 function updateVisibleRanks() {
     let rank = 1;
+    const isRatingSort = currentSortColumn === "conservative" || currentSortColumn === "rating" || currentSortColumn === "rd";
+    const isStatsSort = currentSortColumn === "wins" || currentSortColumn === "losses" || currentSortColumn === "win-percent";
     tbody.querySelectorAll("tr").forEach(row => {
         if (row.style.display !== "none") {
             const isOptedOut = row.getAttribute("data-opted-out") === "true";
-            if (isOptedOut) {
+            const isStatsOptedOut = row.getAttribute("data-stats-opted-out") === "true";
+            if ((isOptedOut && isRatingSort) || (isStatsOptedOut && isStatsSort)) {
                 row.cells[0].textContent = "—";
             } else {
                 row.cells[0].textContent = rank++;

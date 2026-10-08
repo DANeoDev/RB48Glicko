@@ -89,6 +89,18 @@
                             </div>
                         </label>
                     </div>
+
+                    <div style="margin-bottom: 14px; padding: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius);">
+                        <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin-bottom: 0;">
+                            <input type="checkbox" name="stats_opt_out" value="1" {% if user.stats_opt_out %}checked{% endif %} style="margin-top: 3px;">
+                            <div>
+                                <strong style="color: #ffffff; font-size: 13.5px; display: block;">{{ t('auth.stats_opt_out_label', 'Opt-out of Game Statistics (Stat-Opt-Out)') }}</strong>
+                                <span style="font-size: 11.5px; color: var(--text-muted); display: block; line-height: 1.4; margin-top: 2px;">
+                                    {{ t('auth.stats_opt_out_desc', 'Hides your wins, losses, and win rate (W / L / %) from all users and admins. Also removes all synergy and partner entries concerning you (duo leaderboards, correlation map / heatmap, rivalries). Only your total number of games played remains publicly visible.') }}
+                                </span>
+                            </div>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -106,24 +118,40 @@
             <h2 style="margin: 0; font-size: 18px; color: #ffffff;">
                 {{ t('auth.glicko_card_title', 'Detailed Performance Evaluation (Glicko-2)') }}
             </h2>
-            {% if user.glicko_opt_out %}
-                <span style="background: rgba(255, 193, 7, 0.15); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.4); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
-                    {{ t('auth.glicko_opt_out_badge', '⚠️ Glicko-2 Opt-Out Active') }}
-                </span>
-            {% elif user.psychology_test_passed %}
-                <span style="background: rgba(40, 167, 69, 0.2); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.4); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
-                    {{ t('auth.glicko_active', '✓ Glicko Clearance Active') }}
-                </span>
-            {% else %}
-                <span style="background: rgba(255, 193, 7, 0.15); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.3); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
-                    {{ t('auth.glicko_required', 'Assessment Required') }}
-                </span>
-            {% endif %}
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                {% if user.glicko_opt_out %}
+                    <span style="background: rgba(255, 193, 7, 0.15); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.4); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
+                        {{ t('auth.glicko_opt_out_badge', '⚠️ Glicko-2 Opt-Out Active') }}
+                    </span>
+                {% endif %}
+                {% if user.stats_opt_out %}
+                    <span style="background: rgba(128, 222, 234, 0.15); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.4); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
+                        {{ t('auth.stats_opt_out_badge', '⚠️ Stat-Opt-Out Active') }}
+                    </span>
+                {% endif %}
+                {% if not user.glicko_opt_out %}
+                    {% if user.psychology_test_passed %}
+                        <span style="background: rgba(40, 167, 69, 0.2); color: #88ff88; border: 1px solid rgba(40, 167, 69, 0.4); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
+                            {{ t('auth.glicko_active', '✓ Glicko Clearance Active') }}
+                        </span>
+                    {% else %}
+                        <span style="background: rgba(255, 193, 7, 0.15); color: #ffc107; border: 1px solid rgba(255, 193, 7, 0.3); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700;">
+                            {{ t('auth.glicko_required', 'Assessment Required') }}
+                        </span>
+                    {% endif %}
+                {% endif %}
+            </div>
         </div>
 
         {% if user.glicko_opt_out %}
             <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.25); border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 12.5px; color: #ffc107;">
                 {{ t('auth.glicko_opt_out_banner', 'Your Glicko-2 rating is currently hidden from other users and admins. Your site access tier is set to standard User (no Glicko view). You can turn this off at any time in your profile settings above.') }}
+            </div>
+        {% endif %}
+
+        {% if user.stats_opt_out %}
+            <div style="background: rgba(128, 222, 234, 0.1); border: 1px solid rgba(128, 222, 234, 0.25); border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 12.5px; color: #80deea;">
+                {{ t('auth.stats_opt_out_banner', 'Your detailed game statistics (wins, losses, win rate, synergies) are currently hidden. Only your games played count remains visible.') }}
             </div>
         {% endif %}
 

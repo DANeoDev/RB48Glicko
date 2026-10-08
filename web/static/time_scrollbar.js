@@ -626,6 +626,7 @@
             const currentPitch = (window.getCurrentPitch && window.getCurrentPitch()) || 'total';
             const sortedLeaderboard = [...item.leaderboard];
             const optedOutIds = window.optedOutPlayerIds || [];
+            const statsOptedOutIds = window.statsOptedOutPlayerIds || [];
             const isWebmaster = window.isWebmaster || false;
             const hasGlickoCols = document.querySelector('th[data-base-column="rating"]') !== null;
 
@@ -642,9 +643,11 @@
             this.tableBody.innerHTML = '';
             sortedLeaderboard.forEach((player, rank) => {
                 const isOptedOut = optedOutIds.includes(player.player_id) && !isWebmaster;
+                const isStatsOptedOut = statsOptedOutIds.includes(player.player_id);
                 const tr = document.createElement('tr');
                 tr.setAttribute('data-player-id', player.player_id);
                 tr.setAttribute('data-opted-out', isOptedOut ? 'true' : 'false');
+                tr.setAttribute('data-stats-opted-out', isStatsOptedOut ? 'true' : 'false');
 
                 for (const p of ['total', 'box', 'hf']) {
                     const pData = player[p] || {};
@@ -652,9 +655,9 @@
                     tr.setAttribute(`data-${p}-rating`, isOptedOut ? 0 : (pData.rating || 0));
                     tr.setAttribute(`data-${p}-rd`, isOptedOut ? 999 : (pData.rd || 0));
                     tr.setAttribute(`data-${p}-games`, pData.games || 0);
-                    tr.setAttribute(`data-${p}-wins`, pData.wins || 0);
-                    tr.setAttribute(`data-${p}-losses`, pData.losses || 0);
-                    tr.setAttribute(`data-${p}-win-percent`, pData.win_percent || 0);
+                    tr.setAttribute(`data-${p}-wins`, isStatsOptedOut ? 0 : (pData.wins || 0));
+                    tr.setAttribute(`data-${p}-losses`, isStatsOptedOut ? 0 : (pData.losses || 0));
+                    tr.setAttribute(`data-${p}-win-percent`, isStatsOptedOut ? 0 : (pData.win_percent || 0));
 
                     const deltas = pData.deltas || {};
                     for (const interval of ['game', 'month', 'quarter', 'year']) {
@@ -663,9 +666,9 @@
                         tr.setAttribute(`data-${p}-delta-${interval}-rating`, isOptedOut ? 0 : (dInt.rating || 0));
                         tr.setAttribute(`data-${p}-delta-${interval}-rd`, isOptedOut ? 0 : (dInt.rd || 0));
                         tr.setAttribute(`data-${p}-delta-${interval}-games`, dInt.games || 0);
-                        tr.setAttribute(`data-${p}-delta-${interval}-wins`, dInt.wins || 0);
-                        tr.setAttribute(`data-${p}-delta-${interval}-losses`, dInt.losses || 0);
-                        tr.setAttribute(`data-${p}-delta-${interval}-win-percent`, dInt.win_percent || 0);
+                        tr.setAttribute(`data-${p}-delta-${interval}-wins`, isStatsOptedOut ? 0 : (dInt.wins || 0));
+                        tr.setAttribute(`data-${p}-delta-${interval}-losses`, isStatsOptedOut ? 0 : (dInt.losses || 0));
+                        tr.setAttribute(`data-${p}-delta-${interval}-win-percent`, isStatsOptedOut ? 0 : (dInt.win_percent || 0));
                     }
                 }
 
@@ -693,20 +696,36 @@
                             `;
                         }
                     }
-                    pitchCells += `
-                        <td data-pitch-cell="${p}">${pData.games || 0}</td>
-                        <td data-pitch-cell="${p}" class="delta-col delta-games-col" data-delta-type="games" style="display: none;"></td>
-                        <td data-pitch-cell="${p}">${pData.wins || 0}</td>
-                        <td data-pitch-cell="${p}" class="delta-col delta-wins-col" data-delta-type="wins" style="display: none;"></td>
-                        <td data-pitch-cell="${p}">${pData.losses || 0}</td>
-                        <td data-pitch-cell="${p}" class="delta-col delta-losses-col" data-delta-type="losses" style="display: none;"></td>
-                        <td data-pitch-cell="${p}">${pData.win_percent !== undefined ? pData.win_percent.toFixed(1) + '%' : '0.0%'}</td>
-                        <td data-pitch-cell="${p}" class="delta-col delta-win-percent-col" data-delta-type="win-percent" style="display: none;"></td>
-                    `;
+                    if (isStatsOptedOut) {
+                        pitchCells += `
+                            <td data-pitch-cell="${p}">${pData.games || 0}</td>
+                            <td data-pitch-cell="${p}" class="delta-col delta-games-col" data-delta-type="games" style="display: none;"></td>
+                            <td data-pitch-cell="${p}" style="color: var(--text-muted);">—</td>
+                            <td data-pitch-cell="${p}" class="delta-col delta-wins-col" data-delta-type="wins" style="display: none; color: var(--text-muted);">—</td>
+                            <td data-pitch-cell="${p}" style="color: var(--text-muted);">—</td>
+                            <td data-pitch-cell="${p}" class="delta-col delta-losses-col" data-delta-type="losses" style="display: none; color: var(--text-muted);">—</td>
+                            <td data-pitch-cell="${p}" style="color: var(--text-muted);">—</td>
+                            <td data-pitch-cell="${p}" class="delta-col delta-win-percent-col" data-delta-type="win-percent" style="display: none; color: var(--text-muted);">—</td>
+                        `;
+                    } else {
+                        pitchCells += `
+                            <td data-pitch-cell="${p}">${pData.games || 0}</td>
+                            <td data-pitch-cell="${p}" class="delta-col delta-games-col" data-delta-type="games" style="display: none;"></td>
+                            <td data-pitch-cell="${p}">${pData.wins || 0}</td>
+                            <td data-pitch-cell="${p}" class="delta-col delta-wins-col" data-delta-type="wins" style="display: none;"></td>
+                            <td data-pitch-cell="${p}">${pData.losses || 0}</td>
+                            <td data-pitch-cell="${p}" class="delta-col delta-losses-col" data-delta-type="losses" style="display: none;"></td>
+                            <td data-pitch-cell="${p}">${pData.win_percent !== undefined ? pData.win_percent.toFixed(1) + '%' : '0.0%'}</td>
+                            <td data-pitch-cell="${p}" class="delta-col delta-win-percent-col" data-delta-type="win-percent" style="display: none;"></td>
+                        `;
+                    }
                 }
 
                 const optOutBadge = (isWebmaster && optedOutIds.includes(player.player_id))
                     ? '<span style="font-size: 10px; opacity: 0.7; color: #ffc107;" title="Glicko-2 Opt-out aktiv">🔒 Opt-out</span>'
+                    : '';
+                const statsOptBadge = (isWebmaster && statsOptedOutIds.includes(player.player_id))
+                    ? '<span style="font-size: 10px; opacity: 0.7; color: #80deea;" title="Stat-Opt-out aktiv">📊 Stat-Opt-out</span>'
                     : '';
 
                 tr.innerHTML = `
@@ -714,6 +733,7 @@
                     <td>
                         <a href="/player/${player.player_id}">${player.alias}</a>
                         ${optOutBadge}
+                        ${statsOptBadge}
                     </td>
                     ${pitchCells}
                 `;
