@@ -233,6 +233,38 @@ class TestMatchPaginationAndNoise(unittest.TestCase):
             db_conn.close()
             acc_conn.close()
 
+    def test_matches_page_javascript_syntax_and_event_bindings(self):
+        """Verify that /matches renders syntactically valid JS with detail expansion, MVP modals, and scroller."""
+        resp = self.client.get("/matches")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+
+        self.assertIn("window.openMvpVoteModal =", html)
+        self.assertIn("window.openMvpResultsModal =", html)
+        self.assertIn("window.timeScrollbar = new RB48TimeScrollbar", html)
+        self.assertIn('match.classList.toggle("expanded")', html)
+
+        import re
+        import subprocess
+        scripts = re.findall(r"<script(?:\s+[^>]*)?>(.*?)</script>", html, re.DOTALL)
+        self.assertGreater(len(scripts), 0)
+
+        for idx, script_content in enumerate(scripts):
+            if not script_content.strip():
+                continue
+            try:
+                res = subprocess.run(
+                    ["node", "--check"],
+                    input=script_content,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                )
+                if res.returncode != 0:
+                    self.fail(f"JavaScript syntax error in rendered /matches script #{idx}:\n{res.stderr}")
+            except FileNotFoundError:
+                pass
+
 
 if __name__ == "__main__":
     unittest.main()
