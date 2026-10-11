@@ -73,6 +73,8 @@ class TestAchievements(unittest.TestCase):
             "achievements.cursebreaker_desc",
             "achievements.comeback_king_title",
             "achievements.comeback_king_desc",
+            "achievements.mvp_title",
+            "achievements.mvp_desc",
             "achievements.tier_platin",
             "achievements.tier_neutral",
             "achievements.badge_new",
@@ -480,6 +482,106 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         self.assertEqual(rank_year["tier"], "platin")
         self.assertIn("2025", rank_year["won_periods"]["years"])
         self.assertIn("🏆 2025", rank_year["period_pills"])
+
+    def test_mvp_achievement_progression(self):
+        # 1. Warm up matches
+        self.add_warmup_5_matches()
+
+        # Initial: no MVP votes -> locked, 0/1 MVP-Wahl
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        mvp_ach = [a for a in ach if a["id"] == "mvp"][0]
+        self.assertFalse(mvp_ach["unlocked"])
+        self.assertEqual(mvp_ach["tier"], "locked")
+        self.assertEqual(mvp_ach["icon"], "⭐")
+        self.assertEqual(mvp_ach["progress_text"], "0 / 1 MVP-Wahl")
+        self.assertEqual(mvp_ach["detail_text"], "Noch nicht zum MVP gewählt (nur 1. Plätze).")
+
+        # 2. Add match where player 1 gets 2nd place (Silver) and 3rd place (Bronze) in votes, but player 2 gets 1st place (Gold)
+        m6 = self.add_match("2025-01-01", [1, 2], [3, 4], 2, 1)
+        self.acc_conn.execute(
+            "INSERT INTO match_mvp_votes (match_id, voter_user_id, voted_player_id, voted_player_id_2, voted_player_id_3, created_at) VALUES (?, ?, ?, ?, ?, '2025-01-01T20:00:00')",
+            (m6, 101, 2, 1, 3)
+        )
+        self.acc_conn.commit()
+
+        # Player 1 only got Silver, not Gold (1st place) -> Still locked!
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        mvp_ach = [a for a in ach if a["id"] == "mvp"][0]
+        self.assertFalse(mvp_ach["unlocked"])
+        self.assertEqual(mvp_ach["tier"], "locked")
+
+        # 3. Player 1 gets 1st place in m7 -> 1 Gold -> Bronze tier unlocked!
+        m7 = self.add_match("2025-01-02", [1, 2], [3, 4], 2, 1)
+        self.acc_conn.execute(
+            "INSERT INTO match_mvp_votes (match_id, voter_user_id, voted_player_id, voted_player_id_2, voted_player_id_3, created_at) VALUES (?, ?, ?, ?, ?, '2025-01-02T20:00:00')",
+            (m7, 101, 1, 2, 3)
+        )
+        self.acc_conn.commit()
+
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        mvp_ach = [a for a in ach if a["id"] == "mvp"][0]
+        self.assertTrue(mvp_ach["unlocked"])
+        self.assertEqual(mvp_ach["tier"], "bronze")
+        self.assertEqual(mvp_ach["progress_text"], "1 / 3 MVP-Wahlen")
+        self.assertEqual(mvp_ach["detail_text"], "1x zum MVP gewählt (1. Platz)")
+
+        # 4. Player 1 gets 2nd Gold in m8 -> Still Bronze tier (2 / 3)
+        m8 = self.add_match("2025-01-03", [1, 2], [3, 4], 2, 1)
+        self.acc_conn.execute(
+            "INSERT INTO match_mvp_votes (match_id, voter_user_id, voted_player_id, voted_player_id_2, voted_player_id_3, created_at) VALUES (?, ?, ?, ?, ?, '2025-01-03T20:00:00')",
+            (m8, 101, 1, 2, 3)
+        )
+        self.acc_conn.commit()
+
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        mvp_ach = [a for a in ach if a["id"] == "mvp"][0]
+        self.assertTrue(mvp_ach["unlocked"])
+        self.assertEqual(mvp_ach["tier"], "bronze")
+        self.assertEqual(mvp_ach["progress_text"], "2 / 3 MVP-Wahlen")
+        self.assertEqual(mvp_ach["detail_text"], "2x zum MVP gewählt (1. Platz)")
+
+        # 5. Player 1 gets 3rd Gold in m9 -> Silver tier unlocked! (3 / 5)
+        m9 = self.add_match("2025-01-04", [1, 2], [3, 4], 2, 1)
+        self.acc_conn.execute(
+            "INSERT INTO match_mvp_votes (match_id, voter_user_id, voted_player_id, voted_player_id_2, voted_player_id_3, created_at) VALUES (?, ?, ?, ?, ?, '2025-01-04T20:00:00')",
+            (m9, 101, 1, 2, 3)
+        )
+        self.acc_conn.commit()
+
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        mvp_ach = [a for a in ach if a["id"] == "mvp"][0]
+        self.assertEqual(mvp_ach["tier"], "silver")
+        self.assertEqual(mvp_ach["progress_text"], "3 / 5 MVP-Wahlen")
+
+        # 6. Add matches 10 and 11 with Gold for player 1 -> 5 Gold -> Gold tier unlocked! (5 / 10)
+        for d in ["2025-01-05", "2025-01-06"]:
+            mid = self.add_match(d, [1, 2], [3, 4], 2, 1)
+            self.acc_conn.execute(
+                "INSERT INTO match_mvp_votes (match_id, voter_user_id, voted_player_id, created_at) VALUES (?, ?, ?, '2025-01-05T20:00:00')",
+                (mid, 101, 1)
+            )
+        self.acc_conn.commit()
+
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        mvp_ach = [a for a in ach if a["id"] == "mvp"][0]
+        self.assertEqual(mvp_ach["tier"], "gold")
+        self.assertEqual(mvp_ach["progress_text"], "5 / 10 MVP-Wahlen")
+        self.assertEqual(mvp_ach["detail_text"], "5x zum MVP gewählt (1. Platz)")
+
+        # 7. Add 5 more Gold matches -> 10 Gold -> Platin tier unlocked!
+        for d in ["2025-01-07", "2025-01-08", "2025-01-09", "2025-01-10", "2025-01-11"]:
+            mid = self.add_match(d, [1, 2], [3, 4], 2, 1)
+            self.acc_conn.execute(
+                "INSERT INTO match_mvp_votes (match_id, voter_user_id, voted_player_id, created_at) VALUES (?, ?, ?, '2025-01-07T20:00:00')",
+                (mid, 101, 1)
+            )
+        self.acc_conn.commit()
+
+        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        mvp_ach = [a for a in ach if a["id"] == "mvp"][0]
+        self.assertEqual(mvp_ach["tier"], "platin")
+        self.assertEqual(mvp_ach["progress_text"], "10 MVP-Wahlen gewonnen!")
+        self.assertEqual(mvp_ach["detail_text"], "10x zum MVP gewählt (1. Platz)")
 
 
 

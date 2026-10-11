@@ -946,6 +946,8 @@ TRANSLATIONS_DE = {
     "achievements.clean_sheet_desc": "Einen Zu-Null-Sieg ohne jedes Gegentor gefeiert.",
     "achievements.highest_rank_title": "Podiumsplatzierung",
     "achievements.highest_rank_desc": "Beende einen Zeitraum auf Platz #1: Monat (Bronze), Quartal (Silber), Halbjahr (Gold) oder Jahr (Platin).",
+    "achievements.mvp_title": "MVP",
+    "achievements.mvp_desc": "Du wurdest zum MVP gewählt. (Bronze 1, Silber 3, Gold 5, Platin 10 MVP-Wahlen)",
     "achievements.top3_rank_title": "Podiumsplatzierung",
     "achievements.top3_rank_desc": "Beende einen Zeitraum auf Platz #1: Monat (Bronze), Quartal (Silber), Halbjahr (Gold) oder Jahr (Platin).",
     "achievements.breaking_destiny_title": "Fluchbrecher (Breaking Destiny)",

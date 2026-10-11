@@ -3,6 +3,7 @@
 from datetime import date, datetime
 from scripts.database.database import get_connection
 from scripts.database.db_players import get_players
+from scripts.database.db_matches import get_matches
 from scripts.database.db_ratings import get_player_rating_history
 from scripts.accounts.database import (
     get_accounts_connection,
@@ -10,6 +11,7 @@ from scripts.accounts.database import (
     get_user_seen_achievements,
     record_player_unlocked_achievement,
     has_player_unlocked_achievement,
+    get_mvp_medal_table,
 )
 
 MONTH_NAMES_DE = {
@@ -239,6 +241,85 @@ def _eval_weisse_wand(active_matches: list) -> dict:
         "progress_text": f"{len(clean_sheets)} / {cs_target} Zu-Null-Siege",
         "description_key": "achievements.clean_sheet_desc",
         "detail_text": f"{len(clean_sheets)}x ohne Gegentor gewonnen"
+    }
+
+
+def _eval_mvp(player_id: int, connection, accounts_connection=None) -> dict:
+    gold_count = 0
+    acc_conn = accounts_connection
+    close_local = False
+    if acc_conn is None:
+        try:
+            acc_conn = get_accounts_connection()
+            close_local = True
+        except Exception:
+            acc_conn = None
+
+    if acc_conn is not None:
+        try:
+            try:
+                matches_dict = get_matches(connection)
+            except Exception:
+                matches_dict = {}
+
+            if not matches_dict:
+                try:
+                    vote_mids = [r["match_id"] for r in acc_conn.execute("SELECT DISTINCT match_id FROM match_mvp_votes").fetchall()]
+                    matches_dict = {mid: {} for mid in vote_mids}
+                except Exception:
+                    matches_dict = {}
+
+            table = get_mvp_medal_table(acc_conn, matches_dict)
+            for row in table:
+                if row.get("player_id") == player_id:
+                    gold_count = int(row.get("gold", 0))
+                    break
+        except Exception:
+            gold_count = 0
+        finally:
+            if close_local:
+                try:
+                    acc_conn.close()
+                except Exception:
+                    pass
+
+    mvp_tiers = [(10, "platin"), (5, "gold"), (3, "silver"), (1, "bronze")]
+    unlocked_tier = None
+    for target, tier in mvp_tiers:
+        if gold_count >= target:
+            unlocked_tier = tier
+            break
+
+    if gold_count >= 10:
+        next_target = 10
+    elif gold_count >= 5:
+        next_target = 10
+    elif gold_count >= 3:
+        next_target = 5
+    elif gold_count >= 1:
+        next_target = 3
+    else:
+        next_target = 1
+
+    if unlocked_tier:
+        if gold_count >= 10:
+            progress_text = f"{gold_count} MVP-Wahlen gewonnen!"
+        else:
+            progress_text = f"{gold_count} / {next_target} MVP-Wahlen"
+        detail_text = f"{gold_count}x zum MVP gewählt (1. Platz)" if gold_count != 1 else "1x zum MVP gewählt (1. Platz)"
+    else:
+        progress_text = "0 / 1 MVP-Wahl"
+        detail_text = "Noch nicht zum MVP gewählt (nur 1. Plätze)."
+
+    return {
+        "id": "mvp",
+        "icon": "⭐",
+        "title_key": "achievements.mvp_title",
+        "tier": unlocked_tier if unlocked_tier else "locked",
+        "unlocked": unlocked_tier is not None,
+        "progress_text": progress_text,
+        "description_key": "achievements.mvp_desc",
+        "detail_text": detail_text,
     }
 
 
@@ -933,38 +1014,55 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
     if player_id not in players:
         return []
 
-    active_matches, active_global_matches, all_rows = _load_player_matches(connection, player_id)
-    total_games = len(active_matches)
+    close_acc = False
+    acc_conn_to_use = accounts_connection
+    if acc_conn_to_use is None:
+        try:
+            acc_conn_to_use = get_accounts_connection()
+            close_acc = True
+        except Exception:
+            acc_conn_to_use = None
 
-    # Group matches by teammate
-    partner_games = {}
-    for m in active_matches:
-        for tm in m["own_team_ids"]:
-            partner_games.setdefault(tm, []).append(m)
+    try:
+        active_matches, active_global_matches, all_rows = _load_player_matches(connection, player_id)
+        total_games = len(active_matches)
 
-    achievements = [
-        _eval_century_club(total_games),
-        _eval_winning_streak(active_matches),
-        _eval_iron_man(active_matches, active_global_matches),
-        _eval_underdog_hero(active_matches),
-        _eval_weisse_wand(active_matches),
-    ]
+        # Group matches by teammate
+        partner_games = {}
+        for m in active_matches:
+            for tm in m["own_team_ids"]:
+                partner_games.setdefault(tm, []).append(m)
 
-    rank_ach = _eval_highest_rank(connection, player_id, active_matches, user_has_glicko_tier, reference_date=reference_date, historical_snapshots=historical_snapshots)
-    if rank_ach is not None:
-        achievements.append(rank_ach)
+        achievements = [
+            _eval_century_club(total_games),
+            _eval_winning_streak(active_matches),
+            _eval_iron_man(active_matches, active_global_matches),
+            _eval_underdog_hero(active_matches),
+            _eval_weisse_wand(active_matches),
+        ]
 
-    achievements.append(_eval_perfect_month(active_matches, active_global_matches, all_rows, reference_date))
-    achievements.extend(_eval_cursebreaker(partner_games, players, TIER_ORDER))
-    achievements.extend(_eval_buddies(partner_games, players, TIER_ORDER))
-    achievements.extend(_eval_golden_duo(partner_games, players, TIER_ORDER))
-    achievements.extend(_eval_thick_and_thin(partner_games, players, TIER_ORDER))
-    achievements.extend(_eval_underdog_duo(partner_games, players, TIER_ORDER))
-    achievements.append(_eval_teamplayer(partner_games, player_id, players, accounts_connection))
-    achievements.append(_eval_closed_society(player_id, active_matches))
-    achievements.append(_eval_comeback_king(connection, player_id, active_matches, user_has_glicko_tier))
+        rank_ach = _eval_highest_rank(connection, player_id, active_matches, user_has_glicko_tier, reference_date=reference_date, historical_snapshots=historical_snapshots)
+        if rank_ach is not None:
+            achievements.append(rank_ach)
 
-    return achievements
+        achievements.append(_eval_mvp(player_id, connection, acc_conn_to_use))
+        achievements.append(_eval_perfect_month(active_matches, active_global_matches, all_rows, reference_date))
+        achievements.extend(_eval_cursebreaker(partner_games, players, TIER_ORDER))
+        achievements.extend(_eval_buddies(partner_games, players, TIER_ORDER))
+        achievements.extend(_eval_golden_duo(partner_games, players, TIER_ORDER))
+        achievements.extend(_eval_thick_and_thin(partner_games, players, TIER_ORDER))
+        achievements.extend(_eval_underdog_duo(partner_games, players, TIER_ORDER))
+        achievements.append(_eval_teamplayer(partner_games, player_id, players, acc_conn_to_use))
+        achievements.append(_eval_closed_society(player_id, active_matches))
+        achievements.append(_eval_comeback_king(connection, player_id, active_matches, user_has_glicko_tier))
+
+        return achievements
+    finally:
+        if close_acc and acc_conn_to_use is not None:
+            try:
+                acc_conn_to_use.close()
+            except Exception:
+                pass
 
 
 def get_user_unseen_achievements_count(user_id: int, player_id: int, accounts_connection=None, primary_connection=None) -> int:

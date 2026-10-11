@@ -924,6 +924,8 @@ TRANSLATIONS_EN = {
     "achievements.clean_sheet_desc": "Celebrated a clean sheet victory conceding zero goals.",
     "achievements.highest_rank_title": "Podium Finisher",
     "achievements.highest_rank_desc": "Finish a period ranked #1: Month (Bronze), Quarter (Silver), Half-Year (Gold), or Year (Platinum).",
+    "achievements.mvp_title": "MVP",
+    "achievements.mvp_desc": "You were voted MVP. (Bronze 1, Silver 3, Gold 5, Platinum 10 MVP elections)",
     "achievements.top3_rank_title": "Podium Finisher",
     "achievements.top3_rank_desc": "Finish a period ranked #1: Month (Bronze), Quarter (Silver), Half-Year (Gold), or Year (Platinum).",
     "achievements.breaking_destiny_title": "Cursebreaker (Breaking Destiny)",
