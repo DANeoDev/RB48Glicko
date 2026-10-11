@@ -81,6 +81,11 @@ def dashboard():
 @stats_bp.route("/stats")
 @require_tier(Tier.USER)
 def stats():
+    curr_user = get_current_user()
+    if curr_user and curr_user.get("stats_opt_out"):
+        flash("Du hast den Statistik-Opt-Out in deinem Profil aktiviert. Die Statistik-Übersicht ist für deinen Account deaktiviert.", "info")
+        return redirect(url_for("stats.home"))
+
     cached = get_cached_stats_data()
 
     leaderboard = [dict(p) for p in cached["leaderboard_base"]]
@@ -102,7 +107,6 @@ def stats():
             "most_improved": streaks.get("most_improved", [])
         }
 
-    curr_user = get_current_user()
     user_has_opt_out = bool(curr_user and curr_user.get("glicko_opt_out"))
 
     if user_has_opt_out:
@@ -241,7 +245,7 @@ def player_profile(player_id):
     finally:
         acc_conn.close()
 
-    players_map = {pid: p["aliases"][0] for pid, p in players.items()}
+    players_map = {pid: (p["aliases"][0] if p.get("aliases") else f"Player #{pid}") for pid, p in players.items()}
     is_player_opted_out = (player_id in opted_out_player_ids) and not has_tier(Tier.WEBMASTER)
     is_player_stats_opted_out = player_id in stats_opted_out_player_ids
     show_player_glicko = has_tier(Tier.GLICKO_USER) and not is_player_opted_out
@@ -253,6 +257,10 @@ def player_profile(player_id):
     is_calibrated = (player_id in calibrated_priors) or (total_career_games >= calibration_threshold)
     is_provisional = not is_calibrated
     calibration_progress = min(total_career_games, calibration_threshold)
+
+    raw_positions = players[player_id].get("positions", [])
+    clean_positions = [pos.replace("*", "").strip().upper() for pos in raw_positions]
+    primary_position = next((pos.replace("*", "").strip().upper() for pos in raw_positions if "*" in pos), "")
 
     return render_template(
         "player.html",
@@ -268,6 +276,8 @@ def player_profile(player_id):
         player_id=player_id,
         linked_user=linked_user,
         players_map=players_map,
+        clean_positions=clean_positions,
+        primary_position=primary_position,
         opted_out_player_ids=opted_out_player_ids,
         stats_opted_out_player_ids=stats_opted_out_player_ids,
         is_player_opted_out=is_player_opted_out,

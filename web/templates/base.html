@@ -327,7 +327,13 @@
             <a href="{{ url_for('stats.match_history') }}" class="{% if request.endpoint == 'stats.match_history' %}active{% endif %}">{{ t('nav.match_history', 'Match History') }}</a>
 
             {% if has_tier('user') %}
-                <a href="{{ url_for('stats.stats') }}" class="{% if request.endpoint == 'stats.stats' %}active{% endif %}">{{ t('nav.stats', 'Stats') }}</a>
+                {% if current_user and current_user.get('stats_opt_out') %}
+                    <span class="nav-locked" style="cursor: not-allowed; opacity: 0.6;" title="{{ t('nav.locked_stats_opt_out_title', 'Statistiken gesperrt — Du hast in deinen Profileinstellungen den Statistik-Opt-Out aktiviert.') }}">
+                        {{ t('nav.stats', 'Stats') }} <span class="nav-lock-icon">🔒</span>
+                    </span>
+                {% else %}
+                    <a href="{{ url_for('stats.stats') }}" class="{% if request.endpoint == 'stats.stats' %}active{% endif %}">{{ t('nav.stats', 'Stats') }}</a>
+                {% endif %}
             {% else %}
                 <a href="{{ url_for('auth.login', next=url_for('stats.stats')) }}" class="nav-locked" title="{{ t('nav.locked_stats_title', 'Stats — Register and get approved by the webmaster to access player statistics.') }}">
                     {{ t('nav.stats', 'Stats') }} <span class="nav-lock-icon">🔒</span>
@@ -389,6 +395,9 @@
                                 {% if unseen_webmaster_notifications_count > 0 %}
                                     <span class="nav-achievement-pill" style="background: #80deea; color: #140b28;">{{ unseen_webmaster_notifications_count }} {{ t('achievements.badge_new', 'NEU') }}</span>
                                 {% endif %}
+                            </a>
+                            <a href="{{ url_for('auth.admin_player_positions') }}" style="color: #80deea; font-size: 13px;">
+                                <span>⚽ {{ t('admin.nav_player_positions', 'Spielerpositionen verwalten') }}</span>
                             </a>
                             <a href="{{ url_for('finances.admin_finances') }}" style="color: #80deea; font-size: 13px;">
                                 <span>💶 {{ t('nav.finances', 'Finanzen & Beiträge') }}</span>

@@ -358,6 +358,52 @@ class StatOptOutTest(unittest.TestCase):
         self.assertEqual(filtered["kryptonite_rivals"][0]["dominant_id"], 3)
         self.assertEqual(len(filtered["balanced_matchups"]), 0)
 
+    def test_stats_page_blocked_for_opted_out_user(self):
+        user = self.create_user(role="user", stats_opt_out=1)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        # 1. Direct GET /stats must redirect
+        resp = self.client.get("/stats", follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+
+        # 2. Follow redirect to home
+        resp_followed = self.client.get("/stats", follow_redirects=True)
+        self.assertEqual(resp_followed.status_code, 200)
+        html = resp_followed.data.decode("utf-8")
+        self.assertTrue("Statistik-Opt-Out" in html or "deaktiviert" in html)
+
+        # 3. Stats link in navbar must be locked (unclickable)
+        self.assertIn("nav-locked", html)
+        self.assertNotIn('<a href="/stats"', html)
+
+    def test_stats_page_accessible_when_stats_opt_out_disabled(self):
+        user = self.create_user(role="user", stats_opt_out=0)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        resp = self.client.get("/stats")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn('<a href="/stats"', html)
+
+    def test_community_synergies_api_excludes_opted_out_players(self):
+        # Create user linked to player 1 and opted out of stats
+        self.create_user(player_id=1, stats_opt_out=1)
+        viewer = self.create_user(role="user", stats_opt_out=0)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = viewer["id"]
+
+        resp = self.client.get("/api/community-synergies")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        for duo in data.get("best_duos", []):
+            self.assertNotEqual(duo.get("player1_id"), 1)
+            self.assertNotEqual(duo.get("player2_id"), 1)
+        for duo in data.get("worst_duos", []):
+            self.assertNotEqual(duo.get("player1_id"), 1)
+            self.assertNotEqual(duo.get("player2_id"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -134,6 +134,67 @@ class PlayerPositionsTests(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_user_profile_edit_positions(self):
+        from scripts.accounts.database import link_user_to_player
+        user_id = self.create_user("user")
+
+        acc_conn = get_accounts_connection()
+        try:
+            link_user_to_player(acc_conn, user_id, 1)
+        finally:
+            acc_conn.close()
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        # 1. User updates positions via /settings/profile
+        resp = self.client.post("/settings/profile", data={
+            "attendance_name": "TestPositionsPlayer",
+            "positions": ["DEF", "MID"],
+            "primary_position": "DEF",
+            "positions_submitted": "1",
+        }, follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+
+        # Check DB
+        conn = get_main_connection()
+        try:
+            players = get_players(conn)
+            self.assertIn("DEF*", players[1]["positions"])
+            self.assertIn("MID", players[1]["positions"])
+        finally:
+            conn.close()
+
+        # 2. Check settings page renders positions
+        resp_settings = self.client.get("/settings")
+        self.assertEqual(resp_settings.status_code, 200)
+        html = resp_settings.data.decode("utf-8")
+        self.assertIn('name="positions"', html)
+        self.assertIn('value="DEF"', html)
+        self.assertIn('value="MID"', html)
+
+        # 3. Check player profile page displays badges
+        resp_player = self.client.get("/player/1")
+        self.assertEqual(resp_player.status_code, 200)
+        player_html = resp_player.data.decode("utf-8")
+        self.assertIn("DEF*", player_html)
+        self.assertIn("MID", player_html)
+
+        # 4. Clear positions
+        resp_clear = self.client.post("/settings/profile", data={
+            "attendance_name": "TestPositionsPlayer",
+            "positions_submitted": "1",
+        }, follow_redirects=True)
+        self.assertEqual(resp_clear.status_code, 200)
+
+        conn = get_main_connection()
+        try:
+            players2 = get_players(conn)
+            self.assertEqual(players2[1]["positions"], [])
+        finally:
+            conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()
+

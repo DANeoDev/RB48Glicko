@@ -33,6 +33,33 @@
 </div>
 {% endif %}
 <h1>{{ player["aliases"][0] }}</h1>
+
+<!-- Player Positions & Edit Actions -->
+<div class="player-positions-header" style="display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; margin-bottom: 6px;">
+    {% if player.positions %}
+        {% for pos in player.positions %}
+            <span class="position-badge" style="background: rgba(128, 222, 234, 0.15); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.4); font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 5px;">
+                {{ pos }}
+            </span>
+        {% endfor %}
+    {% else %}
+        <span style="font-size: 12px; color: var(--text-muted);">{{ t('player.no_positions', 'Keine Positionen hinterlegt') }}</span>
+    {% endif %}
+
+    {% if has_tier('webmaster') %}
+        <button type="button" class="btn-edit-positions-modal" onclick="openWebmasterPositionsModal()" style="background: rgba(123, 82, 197, 0.25); border: 1px solid #7B52C5; color: #ffffff; padding: 3px 8px; font-size: 11.5px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="{{ t('player.edit_positions', 'Positionen bearbeiten') }}">
+            ✏️ {{ t('player.edit_positions', 'Positionen bearbeiten') }}
+        </button>
+        <a href="{{ url_for('auth.admin_player_positions') }}" style="color: var(--text-muted); font-size: 11px; text-decoration: underline;" title="{{ t('admin.player_positions_title', 'Alle Spielerpositionen verwalten') }}">
+            ({{ t('admin.nav_player_positions', 'Alle Positionen') }})
+        </a>
+    {% elif current_user and current_user.get('player_id') == player_id %}
+        <a href="{{ url_for('auth.settings') }}" style="background: rgba(123, 82, 197, 0.25); border: 1px solid #7B52C5; color: #ffffff; padding: 3px 8px; font-size: 11.5px; border-radius: 4px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+            ✏️ {{ t('player.edit_my_positions', 'Meine Positionen anpassen') }}
+        </a>
+    {% endif %}
+</div>
+
 <p><a href="{{ url_for('stats.stats') }}">{{ t('player.back_to_stats', '← Back to Stats') }}</a></p>
 </div>
 
@@ -380,6 +407,96 @@
         </div>
     </div>
 </div>
+
+{% if has_tier('webmaster') %}
+<!-- Webmaster Position Edit Modal -->
+<div id="webmaster-pos-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; max-width: 440px; width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+        <h3 style="margin-top: 0; margin-bottom: 12px; color: #ffffff; font-size: 17px;">
+            ⚽ {{ t('admin.player_positions_heading', 'Spielerpositionen verwalten') }} — {{ player["aliases"][0] }}
+        </h3>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+            {{ t('admin.player_positions_sub', 'Positionsfähigkeiten und Hauptposition festlegen.') }}
+        </p>
+
+        <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+            {% for role in ['GK', 'DEF', 'MID', 'ATT'] %}
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer; color: #ffffff; background: #24194A; border: 1px solid #5A4A83; padding: 6px 12px; border-radius: 6px;">
+                <input type="checkbox" id="modal-pos-{{ role }}" value="{{ role }}" {% if role in clean_positions %}checked{% endif %}>
+                {{ role }}
+            </label>
+            {% endfor %}
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label for="modal-primary-select" style="display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 4px; color: #80deea;">
+                ⭐ {{ t('auth.primary_position_label', 'Hauptposition:') }}
+            </label>
+            <select id="modal-primary-select" style="width: 100%; padding: 7px 10px; border-radius: var(--radius); background: #24194A; border: 1px solid #5A4A83; color: #ffffff; font-size: 13px;">
+                <option value="">{{ t('auth.no_primary_position', '-- Keine Hauptposition --') }}</option>
+                <option value="GK" {% if primary_position == 'GK' %}selected{% endif %}>GK* (Tor)</option>
+                <option value="DEF" {% if primary_position == 'DEF' %}selected{% endif %}>DEF* (Abwehr)</option>
+                <option value="MID" {% if primary_position == 'MID' %}selected{% endif %}>MID* (Mittelfeld)</option>
+                <option value="ATT" {% if primary_position == 'ATT' %}selected{% endif %}>ATT* (Sturm)</option>
+            </select>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" class="secondary" onclick="closeWebmasterPositionsModal()" style="padding: 7px 14px; font-size: 13px; cursor: pointer;">Abbrechen</button>
+            <button type="button" class="primary" id="btn-modal-save-pos" onclick="saveWebmasterPositionsModal()" style="padding: 7px 16px; font-size: 13px; cursor: pointer;">Speichern</button>
+        </div>
+    </div>
+</div>
+<script>
+function openWebmasterPositionsModal() {
+    const m = document.getElementById("webmaster-pos-modal");
+    if (m) m.style.display = "flex";
+}
+function closeWebmasterPositionsModal() {
+    const m = document.getElementById("webmaster-pos-modal");
+    if (m) m.style.display = "none";
+}
+async function saveWebmasterPositionsModal() {
+    const btn = document.getElementById("btn-modal-save-pos");
+    const roles = ['GK', 'DEF', 'MID', 'ATT'];
+    const selected = roles.filter(r => document.getElementById(`modal-pos-${r}`)?.checked);
+    const primarySel = document.getElementById("modal-primary-select")?.value || null;
+
+    btn.disabled = true;
+    btn.textContent = "Speichere...";
+    try {
+        const resp = await fetch("{{ url_for('auth.admin_player_positions') }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({
+                player_id: {{ player_id }},
+                positions: selected,
+                primary_position: primarySel
+            })
+        });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            window.location.reload();
+        } else {
+            alert(data.error || "Fehler beim Speichern");
+            btn.disabled = false;
+            btn.textContent = "Speichern";
+        }
+    } catch (e) {
+        alert("Netzwerkfehler");
+        btn.disabled = false;
+        btn.textContent = "Speichern";
+    }
+}
+document.getElementById("modal-primary-select")?.addEventListener("change", (e) => {
+    const val = e.target.value;
+    if (val) {
+        const cb = document.getElementById(`modal-pos-${val}`);
+        if (cb) cb.checked = true;
+    }
+});
+</script>
+{% endif %}
 
 {% endblock %}
 

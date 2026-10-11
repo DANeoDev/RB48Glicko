@@ -1200,4 +1200,15 @@ TRANSLATIONS_DE = {
     "finances.tab_matchdays": "Spieltage & Gastbeiträge",
     "finances.tab_import": "PayPal CSV-Import & Zahlungen",
     "finances.tab_identities": "Lernendes Zahler-Gedächtnis",
+
+    # Position Preferences & Stat-Opt-Out Restrictions
+    "nav.locked_stats_opt_out_title": "Statistiken gesperrt — Du hast in deinen Profileinstellungen den Statistik-Opt-Out aktiviert.",
+    "auth.stats_opt_out_access_denied": "Du hast den Statistik-Opt-Out in deinem Profil aktiviert. Die Statistik-Übersicht ist für deinen Account deaktiviert.",
+    "auth.player_positions_label": "Positionspräferenzen für deinen Spieler:",
+    "auth.player_positions_hint": "Wähle deine bevorzugten Positionen und deine Hauptposition für Spielberichte und Team-Zusammenstellungen.",
+    "auth.primary_position_label": "Hauptposition:",
+    "auth.no_primary_position": "-- Keine Hauptposition (Flexibel) --",
+    "player.no_positions": "Keine Positionen hinterlegt",
+    "player.edit_positions": "Positionen bearbeiten",
+    "player.edit_my_positions": "Meine Positionen anpassen",
 }

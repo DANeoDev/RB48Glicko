@@ -623,7 +623,21 @@ def settings():
         main_conn.close()
         accounts_conn.close()
 
-    return render_template("settings.html", user=user, players=players, authored_bubbles=authored_bubbles)
+    linked_player_positions = []
+    linked_player_primary = ""
+    if user.get("player_id") and user["player_id"] in players:
+        raw_pos = players[user["player_id"]].get("positions", [])
+        linked_player_positions = [pos.replace("*", "").strip().upper() for pos in raw_pos]
+        linked_player_primary = next((pos.replace("*", "").strip().upper() for pos in raw_pos if "*" in pos), "")
+
+    return render_template(
+        "settings.html",
+        user=user,
+        players=players,
+        authored_bubbles=authored_bubbles,
+        linked_player_positions=linked_player_positions,
+        linked_player_primary=linked_player_primary,
+    )
 
 
 @auth_bp.route("/settings/profile", methods=["POST"])
@@ -632,6 +646,7 @@ def update_profile():
     """Update profile attendance name, player connection request, and avatar picture."""
     user = get_current_user()
     attendance_name = request.form.get("attendance_name", "").strip()
+    player_id_provided = "player_id" in request.form
     player_id_raw = request.form.get("player_id", "")
     player_id = int(player_id_raw) if player_id_raw.isdigit() and int(player_id_raw) > 0 else None
 
@@ -700,7 +715,7 @@ def update_profile():
             )
 
         # Handle player profile connection logic
-        if player_id != current_linked_id:
+        if player_id_provided and player_id != current_linked_id:
             if user.get("role") == "webmaster":
                 link_user_to_player(conn, user["id"], player_id)
                 record_webmaster_notification(
@@ -728,6 +743,22 @@ def update_profile():
             flash("Profile settings updated successfully!", "success")
     finally:
         conn.close()
+
+    # Update player position preferences if user has a confirmed linked player
+    effective_player_id = (player_id if (user.get("role") == "webmaster" and player_id_provided) else None) or user.get("player_id")
+    if effective_player_id and ("positions" in request.form or "primary_position" in request.form or request.form.get("positions_submitted") == "1"):
+        pos_list = request.form.getlist("positions")
+        valid_positions = {"GK", "DEF", "MID", "ATT"}
+        clean_positions = [p.upper() for p in pos_list if p.upper() in valid_positions]
+        raw_primary = request.form.get("primary_position", "").strip().upper()
+        primary_pos = raw_primary if raw_primary in clean_positions else None
+
+        main_conn = get_main_connection()
+        try:
+            set_player_positions(main_conn, effective_player_id, clean_positions, primary_pos)
+        finally:
+            main_conn.close()
+        invalidate_stats_cache()
 
     return redirect(url_for("auth.settings"))
 

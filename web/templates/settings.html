@@ -78,6 +78,40 @@
                         <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px;">{{ t('auth.connect_player_hint', 'Links your account and photo to your player statistics page (requires Webmaster approval).') }}</span>
                     </div>
 
+                    {% if user.player_id %}
+                    <div id="position-preferences-box" style="margin-bottom: 14px; padding: 14px; background: rgba(123, 82, 197, 0.08); border: 1px solid rgba(123, 82, 197, 0.25); border-radius: var(--radius);">
+                        <input type="hidden" name="positions_submitted" value="1">
+                        <label style="display: block; font-size: 13.5px; font-weight: 700; margin-bottom: 4px; color: #ffffff;">
+                            ⚽ {{ t('auth.player_positions_label', 'Positionspräferenzen für deinen Spieler:') }}
+                        </label>
+                        <span style="font-size: 11.5px; color: var(--text-muted); display: block; margin-bottom: 10px; line-height: 1.4;">
+                            {{ t('auth.player_positions_hint', 'Wähle deine bevorzugten Positionen und deine Hauptposition für Spielberichte und Team-Zusammenstellungen.') }}
+                        </span>
+                        
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
+                            {% for role in ['GK', 'DEF', 'MID', 'ATT'] %}
+                            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; cursor: pointer; color: #ffffff; background: #24194A; border: 1px solid #5A4A83; padding: 5px 10px; border-radius: 6px;">
+                                <input type="checkbox" name="positions" value="{{ role }}" class="user-pos-checkbox" {% if role in linked_player_positions %}checked{% endif %}>
+                                {{ role }}
+                            </label>
+                            {% endfor %}
+                        </div>
+
+                        <div>
+                            <label for="primary_position_select" style="display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 4px; color: #80deea;">
+                                ⭐ {{ t('auth.primary_position_label', 'Hauptposition:') }}
+                            </label>
+                            <select id="primary_position_select" name="primary_position" style="width: 100%; max-width: 260px; box-sizing: border-box; padding: 7px 10px; border-radius: var(--radius); background: #24194A; border: 1px solid #5A4A83; color: #ffffff; font-size: 13px;">
+                                <option value="">{{ t('auth.no_primary_position', '-- Keine Hauptposition (Flexibel) --') }}</option>
+                                <option value="GK" {% if linked_player_primary == 'GK' %}selected{% endif %}>GK* (Tor)</option>
+                                <option value="DEF" {% if linked_player_primary == 'DEF' %}selected{% endif %}>DEF* (Abwehr)</option>
+                                <option value="MID" {% if linked_player_primary == 'MID' %}selected{% endif %}>MID* (Mittelfeld)</option>
+                                <option value="ATT" {% if linked_player_primary == 'ATT' %}selected{% endif %}>ATT* (Sturm)</option>
+                            </select>
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <div style="margin-bottom: 14px; padding: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius);">
                         <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin-bottom: 0;">
                             <input type="checkbox" name="glicko_opt_out" value="1" {% if user.glicko_opt_out %}checked{% endif %} style="margin-top: 3px;">
@@ -313,4 +347,19 @@
         </form>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const primarySel = document.getElementById("primary_position_select");
+    if (primarySel) {
+        primarySel.addEventListener("change", (e) => {
+            const val = e.target.value;
+            if (val) {
+                const cb = document.querySelector(`.user-pos-checkbox[value="${val}"]`);
+                if (cb) cb.checked = true;
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

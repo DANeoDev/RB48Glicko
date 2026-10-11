@@ -1178,4 +1178,15 @@ TRANSLATIONS_EN = {
     "finances.tab_matchdays": "Matchdays & Guest Fees",
     "finances.tab_import": "PayPal CSV Import & Payments",
     "finances.tab_identities": "Learned Payer Identities",
+
+    # Position Preferences & Stat-Opt-Out Restrictions
+    "nav.locked_stats_opt_out_title": "Statistics locked — You have enabled Stat-Opt-Out in your profile settings.",
+    "auth.stats_opt_out_access_denied": "You have enabled Stat-Opt-Out in your profile. Access to the statistics overview is disabled for your account.",
+    "auth.player_positions_label": "Position preferences for your player:",
+    "auth.player_positions_hint": "Select your preferred positions and your primary position for match reports and team lineups.",
+    "auth.primary_position_label": "Primary Position:",
+    "auth.no_primary_position": "-- No primary position (Flexible) --",
+    "player.no_positions": "No positions specified",
+    "player.edit_positions": "Edit Positions",
+    "player.edit_my_positions": "Edit My Positions",
 }
