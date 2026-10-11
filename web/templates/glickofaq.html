@@ -277,6 +277,7 @@
                 </p>
             </div>
 
+            {% if has_tier('webmaster') %}
             <div class="faq-item">
                 <h3>{{ t('faq.q_recalibration', 'Was bedeutet das Sanduhr-Symbol (⏳) und wie funktioniert die Rekalibrierung von Neueinsteigern?') }}</h3>
                 <p>
@@ -286,6 +287,7 @@
                     {{ t('faq.a_recalibration_p2') | safe }}
                 </p>
             </div>
+            {% endif %}
 
             <div class="faq-item">
                 <h3>{{ t('faq.q_eval_accuracy', 'How is the predictive accuracy of the model evaluated?') }}</h3>

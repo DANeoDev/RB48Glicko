@@ -83,7 +83,7 @@
 </div>
 {% endif %}
 
-{% if is_provisional %}
+{% if is_provisional and has_tier('webmaster') %}
 <div class="provisional-banner" style="background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-size: 13px; color: #ffecb3; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
     <div style="display: flex; align-items: center; gap: 10px;">
         <span style="font-size: 20px;">⏳</span>

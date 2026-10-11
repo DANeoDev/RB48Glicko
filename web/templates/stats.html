@@ -453,7 +453,7 @@
                 <td>{{ '—' if is_opted_out else loop.index }}</td>
                 <td>
                     <a href="{{ url_for('stats.player_profile', player_id=player['player_id']) }}">{{ player["alias"] }}</a>
-                    {% if player.get('is_provisional') %}
+                    {% if player.get('is_provisional') and has_tier('webmaster') %}
                         <span class="provisional-badge" style="font-size: 11px; margin-left: 4px; cursor: help; opacity: 0.85; color: #ffca28;" title="{{ t('stats.provisional_tooltip', progress=player.get('calibration_progress', 0), threshold=player.get('calibration_threshold', 15)) }}">⏳ ({{ player.get('calibration_progress', 0) }}/{{ player.get('calibration_threshold', 15) }})</span>
                     {% endif %}
                     {% if has_tier('webmaster') %}

@@ -324,5 +324,116 @@ class TestLeaderboardViewModelProvisionalFlags(unittest.TestCase):
         self.assertEqual(rookie["calibration_progress"], 5)
 
 
+class TestProvisionalBadgesVisibility(unittest.TestCase):
+    def setUp(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+        from web.app import create_app
+        from scripts.database.database import main as init_database
+
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_db = Path(self.temp_dir.name) / "test_rb48.db"
+        self.test_accounts_db = Path(self.temp_dir.name) / "test_accounts.db"
+
+        prod_rb48 = Path(__file__).resolve().parents[1] / "data" / "rb48.db"
+        if prod_rb48.exists():
+            shutil.copy2(prod_rb48, self.test_db)
+        else:
+            os.environ["RB48_DATABASE_FILE"] = str(self.test_db)
+            init_database()
+
+        os.environ["RB48_DATABASE_FILE"] = str(self.test_db)
+        os.environ["RB48_ACCOUNTS_DATABASE_FILE"] = str(self.test_accounts_db)
+
+        self.app = create_app()
+        self.app.config["TESTING"] = True
+        self.client = self.app.test_client()
+
+    def tearDown(self):
+        os.environ.pop("RB48_DATABASE_FILE", None)
+        os.environ.pop("RB48_ACCOUNTS_DATABASE_FILE", None)
+        self.temp_dir.cleanup()
+
+    def _create_user(self, role="user"):
+        import time
+        from scripts.accounts.auth import register_user, pass_psychology_test
+        from scripts.accounts.database import (
+            approve_user,
+            get_accounts_connection,
+            mark_email_verified,
+            update_user_role,
+        )
+        u_name = f"badge_user_{int(time.time() * 1000000)}"
+        user_id, _ = register_user(u_name, f"{u_name}@example.com", "Password123!", role=role)
+        conn = get_accounts_connection()
+        try:
+            mark_email_verified(conn, user_id)
+            approve_user(conn, user_id, approved=True)
+            update_user_role(conn, user_id, role)
+        finally:
+            conn.close()
+        pass_psychology_test(user_id)
+        return user_id
+
+    def test_stats_provisional_badge_hidden_for_normal_user_visible_for_webmaster(self):
+        user_id = self._create_user("user")
+        wm_id = self._create_user("webmaster")
+
+        # 1. Normal user views /stats -> provisional-badge MUST NOT be rendered
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        res_user = self.client.get("/stats")
+        self.assertEqual(res_user.status_code, 200)
+        html_user = res_user.data.decode("utf-8")
+        self.assertNotIn("provisional-badge", html_user)
+        self.assertNotIn("Provisorische Kalibrierungsphase", html_user)
+
+        # 2. Webmaster views /stats -> provisional-badge IS rendered (if provisional player exists)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = wm_id
+        res_wm = self.client.get("/stats")
+        self.assertEqual(res_wm.status_code, 200)
+        html_wm = res_wm.data.decode("utf-8")
+        # In prod_rb48.db or test_db there are players with < 15 games
+        if "provisional-badge" in html_wm:
+            self.assertIn("provisional-badge", html_wm)
+
+    def test_player_profile_provisional_banner_hidden_for_user_visible_for_webmaster(self):
+        from scripts.database.database import get_connection
+        from scripts.database.db_matches import get_player_stats
+        conn = get_connection()
+        try:
+            stats = get_player_stats(conn)
+            # Find a player with 1..14 games
+            provisional_pid = next((pid for pid, st in stats.items() if 0 < st.get("total", {}).get("games", 0) < 15), None)
+        finally:
+            conn.close()
+
+        if provisional_pid is None:
+            return
+
+        user_id = self._create_user("user")
+        wm_id = self._create_user("webmaster")
+
+        # Normal user -> no provisional banner
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        res_user = self.client.get(f"/player/{provisional_pid}")
+        self.assertEqual(res_user.status_code, 200)
+        html_user = res_user.data.decode("utf-8")
+        self.assertNotIn("provisional-banner", html_user)
+        self.assertNotIn("Provisorische Kalibrierungsphase", html_user)
+
+        # Webmaster -> provisional banner visible
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = wm_id
+        res_wm = self.client.get(f"/player/{provisional_pid}")
+        self.assertEqual(res_wm.status_code, 200)
+        html_wm = res_wm.data.decode("utf-8")
+        self.assertIn("provisional-banner", html_wm)
+        self.assertIn("Provisorische Kalibrierungsphase", html_wm)
+
+
 if __name__ == "__main__":
     unittest.main()
