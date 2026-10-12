@@ -518,7 +518,8 @@ window.RB48_USER = {
     effective_tier: {{ effective_tier.name.lower() | tojson }},
     simulated_tier: {{ simulated_tier | tojson }},
     attendance_name: {{ (current_user.attendance_name or current_user.username) | tojson }},
-    noise_display_mode: {{ (current_user.noise_display_mode or "smart") | tojson }}
+    noise_display_mode: {{ (current_user.noise_display_mode or "smart") | tojson }},
+    player_id: {{ current_user.player_id | tojson }}
 };
 {% else %}
 window.RB48_USER = null;

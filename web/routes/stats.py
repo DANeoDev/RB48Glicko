@@ -1053,16 +1053,24 @@ def achievements_overview():
     user = get_current_user()
     if not user:
         return redirect(url_for("auth.login", next=request.path))
+
+    tour_step = request.args.get("tour_step")
+    extra_args = {"tour_step": tour_step} if tour_step is not None else {}
+    if tour_step is not None:
+        session["tour_preview"] = True
+    else:
+        session.pop("tour_preview", None)
+
     if user.get("player_id"):
-        return redirect(url_for("stats.player_achievements", player_id=user["player_id"]))
-    if has_tier(Tier.WEBMASTER):
+        return redirect(url_for("stats.player_achievements", player_id=user["player_id"], **extra_args))
+    if has_tier(Tier.WEBMASTER) or tour_step is not None:
         connection = get_connection()
         try:
             players = get_players(connection)
         finally:
             connection.close()
         first_pid = next(iter(players.keys()), 1)
-        return redirect(url_for("stats.player_achievements", player_id=first_pid))
+        return redirect(url_for("stats.player_achievements", player_id=first_pid, **extra_args))
     flash("Bitte verknüpfe dein Profil in den Einstellungen mit einem Spieler, um deine Auszeichnungen zu sehen.", "info")
     return redirect(url_for("auth.settings"))
 
@@ -1074,11 +1082,20 @@ def player_achievements(player_id: int):
     if not user:
         return redirect(url_for("auth.login", next=request.path))
 
+    tour_step = request.args.get("tour_step")
+    if tour_step is not None:
+        session["tour_preview"] = True
+
     is_webmaster = has_tier(Tier.WEBMASTER)
+    is_tour = (tour_step is not None) or session.get("tour_preview", False)
+
     if not is_webmaster and user.get("player_id") != player_id:
         if user.get("player_id"):
             flash("Du kannst nur deine eigenen Auszeichnungen einsehen.", "info")
             return redirect(url_for("stats.player_achievements", player_id=user["player_id"]))
+        elif is_tour:
+            # Allow previewing an example player achievements during tour
+            pass
         else:
             flash("Bitte verknüpfe dein Profil in den Einstellungen mit einem Spieler, um deine Auszeichnungen zu sehen.", "info")
             return redirect(url_for("auth.settings"))

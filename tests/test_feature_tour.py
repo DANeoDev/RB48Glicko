@@ -52,6 +52,8 @@ class FeatureTourTest(unittest.TestCase):
         self.assertIn("positions", js_content)
         self.assertIn("glicko_opt_out", js_content)
         self.assertIn("stats_opt_out", js_content)
+        self.assertIn("isStepUrlMatch", js_content)
+        self.assertIn("getStepTargetUrl", js_content)
 
     def test_tour_links_rendered_in_base_template(self):
         """Verify feature tour trigger is rendered ONLY for authenticated users, not for visitors."""
@@ -109,6 +111,31 @@ class FeatureTourTest(unittest.TestCase):
         self.assertEqual(resp_faq.status_code, 200)
         html_faq = resp_faq.data.decode("utf-8")
         self.assertIn('id="faq-content"', html_faq)
+
+    def test_achievements_tour_step_handling(self):
+        """Verify /achievements preserves tour_step and unlinked users can preview without infinite redirect."""
+        # Unlinked user
+        user = self.create_test_user()
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        # 1. Normal access without tour_step redirects unlinked user to settings
+        resp_normal = self.client.get("/achievements")
+        self.assertEqual(resp_normal.status_code, 302)
+        self.assertIn("/settings", resp_normal.headers.get("Location", ""))
+
+        # 2. Access with tour_step preserves tour_step in redirect and points to player achievements
+        resp_tour = self.client.get("/achievements?tour_step=9")
+        self.assertEqual(resp_tour.status_code, 302)
+        loc = resp_tour.headers.get("Location", "")
+        self.assertIn("/achievements/", loc)
+        self.assertIn("tour_step=9", loc)
+
+        # 3. Following redirect allows viewing the preview page without redirecting to /settings
+        resp_preview = self.client.get(loc)
+        self.assertEqual(resp_preview.status_code, 200)
+        html_preview = resp_preview.data.decode("utf-8")
+        self.assertIn("achievements-hero-card", html_preview)
 
 
 if __name__ == "__main__":

@@ -132,6 +132,28 @@
             this.start(0);
         }
 
+        isStepUrlMatch(step) {
+            if (!step) return false;
+            const currentPath = window.location.pathname.replace(/\/+$/, '');
+            const targetPath = step.url.replace(/\/+$/, '');
+            if (currentPath === targetPath) return true;
+            // Match parameterized /achievements/<player_id> routes to achievements step
+            if (step.id === 'achievements' && currentPath.startsWith('/achievements')) return true;
+            return false;
+        }
+
+        getStepTargetUrl(step, stepIndex) {
+            let base = step.url;
+            if (step.id === 'achievements') {
+                if (window.RB48_USER && window.RB48_USER.player_id) {
+                    base = `/achievements/${window.RB48_USER.player_id}`;
+                } else {
+                    base = '/achievements';
+                }
+            }
+            return `${base}?tour_step=${stepIndex}`;
+        }
+
         init() {
             const isAuthPage = window.location.pathname.startsWith('/login') || window.location.pathname.startsWith('/register');
             if (!this.isLoggedIn() || isAuthPage) {
@@ -151,7 +173,10 @@
             if (paramStep !== null) {
                 targetStep = parseInt(paramStep, 10);
             } else if (sessionActive && sessionStep !== null) {
-                targetStep = parseInt(sessionStep, 10);
+                const sStep = parseInt(sessionStep, 10);
+                if (!isNaN(sStep) && sStep >= 0 && sStep < TOUR_STEPS.length && this.isStepUrlMatch(TOUR_STEPS[sStep])) {
+                    targetStep = sStep;
+                }
             }
 
             if (targetStep !== null && !isNaN(targetStep) && targetStep >= 0 && targetStep < TOUR_STEPS.length) {
@@ -260,13 +285,9 @@
             const step = TOUR_STEPS[this.currentStep];
             if (!step) return;
 
-            // Normalize current path
-            const currentPath = window.location.pathname.replace(/\/+$/, '');
-            const targetPath = step.url.replace(/\/+$/, '');
-
-            if (currentPath !== targetPath) {
+            if (!this.isStepUrlMatch(step)) {
                 // Navigate to step URL
-                window.location.href = step.url + '?tour_step=' + this.currentStep;
+                window.location.href = this.getStepTargetUrl(step, this.currentStep);
                 return;
             }
 
