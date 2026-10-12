@@ -29,7 +29,7 @@ TRANSLATIONS_DE = {
     "nav.webmaster_new_notifications": "Neue Webmaster-Benachrichtigungen!",
     "nav.profile_settings": "⚙️ Profil & Einstellungen",
     "nav.attendance_planner": "Anwesenheitsplaner",
-    "nav.glicko_assessment": "Glicko-Eignungstest",
+    "nav.glicko_assessment": "🧠 Glicko-Dossier & Test",
     "nav.logout": "Abmelden",
     "nav.login": "Anmelden",
     "nav.register": "Registrieren",
@@ -799,6 +799,12 @@ TRANSLATIONS_DE = {
     "auth.th_actions": "Webmaster-Aktionen",
     "auth.approved": "Freigegeben",
     "auth.pending": "Ausstehend",
+    "auth.confirm_manual_verify": "Möchtest du die E-Mail für diesen Nutzer wirklich manuell verifizieren?",
+    "auth.manual_verify_btn_title": "E-Mail manuell als verifiziert markieren",
+    "auth.manual_verify_btn": "Verifizieren",
+    "auth.copy_verification_link": "Verifizierungslink kopieren",
+    "auth.copy_btn": "Link",
+    "auth.link_copied": "Verifizierungslink in die Zwischenablage kopiert!",
     "auth.active": "Aktiv",
     "auth.none": "Keine",
     "auth.revoke_btn": "Widerrufen",
@@ -1213,4 +1219,11 @@ TRANSLATIONS_DE = {
     "player.no_positions": "Keine Positionen hinterlegt",
     "player.edit_positions": "Positionen bearbeiten",
     "player.edit_my_positions": "Meine Positionen anpassen",
+
+    # Interactive Feature Tour
+    "nav.feature_tour": "Interaktive Feature-Tour",
+    "tour.badge_explore": "TOUR",
+    "tour.toast_title": "Neu bei RB48?",
+    "tour.toast_desc": "Entdecke alle interaktiven Funktionen in einer kurzen 2-Minuten-Tour!",
+    "tour.btn_start": "Tour starten 🚀",
 }

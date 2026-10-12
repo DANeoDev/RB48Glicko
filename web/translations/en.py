@@ -27,7 +27,7 @@ TRANSLATIONS_EN = {
     "nav.webmaster_new_notifications": "New Webmaster Notifications!",
     "nav.profile_settings": "⚙️ Profile & Settings",
     "nav.attendance_planner": "Attendance Planner",
-    "nav.glicko_assessment": "Glicko Assessment",
+    "nav.glicko_assessment": "🧠 Glicko Dossier & Assessment",
     "nav.logout": "Log out",
     "nav.login": "Log in",
     "nav.register": "Register",
@@ -777,6 +777,12 @@ TRANSLATIONS_EN = {
     "auth.th_actions": "Webmaster Actions",
     "auth.approved": "Approved",
     "auth.pending": "Pending",
+    "auth.confirm_manual_verify": "Are you sure you want to manually verify the email for this user?",
+    "auth.manual_verify_btn_title": "Manually mark email as verified",
+    "auth.manual_verify_btn": "Verify",
+    "auth.copy_verification_link": "Copy verification link",
+    "auth.copy_btn": "Link",
+    "auth.link_copied": "Verification link copied to clipboard!",
     "auth.active": "Active",
     "auth.none": "None",
     "auth.revoke_btn": "Revoke",
@@ -1191,4 +1197,11 @@ TRANSLATIONS_EN = {
     "player.no_positions": "No positions specified",
     "player.edit_positions": "Edit Positions",
     "player.edit_my_positions": "Edit My Positions",
+
+    # Interactive Feature Tour
+    "nav.feature_tour": "Interactive Feature Tour",
+    "tour.badge_explore": "TOUR",
+    "tour.toast_title": "New to RB48?",
+    "tour.toast_desc": "Discover all interactive features in a quick 2-minute tour!",
+    "tour.btn_start": "Start Tour 🚀",
 }

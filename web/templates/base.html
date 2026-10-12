@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2.5">
     <link rel="stylesheet" href="{{ url_for('static', filename='footer.css') }}?v=2.5">
     <link rel="stylesheet" href="{{ url_for('static', filename='noise.css') }}?v=2.5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='feature_tour.css') }}?v=20261012_1">
     {% block head %}{% endblock %}
     <style>
         /* Immediate cache-proof & old Safari-proof mobile toggle rules */
@@ -422,11 +423,19 @@
                         </a>
                         <a href="{{ url_for('auth.settings') }}">{{ t('nav.profile_settings', '⚙️ Profile & Settings') }}</a>
                         <a href="{{ url_for('planner.planner') }}">{{ t('nav.attendance_planner', 'Attendance Planner') }}</a>
-                        {% if has_tier('user') and not current_user.get('psychology_test_passed') %}
-                            <a href="{{ url_for('auth.glicko_test') }}" style="font-size: 12px; color: var(--text-muted);">{{ t('nav.glicko_assessment', 'Glicko Assessment') }}</a>
+                        {% if has_tier('user') %}
+                            <a href="{{ url_for('auth.glicko_test') }}" style="font-size: 13px;">{{ t('nav.glicko_assessment', '🧠 Glicko-Dossier & Test') }}</a>
                         {% endif %}
+                        <a href="javascript:void(0)" onclick="window.RB48Tour && window.RB48Tour.start(0); return false;" style="display: flex; align-items: center; justify-content: space-between; color: #80deea;">
+                            <span>🚀 {{ t('nav.feature_tour', 'Interaktive Feature-Tour') }}</span>
+                            <span class="nav-achievement-pill" style="background: linear-gradient(135deg, #7B52C5, #582DA1); color: #fff;">{{ t('tour.badge_explore', 'TOUR') }}</span>
+                        </a>
                         <a href="{{ url_for('auth.logout') }}">{{ t('nav.logout', 'Log out') }}</a>
                     {% else %}
+                        <a href="javascript:void(0)" onclick="window.RB48Tour && window.RB48Tour.start(0); return false;" style="display: flex; align-items: center; justify-content: space-between; color: #80deea;">
+                            <span>🚀 {{ t('nav.feature_tour', 'Interaktive Feature-Tour') }}</span>
+                            <span class="nav-achievement-pill" style="background: linear-gradient(135deg, #7B52C5, #582DA1); color: #fff;">{{ t('tour.badge_explore', 'TOUR') }}</span>
+                        </a>
                         <a href="{{ url_for('auth.login') }}">{{ t('nav.login', 'Log in') }}</a>
                         <a href="{{ url_for('auth.register') }}">{{ t('nav.register', 'Register') }}</a>
                     {% endif %}
@@ -790,5 +799,6 @@ if (profileMenu && profileBtn) {
 <div id="toast-container" class="toast-container"></div>
 <script src="{{ url_for('static', filename='global_search.js') }}"></script>
 <script src="{{ url_for('static', filename='feedback.js') }}?v=2.2"></script>
+<script src="{{ url_for('static', filename='feature_tour.js') }}?v=20261012_1"></script>
 </body>
 </html>

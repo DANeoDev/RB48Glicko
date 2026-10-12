@@ -112,7 +112,7 @@
                     </div>
                     {% endif %}
 
-                    <div style="margin-bottom: 14px; padding: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius);">
+                    <div id="glicko-opt-out-box" style="margin-bottom: 14px; padding: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius);">
                         <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin-bottom: 0;">
                             <input type="checkbox" name="glicko_opt_out" value="1" {% if user.glicko_opt_out %}checked{% endif %} style="margin-top: 3px;">
                             <div>
@@ -124,7 +124,7 @@
                         </label>
                     </div>
 
-                    <div style="margin-bottom: 14px; padding: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius);">
+                    <div id="stats-opt-out-box" style="margin-bottom: 14px; padding: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--radius);">
                         <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin-bottom: 0;">
                             <input type="checkbox" name="stats_opt_out" value="1" {% if user.stats_opt_out %}checked{% endif %} style="margin-top: 3px;">
                             <div>
@@ -147,7 +147,7 @@
     </div>
 
     <!-- Glicko Clearance & Psychology Assessment Card -->
-    <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
+    <div class="card" id="glicko-assessment-card" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
             <h2 style="margin: 0; font-size: 18px; color: #ffffff;">
                 {{ t('auth.glicko_card_title', 'Detailed Performance Evaluation (Glicko-2)') }}

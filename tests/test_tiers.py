@@ -304,6 +304,32 @@ class AccessTiersTest(unittest.TestCase):
         self.assertNotIn("clear-all-modal", html_vis_sim)
         self.assertNotIn("admin/users", html_vis_sim)
 
+    def test_psychology_test_retake_accessible(self):
+        """Verify that users who passed the psychology test can still retake it and access it from menu."""
+        user = self.create_test_user(role="user", verified=True, approved=True)
+        conn = get_accounts_connection()
+        try:
+            from scripts.accounts.database import set_user_persona
+            set_user_persona(conn, user["id"], "tactician", 1, "2026-10-12T10:00:00Z")
+        finally:
+            conn.close()
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user["id"]
+
+        # 1. Visiting /glicko-test shows existing persona and retake assessment link
+        resp = self.client.get("/glicko-test")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("step=assessment", html)
+        self.assertIn("/glicko-test", html)
+
+        # 2. Visiting /glicko-test?step=assessment opens the assessment questionnaire
+        resp_assess = self.client.get("/glicko-test?step=assessment")
+        self.assertEqual(resp_assess.status_code, 200)
+        html_assess = resp_assess.data.decode("utf-8")
+        self.assertIn("glicko-test", html_assess)
+
 
 if __name__ == "__main__":
     unittest.main()

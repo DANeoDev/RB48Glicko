@@ -1,0 +1,314 @@
+/* ==========================================================================
+   RB48 Feature Tour Styles
+   ========================================================================== */
+
+/* Dark Backdrop Overlay */
+.rb48-tour-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(10, 5, 22, 0.75);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 99990;
+    pointer-events: auto;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.rb48-tour-backdrop.active {
+    opacity: 1;
+}
+
+/* Spotlight Highlighted Element */
+.rb48-tour-spotlight-active {
+    position: relative !important;
+    z-index: 99992 !important;
+    outline: 3px solid #80deea !important;
+    outline-offset: 4px !important;
+    box-shadow: 0 0 30px rgba(128, 222, 234, 0.7), 0 0 12px rgba(123, 82, 197, 0.8) !important;
+    border-radius: 8px !important;
+    transition: outline 0.3s ease, box-shadow 0.3s ease !important;
+    animation: rb48TourPulse 2s infinite ease-in-out !important;
+}
+
+@keyframes rb48TourPulse {
+    0%, 100% {
+        outline-color: #80deea;
+        box-shadow: 0 0 25px rgba(128, 222, 234, 0.6), 0 0 12px rgba(123, 82, 197, 0.7);
+    }
+    50% {
+        outline-color: #ffd700;
+        box-shadow: 0 0 35px rgba(255, 215, 0, 0.7), 0 0 16px rgba(123, 82, 197, 0.9);
+    }
+}
+
+/* Floating Tour Card */
+.rb48-tour-card {
+    position: fixed;
+    z-index: 99995;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    background: linear-gradient(135deg, rgba(30, 19, 56, 0.98), rgba(20, 11, 40, 0.99));
+    border: 1.5px solid #7B52C5;
+    border-radius: 14px;
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.85), 0 0 25px rgba(123, 82, 197, 0.35);
+    color: #ffffff;
+    padding: 18px 20px;
+    box-sizing: border-box;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    font-family: inherit;
+    animation: rb48TourFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: top 0.25s cubic-bezier(0.16, 1, 0.3, 1), left 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes rb48TourFadeIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* Card Header */
+.rb48-tour-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.rb48-tour-step-badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #80deea;
+    background: rgba(128, 222, 234, 0.15);
+    border: 1px solid rgba(128, 222, 234, 0.3);
+    padding: 3px 8px;
+    border-radius: 12px;
+}
+
+.rb48-tour-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted, #9E9A94);
+    font-size: 17px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.rb48-tour-close-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Progress Bar */
+.rb48-tour-progress-bar {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    margin: 10px 0 14px;
+    overflow: hidden;
+}
+
+.rb48-tour-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #7B52C5, #80deea);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+/* Title & Body */
+.rb48-tour-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rb48-tour-body {
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: #ded6ed;
+    margin-bottom: 16px;
+}
+
+.rb48-tour-body p {
+    margin: 0 0 8px;
+}
+
+.rb48-tour-body p:last-child {
+    margin-bottom: 0;
+}
+
+/* Card Footer */
+.rb48-tour-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 12px;
+}
+
+.rb48-tour-btn-group {
+    display: flex;
+    gap: 8px;
+}
+
+.rb48-tour-btn {
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.rb48-tour-btn-dismiss {
+    background: transparent;
+    color: var(--text-muted, #9E9A94);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.rb48-tour-btn-dismiss:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ffffff;
+}
+
+.rb48-tour-btn-prev {
+    background: rgba(123, 82, 197, 0.2);
+    color: #d1c4e9;
+    border-color: #7B52C5;
+}
+
+.rb48-tour-btn-prev:hover {
+    background: rgba(123, 82, 197, 0.35);
+    color: #ffffff;
+}
+
+.rb48-tour-btn-next {
+    background: linear-gradient(135deg, #7B52C5, #582DA1);
+    color: #ffffff;
+    border-color: #80deea;
+    box-shadow: 0 2px 10px rgba(123, 82, 197, 0.4);
+}
+
+.rb48-tour-btn-next:hover {
+    background: linear-gradient(135deg, #8c5cd6, #6b38c2);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(123, 82, 197, 0.6);
+}
+
+/* Mobile Responsive Bottom Dock */
+@media (max-width: 768px) {
+    .rb48-tour-card {
+        top: auto !important;
+        bottom: 12px !important;
+        left: 10px !important;
+        right: 10px !important;
+        width: auto !important;
+        max-width: 480px !important;
+        margin: 0 auto !important;
+        box-shadow: 0 -6px 30px rgba(0, 0, 0, 0.9), 0 0 20px rgba(123, 82, 197, 0.4) !important;
+    }
+}
+
+/* Welcome Toast */
+.rb48-tour-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 100040;
+    background: linear-gradient(135deg, rgba(30, 19, 56, 0.98), rgba(20, 11, 40, 0.99));
+    border: 1px solid #80deea;
+    border-radius: 12px;
+    padding: 14px 18px;
+    max-width: 360px;
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(128, 222, 234, 0.25);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    animation: rb48ToastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+@keyframes rb48ToastSlideIn {
+    from { transform: translateY(40px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.rb48-tour-toast-content {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.rb48-tour-toast-icon {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.rb48-tour-toast-text strong {
+    display: block;
+    color: #ffffff;
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+.rb48-tour-toast-text p {
+    margin: 0;
+    font-size: 12.5px;
+    color: #c9c2d8;
+    line-height: 1.4;
+}
+
+.rb48-tour-toast-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+@media (max-width: 600px) {
+    .rb48-tour-toast {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        max-width: none;
+    }
+}
+
+/* Glowing Profile Button Indicator */
+.rb48-tour-pulse-btn {
+    position: relative;
+}
+
+.rb48-tour-pulse-btn::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 9px;
+    height: 9px;
+    background: #80deea;
+    border: 2px solid #140b28;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #80deea;
+    animation: rb48DotPulse 1.8s infinite;
+}
+
+@keyframes rb48DotPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.7; }
+}

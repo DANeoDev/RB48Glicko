@@ -23,6 +23,7 @@ from scripts.accounts.database import (
     delete_webmaster_notification,
     get_accounts_connection,
     get_all_feedback,
+    mark_email_verified,
     get_all_users,
     get_feedback_counts,
     get_unseen_webmaster_notifications_count,
@@ -259,6 +260,9 @@ def admin_users(default_tab="users"):
         users = [dict(row) for row in get_all_users(connection)]
         for u in users:
             u["actual_tier"] = get_actual_tier(u).name.lower()
+            if not u.get("email_verified"):
+                token = generate_verification_token(u["id"], u["email"])
+                u["verification_url"] = url_for("auth.verify_email", token=token, _external=True)
         players = get_players(main_conn)
         matches = get_matches(main_conn)
         notifications = get_webmaster_notifications(connection, curr_user["id"], limit=40)
@@ -483,6 +487,31 @@ def toggle_approval(user_id):
                 "Mitgliedschaft widerrufen",
             )
             flash(f"Approval for '{user['username']}' has been revoked.", "warning")
+        return redirect(url_for("auth.admin_users"))
+    finally:
+        connection.close()
+
+
+@auth_bp.route("/admin/users/<int:user_id>/verify-email-manual", methods=["POST"])
+@require_webmaster
+def verify_email_manual(user_id):
+    """Manually mark a user's email as verified as Webmaster."""
+    connection = get_accounts_connection()
+    try:
+        user = get_user_by_id(connection, user_id)
+        if not user:
+            flash("User not found.", "danger")
+            return redirect(url_for("auth.admin_users"))
+
+        mark_email_verified(connection, user_id)
+        record_webmaster_notification(
+            connection,
+            "status_changed",
+            user_id,
+            user["username"],
+            "E-Mail manuell durch Webmaster verifiziert",
+        )
+        flash(f"E-Mail-Adresse für '{user['username']}' wurde manuell als verifiziert markiert.", "success")
         return redirect(url_for("auth.admin_users"))
     finally:
         connection.close()

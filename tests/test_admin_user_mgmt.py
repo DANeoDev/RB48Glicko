@@ -212,6 +212,36 @@ class AdminUserManagementTest(unittest.TestCase):
         html = resp.data.decode("utf-8")
         self.assertIn("cannot demote your own active Webmaster account", html)
 
+    def test_webmaster_manual_verify_email(self):
+        wm = self.create_user(role="webmaster")
+        target = self.create_user(role="user", verified=False)
+        self.assertFalse(target["email_verified"])
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = wm["id"]
+
+        # View admin_users page -> target should have verification link and manual verify button
+        resp_view = self.client.get("/admin/users")
+        self.assertEqual(resp_view.status_code, 200)
+        html_view = resp_view.data.decode("utf-8")
+        self.assertIn("verify-email-manual", html_view)
+
+        # Execute manual verification
+        resp = self.client.post(
+            f"/admin/users/{target['id']}/verify-email-manual",
+            follow_redirects=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        updated = get_user(target["id"])
+        self.assertEqual(updated["email_verified"], 1)
+
+        # Non-webmaster forbidden (redirects to home)
+        reg_user = self.create_user(role="user")
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = reg_user["id"]
+        resp_forbidden = self.client.post(f"/admin/users/{target['id']}/verify-email-manual")
+        self.assertEqual(resp_forbidden.status_code, 302)
+
 
 if __name__ == "__main__":
     unittest.main()
