@@ -116,7 +116,31 @@
             this.lang = document.documentElement.lang === 'en' ? 'en' : 'de';
         }
 
+        isLoggedIn() {
+            if (window.RB48_USER && window.RB48_USER.id) {
+                return true;
+            }
+            if (document.body && document.body.dataset && document.body.dataset.userLoggedIn === 'true') {
+                return true;
+            }
+            return false;
+        }
+
+        restart() {
+            localStorage.removeItem('rb48_tour_completed');
+            localStorage.removeItem('rb48_tour_dismissed');
+            this.start(0);
+        }
+
         init() {
+            const isAuthPage = window.location.pathname.startsWith('/login') || window.location.pathname.startsWith('/register');
+            if (!this.isLoggedIn() || isAuthPage) {
+                // Clear any leftover tour session state to prevent redirect loops for unauthenticated visitors
+                sessionStorage.removeItem('rb48_tour_active');
+                sessionStorage.removeItem('rb48_tour_step');
+                return;
+            }
+
             // Check for tour continuation from sessionStorage or URL query params
             const urlParams = new URLSearchParams(window.location.search);
             const paramStep = urlParams.get('tour_step');
@@ -148,6 +172,8 @@
         }
 
         checkWelcomeToast() {
+            if (!this.isLoggedIn()) return;
+
             const dismissed = localStorage.getItem('rb48_tour_dismissed') === 'true';
             const completed = localStorage.getItem('rb48_tour_completed') === 'true';
 
@@ -166,7 +192,7 @@
         }
 
         showWelcomeToast() {
-            if (document.getElementById('rb48-tour-welcome-toast')) return;
+            if (!this.isLoggedIn() || document.getElementById('rb48-tour-welcome-toast')) return;
 
             const toast = document.createElement('div');
             toast.id = 'rb48-tour-welcome-toast';
@@ -219,6 +245,13 @@
         }
 
         start(stepIndex = 0) {
+            const isAuthPage = window.location.pathname.startsWith('/login') || window.location.pathname.startsWith('/register');
+            if (!this.isLoggedIn() || isAuthPage) {
+                sessionStorage.removeItem('rb48_tour_active');
+                sessionStorage.removeItem('rb48_tour_step');
+                return;
+            }
+
             this.dismissWelcome();
             sessionStorage.setItem('rb48_tour_active', 'true');
             sessionStorage.setItem('rb48_tour_step', stepIndex.toString());

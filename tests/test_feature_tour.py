@@ -54,16 +54,18 @@ class FeatureTourTest(unittest.TestCase):
         self.assertIn("stats_opt_out", js_content)
 
     def test_tour_links_rendered_in_base_template(self):
-        """Verify feature tour trigger is rendered in profile dropdown for visitors and users."""
-        # 1. Visitor view
+        """Verify feature tour trigger is rendered ONLY for authenticated users, not for visitors."""
+        # 1. Visitor view: No tour buttons in profile menu, data-user-logged-in is false
         resp_vis = self.client.get("/")
         self.assertEqual(resp_vis.status_code, 200)
         html_vis = resp_vis.data.decode("utf-8")
         self.assertIn("feature_tour.css", html_vis)
         self.assertIn("feature_tour.js", html_vis)
-        self.assertIn("RB48Tour.start(0)", html_vis)
+        self.assertIn('data-user-logged-in="false"', html_vis)
+        self.assertNotIn("RB48Tour.restart()", html_vis)
+        self.assertNotIn("RB48Tour.start(0)", html_vis)
 
-        # 2. Authenticated user view
+        # 2. Authenticated user view: Tour restart button rendered in profile menu, drawer and footer
         user = self.create_test_user()
         with self.client.session_transaction() as sess:
             sess["user_id"] = user["id"]
@@ -71,7 +73,9 @@ class FeatureTourTest(unittest.TestCase):
         resp_user = self.client.get("/settings")
         self.assertEqual(resp_user.status_code, 200)
         html_user = resp_user.data.decode("utf-8")
-        self.assertIn("RB48Tour.start(0)", html_user)
+        self.assertIn('data-user-logged-in="true"', html_user)
+        self.assertIn("RB48Tour.restart()", html_user)
+        self.assertIn("footer-tour-btn", html_user)
 
     def test_tour_target_elements_exist_on_pages(self):
         """Verify target elements and container IDs exist across destination pages."""

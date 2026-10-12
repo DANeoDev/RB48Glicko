@@ -263,7 +263,7 @@
     </style>
 </head>
 
-<body class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}dashboard-body{% endif %}">
+<body class="{% if request.endpoint in ['stats.home', 'stats.dashboard'] %}dashboard-body{% endif %}" data-user-logged-in="{{ 'true' if current_user else 'false' }}">
 
 {% if current_user and current_user.role == 'webmaster' %}
     <div class="webmaster-sim-bar" id="webmaster-sim-bar">
@@ -354,6 +354,7 @@
             {% endif %}
             {% if current_user and has_tier('user') %}
                 <a href="#" onclick="window.RB48Noise && window.RB48Noise.toggle(); return false;" class="nav-drawer-noise-link" style="color: #ffd770;">📢 {{ t('nav.noise', 'Noise machen') }}</a>
+                <a href="javascript:void(0)" onclick="window.RB48Tour && window.RB48Tour.restart(); return false;" class="nav-drawer-tour-link" style="color: #80deea;">🚀 {{ t('nav.restart_tour', 'Feature-Tour neu starten') }}</a>
             {% endif %}
         </div>
         <div class="nav-actions">
@@ -426,16 +427,12 @@
                         {% if has_tier('user') %}
                             <a href="{{ url_for('auth.glicko_test') }}" style="font-size: 13px;">{{ t('nav.glicko_assessment', '🧠 Glicko-Dossier & Test') }}</a>
                         {% endif %}
-                        <a href="javascript:void(0)" onclick="window.RB48Tour && window.RB48Tour.start(0); return false;" style="display: flex; align-items: center; justify-content: space-between; color: #80deea;">
-                            <span>🚀 {{ t('nav.feature_tour', 'Interaktive Feature-Tour') }}</span>
+                        <a href="javascript:void(0)" onclick="window.RB48Tour && window.RB48Tour.restart(); return false;" style="display: flex; align-items: center; justify-content: space-between; color: #80deea; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 9px; margin-top: 5px;">
+                            <span>🔄 {{ t('nav.restart_tour', 'Feature-Tour neu starten') }}</span>
                             <span class="nav-achievement-pill" style="background: linear-gradient(135deg, #7B52C5, #582DA1); color: #fff;">{{ t('tour.badge_explore', 'TOUR') }}</span>
                         </a>
                         <a href="{{ url_for('auth.logout') }}">{{ t('nav.logout', 'Log out') }}</a>
                     {% else %}
-                        <a href="javascript:void(0)" onclick="window.RB48Tour && window.RB48Tour.start(0); return false;" style="display: flex; align-items: center; justify-content: space-between; color: #80deea;">
-                            <span>🚀 {{ t('nav.feature_tour', 'Interaktive Feature-Tour') }}</span>
-                            <span class="nav-achievement-pill" style="background: linear-gradient(135deg, #7B52C5, #582DA1); color: #fff;">{{ t('tour.badge_explore', 'TOUR') }}</span>
-                        </a>
                         <a href="{{ url_for('auth.login') }}">{{ t('nav.login', 'Log in') }}</a>
                         <a href="{{ url_for('auth.register') }}">{{ t('nav.register', 'Register') }}</a>
                     {% endif %}
@@ -491,6 +488,12 @@
         <nav class="site-footer-links" aria-label="Footer navigation">
             <a href="{{ url_for('stats.about') }}">{{ t('nav.footer_about', 'About') }}</a>
             <a href="{{ url_for('stats.glicko_explainer') }}">{{ t('nav.footer_faq', 'FAQ') }}</a>
+            {% if current_user and has_tier('user') %}
+            <button type="button" id="footer-tour-btn" class="footer-tour-btn" onclick="window.RB48Tour && window.RB48Tour.restart()" title="{{ t('nav.restart_tour', 'Feature-Tour neu starten') }}" style="background: none; border: none; color: #80deea; cursor: pointer; font: inherit; padding: 0; display: inline-flex; align-items: center; gap: 4px;">
+                <span>🔄</span>
+                <span class="footer-tour-label">{{ t('nav.restart_tour_footer', 'Tour') }}</span>
+            </button>
+            {% endif %}
             <button type="button" id="footer-feedback-btn" class="footer-feedback-btn" onclick="window.RB48Feedback && window.RB48Feedback.open()" title="{{ t('nav.feedback_title', 'Feedback oder Mobile-Problem melden') }}">
                 <span>💬</span>
                 <span class="footer-feedback-label">{{ t('nav.feedback', 'Feedback') }}</span>

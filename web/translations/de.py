@@ -1222,6 +1222,8 @@ TRANSLATIONS_DE = {
 
     # Interactive Feature Tour
     "nav.feature_tour": "Interaktive Feature-Tour",
+    "nav.restart_tour": "Feature-Tour neu starten",
+    "nav.restart_tour_footer": "Tour",
     "tour.badge_explore": "TOUR",
     "tour.toast_title": "Neu bei RB48?",
     "tour.toast_desc": "Entdecke alle interaktiven Funktionen in einer kurzen 2-Minuten-Tour!",
