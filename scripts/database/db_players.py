@@ -16,6 +16,7 @@ def get_players(connection):
     cursor = connection.execute("""
         SELECT alias, player_id
         FROM aliases
+        ORDER BY is_primary DESC, rowid ASC
     """)
 
     for alias, player_id in cursor:
@@ -83,12 +84,21 @@ def create_player(connection, player_id):
     """, (player_id,))
 
 
-def add_alias(connection, alias, player_id):
+def add_alias(connection, alias, player_id, is_primary=False):
+    alias_clean = alias.strip()
+    if not alias_clean:
+        raise ValueError("Alias cannot be empty.")
+    count_row = connection.execute("SELECT COUNT(*) FROM aliases WHERE player_id = ?", (player_id,)).fetchone()
+    count = count_row[0] if count_row else 0
+    is_prim = 1 if (is_primary or count == 0) else 0
+
+    if is_prim:
+        connection.execute("UPDATE aliases SET is_primary = 0 WHERE player_id = ?", (player_id,))
 
     connection.execute("""
-        INSERT INTO aliases (alias, player_id)
-        VALUES (?, ?)
-    """, (alias, player_id))
+        INSERT INTO aliases (alias, player_id, is_primary)
+        VALUES (?, ?, ?)
+    """, (alias_clean, player_id, is_prim))
 
 
 def add_position(
@@ -173,4 +183,83 @@ def ensure_ignored_alias_as_guest_player(connection, alias: str) -> int:
     delete_ignored_alias(connection, alias_clean)
     connection.commit()
     return player_id
+
+
+def set_primary_alias(connection, player_id: int, primary_alias: str):
+    """Set the specified alias as primary for a player, unsetting any others."""
+    primary_clean = primary_alias.strip()
+    row = connection.execute(
+        "SELECT alias FROM aliases WHERE alias = ? AND player_id = ?",
+        (primary_clean, player_id),
+    ).fetchone()
+    if not row:
+        raise ValueError(f"Alias '{primary_clean}' does not belong to player #{player_id}.")
+    connection.execute(
+        "UPDATE aliases SET is_primary = CASE WHEN alias = ? THEN 1 ELSE 0 END WHERE player_id = ?",
+        (primary_clean, player_id),
+    )
+    connection.commit()
+
+
+def update_alias(connection, old_alias: str, new_alias: str):
+    """Rename an existing alias."""
+    old_clean = old_alias.strip()
+    new_clean = new_alias.strip()
+    if not old_clean or not new_clean:
+        raise ValueError("Alias name cannot be empty.")
+    if old_clean == new_clean:
+        return
+    existing = connection.execute(
+        "SELECT player_id FROM aliases WHERE alias = ?",
+        (new_clean,),
+    ).fetchone()
+    if existing:
+        raise ValueError(f"Alias '{new_clean}' is already in use by player #{existing[0]}.")
+    connection.execute(
+        "UPDATE aliases SET alias = ? WHERE alias = ?",
+        (new_clean, old_clean),
+    )
+    connection.commit()
+
+
+def delete_alias(connection, alias: str):
+    """Delete an alias. Cannot delete if it is the only alias of a player."""
+    alias_clean = alias.strip()
+    row = connection.execute(
+        "SELECT player_id, is_primary FROM aliases WHERE alias = ?",
+        (alias_clean,),
+    ).fetchone()
+    if not row:
+        raise ValueError(f"Alias '{alias_clean}' not found.")
+    player_id, is_primary = row[0], row[1]
+    count = connection.execute(
+        "SELECT COUNT(*) FROM aliases WHERE player_id = ?",
+        (player_id,),
+    ).fetchone()[0]
+    if count <= 1:
+        raise ValueError("Cannot delete the only alias of a player. A player must have at least one alias.")
+    connection.execute("DELETE FROM aliases WHERE alias = ?", (alias_clean,))
+    if is_primary:
+        next_alias = connection.execute(
+            "SELECT alias FROM aliases WHERE player_id = ? ORDER BY rowid ASC LIMIT 1",
+            (player_id,),
+        ).fetchone()
+        if next_alias:
+            connection.execute(
+                "UPDATE aliases SET is_primary = 1 WHERE alias = ?",
+                (next_alias[0],),
+            )
+    connection.commit()
+
+
+def get_player_aliases(connection, player_id: int):
+    """Return all aliases of a player ordered with primary alias first."""
+    rows = connection.execute("""
+        SELECT alias, is_primary
+        FROM aliases
+        WHERE player_id = ?
+        ORDER BY is_primary DESC, rowid ASC
+    """, (player_id,)).fetchall()
+    return [{"alias": r[0], "is_primary": bool(r[1])} for r in rows]
+
 

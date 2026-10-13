@@ -51,7 +51,16 @@ from scripts.accounts.psychology import (
 )
 from scripts.database.database import get_connection as get_main_connection
 from scripts.database.db_matches import get_matches
-from scripts.database.db_players import get_players, set_player_positions
+from scripts.database.db_players import (
+    get_players,
+    set_player_positions,
+    add_alias,
+    set_primary_alias,
+    update_alias,
+    delete_alias,
+    get_player_aliases,
+    get_alias_lookup,
+)
 from scripts.planner.database import get_planner_connection, get_attendance_logs, get_attendance_logs_count, get_all_events
 from web.services.cache import invalidate_stats_cache
 from web.services.email_service import is_smtp_configured, send_verification_email
@@ -249,10 +258,10 @@ def switch_view():
 @auth_bp.route("/admin/users")
 @require_webmaster
 def admin_users(default_tab="users"):
-    """User management dashboard to review and approve registrations and player links."""
+    """User management dashboard to review and approve registrations, player links, and aliases."""
     curr_user = get_current_user()
     active_tab = request.args.get("tab", default_tab).strip().lower()
-    if active_tab not in ("users", "mvp"):
+    if active_tab not in ("users", "mvp", "aliases"):
         active_tab = "users"
     connection = get_accounts_connection()
     main_conn = get_main_connection()
@@ -268,17 +277,124 @@ def admin_users(default_tab="users"):
         notifications = get_webmaster_notifications(connection, curr_user["id"], limit=40)
         unseen_notifications_count = get_unseen_webmaster_notifications_count(connection, curr_user["id"])
         mvp_match_summaries = get_all_matches_mvp_summaries(connection, players_dict=players, matches_dict=matches)
+
+        players_list = []
+        for pid, pdata in players.items():
+            primary_name = pdata["aliases"][0] if pdata["aliases"] else f"Player {pid}"
+            players_list.append({
+                "player_id": pid,
+                "name": primary_name,
+                "aliases": pdata.get("aliases", []),
+                "aliases_count": len(pdata.get("aliases", [])),
+                "other_aliases": pdata.get("aliases", [])[1:] if len(pdata.get("aliases", [])) > 1 else [],
+                "positions": pdata.get("positions", []),
+            })
+        players_list.sort(key=lambda p: p["name"].lower())
+
         return render_template(
             "admin_users.html",
             active_tab=active_tab,
             users=users,
             players=players,
+            players_list=players_list,
             notifications=notifications,
             unseen_notifications_count=unseen_notifications_count,
             mvp_match_summaries=mvp_match_summaries,
         )
     finally:
         connection.close()
+        main_conn.close()
+
+
+@auth_bp.route("/admin/player-aliases")
+@require_webmaster
+def admin_player_aliases():
+    """Direct route to the Aliases tab in User Management dashboard."""
+    return admin_users(default_tab="aliases")
+
+
+@auth_bp.route("/admin/players/<int:player_id>/aliases", methods=["GET", "POST"])
+@require_webmaster
+def manage_player_aliases(player_id):
+    """Webmaster endpoint to retrieve, add, rename, delete, and set primary aliases for a player."""
+    main_conn = get_main_connection()
+    try:
+        if request.method == "GET":
+            aliases = get_player_aliases(main_conn, player_id)
+            return jsonify({
+                "success": True,
+                "player_id": player_id,
+                "aliases": aliases,
+            })
+
+        is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json
+        req_data = (request.get_json(silent=True) or {}) if request.is_json else request.form
+        action = req_data.get("action")
+
+        if action == "add":
+            alias = (req_data.get("alias") or "").strip()
+            set_primary = str(req_data.get("set_primary", "")).lower() in ("true", "1", "yes", "on")
+            if not alias:
+                raise ValueError("Alias-Name darf nicht leer sein.")
+            alias_lookup = get_alias_lookup(main_conn)
+            if alias in alias_lookup:
+                existing_pid = alias_lookup[alias]
+                if existing_pid == player_id:
+                    raise ValueError(f"Alias '{alias}' existiert bereits für diesen Spieler.")
+                else:
+                    raise ValueError(f"Alias '{alias}' wird bereits von Spieler #{existing_pid} verwendet.")
+            add_alias(main_conn, alias, player_id, is_primary=set_primary)
+            main_conn.commit()
+            invalidate_stats_cache()
+            msg = f"Alias '{alias}' erfolgreich hinzugefügt."
+
+        elif action == "set_primary":
+            primary_alias = (req_data.get("primary_alias") or req_data.get("alias") or "").strip()
+            if not primary_alias:
+                raise ValueError("Hauptalias muss angegeben werden.")
+            set_primary_alias(main_conn, player_id, primary_alias)
+            invalidate_stats_cache()
+            msg = f"'{primary_alias}' als Hauptalias festgelegt."
+
+        elif action == "edit":
+            old_alias = (req_data.get("old_alias") or "").strip()
+            new_alias = (req_data.get("new_alias") or "").strip()
+            if not old_alias or not new_alias:
+                raise ValueError("Alter und neuer Alias müssen angegeben werden.")
+            update_alias(main_conn, old_alias, new_alias)
+            invalidate_stats_cache()
+            msg = f"Alias '{old_alias}' zu '{new_alias}' umbenannt."
+
+        elif action == "delete":
+            alias_to_delete = (req_data.get("alias") or "").strip()
+            if not alias_to_delete:
+                raise ValueError("Zu löschender Alias muss angegeben werden.")
+            delete_alias(main_conn, alias_to_delete)
+            invalidate_stats_cache()
+            msg = f"Alias '{alias_to_delete}' erfolgreich gelöscht."
+
+        else:
+            raise ValueError(f"Unbekannte Aktion '{action}'.")
+
+        updated_aliases = get_player_aliases(main_conn, player_id)
+
+        if is_xhr:
+            return jsonify({
+                "success": True,
+                "message": msg,
+                "player_id": player_id,
+                "aliases": updated_aliases,
+            })
+        flash(msg, "success")
+        return redirect(url_for("auth.admin_users", tab="aliases"))
+
+    except Exception as exc:
+        err = str(exc)
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json:
+            return jsonify({"success": False, "error": err}), 400
+        flash(err, "danger")
+        return redirect(url_for("auth.admin_users", tab="aliases"))
+    finally:
         main_conn.close()
 
 

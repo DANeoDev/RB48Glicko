@@ -278,6 +278,71 @@ def _handle_import_planner(form, connection, selected_ids):
         a_conn.close()
 
 
+def _get_current_planner_event_info(connection):
+    """
+    Find the next upcoming event (or most recent event) in the planner,
+    and resolve its attending database players.
+    Returns a dict with event details and matched player IDs, or None.
+    """
+    p_conn = get_planner_connection()
+    a_conn = get_accounts_connection()
+    try:
+        today_str = get_cologne_date_str()
+        # Find next upcoming event (event_date >= today_str) ordered by event_date ASC
+        ev_row = p_conn.execute("""
+            SELECT id, event_date, pitch, max_players, title, location, status
+            FROM events
+            WHERE SUBSTR(event_date, 1, 10) >= ?
+            ORDER BY event_date ASC, id ASC
+            LIMIT 1
+        """, (today_str,)).fetchone()
+
+        # Fallback to the latest event if no upcoming event
+        if not ev_row:
+            ev_row = p_conn.execute("""
+                SELECT id, event_date, pitch, max_players, title, location, status
+                FROM events
+                ORDER BY event_date DESC, id DESC
+                LIMIT 1
+            """).fetchone()
+
+        if not ev_row:
+            return None
+
+        ev = dict(ev_row)
+        attendees = [dict(a) for a in get_event_attendees(p_conn, ev["id"])]
+        alias_lookup = get_alias_lookup(connection)
+        active_roster = [a for a in attendees if a.get("status") == "attending"][:ev.get("max_players", 12)]
+        matched_ids = resolve_active_roster_player_ids(active_roster, alias_lookup, a_conn)
+
+        unmatched_count = max(0, len(active_roster) - len(matched_ids))
+
+        formatted_date = ev["event_date"][:10]
+        try:
+            from scripts.utils.timezone import format_date_localized
+            formatted_date = format_date_localized(ev["event_date"])
+        except Exception:
+            pass
+
+        return {
+            "id": ev["id"],
+            "event_date": ev["event_date"],
+            "date_prefix": ev["event_date"][:10],
+            "formatted_date": formatted_date,
+            "title": ev.get("title") or "Spieltag",
+            "pitch": (ev.get("pitch") or "box").lower(),
+            "max_players": ev.get("max_players", 12),
+            "player_ids": matched_ids,
+            "attending_count": len(active_roster),
+            "unmatched_count": unmatched_count,
+        }
+    except Exception:
+        return None
+    finally:
+        p_conn.close()
+        a_conn.close()
+
+
 def _handle_create_player(form, is_xhr, connection, players, selected_ids):
     try:
         alias = normalize_player_name(form.get("new_alias", ""))
@@ -462,6 +527,14 @@ def match_center():
         imported_planner_date = None
         is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json
 
+        current_planner_event = _get_current_planner_event_info(connection)
+        if request.args.get("apply_current_planner") and current_planner_event and current_planner_event.get("player_ids"):
+            selected_ids = list(dict.fromkeys(current_planner_event["player_ids"]))
+            if current_planner_event.get("pitch") in ("box", "hf"):
+                pitch = current_planner_event["pitch"]
+                if mode != "total":
+                    rating_type = pitch
+
         if request.method == "POST":
             admin_actions = {
                 "parse_image", "parse_source", "resolve_conflicts", "add_parser_alias",
@@ -494,6 +567,15 @@ def match_center():
                     pitch = imported_planner_pitch
                     if mode != "total":
                         rating_type = pitch
+
+            elif action == "apply_current_planner":
+                if current_planner_event and current_planner_event.get("player_ids"):
+                    selected_ids = list(dict.fromkeys(current_planner_event["player_ids"]))
+                    if current_planner_event.get("pitch") in ("box", "hf"):
+                        pitch = current_planner_event["pitch"]
+                        if mode != "total":
+                            rating_type = pitch
+                    success = f"Aktueller Spieltag '{current_planner_event['title']}' angewendet ({len(selected_ids)} Spieler markiert)."
 
             elif action == "create_player":
                 players, selected_ids, success, error, calibration_message, xhr_resp = _handle_create_player(request.form, is_xhr, connection, players, selected_ids)
@@ -605,6 +687,7 @@ def match_center():
             certainty_levels=CERTAINTY_LEVELS,
             player_search_data=player_search_data,
             planner_events=planner_events,
+            current_planner_event=current_planner_event,
             active_engine="glicko",
         )
     finally:

@@ -1325,6 +1325,44 @@
         });
     }
 
+
+    // ------------------------------------------------------------
+    // Apply Current Planner Event to Matchmaker
+    // ------------------------------------------------------------
+    function initApplyCurrentPlanner() {
+        const btn = document.getElementById('apply-current-event-btn');
+        if (!btn) return;
+
+        btn.addEventListener('click', () => {
+            try {
+                const raw = btn.dataset.playerIds;
+                if (!raw) return;
+                const pids = JSON.parse(raw).map(String);
+                const checkboxes = document.querySelectorAll('#matchmaker-details .players input[type="checkbox"][name="players"]');
+
+                let matchedCount = 0;
+                checkboxes.forEach(cb => {
+                    const isMatched = pids.includes(String(cb.value));
+                    cb.checked = isMatched;
+                    if (isMatched) {
+                        matchedCount++;
+                    }
+                });
+
+                const feedback = document.getElementById('apply-planner-feedback');
+                if (feedback) {
+                    feedback.style.display = 'inline-flex';
+                    feedback.textContent = `✓ ${matchedCount} Spieler markiert`;
+                    setTimeout(() => {
+                        feedback.style.display = 'none';
+                    }, 4000);
+                }
+            } catch (err) {
+                console.error('Failed to apply planner event:', err);
+            }
+        });
+    }
+
     initTeamEditor();
     initParserImagePaste();
     initConflictModal();
@@ -1332,5 +1370,6 @@
     initGeneratedTeamTransfer();
     initMatchSaveForm();
     initFutureDateModal();
+    initApplyCurrentPlanner();
 
 })();

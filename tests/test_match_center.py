@@ -558,8 +558,48 @@ class MatchCenterFrontendTests(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_apply_current_planner_event_in_match_center(self):
+        from scripts.planner.database import get_planner_connection, create_event, add_guest_rsvp
+        pconn = get_planner_connection()
+        try:
+            eid = create_event(pconn, event_date="2026-11-20 20:00", pitch="box", max_players=10, title="Test Matchday")
+            conn = get_connection()
+            try:
+                players = get_players(conn)
+                p1_name = players[1]["aliases"][0]
+                p2_name = players[2]["aliases"][0]
+            finally:
+                conn.close()
+
+            add_guest_rsvp(pconn, eid, guest_name=p1_name)
+            add_guest_rsvp(pconn, eid, guest_name=p2_name)
+            add_guest_rsvp(pconn, eid, guest_name="UnknownGuestXYZ")
+        finally:
+            pconn.close()
+
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.user_id
+
+            # GET should show the quick-action button with current planner event
+            resp = client.get("/match-center")
+            self.assertEqual(resp.status_code, 200)
+            html = resp.get_data(as_text=True)
+            self.assertIn("Wende aktuellen Spieltag an", html)
+            self.assertIn("apply-current-event-btn", html)
+            self.assertIn("data-player-ids", html)
+
+            # POST with action=apply_current_planner pre-checks players 1 and 2
+            resp_post = client.post("/match-center", data={"action": "apply_current_planner"})
+            self.assertEqual(resp_post.status_code, 200)
+            html_post = resp_post.get_data(as_text=True)
+            self.assertIn('value="1"\n                                checked', html_post)
+            self.assertIn('value="2"\n                                checked', html_post)
+
+
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

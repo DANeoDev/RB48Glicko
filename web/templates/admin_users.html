@@ -12,6 +12,11 @@
                         <span>🏆</span> {{ t('admin.mvp_logs_title', 'MVP-Wahlergebnisse') }}
                     </h1>
                     <p class="muted" style="margin-top: 4px;">{{ t('admin.mvp_logs_subtitle', 'Aggregierte Wahlergebnisse pro Match unter strikter Wahrung des Stimmgeheimnisses.') }}</p>
+                {% elif active_tab == 'aliases' %}
+                    <h1 style="margin: 0; color: #80deea; display: flex; align-items: center; gap: 8px;">
+                        <span>🏷️</span> {{ t('admin.alias_mgmt_title', 'Spieler-Aliase & Hauptalias') }}
+                    </h1>
+                    <p class="muted" style="margin-top: 4px;">{{ t('admin.alias_mgmt_subtitle', 'Verwalte Aliase und lege den offiziellen Hauptalias (Anzeigename) für jeden Datenbankspieler fest.') }}</p>
                 {% else %}
                     <h1 style="margin: 0; color: #ffffff;">{{ t('auth.admin_users_heading', 'User Management') }}</h1>
                     <p class="muted" style="margin-top: 4px;">{{ t('auth.admin_users_sub', 'Review registered accounts, approve memberships, manage player links, and manage account records.') }}</p>
@@ -31,6 +36,9 @@
                     </a>
                     <a href="{{ url_for('auth.admin_player_positions') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
                         ⚽ {{ t('admin.nav_player_positions', 'Spielerpositionen') }}
+                    </a>
+                    <a href="{{ url_for('auth.admin_users', tab='aliases') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; {% if active_tab == 'aliases' %}background: var(--accent); color: #ffffff;{% else %}color: var(--text-muted);{% endif %} border-radius: 4px; transition: all .15s ease;">
+                        🏷️ {{ t('admin.nav_player_aliases', 'Spieler-Aliase') }}
                     </a>
                     <a href="{{ url_for('auth.admin_mvp_logs') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; {% if active_tab == 'mvp' %}background: var(--accent); color: #ffffff;{% else %}color: var(--text-muted);{% endif %} border-radius: 4px; transition: all .15s ease;">
                         🏆 {{ t('admin.nav_mvp_logs', 'MVP-Ergebnisse') }}
@@ -95,6 +103,89 @@
             {% else %}
                 <p class="muted" style="margin: 12px 0; font-size: 13px;">{{ t('admin.mvp_no_summaries', 'Bisher liegen keine MVP-Wahlergebnisse vor.') }}</p>
             {% endif %}
+        </div>
+
+        {% elif active_tab == 'aliases' %}
+        <!-- Webmaster Player Aliases & Primary Alias Management Tab -->
+        <div style="background: rgba(128, 222, 234, 0.08); border: 1px solid rgba(128, 222, 234, 0.3); border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <span style="font-size: 16px;">🏷️</span>
+                    <strong style="color: #80deea; font-size: 14px;">{{ t('admin.alias_mgmt_hint_title', 'Alias- & Namensverwaltung') }}</strong>
+                </div>
+                <p style="margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.4;">
+                    {{ t('admin.alias_mgmt_hint_desc', 'Verwalte Schreibweisen, Spitznamen und den offiziellen Hauptalias (Anzeigename in Ranglisten, Profilen und Matchmaker). Alle Aliase bleiben für KI-Match-Parser und Dateneingaben uneingeschränkt aktiv.') }}
+                </p>
+            </div>
+            <div style="font-size: 12px; color: #80deea; background: rgba(128, 222, 234, 0.12); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(128, 222, 234, 0.25);">
+                ⭐ {{ t('admin.alias_primary_note', 'Der Hauptalias bestimmt den überall angezeigten Namen.') }}
+            </div>
+        </div>
+
+        <!-- Filter / Search bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; background: var(--bg-surface-alt); padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border);">
+            <div style="display: flex; align-items: center; gap: 10px; flex: 1; max-width: 420px;">
+                <span style="color: var(--text-muted); font-size: 14px;">🔍</span>
+                <input type="text" id="alias-filter-input" placeholder="{{ t('admin.search_aliases_placeholder', 'Spieler oder Alias suchen...') }}" style="width: 100%; padding: 7px 12px; font-size: 13px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; color: #ffffff;">
+            </div>
+            <div style="font-size: 12.5px; color: var(--text-muted);">
+                <span id="alias-player-count-display">{{ players_list | length }}</span> {{ t('admin.players_count_label', 'Spieler in der Datenbank') }}
+            </div>
+        </div>
+
+        <!-- Player Aliases Table -->
+        <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius);">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+                <thead>
+                    <tr style="background: var(--bg-surface-alt); border-bottom: 1px solid var(--border);">
+                        <th style="padding: 12px 16px; color: var(--text-muted); font-weight: 600; width: 60px;">ID</th>
+                        <th style="padding: 12px 16px; color: var(--text-muted); font-weight: 600; min-width: 200px;">{{ t('admin.th_primary_alias', 'Hauptalias (Anzeigename)') }}</th>
+                        <th style="padding: 12px 16px; color: var(--text-muted); font-weight: 600; min-width: 240px;">{{ t('admin.th_other_aliases', 'Weitere Aliase') }}</th>
+                        <th style="padding: 12px 16px; color: var(--text-muted); font-weight: 600; width: 80px; text-align: center;">{{ t('admin.th_alias_count', 'Gesamt') }}</th>
+                        <th style="padding: 12px 16px; color: var(--text-muted); font-weight: 600; width: 160px; text-align: right;">{{ t('admin.th_actions', 'Aktionen') }}</th>
+                    </tr>
+                </thead>
+                <tbody id="alias-table-body">
+                    {% for p in players_list %}
+                    <tr class="alias-player-row" data-search="{{ p.name | lower }} {{ p.aliases | join(' ') | lower }}" style="border-bottom: 1px solid var(--border); transition: background .15s ease;">
+                        <td style="padding: 12px 16px; color: var(--text-muted); font-family: monospace;">#{{ p.player_id }}</td>
+                        <td style="padding: 12px 16px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <a href="{{ url_for('stats.player_profile', player_id=p.player_id) }}" style="color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px;">
+                                    {{ p.name }}
+                                </a>
+                                <span style="background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.4); font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;" title="{{ t('admin.primary_badge_title', 'Offizieller Hauptalias') }}">
+                                    ⭐ {{ t('admin.badge_primary', 'Hauptalias') }}
+                                </span>
+                            </div>
+                        </td>
+                        <td style="padding: 12px 16px;">
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                                {% if p.other_aliases %}
+                                    {% for alias in p.other_aliases %}
+                                        <span style="background: rgba(255, 255, 255, 0.05); color: #c9c2d8; border: 1px solid rgba(255, 255, 255, 0.12); font-size: 11.5px; padding: 2px 7px; border-radius: 4px;">
+                                            {{ alias }}
+                                        </span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span style="color: var(--text-muted); font-size: 11.5px; font-style: italic;">{{ t('admin.no_other_aliases', 'Keine weiteren Aliase') }}</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td style="padding: 12px 16px; text-align: center;">
+                            <span style="background: rgba(128, 222, 234, 0.12); color: #80deea; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px;">
+                                {{ p.aliases_count }}
+                            </span>
+                        </td>
+                        <td style="padding: 12px 16px; text-align: right;">
+                            <button type="button" class="secondary btn-edit-player-aliases" data-player-id="{{ p.player_id }}" data-player-name="{{ p.name }}" style="padding: 5px 12px; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                                ✏️ {{ t('admin.btn_manage_aliases', 'Aliase bearbeiten') }}
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
 
         {% else %}
@@ -420,6 +511,286 @@ function closeDeleteUserModal() {
 
 document.getElementById("delete-user-modal").addEventListener("click", function(e) {
     if (e.target === this) closeDeleteUserModal();
+});
+</script>
+
+<!-- Modal: Webmaster Manage Player Aliases -->
+<div id="alias-editor-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 9999; justify-content: center; align-items: center; padding: 20px;">
+    <div style="background: var(--bg-surface); border: 1px solid #80deea; border-radius: var(--radius); max-width: 540px; width: 100%; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); max-height: 90vh; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px;">🏷️</span>
+                <div>
+                    <h2 id="alias-modal-player-title" style="margin: 0; color: #ffffff; font-size: 18px;">{{ t('admin.modal_manage_aliases_title', 'Aliase verwalten') }}</h2>
+                    <span id="alias-modal-player-id" style="font-size: 12px; color: var(--text-muted);">Spieler #--</span>
+                </div>
+            </div>
+            <button type="button" class="secondary" onclick="closeAliasEditorModal()" style="border: none; background: transparent; font-size: 18px; cursor: pointer; color: var(--text-muted);" title="{{ t('admin.close_modal', 'Schließen') }}">✕</button>
+        </div>
+
+        <div id="alias-modal-alert" style="display: none; padding: 10px 14px; border-radius: 6px; font-size: 12.5px; margin-bottom: 14px;"></div>
+
+        <div style="overflow-y: auto; flex: 1; padding-right: 4px; margin-bottom: 16px;">
+            <!-- Current Aliases List -->
+            <div style="margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 12.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">
+                    {{ t('admin.current_aliases_heading', 'Aktuelle Aliase') }}
+                </h4>
+                <div id="alias-modal-list" style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="color: var(--text-muted); font-size: 12px; padding: 12px; text-align: center;">Wird geladen...</div>
+                </div>
+            </div>
+
+            <!-- Add New Alias Form -->
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 13px; color: #80deea;">
+                    ➕ {{ t('admin.add_alias_heading', 'Neuen Alias hinzufügen') }}
+                </h4>
+                <form id="alias-add-form" onsubmit="handleAliasAdd(event)" style="margin: 0;">
+                    <div style="margin-bottom: 10px;">
+                        <input type="text" id="new-alias-input" placeholder="{{ t('admin.alias_input_placeholder', 'Neuer Aliasname (z. B. Spitzname, Schreibweise)') }}" required autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); background: #24194A; border: 1px solid #5A4A83; color: #ffffff; font-size: 13px;">
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #ffffff; cursor: pointer; margin: 0;">
+                            <input type="checkbox" id="new-alias-is-primary" style="margin: 0;">
+                            <span>{{ t('admin.set_as_primary_checkbox', 'Diesen Alias direkt als neuen Hauptalias festlegen') }}</span>
+                        </label>
+                        <button type="submit" id="add-alias-submit-btn" class="primary" style="padding: 6px 14px; font-size: 12px; background: #00897b; border-color: #00897b; cursor: pointer;">
+                            {{ t('admin.btn_add_alias', '+ Alias hinzufügen') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; border-top: 1px solid var(--border); padding-top: 12px;">
+            <button type="button" class="secondary" onclick="closeAliasEditorModal()" style="padding: 7px 18px; font-size: 13px;">
+                {{ t('admin.close_modal', 'Schließen') }}
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentAliasPlayerId = null;
+let aliasesModified = false;
+
+function openAliasEditorModal(playerId, playerName) {
+    currentAliasPlayerId = playerId;
+    aliasesModified = false;
+    document.getElementById("alias-modal-player-title").textContent = `Aliase: ${playerName}`;
+    document.getElementById("alias-modal-player-id").textContent = `Spieler #${playerId}`;
+    document.getElementById("alias-modal-alert").style.display = "none";
+    document.getElementById("new-alias-input").value = "";
+    document.getElementById("new-alias-is-primary").checked = false;
+
+    const modal = document.getElementById("alias-editor-modal");
+    if (modal) {
+        modal.style.display = "flex";
+        loadPlayerAliases(playerId);
+    }
+}
+
+function closeAliasEditorModal() {
+    const modal = document.getElementById("alias-editor-modal");
+    if (modal) {
+        modal.style.display = "none";
+    }
+    if (aliasesModified) {
+        window.location.reload();
+    }
+}
+
+function showModalAlert(msg, isSuccess) {
+    const alertBox = document.getElementById("alias-modal-alert");
+    if (!alertBox) return;
+    alertBox.textContent = msg;
+    alertBox.style.display = "block";
+    alertBox.style.background = isSuccess ? "rgba(40, 167, 69, 0.15)" : "rgba(220, 53, 69, 0.15)";
+    alertBox.style.border = isSuccess ? "1px solid rgba(40, 167, 69, 0.4)" : "1px solid rgba(220, 53, 69, 0.4)";
+    alertBox.style.color = isSuccess ? "#88ff88" : "#ff8888";
+}
+
+function loadPlayerAliases(playerId) {
+    const list = document.getElementById("alias-modal-list");
+    if (!list) return;
+    list.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; padding: 12px; text-align: center;">Wird geladen...</div>';
+
+    fetch(`/admin/players/${playerId}/aliases`, {
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data.success) {
+            list.innerHTML = `<div style="color: #ff8888; font-size: 12px; padding: 8px;">${data.error || "Fehler beim Laden."}</div>`;
+            return;
+        }
+        renderAliasesList(data.aliases);
+    })
+    .catch(err => {
+        list.innerHTML = `<div style="color: #ff8888; font-size: 12px; padding: 8px;">Netzwerkfehler beim Laden.</div>`;
+    });
+}
+
+function renderAliasesList(aliases) {
+    const list = document.getElementById("alias-modal-list");
+    if (!list) return;
+    if (!aliases || aliases.length === 0) {
+        list.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; padding: 8px;">Keine Aliase gefunden.</div>';
+        return;
+    }
+
+    list.innerHTML = "";
+    aliases.forEach(item => {
+        const row = document.createElement("div");
+        row.style.cssText = "display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; gap: 10px;";
+
+        const left = document.createElement("div");
+        left.style.cssText = "display: flex; align-items: center; gap: 8px; flex: 1; overflow: hidden;";
+
+        const nameSpan = document.createElement("strong");
+        nameSpan.textContent = item.alias;
+        nameSpan.style.color = "#ffffff";
+        nameSpan.style.fontSize = "13.5px";
+        left.appendChild(nameSpan);
+
+        if (item.is_primary) {
+            const badge = document.createElement("span");
+            badge.style.cssText = "background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.4); font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;";
+            badge.textContent = "⭐ Hauptalias";
+            left.appendChild(badge);
+        }
+
+        const actions = document.createElement("div");
+        actions.style.cssText = "display: flex; align-items: center; gap: 6px; flex-shrink: 0;";
+
+        if (!item.is_primary) {
+            const primaryBtn = document.createElement("button");
+            primaryBtn.type = "button";
+            primaryBtn.className = "secondary";
+            primaryBtn.style.cssText = "padding: 3px 8px; font-size: 11px; cursor: pointer; color: #ffd700; border-color: rgba(255,215,0,0.3);";
+            primaryBtn.textContent = "⭐ Als Hauptalias";
+            primaryBtn.title = "Diesen Alias zum offiziellen Anzeigenamen machen";
+            primaryBtn.onclick = () => handleSetPrimary(item.alias);
+            actions.appendChild(primaryBtn);
+        }
+
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "secondary";
+        editBtn.style.cssText = "padding: 3px 7px; font-size: 11px; cursor: pointer;";
+        editBtn.textContent = "✏️";
+        editBtn.title = "Alias umbenennen";
+        editBtn.onclick = () => handleRenameAlias(item.alias);
+        actions.appendChild(editBtn);
+
+        if (aliases.length > 1) {
+            const delBtn = document.createElement("button");
+            delBtn.type = "button";
+            delBtn.className = "secondary";
+            delBtn.style.cssText = "padding: 3px 7px; font-size: 11px; color: #ff8888; border-color: rgba(220,53,69,0.4); cursor: pointer;";
+            delBtn.textContent = "🗑️";
+            delBtn.title = "Alias entfernen";
+            delBtn.onclick = () => handleDeleteAlias(item.alias);
+            actions.appendChild(delBtn);
+        }
+
+        row.appendChild(left);
+        row.appendChild(actions);
+        list.appendChild(row);
+    });
+}
+
+function handleSetPrimary(alias) {
+    if (!currentAliasPlayerId) return;
+    postAliasAction({ action: "set_primary", primary_alias: alias });
+}
+
+function handleRenameAlias(oldAlias) {
+    const newAlias = prompt("Neuer Name für diesen Alias:", oldAlias);
+    if (!newAlias || newAlias.trim() === "" || newAlias.trim() === oldAlias) return;
+    postAliasAction({ action: "edit", old_alias: oldAlias, new_alias: newAlias.trim() });
+}
+
+function handleDeleteAlias(alias) {
+    if (!confirm(`Möchtest du den Alias '${alias}' wirklich löschen?`)) return;
+    postAliasAction({ action: "delete", alias: alias });
+}
+
+function handleAliasAdd(e) {
+    e.preventDefault();
+    const input = document.getElementById("new-alias-input");
+    const isPrimary = document.getElementById("new-alias-is-primary").checked;
+    const val = input.value.trim();
+    if (!val) return;
+
+    postAliasAction({ action: "add", alias: val, set_primary: isPrimary }, () => {
+        input.value = "";
+        document.getElementById("new-alias-is-primary").checked = false;
+    });
+}
+
+function postAliasAction(payload, onSuccess) {
+    fetch(`/admin/players/${currentAliasPlayerId}/aliases`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest"
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data.success) {
+            showModalAlert(data.error || "Fehler bei der Ausführung.", false);
+            return;
+        }
+        aliasesModified = true;
+        showModalAlert(data.message || "Erfolgreich aktualisiert.", true);
+        renderAliasesList(data.aliases);
+        if (onSuccess) onSuccess();
+    })
+    .catch(err => {
+        showModalAlert("Netzwerkfehler bei der Übertragung.", false);
+    });
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    // Delegated click for alias edit buttons
+    document.addEventListener("click", function(e) {
+        const btn = e.target.closest(".btn-edit-player-aliases");
+        if (btn) {
+            const pid = btn.dataset.playerId;
+            const pname = btn.dataset.playerName;
+            openAliasEditorModal(pid, pname);
+        }
+    });
+
+    // Close on background click
+    const aliasModalEl = document.getElementById("alias-editor-modal");
+    if (aliasModalEl) {
+        aliasModalEl.addEventListener("click", function(e) {
+            if (e.target === this) closeAliasEditorModal();
+        });
+    }
+
+    // Filter search
+    const aliasFilterInput = document.getElementById("alias-filter-input");
+    if (aliasFilterInput) {
+        aliasFilterInput.addEventListener("input", function() {
+            const query = this.value.trim().toLowerCase();
+            const rows = document.querySelectorAll(".alias-player-row");
+            let visibleCount = 0;
+            rows.forEach(row => {
+                const searchData = row.getAttribute("data-search") || "";
+                const match = !query || searchData.includes(query);
+                row.style.display = match ? "" : "none";
+                if (match) visibleCount++;
+            });
+            const countDisplay = document.getElementById("alias-player-count-display");
+            if (countDisplay) countDisplay.textContent = visibleCount;
+        });
+    }
 });
 </script>
 {% endblock %}

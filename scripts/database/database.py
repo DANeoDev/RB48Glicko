@@ -13,12 +13,44 @@ def get_database_file():
 DATABASE_FILE = get_database_file()
 
 
+_migrated_db_paths = set()
+
+
+def ensure_aliases_schema(connection):
+    """Ensure the aliases table has the is_primary column and at least one primary alias per player."""
+    db_file = str(get_database_file())
+    if db_file in _migrated_db_paths:
+        return
+    try:
+        cursor = connection.execute("PRAGMA table_info(aliases)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if columns:
+            if "is_primary" not in columns:
+                connection.execute("ALTER TABLE aliases ADD COLUMN is_primary INTEGER NOT NULL DEFAULT 0")
+                connection.commit()
+            # Ensure every player has a primary alias
+            connection.execute("""
+                WITH ranked AS (
+                    SELECT alias, player_id,
+                           ROW_NUMBER() OVER (PARTITION BY player_id ORDER BY is_primary DESC, rowid ASC) as rn
+                    FROM aliases
+                )
+                UPDATE aliases
+                SET is_primary = CASE WHEN alias IN (SELECT alias FROM ranked WHERE rn = 1) THEN 1 ELSE 0 END
+            """)
+            connection.commit()
+            _migrated_db_paths.add(db_file)
+    except Exception:
+        pass
+
+
 def get_connection():
     """Return a connection to the primary RB48 database with foreign keys enabled."""
     connection = sqlite3.connect(get_database_file())
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA busy_timeout = 5000")
+    ensure_aliases_schema(connection)
     return connection
 
 
@@ -38,10 +70,12 @@ def create_aliases_table(connection):
         CREATE TABLE IF NOT EXISTS aliases (
             alias TEXT PRIMARY KEY,
             player_id INTEGER NOT NULL,
+            is_primary INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (player_id) REFERENCES players(player_id)
         )
     """)
     connection.commit()
+    ensure_aliases_schema(connection)
 
 
 def create_positions_table(connection):
