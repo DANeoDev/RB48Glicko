@@ -595,6 +595,26 @@ class MatchCenterFrontendTests(unittest.TestCase):
             html_post = resp_post.get_data(as_text=True)
             self.assertIn('value="1"\n                                checked', html_post)
             self.assertIn('value="2"\n                                checked', html_post)
+            self.assertIn("Aktueller Spieltag", html_post)
+            self.assertIn("Test Matchday", html_post)
+            self.assertIn("Spieler markiert", html_post)
+            self.assertIn("selected-planner-player", html_post)
+
+            # Test that cancelled event is ignored even when scheduled earlier
+            pconn = get_planner_connection()
+            try:
+                eid_cancelled = create_event(pconn, event_date="2026-11-19 20:00", pitch="box", max_players=10, title="Cancelled Earlier Matchday")
+                pconn.execute("UPDATE events SET status = 'cancelled' WHERE id = ?", (eid_cancelled,))
+                pconn.commit()
+            finally:
+                pconn.close()
+
+            resp_after_cancel = client.get("/match-center")
+            self.assertEqual(resp_after_cancel.status_code, 200)
+            html_after = resp_after_cancel.get_data(as_text=True)
+            # Should still show Test Matchday, not Cancelled Earlier Matchday
+            self.assertIn("Test Matchday", html_after)
+            self.assertNotIn("Cancelled Earlier Matchday", html_after)
 
 
 if __name__ == "__main__":

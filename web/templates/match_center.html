@@ -3,7 +3,7 @@
 {% block title %}{{ t('match_center.title', 'Match Center') }} · RB48{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='match_center.css', v='20260909_scroll') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='match_center.css', v='20261013_planner_v3') }}">
 {% endblock %}
 
 {% block content %}
@@ -22,6 +22,12 @@
     {% if error %}
         <div class="notice" style="margin-bottom: 16px; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1);">
             {{ error }}
+        </div>
+    {% endif %}
+
+    {% if success %}
+        <div class="notice" style="margin-bottom: 16px; border-color: rgba(40, 167, 69, 0.4); background: rgba(40, 167, 69, 0.1); color: #88ff88;">
+            ✓ {{ success }}
         </div>
     {% endif %}
 
@@ -80,5 +86,5 @@
         noPlayerFound: {{ t('match_center.no_player_found', 'Kein Spieler gefunden') | tojson }}
     };
 </script>
-<script src="{{ url_for('static', filename='match_center.js', v='20261001_goals2') }}"></script>
+<script src="{{ url_for('static', filename='match_center.js', v='20261013_planner_v3') }}"></script>
 {% endblock %}

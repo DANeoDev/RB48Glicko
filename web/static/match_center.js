@@ -1330,20 +1330,43 @@
     // Apply Current Planner Event to Matchmaker
     // ------------------------------------------------------------
     function initApplyCurrentPlanner() {
+        // Synchronize card highlight whenever any player checkbox changes
+        document.addEventListener('change', (e) => {
+            if (e.target && e.target.matches('input[type="checkbox"][name="players"]')) {
+                const card = e.target.closest('.player');
+                if (card) {
+                    card.classList.toggle('selected-planner-player', e.target.checked);
+                }
+            }
+        });
+
         const btn = document.getElementById('apply-current-event-btn');
         if (!btn) return;
 
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            if (typeof window.handleApplyCurrentPlannerClick === 'function' || typeof handleApplyCurrentPlannerClick === 'function') {
+                const handler = (typeof window.handleApplyCurrentPlannerClick === 'function') ? window.handleApplyCurrentPlannerClick : handleApplyCurrentPlannerClick;
+                const result = handler(e);
+                if (result === false && e) {
+                    e.preventDefault();
+                }
+                return;
+            }
+
             try {
-                const raw = btn.dataset.playerIds;
+                const raw = btn.getAttribute('data-player-ids') || (btn.dataset ? btn.dataset.playerIds : null);
                 if (!raw) return;
                 const pids = JSON.parse(raw).map(String);
-                const checkboxes = document.querySelectorAll('#matchmaker-details .players input[type="checkbox"][name="players"]');
+                const checkboxes = document.querySelectorAll('input[type="checkbox"][name="players"]');
 
                 let matchedCount = 0;
                 checkboxes.forEach(cb => {
                     const isMatched = pids.includes(String(cb.value));
                     cb.checked = isMatched;
+                    const parentCard = cb.closest('.player');
+                    if (parentCard) {
+                        parentCard.classList.toggle('selected-planner-player', isMatched);
+                    }
                     if (isMatched) {
                         matchedCount++;
                     }
@@ -1356,6 +1379,10 @@
                     setTimeout(() => {
                         feedback.style.display = 'none';
                     }, 4000);
+                }
+
+                if (e) {
+                    e.preventDefault();
                 }
             } catch (err) {
                 console.error('Failed to apply planner event:', err);

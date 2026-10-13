@@ -293,6 +293,7 @@ def _get_current_planner_event_info(connection):
             SELECT id, event_date, pitch, max_players, title, location, status
             FROM events
             WHERE SUBSTR(event_date, 1, 10) >= ?
+              AND (status IS NULL OR status != 'cancelled')
             ORDER BY event_date ASC, id ASC
             LIMIT 1
         """, (today_str,)).fetchone()
@@ -302,6 +303,7 @@ def _get_current_planner_event_info(connection):
             ev_row = p_conn.execute("""
                 SELECT id, event_date, pitch, max_players, title, location, status
                 FROM events
+                WHERE (status IS NULL OR status != 'cancelled')
                 ORDER BY event_date DESC, id DESC
                 LIMIT 1
             """).fetchone()
@@ -529,7 +531,7 @@ def match_center():
 
         current_planner_event = _get_current_planner_event_info(connection)
         if request.args.get("apply_current_planner") and current_planner_event and current_planner_event.get("player_ids"):
-            selected_ids = list(dict.fromkeys(current_planner_event["player_ids"]))
+            selected_ids = [int(pid) for pid in current_planner_event["player_ids"] if int(pid) in players]
             if current_planner_event.get("pitch") in ("box", "hf"):
                 pitch = current_planner_event["pitch"]
                 if mode != "total":
@@ -570,7 +572,7 @@ def match_center():
 
             elif action == "apply_current_planner":
                 if current_planner_event and current_planner_event.get("player_ids"):
-                    selected_ids = list(dict.fromkeys(current_planner_event["player_ids"]))
+                    selected_ids = [int(pid) for pid in current_planner_event["player_ids"] if int(pid) in players]
                     if current_planner_event.get("pitch") in ("box", "hf"):
                         pitch = current_planner_event["pitch"]
                         if mode != "total":

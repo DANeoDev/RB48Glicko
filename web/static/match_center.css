@@ -129,6 +129,20 @@ details summary {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
+.player:has(input:checked),
+.player.selected-planner-player {
+    background: rgba(123, 82, 197, 0.22);
+    border-color: rgba(128, 222, 234, 0.6);
+    box-shadow: 0 0 10px rgba(128, 222, 234, 0.22);
+}
+
+.player:has(input:checked):hover,
+.player.selected-planner-player:hover {
+    background: rgba(123, 82, 197, 0.32);
+    border-color: #80deea;
+    box-shadow: 0 4px 14px rgba(128, 222, 234, 0.3);
+}
+
 .player-name {
     flex: 1;
 }
