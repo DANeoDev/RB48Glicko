@@ -19,7 +19,7 @@ TRANSLATIONS_EN = {
     "nav.noise_mode_title": "Noise View Mode: Click to switch between Collapsed, Expanded, and Muted",
     "nav.locked_stats_title": "Stats — Register and get approved by the webmaster to access player statistics.",
     "nav.locked_gallery_title": "Gallery — Register and get approved by the webmaster to access the gallery.",
-    "nav.locked_match_center_title": "Match Center — Administrator access required for match recording and matchmaking.",
+    "nav.locked_match_center_title": "Match Center — Login required for the matchmaker.",
     "nav.account": "Account",
     "nav.my_stats": "My Stats",
     "nav.link_player_tooltip": "Link your player profile in Settings",
@@ -483,6 +483,7 @@ TRANSLATIONS_EN = {
     # Match Center
     "match_center.title": "Match Center",
     "match_center.intro": "Import attendance or an already played match, resolve identities, optionally check teams, and enter the final match data.",
+    "match_center.user_intro": "Select attending players and let the Glicko-2 matchmaker calculate fair teams.",
     "match_center.tab_record": "Record Match",
     "match_center.tab_matchmaker": "Matchmaker",
     "match_center.tab_parser": "Roster Parser",

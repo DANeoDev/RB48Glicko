@@ -160,6 +160,7 @@
         </div>
 
 
+        {% if has_tier('admin') %}
         <div class="actions" style="margin-top: 18px;">
             <button
                 type="button"
@@ -169,6 +170,7 @@
                 {{ t('match_center.use_teams_btn', '↓ Use these teams in Match Entry') }}
             </button>
         </div>
+        {% endif %}
 
     </section>
 

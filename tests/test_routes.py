@@ -103,6 +103,14 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(resp_matches.status_code, 200)
         self.assertIn("Nach oben scrollen", resp_matches.get_data(as_text=True))
 
+        # User can access Match Center (Matchmaker view only)
+        resp_mc = self.client.get("/match-center")
+        self.assertEqual(resp_mc.status_code, 200)
+        mc_html = resp_mc.get_data(as_text=True)
+        self.assertIn("matchmaker-details", mc_html)
+        self.assertNotIn("parser-details", mc_html)
+        self.assertNotIn('id="match-form"', mc_html)
+
         # But cannot access model analysis yet (requires psychology test)
         resp_model = self.client.get("/model-analysis")
         self.assertEqual(resp_model.status_code, 302)
@@ -112,16 +120,19 @@ class RouteTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        # Glicko user can access stats and model analysis
+        # Glicko user can access stats, model analysis, and Match Center (Matchmaker view)
         resp_stats = self.client.get("/stats")
         self.assertEqual(resp_stats.status_code, 200)
 
         resp = self.client.get("/model-analysis")
         self.assertEqual(resp.status_code, 200)
 
-        # But Glicko user cannot access Match Center (Admin only)
         resp_mc = self.client.get("/match-center")
-        self.assertEqual(resp_mc.status_code, 302)
+        self.assertEqual(resp_mc.status_code, 200)
+        mc_html = resp_mc.get_data(as_text=True)
+        self.assertIn("matchmaker-details", mc_html)
+        self.assertNotIn("parser-details", mc_html)
+        self.assertNotIn('id="match-form"', mc_html)
 
     def test_admin_access(self):
         admin_id = self.create_user_session(role="admin", verified=True, approved=True, psychology_passed=True)
@@ -130,6 +141,10 @@ class RouteTests(unittest.TestCase):
 
         resp = self.client.get("/match-center")
         self.assertEqual(resp.status_code, 200)
+        admin_html = resp.get_data(as_text=True)
+        self.assertIn("matchmaker-details", admin_html)
+        self.assertIn("parser-details", admin_html)
+        self.assertIn('id="match-form"', admin_html)
 
     def test_news_pagination_api(self):
         response = self.client.get("/news/items?offset=0&limit=2")

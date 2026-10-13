@@ -12,13 +12,27 @@
     <h1>{{ t('match_center.title', 'Match Center') }}</h1>
 
     <p class="muted">
-        {{ t('match_center.intro', 'Import attendance or an already played match, resolve identities, optionally check teams, and enter the final match data.') }}
+        {% if has_tier('admin') %}
+            {{ t('match_center.intro', 'Import attendance or an already played match, resolve identities, optionally check teams, and enter the final match data.') }}
+        {% else %}
+            {{ t('match_center.user_intro', 'Wähle anwesende Spieler aus und lasse den Glicko-2 Matchmaker faire Teams berechnen.') }}
+        {% endif %}
     </p>
 
-    {% include "match_center/_parser.html" %}
+    {% if error %}
+        <div class="notice" style="margin-bottom: 16px; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1);">
+            {{ error }}
+        </div>
+    {% endif %}
+
+    {% if has_tier('admin') %}
+        {% include "match_center/_parser.html" %}
+    {% endif %}
     {% include "match_center/_matchmaker.html" %}
     {% include "match_center/_suggested_teams.html" %}
-    {% include "match_center/_match_form.html" %}
+    {% if has_tier('admin') %}
+        {% include "match_center/_match_form.html" %}
+    {% endif %}
 </div>
 
 {% if result and request.method == 'POST' and request.form.get('action') in ['generate', 'reroll'] %}
@@ -44,7 +58,9 @@
 </script>
 {% endif %}
 
+{% if has_tier('admin') %}
 {% include "match_center/_modals.html" %}
+{% endif %}
 
 <script>
     window.matchCenterPlayers = {{ players | tojson }};

@@ -21,7 +21,7 @@ TRANSLATIONS_DE = {
     "nav.noise_mode_title": "Noise-Ansicht: Klicken zum Umschalten zwischen Eingeklappt, Ausgeklappt und Stumm",
     "nav.locked_stats_title": "Statistiken — Registriere dich und lass dich freischalten, um Spielerstatistiken einzusehen.",
     "nav.locked_gallery_title": "Galerie — Registriere dich und lass dich freischalten, um die Galerie zu öffnen.",
-    "nav.locked_match_center_title": "Match Center — Administratorzugang für Spielerfassung und Matchmaking erforderlich.",
+    "nav.locked_match_center_title": "Match Center — Anmeldung erforderlich für den Matchmaker.",
     "nav.account": "Konto",
     "nav.my_stats": "Meine Statistiken",
     "nav.link_player_tooltip": "Verknüpfe dein Spielerprofil in den Einstellungen",
@@ -500,6 +500,7 @@ TRANSLATIONS_DE = {
     # =========================================================================
     "match_center.title": "Match Center",
     "match_center.intro": "Teilnehmerliste oder gespieltes Match importieren, Spielernamen zuordnen, optional Teams prüfen und finale Spieldaten erfassen.",
+    "match_center.user_intro": "Wähle anwesende Spieler aus und lasse den Glicko-2 Matchmaker faire Teams berechnen.",
     "match_center.tab_record": "Spiel erfassen",
     "match_center.tab_matchmaker": "Matchmaker",
     "match_center.tab_parser": "Kader-Import (Parser)",

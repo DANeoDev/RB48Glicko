@@ -317,10 +317,10 @@
             
             <a href="{{ url_for('planner.planner') }}" class="{% if request.endpoint == 'planner.planner' %}active{% endif %}">{{ t('nav.planner', 'Planner') }}</a>
 
-            {% if has_tier('admin') %}
+            {% if has_tier('user') %}
                 <a href="{{ url_for('match_center.match_center') }}" class="{% if request.endpoint == 'match_center.match_center' %}active{% endif %}">{{ t('nav.match_center', 'Match Center') }}</a>
             {% else %}
-                <a href="{{ url_for('auth.login', next=url_for('match_center.match_center')) if not has_tier('user') else '#' }}" class="nav-locked" title="{{ t('nav.locked_match_center_title', 'Match Center — Administrator access required for match recording and matchmaking.') }}">
+                <a href="{{ url_for('auth.login', next=url_for('match_center.match_center')) }}" class="nav-locked" title="{{ t('nav.locked_match_center_title', 'Match Center — Anmeldung erforderlich für den Matchmaker.') }}">
                     {{ t('nav.match_center', 'Match Center') }} <span class="nav-lock-icon">🔒</span>
                 </a>
             {% endif %}

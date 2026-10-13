@@ -32,7 +32,7 @@ from scripts.planner.database import (
 )
 from web.routes.planner import resolve_active_roster_player_ids
 from web.services.cache import invalidate_stats_cache
-from web.services.security import require_admin
+from web.services.security import require_tier, Tier, has_tier
 
 match_center_bp = Blueprint("match_center", __name__)
 
@@ -431,7 +431,7 @@ def _handle_save_match(data, is_xhr, connection, players):
 # -----------------------------------------------------------------------------
 
 @match_center_bp.route("/match-center", methods=["GET", "POST"])
-@require_admin
+@require_tier(Tier.USER)
 def match_center():
     connection = get_connection()
     try:
@@ -463,7 +463,17 @@ def match_center():
         is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json
 
         if request.method == "POST":
-            if action in ("parse_image", "parse_source"):
+            admin_actions = {
+                "parse_image", "parse_source", "resolve_conflicts", "add_parser_alias",
+                "create_parser_player", "ignore_parser_player", "import_planner",
+                "create_player", "save", "save_batch",
+            }
+            if action in admin_actions and not has_tier(Tier.ADMIN):
+                if is_xhr:
+                    return jsonify({"success": False, "error": "Administrator-Rechte erforderlich."}), 403
+                error = "Administrator-Rechte erforderlich für KI-Parser und Matcheingabe."
+
+            elif action in ("parse_image", "parse_source"):
                 parse_result, selected_ids, parser_success, parse_error = _handle_parse_action(request.form, request.files, players, connection)
 
             elif action == "resolve_conflicts":

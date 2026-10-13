@@ -4,7 +4,7 @@
 
     <section class="card">
 
-        <details id="matchmaker-details" {% if selected_ids or result %}open{% endif %}>
+        <details id="matchmaker-details" {% if not has_tier('admin') or selected_ids or result %}open{% endif %}>
 
             <summary>
                 <strong>{{ t('match_center.matchmaker_title', 'Matchmaker') }}</strong>

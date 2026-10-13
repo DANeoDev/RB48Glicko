@@ -7,7 +7,7 @@ import time
 import unittest
 
 from scripts.accounts.auth import register_user
-from scripts.accounts.database import get_accounts_connection, mark_email_verified, update_user_role
+from scripts.accounts.database import get_accounts_connection, mark_email_verified, update_user_role, approve_user
 from scripts.database.database import get_connection
 from scripts.database.db_players import get_players
 from scripts.glicko.glicko2 import TOTAL
@@ -33,10 +33,14 @@ class MatchCenterFrontendTests(unittest.TestCase):
         self.app = app
         unique_name = f"mc_admin_{int(time.time() * 1000000)}"
         self.admin_id, _ = register_user(unique_name, f"{unique_name}@example.com", "adminpass123", role="admin")
+        user_name = f"mc_user_{int(time.time() * 1000000)}"
+        self.user_id, _ = register_user(user_name, f"{user_name}@example.com", "userpass123", role="user")
         conn = get_accounts_connection()
         try:
             mark_email_verified(conn, self.admin_id)
             update_user_role(conn, self.admin_id, "admin")
+            mark_email_verified(conn, self.user_id)
+            approve_user(conn, self.user_id, True)
         finally:
             conn.close()
 
@@ -85,6 +89,74 @@ class MatchCenterFrontendTests(unittest.TestCase):
             })
             self.assertEqual(response.status_code, 200)
             self.assertIn(b"window.matchCenterPlayers", response.data)
+
+    def test_regular_user_access_shows_only_matchmaker(self):
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.user_id
+
+            response = client.get("/match-center")
+            self.assertEqual(response.status_code, 200)
+            html = response.get_data(as_text=True)
+            self.assertIn("matchmaker-details", html)
+            # Matchmaker drawer is open by default for regular users
+            self.assertIn('<details id="matchmaker-details" open>', html)
+            # Admin-only sections are omitted
+            self.assertNotIn("parser-details", html)
+            self.assertNotIn('id="match-form"', html)
+            self.assertNotIn('id="transfer-teams-btn"', html)
+            self.assertNotIn('id="conflict-modal"', html)
+            self.assertNotIn('id="add-modal"', html)
+
+    def test_regular_user_can_generate_and_reroll_matchmaker(self):
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.user_id
+
+            response = client.post("/match-center", data={
+                "action": "generate",
+                "mode": "total",
+                "pitch": "box",
+                "players": ["1", "2"],
+            })
+            self.assertEqual(response.status_code, 200)
+            html = response.get_data(as_text=True)
+            self.assertIn("suggested-teams", html)
+            self.assertNotIn("transfer-teams-btn", html)
+
+    def test_regular_user_cannot_perform_admin_actions(self):
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.user_id
+
+            # Save attempt via form POST
+            response = client.post("/match-center", data={
+                "action": "save",
+                "date": "2026-11-15",
+                "pitch": "box",
+                "team_a": ["1"],
+                "team_b": ["2"],
+                "goals_a": "5",
+                "goals_b": "3",
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("Administrator-Rechte erforderlich", response.get_data(as_text=True))
+
+            # Save batch attempt via XHR JSON
+            response_xhr = client.post(
+                "/match-center",
+                json={"action": "save_batch", "matches": []},
+                headers={"X-Requested-With": "XMLHttpRequest"}
+            )
+            self.assertEqual(response_xhr.status_code, 403)
+            self.assertFalse(response_xhr.get_json()["success"])
+
+            # Parse attempt via form POST
+            response_parse = client.post("/match-center", data={
+                "action": "parse_source",
+                "source_text": "Team A: Player 1\nTeam B: Player 2",
+            })
+            self.assertIn("Administrator-Rechte erforderlich", response_parse.get_data(as_text=True))
 
     def test_match_center_js_syntax_is_valid(self):
         node_path = shutil.which("node")
