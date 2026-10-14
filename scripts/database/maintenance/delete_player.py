@@ -38,6 +38,10 @@ def delete_player(connection, player_id):
             match_ids,
         )
 
+    try:
+        connection.execute("DELETE FROM player_discovery_ratings WHERE player_id = ?", (player_id,))
+    except Exception:
+        pass
     connection.execute("DELETE FROM match_ratings WHERE player_id = ?", (player_id,))
     connection.execute("DELETE FROM ratings WHERE player_id = ?", (player_id,))
     connection.execute("DELETE FROM calibrations WHERE player_id = ?", (player_id,))

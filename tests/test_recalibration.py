@@ -10,7 +10,9 @@ from scripts.database.database import (
     create_match_ratings_table,
     create_matches_table,
     create_player_calibrated_priors_table,
+    create_player_discovery_ratings_table,
     create_players_table,
+    create_positions_table,
     create_ratings_table,
 )
 from scripts.database.db_matches import (
@@ -18,13 +20,16 @@ from scripts.database.db_matches import (
     create_match,
     get_all_match_teams,
 )
-from scripts.database.db_players import add_alias, create_player
+from scripts.database.db_players import add_alias, create_player, get_players
 from scripts.database.db_ratings import (
     get_all_match_ratings,
+    get_all_player_discovery_ratings,
     get_player_calibrated_priors,
+    get_player_rating_history,
+    get_ratings,
     save_player_calibrated_priors,
 )
-from scripts.frontend.view_models import build_leaderboard
+from scripts.frontend.view_models import build_leaderboard, compute_leaderboard_deltas
 from scripts.glicko.glicko2 import (
     DEFAULT_RATING,
     DEFAULT_RD,
@@ -158,12 +163,14 @@ class TestRecalibrationEnginePasses(unittest.TestCase):
         self.conn.execute("PRAGMA foreign_keys = ON")
         create_players_table(self.conn)
         create_aliases_table(self.conn)
+        create_positions_table(self.conn)
         create_matches_table(self.conn)
         create_match_players_table(self.conn)
         create_ratings_table(self.conn)
         create_match_ratings_table(self.conn)
         create_calibrations_table(self.conn)
         create_player_calibrated_priors_table(self.conn)
+        create_player_discovery_ratings_table(self.conn)
 
     def tearDown(self):
         self.conn.close()
@@ -230,6 +237,50 @@ class TestRecalibrationEnginePasses(unittest.TestCase):
         calibrated_r = priors[1][TOTAL]["rating"]
         # Match 15 (0-indexed 14) pre-match snapshot was calibrated prior
         self.assertAlmostEqual(rows[14]["rating"], calibrated_r, places=3)
+
+    def test_player_discovery_ratings_persistence_and_display_history(self):
+        """Option A: player_discovery_ratings captures discovery trajectory and displays non-flat history for graduated players."""
+        self._setup_players_and_matches(16)
+
+        recalculate_glicko2_ratings(self.conn, create_backup=False, retro_calibrated=True)
+
+        # 1. Verify player_discovery_ratings table has records for matches 1..15
+        disc = get_all_player_discovery_ratings(self.conn)
+        self.assertGreaterEqual(len(disc), 15)
+        for m_idx in range(1, 16):
+            mid = f"match-{m_idx:02d}"
+            self.assertIn(mid, disc)
+            self.assertIn(1, disc[mid])
+            self.assertIn(TOTAL, disc[mid][1])
+
+        # Match 16 should NOT be in discovery (graduated)
+        self.assertNotIn("match-16", disc)
+
+        # 2. Verify get_player_rating_history returns dynamic curve (NOT flat line)
+        hist = get_player_rating_history(self.conn, 1)
+        total_hist = hist["total"]
+        self.assertEqual(len(total_hist), 17)  # 16 matches + 1 current rating
+
+        ratings_list = [entry["rating"] for entry in total_hist]
+        # P1 consistently won, so ratings must be ascending during discovery
+        self.assertAlmostEqual(ratings_list[0], DEFAULT_RATING)
+        self.assertGreater(ratings_list[14], ratings_list[0])
+        # Crucially: Not all ratings are identical!
+        self.assertGreater(len(set(round(r, 1) for r in ratings_list)), 5)
+
+        # 3. Verify match_ratings still holds the frozen calibrated prior for world ratings (Option A* surgical split)
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT rating FROM match_ratings WHERE player_id = 1 AND match_id = 'match-10' AND rating_type = 'total'")
+        row = cursor.fetchone()
+        priors = get_player_calibrated_priors(self.conn)
+        self.assertAlmostEqual(row[0], priors[1][TOTAL]["rating"], places=3)
+
+        # 4. Verify leaderboard deltas for session reflect non-zero delta
+        players = get_players(self.conn)
+        ratings = get_ratings(self.conn)
+        deltas = compute_leaderboard_deltas(self.conn, ratings, players)
+        p1_game_delta = deltas[1]["total"]["game"]
+        self.assertNotEqual(p1_game_delta["rating"], 0.0)
 
     def test_retro_calibrated_false_fallback(self):
         """retro_calibrated=False runs classic 1-pass execution for backwards compatibility."""

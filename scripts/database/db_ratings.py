@@ -120,20 +120,118 @@ def get_processed_match_ids(connection):
     }
 
 
+def ensure_player_discovery_ratings_table(connection):
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS player_discovery_ratings (
+            player_id INTEGER NOT NULL,
+            match_id TEXT NOT NULL,
+            rating_type TEXT NOT NULL,
+            rating REAL NOT NULL,
+            rd REAL NOT NULL,
+            sigma REAL NOT NULL,
+            PRIMARY KEY (player_id, match_id, rating_type),
+            FOREIGN KEY (player_id) REFERENCES players(player_id),
+            FOREIGN KEY (match_id) REFERENCES matches(match_id)
+        )
+    """)
+    connection.commit()
+
+
+def save_player_discovery_ratings(connection, discovery_records):
+    """
+    Persist discovery trajectory records for provisional matches.
+    discovery_records can be a list of tuples: (player_id, match_id, rating_type, rating, rd, sigma)
+    or a list of dicts.
+    """
+    ensure_player_discovery_ratings_table(connection)
+    if not discovery_records:
+        return
+    for rec in discovery_records:
+        if isinstance(rec, (list, tuple)):
+            pid, mid, rtype, r, rd, sigma = rec
+        else:
+            pid = rec["player_id"]
+            mid = rec["match_id"]
+            rtype = rec["rating_type"]
+            r = rec["rating"]
+            rd = rec["rd"]
+            sigma = rec["sigma"]
+        connection.execute("""
+            INSERT INTO player_discovery_ratings (player_id, match_id, rating_type, rating, rd, sigma)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(player_id, match_id, rating_type) DO UPDATE SET
+                rating = excluded.rating,
+                rd = excluded.rd,
+                sigma = excluded.sigma
+        """, (pid, mid, rtype, r, rd, sigma))
+    connection.commit()
+
+
+def get_all_player_discovery_ratings(connection):
+    """Return mapping of match_id -> {player_id -> {rating_type -> {rating, rd, sigma}}} from player_discovery_ratings."""
+    ensure_player_discovery_ratings_table(connection)
+    rows = connection.execute("""
+        SELECT match_id, player_id, rating_type, rating, rd, sigma
+        FROM player_discovery_ratings
+        ORDER BY match_id
+    """).fetchall()
+
+    discovery = {}
+    for row in rows:
+        mid = row["match_id"]
+        pid = row["player_id"]
+        rtype = row["rating_type"]
+        if mid not in discovery:
+            discovery[mid] = {}
+        if pid not in discovery[mid]:
+            discovery[mid][pid] = {}
+        discovery[mid][pid][rtype] = {
+            "rating": row["rating"],
+            "rd": row["rd"],
+            "sigma": row["sigma"]
+        }
+    return discovery
+
+
+def get_effective_player_match_ratings(connection):
+    """
+    Return all match ratings with player discovery ratings overlaid.
+    Used for player-level profile graphs, personal match events, and delta baselines.
+    """
+    all_mr = get_all_match_ratings(connection)
+    all_disc = get_all_player_discovery_ratings(connection)
+    if not all_disc:
+        return all_mr
+    effective = {}
+    for mid, p_dict in all_mr.items():
+        effective[mid] = {}
+        for pid, r_dict in p_dict.items():
+            effective[mid][pid] = dict(r_dict)
+            if mid in all_disc and pid in all_disc[mid]:
+                for rtype, r_val in all_disc[mid][pid].items():
+                    effective[mid][pid][rtype] = r_val
+    return effective
+
+
 def get_player_rating_history(connection, player_id):
+    ensure_player_discovery_ratings_table(connection)
     rows = connection.execute("""
         SELECT
             match_ratings.match_id,
             matches.date,
             matches.pitch,
             match_ratings.rating_type,
-            match_ratings.rating
+            COALESCE(pdr.rating, match_ratings.rating) AS rating
         FROM match_ratings
         JOIN matches
             ON match_ratings.match_id = matches.match_id
         JOIN match_players
             ON match_ratings.match_id = match_players.match_id
             AND match_ratings.player_id = match_players.player_id
+        LEFT JOIN player_discovery_ratings pdr
+            ON match_ratings.player_id = pdr.player_id
+            AND match_ratings.match_id = pdr.match_id
+            AND match_ratings.rating_type = pdr.rating_type
         WHERE match_ratings.player_id = ?
         AND (
             match_ratings.rating_type = 'total'

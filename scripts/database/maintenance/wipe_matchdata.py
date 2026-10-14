@@ -24,6 +24,7 @@ from scripts.database import get_connection
 
 
 TABLES = (
+    "player_discovery_ratings",
     "match_ratings",
     "match_players",
     "matches",

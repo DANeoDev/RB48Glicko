@@ -215,6 +215,24 @@ def create_player_calibrated_priors_table(connection):
     connection.commit()
 
 
+def create_player_discovery_ratings_table(connection):
+    """Table to store true discovery trajectory ratings for provisional matches (matches <= threshold)."""
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS player_discovery_ratings (
+            player_id INTEGER NOT NULL,
+            match_id TEXT NOT NULL,
+            rating_type TEXT NOT NULL,
+            rating REAL NOT NULL,
+            rd REAL NOT NULL,
+            sigma REAL NOT NULL,
+            PRIMARY KEY (player_id, match_id, rating_type),
+            FOREIGN KEY (player_id) REFERENCES players(player_id),
+            FOREIGN KEY (match_id) REFERENCES matches(match_id)
+        )
+    """)
+    connection.commit()
+
+
 def main():
     DATABASE_FILE.parent.mkdir(parents=True, exist_ok=True)
     connection = get_connection()
@@ -227,6 +245,7 @@ def main():
         create_match_players_table(connection)
         create_calibrations_table(connection)
         create_player_calibrated_priors_table(connection)
+        create_player_discovery_ratings_table(connection)
         create_match_ratings_table(connection)
         create_ratings_table(connection)
         print(f"Database created at: {DATABASE_FILE}")

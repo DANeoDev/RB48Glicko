@@ -8,14 +8,17 @@ from scripts.database.database import (
     get_connection,
     create_ratings_table,
     create_match_ratings_table,
+    create_player_discovery_ratings_table,
 )
 
 
 def wipe_ratings(connection):
+    connection.execute("DROP TABLE IF EXISTS player_discovery_ratings")
     connection.execute("DROP TABLE IF EXISTS match_ratings")
     connection.execute("DROP TABLE IF EXISTS ratings")
     connection.commit()
 
+    create_player_discovery_ratings_table(connection)
     create_match_ratings_table(connection)
     create_ratings_table(connection)
 

@@ -12,7 +12,12 @@ from scripts.database.db_matches import (
     get_all_match_players,
     get_all_match_teams,
 )
-from scripts.database.db_ratings import get_match_ratings, get_all_match_ratings
+from scripts.database.db_ratings import (
+    get_match_ratings,
+    get_all_match_ratings,
+    get_all_player_discovery_ratings,
+    get_effective_player_match_ratings,
+)
 from scripts.glicko.glicko2 import (
     Glicko2,
     Rating,
@@ -27,7 +32,7 @@ from scripts.glicko.glicko2 import (
 
 def _collect_player_match_events(connection, sorted_matches: list[dict], players: dict) -> dict[int, dict[str, list[dict]]]:
     """Collect and cache match outcome events and prior ratings per player and pitch type."""
-    all_mr = get_all_match_ratings(connection)
+    all_mr = get_effective_player_match_ratings(connection)
     all_mps = get_all_match_players(connection)
     match_data_cache = {
         m["match_id"]: (all_mr.get(m["match_id"], {}), all_mps.get(m["match_id"], []))
@@ -257,7 +262,7 @@ def compute_leaderboard_deltas(connection, ratings: dict, players: dict, referen
     cutoff_quarter = (today - timedelta(days=90)).strftime("%Y-%m-%d")
     cutoff_year = (today - timedelta(days=365)).strftime("%Y-%m-%d")
 
-    all_mr = get_all_match_ratings(connection)
+    all_mr = get_effective_player_match_ratings(connection)
     post_m = [m for m in sorted_matches if m["date"] >= cutoff_month]
     base_mr_m = all_mr.get(post_m[0]["match_id"], {}) if post_m else None
 
@@ -672,9 +677,12 @@ def build_match_history(
             # For personal profile view with multiple games on this date,
             # calculate the true net session delta for the player
             if player_id is not None:
-                first_match_ratings = get_match_ratings(connection, entries[0]["match_id"])
-                if player_id in first_match_ratings and rating_type in first_match_ratings[player_id]:
-                    pdata = first_match_ratings[player_id][rating_type]
+                first_mid = entries[0]["match_id"]
+                first_match_ratings = get_match_ratings(connection, first_mid)
+                all_disc = get_all_player_discovery_ratings(connection) if connection is not None else {}
+                disc_p = all_disc.get(first_mid, {}).get(player_id, {}).get(rating_type)
+                pdata = disc_p or (first_match_ratings.get(player_id, {}).get(rating_type) if player_id in first_match_ratings else None)
+                if pdata:
                     prior = Rating(pdata["rating"], pdata["rd"], pdata["sigma"])
                     session_games = []
                     for entry in entries:

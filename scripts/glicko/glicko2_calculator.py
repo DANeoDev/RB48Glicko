@@ -20,6 +20,7 @@ from scripts.database.db_ratings import (
     get_calibrations,
     get_player_calibrated_priors,
     save_player_calibrated_priors,
+    save_player_discovery_ratings,
 )
 from scripts.glicko.glicko2 import (
     Glicko2,
@@ -62,6 +63,11 @@ def backup_database(connection=None):
 
 
 def clear_ratings(connection):
+    if connection is not None:
+        try:
+            connection.execute("DELETE FROM player_discovery_ratings")
+        except Exception:
+            pass
     connection.execute("DELETE FROM match_ratings")
     connection.execute("DELETE FROM ratings")
     connection.commit()
@@ -515,6 +521,7 @@ def _run_single_pass1_step(
     ratings_discovery = glicko_table_to_ratings(prepared)
     games_played = defaultdict(int)
     new_discovered = {}
+    discovery_records = []
 
     for session_date, session_matches in sessions.items():
         player_games = {}
@@ -588,6 +595,17 @@ def _run_single_pass1_step(
             if prev_games < p_thresh:
                 needed = p_thresh - prev_games
                 mids_up = set(session_p_mids[:needed])
+
+                for mid in session_p_mids[:needed]:
+                    for rtype in (TOTAL, BOX, HF):
+                        discovery_records.append((
+                            pid,
+                            mid,
+                            rtype,
+                            ratings_discovery[pid][rtype].rating,
+                            ratings_discovery[pid][rtype].rd,
+                            ratings_discovery[pid][rtype].sigma,
+                        ))
 
                 games_up_tot = [g for g in rtypes[TOTAL] if g[5] in mids_up]
                 r_tot_thresh = engine.update_player_session(ratings_discovery[pid][TOTAL], games_up_tot)
@@ -674,7 +692,7 @@ def _run_single_pass1_step(
                     if pid not in pitch_active:
                         ratings_world[pid][pitch_type].rd = min(ratings_world[pid][pitch_type].rd + INACTIVITY_RD_TICK, DEFAULT_RD)
 
-    return new_discovered
+    return new_discovered, discovery_records
 
 
 def run_recalibration_pass1(
@@ -686,6 +704,7 @@ def run_recalibration_pass1(
     max_iterations=5,
     tolerance=0.5,
     relaxation=0.5,
+    return_discovery=False,
 ):
     """
     Pass 1: Discover emergent latent ratings at the calibration threshold for eligible players.
@@ -696,9 +715,11 @@ def run_recalibration_pass1(
         max_iterations: Maximum number of convergence passes (default 5).
         tolerance: Maximum change in rating points across all players to declare convergence (default 0.5).
         relaxation: Damping parameter in (0, 1] for fixed-point stability (default 0.5).
+        return_discovery: If True, returns (calibrated_priors, discovery_records).
 
     Returns:
-        calibrated_priors: dict[player_id -> {TOTAL: Rating, BOX: Rating, HF: Rating}]
+        calibrated_priors (or (calibrated_priors, discovery_records)):
+            dict[player_id -> {TOTAL: Rating, BOX: Rating, HF: Rating}]
     """
     engine = Glicko2()
     if match_teams_map is None and connection is not None:
@@ -710,7 +731,7 @@ def run_recalibration_pass1(
     sessions = group_matches_by_date(matches)
 
     # Initial pass (k = 0): everyone discovers from uncalibrated 1500 priors
-    priors = _run_single_pass1_step(
+    priors, discovery_records = _run_single_pass1_step(
         connection=connection,
         matches=matches,
         sessions=sessions,
@@ -722,11 +743,11 @@ def run_recalibration_pass1(
     )
 
     if max_iterations <= 1 or not priors:
-        return priors
+        return (priors, discovery_records) if return_discovery else priors
 
     # Iterative refinement passes (k = 1..max_iterations-1)
     for iteration in range(1, max_iterations):
-        new_priors = _run_single_pass1_step(
+        new_priors, new_discovery_records = _run_single_pass1_step(
             connection=connection,
             matches=matches,
             sessions=sessions,
@@ -745,10 +766,11 @@ def run_recalibration_pass1(
                     max_delta = d
 
         priors = new_priors
+        discovery_records = new_discovery_records
         if max_delta < tolerance:
             break
 
-    return priors
+    return (priors, discovery_records) if return_discovery else priors
 
 
 def write_match_ratings(connection, match_id, ratings):
@@ -872,11 +894,13 @@ def recalculate_glicko2_ratings(connection=None, create_backup=True, debug_playe
         prepared_glicko = prepare_glicko_table(conn, matches, calibrations, match_teams_map=match_teams_map)
 
         calibrated_priors = None
+        discovery_records = []
         if retro_calibrated:
-            calibrated_priors = run_recalibration_pass1(
-                conn, matches, prepared_glicko, match_teams_map, player_thresholds
+            calibrated_priors, discovery_records = run_recalibration_pass1(
+                conn, matches, prepared_glicko, match_teams_map, player_thresholds, return_discovery=True
             )
             save_player_calibrated_priors(conn, calibrated_priors, thresholds=player_thresholds)
+            save_player_discovery_ratings(conn, discovery_records)
 
         glickos = calculate_glicko(
             conn,
