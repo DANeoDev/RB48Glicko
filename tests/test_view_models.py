@@ -58,6 +58,27 @@ class ViewModelsTest(unittest.TestCase):
         self.assertAlmostEqual(delta["rating"], 20.0)
         self.assertAlmostEqual(delta["conservative"], 35.0)
 
+    def test_compute_single_game_delta_with_draw(self):
+        evts = [
+            {
+                "date": "2026-01-01",
+                "is_win": False,
+                "is_loss": False,
+                "rating_before_total": 1500.0,
+                "rd_before_total": 100.0,
+                "rating_before_pitch": 1500.0,
+                "rd_before_pitch": 100.0,
+            }
+        ]
+        curr_r = 1500.0
+        curr_rd = 95.0
+        curr_c = curr_r - 3 * curr_rd
+        delta = _compute_single_game_delta(evts, TOTAL, curr_r, curr_rd, curr_c)
+        self.assertEqual(delta["games"], 1)
+        self.assertEqual(delta["wins"], 0)
+        self.assertEqual(delta["losses"], 0)
+        self.assertEqual(delta["win_percent"], 50.0)
+
     def test_compute_period_delta_cutoff(self):
         evts = [
             {

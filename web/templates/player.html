@@ -113,7 +113,7 @@
 <th>{{ t('stats.games', 'Games') }}</th>
 <th>{{ t('stats.wins', 'Ws') }}</th>
 <th>{{ t('stats.losses', 'Ls') }}</th>
-<th>{{ t('stats.win_rate', 'W%') }}</th>
+<th title="{{ t('stats.th_win_percent_title', 'Erfolgsquote: (Siege + 0,5 × Unentschieden) / Spiele.') }}">{{ t('stats.win_rate', 'W%') }}</th>
 </tr>
 </thead>
 <tbody>
@@ -127,7 +127,7 @@
 <td>{{ stats[rating_type]["games"] }}</td>
 <td>{% if is_player_stats_opted_out %}—{% else %}{{ stats[rating_type]["wins"] }}{% endif %}</td>
 <td>{% if is_player_stats_opted_out %}—{% else %}{{ stats[rating_type]["losses"] }}{% endif %}</td>
-<td>{% if is_player_stats_opted_out %}—{% else %}{{ stats[rating_type]["win_percent"] | round(1) }}%{% endif %}</td>
+<td title="{{ t('stats.th_win_percent_title', 'Erfolgsquote: (Siege + 0,5 × Unentschieden) / Spiele.') }}">{% if is_player_stats_opted_out %}—{% else %}{{ stats[rating_type]["win_percent"] | round(1) }}%{% endif %}</td>
 </tr>
 {% endfor %}
 </tbody>
@@ -197,7 +197,7 @@
             <span class="stat-num" id="stat-filtered-record">0 - 0 - 0</span>
             <span class="stat-lbl">{{ t('player.filtered_record', 'Bilanz (S-U-N)') }}</span>
         </div>
-        <div class="filtered-stat-card">
+        <div class="filtered-stat-card" title="{{ t('stats.th_win_percent_title', 'Erfolgsquote: (Siege + 0,5 × Unentschieden) / Spiele.') }}">
             <span class="stat-num" id="stat-filtered-winrate">0.0%</span>
             <span class="stat-lbl">{{ t('player.filtered_win_rate', 'Siegquote') }}</span>
         </div>
@@ -394,12 +394,12 @@
                     <tr>
                         <th>{{ t('player.player', 'Spieler') }}</th>
                         <th style="text-align: center;">{{ t('stats.games', 'Spiele') }}</th>
-                        <th style="text-align: center;">{{ t('stats.wins', 'S') }}</th>
-                        <th style="text-align: center;">{{ t('stats.losses', 'N') }}</th>
-                        <th style="text-align: center;">{{ t('stats.win_rate', 'Siegquote') }}</th>
+                        <th style="text-align: center;">{{ t('stats.record', 'Bilanz') }}</th>
+                        <th style="text-align: center;" title="{{ t('stats.th_win_percent_title', 'Erfolgsquote: (Siege + 0,5 × Unentschieden) / Spiele.') }}">{{ t('stats.win_rate', 'Siegquote') }}</th>
                         {% if has_tier('glicko_user') %}
                         <th style="text-align: center;" title="{{ t('player.delta_total_title', 'Summe der Rating-Deltas (E-Rating) in gemeinsamen/gegnerischen Spielen') }}">{{ t('player.delta_total', 'Δ E-Rating') }}</th>
                         {% endif %}
+                        <th style="text-align: center;">{{ t('stats.goal_diff', 'Diff.') }}</th>
                     </tr>
                 </thead>
                 <tbody id="corr-table-body"></tbody>

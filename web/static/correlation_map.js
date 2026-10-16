@@ -93,7 +93,7 @@
         });
 
         const list = Object.values(statsMap).map(st => {
-            st.winRate = st.games > 0 ? (st.wins / st.games) * 100 : 0;
+            st.winRate = st.games > 0 ? ((st.wins + 0.5 * st.draws) / st.games) * 100 : 0;
             st.goalDiff = st.goalsFor - st.goalsAgainst;
             st.avgDelta = st.games > 0 ? (st.delta / st.games) : 0.0;
             return st;
@@ -150,7 +150,7 @@
                 <div style="display: flex; gap: 14px; font-size: 11.5px; line-height: 1.4;">
                     <div>
                         <div><strong>${st.games}</strong> ${st.games === 1 ? 'Spiel' : 'Spiele'}</div>
-                        <div><span style="color: ${colorBadge}; font-weight: 700;">${st.winRate.toFixed(1)}%</span> Siegquote</div>
+                        <div title="Erfolgsquote: (Siege + 0,5 × Unentschieden) / Spiele"><span style="color: ${colorBadge}; font-weight: 700;">${st.winRate.toFixed(1)}%</span> Siegquote</div>
                     </div>
                     <div>
                         <div>${st.wins}S - ${st.draws}U - ${st.losses}N</div>
@@ -309,7 +309,7 @@
         // Axis Titles
         svgHtml += `
             <text x="${margin.left + plotW / 2}" y="${height - 6}" text-anchor="middle" fill="#a89ec4" font-size="11.5" font-weight="600">Gespielte Partien →</text>
-            <text transform="rotate(-90)" x="${-(margin.top + plotH / 2)}" y="16" text-anchor="middle" fill="#a89ec4" font-size="11.5" font-weight="600">Siegquote (%)</text>
+            <text transform="rotate(-90)" x="${-(margin.top + plotH / 2)}" y="16" text-anchor="middle" fill="#a89ec4" font-size="11.5" font-weight="600" style="cursor: help;"><title>Siegquote: (Siege + 0,5 × Unentschieden) / Spiele</title>Siegquote (%)</text>
         `;
 
         // Quadrant Labels

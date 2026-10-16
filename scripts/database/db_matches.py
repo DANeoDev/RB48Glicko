@@ -175,7 +175,8 @@ def get_player_stats(connection):
         for rating_type in (TOTAL, BOX, HF):
             games = player_stats[rating_type]["games"]
             wins = player_stats[rating_type]["wins"]
-            player_stats[rating_type]["win_percent"] = (wins / games * 100) if games else 0
+            draws = player_stats[rating_type]["draws"]
+            player_stats[rating_type]["win_percent"] = ((wins + 0.5 * draws) / games * 100) if games else 0.0
 
     return stats
 

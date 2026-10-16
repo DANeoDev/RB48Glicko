@@ -324,7 +324,7 @@
             const wins = matchingMatches.filter(m => m.is_win).length;
             const losses = matchingMatches.filter(m => m.is_loss).length;
             const draws = matchingMatches.filter(m => m.is_draw).length;
-            const winRate = (wins / count) * 100;
+            const winRate = count > 0 ? ((wins + 0.5 * draws) / count) * 100 : 0;
             const totalDelta = matchingMatches.reduce((acc, m) => {
                 const d = (m.delta !== null && m.delta !== undefined) ? Number(m.delta) : (Number(m.player_delta) || 0);
                 return acc + d;
@@ -359,7 +359,10 @@
                 if (goalsSub) goalsSub.textContent = "";
             } else {
                 if (statRec) statRec.textContent = `${wins}S - ${draws}U - ${losses}N`;
-                if (statWin) statWin.textContent = `${winRate.toFixed(1)}%`;
+                if (statWin) {
+                    statWin.textContent = `${winRate.toFixed(1)}%`;
+                    statWin.title = "Erfolgsquote: (Siege + 0,5 × Unentschieden) / Spiele";
+                }
 
                 if (deltaEl) {
                     const sign = totalDelta > 0 ? "+" : "";

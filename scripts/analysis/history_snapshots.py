@@ -97,7 +97,8 @@ def _compute_snapshot_deltas(
         g = len(subset_evts)
         w = sum(1 for e in subset_evts if e.get("is_win"))
         losses = sum(1 for e in subset_evts if e.get("is_loss"))
-        wp = round((w / g * 100.0), 1) if g > 0 else 0.0
+        draws = sum(1 for e in subset_evts if not e.get("is_win") and not e.get("is_loss"))
+        wp = round(((w + 0.5 * draws) / g * 100.0), 1) if g > 0 else 0.0
 
         b_r: float | None = None
         b_rd: float | None = None

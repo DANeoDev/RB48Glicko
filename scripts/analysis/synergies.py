@@ -110,7 +110,7 @@ def get_community_synergies(connection, min_games=5, exclude_player_ids=None):
             continue
         alias1 = players[p1]["aliases"][0] if p1 in players else f"Player #{p1}"
         alias2 = players[p2]["aliases"][0] if p2 in players else f"Player #{p2}"
-        win_rate = (st["wins"] / st["games"]) * 100
+        win_rate = ((st["wins"] + 0.5 * st["draws"]) / st["games"]) * 100
         goal_diff = st["goals_for"] - st["goals_against"]
         formatted_duos.append({
             "player1_id": p1,

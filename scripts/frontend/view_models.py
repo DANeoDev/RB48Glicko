@@ -131,7 +131,8 @@ def _compute_single_game_delta(
             g = len(day_evts)
             w = sum(1 for e in day_evts if e["is_win"])
             losses = sum(1 for e in day_evts if e["is_loss"])
-            wp = (w / g * 100) if g > 0 else 0.0
+            draws = sum(1 for e in day_evts if not e["is_win"] and not e["is_loss"])
+            wp = ((w + 0.5 * draws) / g * 100) if g > 0 else 0.0
             return {
                 "conservative": delta_c,
                 "rating": delta_r,
@@ -190,6 +191,7 @@ def _compute_single_game_delta(
 
     is_win = bool(last_evt.get("is_win"))
     is_loss = bool(last_evt.get("is_loss"))
+    is_draw = not is_win and not is_loss
     return {
         "conservative": game_delta_c,
         "rating": game_delta_r,
@@ -197,7 +199,7 @@ def _compute_single_game_delta(
         "games": 1,
         "wins": 1 if is_win else 0,
         "losses": 1 if is_loss else 0,
-        "win_percent": 100.0 if is_win else 0.0,
+        "win_percent": 100.0 if is_win else (50.0 if is_draw else 0.0),
         "is_inactivity": False,
         "tooltip": "",
     }
@@ -218,7 +220,8 @@ def _compute_period_delta(
     g = len(p_evts)
     w = sum(1 for e in p_evts if e["is_win"])
     losses = sum(1 for e in p_evts if e["is_loss"])
-    wp = (w / g * 100) if g > 0 else 0.0
+    draws = sum(1 for e in p_evts if not e["is_win"] and not e["is_loss"])
+    wp = ((w + 0.5 * draws) / g * 100) if g > 0 else 0.0
 
     b_r: float | None = None
     b_rd: float | None = None
