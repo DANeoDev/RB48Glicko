@@ -566,8 +566,8 @@ window.userHasGlickoTier = {{ 'true' if show_player_glicko else 'false' }};
 window.isPlayerStatsOptedOut = {{ 'true' if is_player_stats_opted_out else 'false' }};
 window.statsOptedOutPlayerIds = {{ (stats_opted_out_player_ids | list) | tojson }};
 </script>
-<script src="{{ url_for('static', filename='player_filters.js') }}"></script>
-<script src="{{ url_for('static', filename='correlation_map.js') }}"></script>
+<script src="{{ url_for('static', filename='player_filters.js', v='20261019_1') }}"></script>
+<script src="{{ url_for('static', filename='correlation_map.js', v='20261019_1') }}"></script>
 <script src="{{ url_for('static', filename='time_scrollbar.js', v='20260908_1') }}"></script>
 <script>
 (function() {
