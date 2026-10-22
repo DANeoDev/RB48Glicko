@@ -119,6 +119,60 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
 }
 
+/* User Personal Status Color Accents */
+.planner-event-card.planner-card-status-roster {
+    border-color: rgba(40, 167, 69, 0.45);
+    background: linear-gradient(180deg, rgba(40, 167, 69, 0.05) 0%, var(--bg-surface) 100px);
+}
+.planner-event-card.planner-card-status-roster:hover {
+    border-color: rgba(40, 167, 69, 0.8);
+    box-shadow: 0 4px 18px rgba(40, 167, 69, 0.15);
+}
+.planner-event-card.planner-card-status-roster.expanded {
+    border-color: #28a745;
+    box-shadow: 0 4px 24px rgba(40, 167, 69, 0.22);
+}
+.planner-event-card.planner-card-status-roster .planner-card-summary {
+    background: rgba(40, 167, 69, 0.12);
+}
+
+.planner-event-card.planner-card-status-waiting_list {
+    border-color: rgba(255, 193, 7, 0.45);
+    background: linear-gradient(180deg, rgba(255, 193, 7, 0.05) 0%, var(--bg-surface) 100px);
+}
+.planner-event-card.planner-card-status-waiting_list:hover {
+    border-color: rgba(255, 193, 7, 0.8);
+    box-shadow: 0 4px 18px rgba(255, 193, 7, 0.15);
+}
+.planner-event-card.planner-card-status-waiting_list.expanded {
+    border-color: #ffc107;
+    box-shadow: 0 4px 24px rgba(255, 193, 7, 0.22);
+}
+.planner-event-card.planner-card-status-waiting_list .planner-card-summary {
+    background: rgba(255, 193, 7, 0.12);
+}
+
+.planner-event-card.planner-card-status-declined {
+    border-color: rgba(220, 53, 69, 0.4);
+    background: linear-gradient(180deg, rgba(220, 53, 69, 0.04) 0%, var(--bg-surface) 100px);
+    opacity: 0.92;
+}
+.planner-event-card.planner-card-status-declined:hover {
+    border-color: rgba(220, 53, 69, 0.7);
+    box-shadow: 0 4px 18px rgba(220, 53, 69, 0.15);
+}
+.planner-event-card.planner-card-status-declined.expanded {
+    border-color: #dc3545;
+    box-shadow: 0 4px 24px rgba(220, 53, 69, 0.2);
+}
+.planner-event-card.planner-card-status-declined .planner-card-summary {
+    background: rgba(220, 53, 69, 0.1);
+}
+
+.planner-event-card.planner-card-status-none {
+    /* Default RB48 styling */
+}
+
 .planner-card-summary {
     padding: 16px 20px;
     display: flex;
@@ -207,6 +261,45 @@
     border: 1px solid rgba(220, 53, 69, 0.3);
 }
 
+/* Header My Status Pill */
+.planner-my-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 12px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.planner-my-status-pill.status-roster {
+    color: #88ff88;
+    background: rgba(40, 167, 69, 0.22);
+    border: 1px solid rgba(40, 167, 69, 0.5);
+    box-shadow: 0 0 10px rgba(40, 167, 69, 0.2);
+}
+
+.planner-my-status-pill.status-wl {
+    color: #ffd54f;
+    background: rgba(255, 193, 7, 0.2);
+    border: 1px solid rgba(255, 193, 7, 0.5);
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.2);
+}
+
+.planner-my-status-pill.status-declined {
+    color: #ff8888;
+    background: rgba(220, 53, 69, 0.2);
+    border: 1px solid rgba(220, 53, 69, 0.45);
+}
+
+.planner-my-status-pill.status-none {
+    color: #c4b5fd;
+    background: rgba(123, 82, 197, 0.2);
+    border: 1px solid rgba(123, 82, 197, 0.4);
+}
+
 .planner-toggle-arrow {
     font-size: 12px;
     color: var(--text-muted);
@@ -243,9 +336,69 @@
 
 .planner-rsvp-group {
     display: flex;
-    gap: 8px;
+    gap: 10px;
     align-items: center;
     flex-wrap: wrap;
+}
+
+/* My Status Badge in Action Bar */
+.planner-my-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 700;
+    margin-right: 4px;
+    user-select: none;
+}
+
+.planner-my-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.planner-my-status-badge.status-roster {
+    background: rgba(40, 167, 69, 0.18);
+    border: 1px solid rgba(40, 167, 69, 0.5);
+    color: #88ff88;
+}
+.planner-my-status-badge.status-roster .planner-my-status-dot {
+    background: #00e676;
+    box-shadow: 0 0 8px #00e676;
+}
+
+.planner-my-status-badge.status-waiting_list {
+    background: rgba(255, 193, 7, 0.18);
+    border: 1px solid rgba(255, 193, 7, 0.5);
+    color: #ffd54f;
+}
+.planner-my-status-badge.status-waiting_list .planner-my-status-dot {
+    background: #ffc107;
+    box-shadow: 0 0 8px #ffc107;
+}
+
+.planner-my-status-badge.status-declined {
+    background: rgba(220, 53, 69, 0.18);
+    border: 1px solid rgba(220, 53, 69, 0.45);
+    color: #ff8888;
+}
+.planner-my-status-badge.status-declined .planner-my-status-dot {
+    background: #ff5252;
+    box-shadow: 0 0 8px #ff5252;
+}
+
+.planner-my-status-badge.status-none {
+    background: rgba(123, 82, 197, 0.16);
+    border: 1px solid rgba(123, 82, 197, 0.38);
+    color: #c4b5fd;
+}
+.planner-my-status-badge.status-none .planner-my-status-dot {
+    background: #a855f7;
+    box-shadow: 0 0 6px #a855f7;
 }
 
 .planner-rsvp-btn {
@@ -617,5 +770,31 @@
 .planner-clear-list::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
     border-radius: 4px;
+}
+
+/* Mobile & Small Screens Adjustments */
+@media (max-width: 600px) {
+    .planner-card-summary {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .planner-summary-right {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .planner-my-status-pill {
+        font-size: 11.5px;
+        padding: 2px 8px;
+    }
+
+    .planner-my-status-badge {
+        width: 100%;
+        justify-content: center;
+        margin-right: 0;
+        margin-bottom: 6px;
+    }
 }
 

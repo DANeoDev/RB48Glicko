@@ -3,7 +3,7 @@
 {% block title %}RB48 — {{ t('planner.title', 'Attendance Planner') }}{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='planner.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='planner.css', v='20261022_1') }}">
 {% endblock %}
 
 {% block content %}
@@ -54,7 +54,7 @@
     {% if events %}
         <div class="planner-events-list">
             {% for event in events %}
-                <div class="planner-event-card {% if event.is_next_upcoming %}expanded{% endif %}" id="event-card-{{ event.id }}">
+                <div class="planner-event-card {% if event.is_next_upcoming %}expanded{% endif %} planner-card-status-{{ event.user_status }}" id="event-card-{{ event.id }}">
                     <!-- Card Summary Header (Accordion Trigger) -->
                     <div class="planner-card-summary">
                         <div class="planner-summary-left">
@@ -63,6 +63,25 @@
                             <span class="planner-time-tag">@ {{ event.formatted_time }} · {{ event.location }}</span>
                         </div>
                         <div class="planner-summary-right">
+                            {% if current_user %}
+                                {% if event.user_status == 'roster' %}
+                                    <span class="planner-my-status-pill status-roster" title="{{ t('planner.my_status_title', 'Dein persönlicher Anmeldestatus für diesen Spieltag') }}">
+                                        🟢 {{ t('planner.my_status_roster', 'Eingetragen') }}
+                                    </span>
+                                {% elif event.user_status == 'waiting_list' %}
+                                    <span class="planner-my-status-pill status-wl" title="{{ t('planner.my_status_title', 'Dein persönlicher Anmeldestatus für diesen Spieltag') }}">
+                                        🟡 {{ t('planner.my_status_wl', pos=event.user_wl_pos) }}
+                                    </span>
+                                {% elif event.user_status == 'declined' %}
+                                    <span class="planner-my-status-pill status-declined" title="{{ t('planner.my_status_title', 'Dein persönlicher Anmeldestatus für diesen Spieltag') }}">
+                                        🔴 {{ t('planner.my_status_declined', 'Abgesagt') }}
+                                    </span>
+                                {% else %}
+                                    <span class="planner-my-status-pill status-none" title="{{ t('planner.my_status_title', 'Dein persönlicher Anmeldestatus für diesen Spieltag') }}">
+                                        🟣 {{ t('planner.my_status_none', 'Offen') }}
+                                    </span>
+                                {% endif %}
+                            {% endif %}
                             <span class="planner-counter-badge planner-counter-attending" title="Attending players">
                                 👍 {{ event.attending_count }}/{{ event.max_players }}
                             </span>
@@ -81,6 +100,20 @@
                         <div class="planner-actions-bar">
                             {% if current_user %}
                                 <div class="planner-rsvp-group">
+                                    <div class="planner-my-status-badge status-{{ event.user_status }}" title="{{ t('planner.my_status_title', 'Dein persönlicher Anmeldestatus für diesen Spieltag') }}">
+                                        <span class="planner-my-status-dot"></span>
+                                        <span class="planner-my-status-text">
+                                            {% if event.user_status == 'roster' %}
+                                                {{ t('planner.my_status_roster', 'Eingetragen') }}
+                                            {% elif event.user_status == 'waiting_list' %}
+                                                {{ t('planner.my_status_wl', pos=event.user_wl_pos) }}
+                                            {% elif event.user_status == 'declined' %}
+                                                {{ t('planner.my_status_declined', 'Abgesagt') }}
+                                            {% else %}
+                                                {{ t('planner.my_status_none', 'Offen') }}
+                                            {% endif %}
+                                        </span>
+                                    </div>
                                     <form method="post" action="{{ url_for('planner.rsvp_event', event_id=event.id) }}" style="display: inline-flex; gap: 6px; margin: 0;">
                                         <button type="submit" name="status" value="attending" class="planner-rsvp-btn btn-attend {% if event.user_rsvp == 'attending' %}active{% endif %}">
                                             {{ t('planner.attend', '👍 Attend') }}

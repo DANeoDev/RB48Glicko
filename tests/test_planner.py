@@ -645,6 +645,45 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(res_again.status_code, 200)
         self.assertIn(b"Keine zur\xc3\xbcckliegenden Spieltage", res_again.data)
 
+    def test_planner_personal_status_indicators(self):
+        """Test that user_status (roster, waiting_list, declined, none) renders appropriate classes and badges."""
+        from web.routes.planner import format_event_view_data
+
+        event = {"id": 1, "event_date": "2099-05-10 18:30", "pitch": "box", "max_players": 2, "location": "Soccerbox", "title": ""}
+        current_user = {"id": 42, "username": "TestUser"}
+
+        # Case 1: Not registered -> user_status == 'none'
+        attendees_none = []
+        data_none = format_event_view_data(event, current_user, attendees_none)
+        self.assertEqual(data_none["user_status"], "none")
+        self.assertIsNone(data_none["user_wl_pos"])
+
+        # Case 2: Registered and in roster -> user_status == 'roster'
+        attendees_roster = [
+            {"id": 1, "user_id": 42, "status": "attending", "is_guest": False, "registered_by_user_id": None}
+        ]
+        data_roster = format_event_view_data(event, current_user, attendees_roster)
+        self.assertEqual(data_roster["user_status"], "roster")
+        self.assertIsNone(data_roster["user_wl_pos"])
+
+        # Case 3: Registered but capacity reached -> user_status == 'waiting_list', user_wl_pos == 1
+        attendees_wl = [
+            {"id": 1, "user_id": 101, "status": "attending", "is_guest": False, "registered_by_user_id": None},
+            {"id": 2, "user_id": 102, "status": "attending", "is_guest": False, "registered_by_user_id": None},
+            {"id": 3, "user_id": 42, "status": "attending", "is_guest": False, "registered_by_user_id": None},
+        ]
+        data_wl = format_event_view_data(event, current_user, attendees_wl)
+        self.assertEqual(data_wl["user_status"], "waiting_list")
+        self.assertEqual(data_wl["user_wl_pos"], 1)
+
+        # Case 4: Declined -> user_status == 'declined'
+        attendees_dec = [
+            {"id": 1, "user_id": 42, "status": "declined", "is_guest": False, "registered_by_user_id": None}
+        ]
+        data_dec = format_event_view_data(event, current_user, attendees_dec)
+        self.assertEqual(data_dec["user_status"], "declined")
+        self.assertIsNone(data_dec["user_wl_pos"])
+
 
 if __name__ == "__main__":
     unittest.main()

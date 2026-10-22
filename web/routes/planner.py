@@ -101,6 +101,8 @@ def format_event_view_data(event, current_user, attendees, alias_lookup=None, ac
         matched_player_ids = resolve_active_roster_player_ids(active_roster, alias_lookup, acc_conn)
 
     user_rsvp = None
+    user_status = "none"  # "roster", "waiting_list", "declined", "none"
+    user_wl_pos = None
     user_guests = []
     if current_user:
         for a in attendees:
@@ -108,6 +110,24 @@ def format_event_view_data(event, current_user, attendees, alias_lookup=None, ac
                 user_rsvp = a["status"]
             if a["registered_by_user_id"] == current_user["id"]:
                 user_guests.append(a)
+
+        if user_rsvp == "attending":
+            # Check if user is in active roster or waiting list
+            in_roster = any(a["user_id"] == current_user["id"] and not a["is_guest"] for a in active_roster)
+            if in_roster:
+                user_status = "roster"
+            else:
+                for idx, a in enumerate(waiting_list, start=1):
+                    if a["user_id"] == current_user["id"] and not a["is_guest"]:
+                        user_status = "waiting_list"
+                        user_wl_pos = idx
+                        break
+                if user_status != "waiting_list":
+                    user_status = "roster"
+        elif user_rsvp == "declined":
+            user_status = "declined"
+        else:
+            user_status = "none"
 
     try:
         formatted_date = format_date_localized(event["event_date"])
@@ -143,6 +163,8 @@ def format_event_view_data(event, current_user, attendees, alias_lookup=None, ac
         "guest_unlock_time_formatted": guest_unlock_time_formatted,
         "matched_player_ids_str": ",".join(map(str, matched_player_ids)),
         "user_rsvp": user_rsvp,
+        "user_status": user_status,
+        "user_wl_pos": user_wl_pos,
         "user_guests": user_guests,
     }
 
