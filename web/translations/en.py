@@ -716,7 +716,7 @@ TRANSLATIONS_EN = {
     "auth.username_label": "Username:",
     "auth.email_label": "Email Address:",
     "auth.attendance_name_label": "Attendance Display Name:",
-    "auth.attendance_name_hint": "The name that appears on the Attendance Planner and guest player tags.",
+    "auth.attendance_name_hint": "The name that appears on the Attendance Planner and guest player tags. Leave empty to use default name.",
     "auth.connect_player_label": "Connect Player Profile:",
     "auth.no_player_option": "-- No connected player --",
     "auth.pending_player_msg": "⏳ Connection request pending Webmaster approval for: <strong>{name}</strong>",

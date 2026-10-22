@@ -738,7 +738,7 @@ TRANSLATIONS_DE = {
     "auth.username_label": "Benutzername:",
     "auth.email_label": "E-Mail-Adresse:",
     "auth.attendance_name_label": "Anzeigename Anwesenheitsplaner:",
-    "auth.attendance_name_hint": "Der Name, der im Anwesenheitsplaner und auf Gast-Tags angezeigt wird.",
+    "auth.attendance_name_hint": "Der Name, der im Anwesenheitsplaner und auf Gast-Tags angezeigt wird. Frei lassen für Standardnamen.",
     "auth.connect_player_label": "Spielerprofil verknüpfen:",
     "auth.no_player_option": "-- Kein verknüpfter Spieler --",
     "auth.pending_player_msg": "⏳ Verknüpfungsanfrage wartet auf Freigabe durch den Webmaster für: <strong>{name}</strong>",

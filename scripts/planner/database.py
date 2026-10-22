@@ -646,3 +646,49 @@ def backup_and_clear_all_events(connection):
     backup_name, _ = backup_and_clear_events(connection, event_ids=None)
     return backup_name
 
+
+def update_user_attendee_names(connection, user_id: int, new_name: str):
+    """
+    Update attendee entries when a user changes their display name:
+    1. Updates the user's direct RSVP entries (name = new_name WHERE user_id = ? AND is_guest = 0).
+    2. Updates registered guest names that contain the owner's tag (e.g. 'Max (OldName +1)' -> 'Max (NewName +1)').
+    """
+    new_name = new_name.strip()
+    if not user_id or not new_name:
+        return
+
+    # Update direct RSVPs
+    connection.execute(
+        """
+        UPDATE attendees
+        SET name = ?
+        WHERE user_id = ? AND is_guest = 0
+        """,
+        (new_name, user_id),
+    )
+
+    # Update guests registered by this user: 'GuestName (OldTag +1)' -> 'GuestName (NewTag +1)'
+    guest_rows = connection.execute(
+        """
+        SELECT id, name, guest_index
+        FROM attendees
+        WHERE registered_by_user_id = ? AND is_guest = 1
+        """,
+        (user_id,),
+    ).fetchall()
+
+    for gid, current_name, g_idx in guest_rows:
+        raw_guest_name = current_name.split("(")[0].strip() if "(" in current_name else current_name.strip()
+        idx_suffix = f" +{g_idx}" if g_idx and g_idx > 0 else ""
+        updated_guest_name = f"{raw_guest_name} ({new_name}{idx_suffix})"
+        connection.execute(
+            """
+            UPDATE attendees
+            SET name = ?
+            WHERE id = ?
+            """,
+            (updated_guest_name, gid),
+        )
+
+    connection.commit()
+

@@ -30,6 +30,42 @@ TIER_BY_NAME = {v: k for k, v in TIER_NAMES.items()}
 _UNSET = object()
 
 
+def get_effective_attendance_name(user, main_conn=None) -> str:
+    """
+    Determine the effective attendance display name for a user:
+    1. If user explicitly configured an attendance_name, use it.
+    2. Else if user is linked to a player in the main database, use that player's primary alias.
+    3. Otherwise, fall back to the user's username.
+    """
+    if not user:
+        return ""
+
+    if not isinstance(user, dict):
+        user = dict(user)
+
+    custom_name = (user.get("attendance_name") or "").strip()
+    if custom_name:
+        return custom_name
+
+    player_id = user.get("player_id")
+    if player_id:
+        should_close = False
+        if main_conn is None:
+            from scripts.database.database import get_connection as get_main_connection
+            main_conn = get_main_connection()
+            should_close = True
+        try:
+            from scripts.database.db_players import get_player_primary_name
+            primary_name = get_player_primary_name(main_conn, player_id)
+            if primary_name:
+                return primary_name
+        finally:
+            if should_close:
+                main_conn.close()
+
+    return user.get("username", "")
+
+
 def get_current_user():
     """Return the currently authenticated user dictionary or None."""
     if not has_request_context():
@@ -41,6 +77,9 @@ def get_current_user():
         g._current_user = None
         return None
     user = get_user(user_id)
+    if user:
+        user = dict(user)
+        user["effective_attendance_name"] = get_effective_attendance_name(user)
     g._current_user = user
     return user
 

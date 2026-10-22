@@ -4,7 +4,7 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request,
 
 from scripts.accounts.database import get_accounts_connection, get_user_by_id, set_user_attendance_name
 from scripts.database.database import get_connection as get_main_connection
-from scripts.database.db_players import get_alias_lookup
+from scripts.database.db_players import get_alias_lookup, get_player_primary_name
 from scripts.matchmaking.match_parser import normalize_player_name
 from scripts.planner.database import (
     add_guest_rsvp,
@@ -22,8 +22,17 @@ from scripts.planner.database import (
     remove_attendee,
     set_user_rsvp,
     update_attendee,
+    update_user_attendee_names,
 )
-from web.services.security import Tier, get_current_user, has_tier, require_admin, require_tier, require_webmaster
+from web.services.security import (
+    Tier,
+    get_current_user,
+    get_effective_attendance_name,
+    has_tier,
+    require_admin,
+    require_tier,
+    require_webmaster,
+)
 from web.services.translations import format_date_localized, get_current_lang, t
 
 planner_bp = Blueprint("planner", __name__)
@@ -206,7 +215,7 @@ def planner():
 
     past_events_count = sum(1 for evt in events_data if evt["event_date"][:10] < today_str)
 
-    user_attendance_name = (user.get("attendance_name") or user.get("username")) if user else ""
+    user_attendance_name = get_effective_attendance_name(user)
     return render_template(
         "planner.html",
         events=events_data,
@@ -229,7 +238,7 @@ def rsvp_event(event_id):
             flash("Match event not found.", "danger")
             return redirect(url_for("planner.planner"))
 
-        display_name = user.get("attendance_name") or user.get("username")
+        display_name = get_effective_attendance_name(user)
 
         if action == "cancel":
             if has_tier(Tier.ADMIN):
@@ -276,7 +285,7 @@ def add_guest(event_id):
 
         if user:
             registered_by_id = user["id"]
-            reg_name = user.get("attendance_name") or user.get("username")
+            reg_name = get_effective_attendance_name(user)
             add_guest_rsvp(connection, event_id, guest_name, registered_by_id, reg_name)
             flash(f"Guest '{guest_name}' has been added.", "success")
         else:
@@ -307,7 +316,7 @@ def edit_event_attendee(event_id, attendee_id):
             flash("Attendee entry not found.", "danger")
             return redirect(url_for("planner.planner"))
 
-        actor_name = (user.get("attendance_name") or user.get("username")) if user else "Admin"
+        actor_name = get_effective_attendance_name(user) if user else "Admin"
         update_attendee(connection, attendee_id, name=new_name, status=new_status, actor_name=actor_name)
         flash(f"Updated entry for '{new_name}'.", "success")
     finally:
@@ -333,7 +342,7 @@ def remove_event_attendee(event_id, attendee_id):
         is_visitor_entry = bool(target["is_guest"] and not target["registered_by_user_id"] and not target["user_id"])
 
         if is_admin or is_guest_owner or is_visitor_entry:
-            actor_name = (user.get("attendance_name") or user.get("username")) if user else "Besucher"
+            actor_name = get_effective_attendance_name(user) if user else "Besucher"
             remove_attendee(connection, attendee_id, actor_name=actor_name)
             flash(f"'{target['name']}' wurde erfolgreich abgemeldet.", "info")
         else:
@@ -554,11 +563,14 @@ def update_attendance_name():
         return redirect(request.referrer or url_for("planner.planner"))
 
     connection = get_accounts_connection()
+    p_conn = get_planner_connection()
     try:
         set_user_attendance_name(connection, user["id"], new_name)
+        update_user_attendee_names(p_conn, user["id"], new_name)
         flash(f"Your attendance display name has been updated to '{new_name}'.", "success")
     finally:
         connection.close()
+        p_conn.close()
 
     return redirect(request.referrer or url_for("planner.planner"))
 

@@ -263,3 +263,17 @@ def get_player_aliases(connection, player_id: int):
     return [{"alias": r[0], "is_primary": bool(r[1])} for r in rows]
 
 
+def get_player_primary_name(connection, player_id: int) -> str | None:
+    """Return the primary alias/name of a player, or first alias, or None if not found."""
+    if not player_id:
+        return None
+    row = connection.execute("""
+        SELECT alias
+        FROM aliases
+        WHERE player_id = ?
+        ORDER BY is_primary DESC, rowid ASC
+        LIMIT 1
+    """, (player_id,)).fetchone()
+    return row[0] if row else None
+
+

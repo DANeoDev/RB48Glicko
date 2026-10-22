@@ -61,7 +61,13 @@ from scripts.database.db_players import (
     get_player_aliases,
     get_alias_lookup,
 )
-from scripts.planner.database import get_planner_connection, get_attendance_logs, get_attendance_logs_count, get_all_events
+from scripts.planner.database import (
+    get_all_events,
+    get_attendance_logs,
+    get_attendance_logs_count,
+    get_planner_connection,
+    update_user_attendee_names,
+)
 from web.services.cache import invalidate_stats_cache
 from web.services.email_service import is_smtp_configured, send_verification_email
 from web.services.translations import get_current_lang
@@ -70,6 +76,7 @@ from web.services.security import (
     TIER_BY_NAME,
     get_actual_tier,
     get_current_user,
+    get_effective_attendance_name,
     require_tier,
     require_webmaster,
 )
@@ -675,6 +682,17 @@ def handle_player_link(user_id):
                 "Spielerprofil-Anfrage abgelehnt",
             )
             flash(f"Rejected player link request for '{user['username']}'.", "info")
+
+        if action in ("approve", "unlink"):
+            updated_user = get_user_by_id(connection, user_id)
+            eff_name = get_effective_attendance_name(updated_user)
+            if eff_name:
+                p_conn = get_planner_connection()
+                try:
+                    update_user_attendee_names(p_conn, user_id, eff_name)
+                finally:
+                    p_conn.close()
+
         return redirect(url_for("auth.admin_users"))
     finally:
         connection.close()
@@ -713,6 +731,16 @@ def assign_player_link(user_id):
                 "Spielerprofil-Verknüpfung entfernt",
             )
             flash(f"Unlinked player profile for '{user['username']}'.", "info")
+
+        updated_user = get_user_by_id(connection, user_id)
+        eff_name = get_effective_attendance_name(updated_user)
+        if eff_name:
+            p_conn = get_planner_connection()
+            try:
+                update_user_attendee_names(p_conn, user_id, eff_name)
+            finally:
+                p_conn.close()
+
         return redirect(url_for("auth.admin_users"))
     finally:
         connection.close()
@@ -770,10 +798,14 @@ def settings():
 
     linked_player_positions = []
     linked_player_primary = ""
+    default_attendance_name = user.get("username", "")
     if user.get("player_id") and user["player_id"] in players:
         raw_pos = players[user["player_id"]].get("positions", [])
         linked_player_positions = [pos.replace("*", "").strip().upper() for pos in raw_pos]
         linked_player_primary = next((pos.replace("*", "").strip().upper() for pos in raw_pos if "*" in pos), "")
+        p_aliases = players[user["player_id"]].get("aliases", [])
+        if p_aliases:
+            default_attendance_name = p_aliases[0]
 
     return render_template(
         "settings.html",
@@ -782,6 +814,7 @@ def settings():
         authored_bubbles=authored_bubbles,
         linked_player_positions=linked_player_positions,
         linked_player_primary=linked_player_primary,
+        default_attendance_name=default_attendance_name,
     )
 
 
@@ -817,13 +850,13 @@ def update_profile():
     try:
         old_opt_out = int(user.get("glicko_opt_out") or 0)
         old_stats_opt_out = int(user.get("stats_opt_out") or 0)
-        old_attendance_name = user.get("attendance_name") or user["username"]
+        old_eff_name = get_effective_attendance_name(user)
         current_linked_id = user.get("player_id")
 
         update_user_profile(
             conn,
             user["id"],
-            attendance_name=attendance_name if attendance_name else user["username"],
+            attendance_name=attendance_name if attendance_name else "",
             avatar_file=avatar_file,
             glicko_opt_out=glicko_opt_out,
             stats_opt_out=stats_opt_out,
@@ -848,15 +881,6 @@ def update_profile():
                 user["id"],
                 user["username"],
                 f"Stat-Opt-Out {'aktiviert' if stats_opt_out else 'deaktiviert'}",
-            )
-
-        if attendance_name and attendance_name != old_attendance_name:
-            record_webmaster_notification(
-                conn,
-                "profile_updated",
-                user["id"],
-                user["username"],
-                f"Planer-Name geändert: '{attendance_name}'",
             )
 
         # Handle player profile connection logic
@@ -886,6 +910,26 @@ def update_profile():
                     flash("Player profile disconnected.", "info")
         else:
             flash("Profile settings updated successfully!", "success")
+
+        # Sync effective attendance name with planner attendee records
+        updated_user = get_user_by_id(conn, user["id"])
+        new_eff_name = get_effective_attendance_name(updated_user)
+
+        if new_eff_name != old_eff_name:
+            record_webmaster_notification(
+                conn,
+                "profile_updated",
+                user["id"],
+                user["username"],
+                f"Planer-Name geändert: '{new_eff_name}'",
+            )
+
+        if new_eff_name:
+            p_conn = get_planner_connection()
+            try:
+                update_user_attendee_names(p_conn, user["id"], new_eff_name)
+            finally:
+                p_conn.close()
     finally:
         conn.close()
 

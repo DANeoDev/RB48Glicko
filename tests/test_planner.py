@@ -32,9 +32,11 @@ from scripts.planner.database import (
     remove_attendee,
     set_user_rsvp,
     update_attendee,
+    update_user_attendee_names,
 )
 from web.app import app
 from web.routes.planner import calculate_guest_unlock_time, format_event_view_data, is_guest_registration_unlocked
+from web.services.security import get_effective_attendance_name
 
 
 class PlannerTests(unittest.TestCase):
@@ -683,6 +685,57 @@ class PlannerTests(unittest.TestCase):
         data_dec = format_event_view_data(event, current_user, attendees_dec)
         self.assertEqual(data_dec["user_status"], "declined")
         self.assertIsNone(data_dec["user_wl_pos"])
+
+    def test_effective_attendance_name_and_sync(self):
+        """Test effective attendance name resolution and attendee table synchronization on name update."""
+        import sqlite3
+
+        # Test resolution directly with mocked main db connection
+        main_mock = sqlite3.connect(":memory:")
+        main_mock.row_factory = sqlite3.Row
+        main_mock.execute("CREATE TABLE players (player_id INTEGER PRIMARY KEY)")
+        main_mock.execute("CREATE TABLE aliases (alias TEXT, player_id INTEGER, is_primary INTEGER)")
+        main_mock.execute("INSERT INTO players (player_id) VALUES (1)")
+        main_mock.execute("INSERT INTO aliases (alias, player_id, is_primary) VALUES ('Nick', 1, 0)")
+        main_mock.execute("INSERT INTO aliases (alias, player_id, is_primary) VALUES ('Dominik', 1, 1)")
+
+        # Case 1: unlinked user without attendance_name -> username
+        u1 = {"id": 1, "username": "user123", "player_id": None, "attendance_name": None}
+        self.assertEqual(get_effective_attendance_name(u1, main_conn=main_mock), "user123")
+
+        # Case 2: linked user without attendance_name -> primary alias
+        u2 = {"id": 2, "username": "user123", "player_id": 1, "attendance_name": None}
+        self.assertEqual(get_effective_attendance_name(u2, main_conn=main_mock), "Dominik")
+
+        # Case 3: user with custom attendance_name -> custom attendance_name overrides player primary
+        u3 = {"id": 3, "username": "user123", "player_id": 1, "attendance_name": "Domme"}
+        self.assertEqual(get_effective_attendance_name(u3, main_conn=main_mock), "Domme")
+
+        main_mock.close()
+
+        # Test database sync via update_user_attendee_names
+        event_id = create_event(self.conn, "2099-06-01 18:30", "box", 10, "Box")
+        set_user_rsvp(self.conn, event_id, 42, "OldName", "attending")
+        add_guest_rsvp(self.conn, event_id, "Max", registered_by_user_id=42, registered_by_name="OldName")
+        add_guest_rsvp(self.conn, event_id, "Moritz", registered_by_user_id=42, registered_by_name="OldName")
+
+        # Verify initial names in attendees table
+        attendees = get_event_attendees(self.conn, event_id)
+        names = [a["name"] for a in attendees]
+        self.assertIn("OldName", names)
+        self.assertIn("Max (OldName +1)", names)
+        self.assertIn("Moritz (OldName +2)", names)
+
+        # Update display name for user 42
+        update_user_attendee_names(self.conn, 42, "NewAwesomeName")
+
+        # Verify synchronized names
+        updated_attendees = get_event_attendees(self.conn, event_id)
+        updated_names = [a["name"] for a in updated_attendees]
+        self.assertIn("NewAwesomeName", updated_names)
+        self.assertIn("Max (NewAwesomeName +1)", updated_names)
+        self.assertIn("Moritz (NewAwesomeName +2)", updated_names)
+        self.assertNotIn("OldName", updated_names)
 
 
 if __name__ == "__main__":

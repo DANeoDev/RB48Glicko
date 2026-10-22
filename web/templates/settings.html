@@ -48,8 +48,8 @@
                         <label for="attendance_name" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #ffffff;">
                             {{ t('auth.attendance_name_label', 'Attendance Display Name:') }}
                         </label>
-                        <input type="text" id="attendance_name" name="attendance_name" value="{{ user.attendance_name or user.username }}" placeholder="e.g. Konsti" required style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); background: #24194A; border: 1px solid #5A4A83; color: #ffffff;">
-                        <span style="font-size: 11px; color: var(--text-muted);">{{ t('auth.attendance_name_hint', 'The name that appears on the Attendance Planner and guest player tags.') }}</span>
+                        <input type="text" id="attendance_name" name="attendance_name" value="{{ user.attendance_name or '' }}" placeholder="{{ default_attendance_name }}" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); background: #24194A; border: 1px solid #5A4A83; color: #ffffff;">
+                        <span style="font-size: 11px; color: var(--text-muted);">{{ t('auth.attendance_name_hint', 'The name that appears on the Attendance Planner and guest player tags. Leave empty to use your default name.') }}</span>
                     </div>
 
                     <div style="margin-bottom: 14px;">

@@ -224,6 +224,9 @@ def create_account_tables(connection):
     # Normalize existing dashboard/index bubbles to root '/'
     connection.execute("UPDATE noise_bubbles SET page_path = '/' WHERE page_path IN ('/dashboard', '/index', '/dashboard/', '/index/')")
 
+    # Normalize legacy attendance_name values that were auto-set to username
+    connection.execute("UPDATE users SET attendance_name = NULL WHERE attendance_name = username")
+
     try:
         cleanup_and_consolidate_box_mvp_votes(connection)
     except Exception:
@@ -398,8 +401,7 @@ def create_user(connection, username, email, password_hash, created_at, role="us
     """Insert a new user account."""
     if role in ("admin", "webmaster"):
         is_approved = 1
-    if not attendance_name:
-        attendance_name = username
+    clean_attendance_name = attendance_name.strip() if attendance_name and attendance_name.strip() else None
     cursor = connection.execute(
         """
         INSERT INTO users (
@@ -413,7 +415,7 @@ def create_user(connection, username, email, password_hash, created_at, role="us
         )
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (username, email, password_hash, role, is_approved, attendance_name, created_at),
+        (username, email, password_hash, role, is_approved, clean_attendance_name, created_at),
     )
     connection.commit()
     return cursor.lastrowid
@@ -453,9 +455,10 @@ def approve_user(connection, user_id, approved=True):
 
 def set_user_attendance_name(connection, user_id, attendance_name):
     """Update user's attendance display name."""
+    clean_name = attendance_name.strip() if attendance_name and attendance_name.strip() else None
     connection.execute(
         "UPDATE users SET attendance_name = ? WHERE id = ?",
-        (attendance_name.strip(), user_id),
+        (clean_name, user_id),
     )
     connection.commit()
 
@@ -466,7 +469,7 @@ def update_user_profile(connection, user_id, attendance_name=None, avatar_file=N
     params = []
     if attendance_name is not None:
         updates.append("attendance_name = ?")
-        params.append(attendance_name.strip())
+        params.append(attendance_name.strip() if attendance_name.strip() else None)
     if avatar_file is not None:
         updates.append("avatar_file = ?")
         params.append(avatar_file if avatar_file else None)
