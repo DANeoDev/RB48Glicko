@@ -758,6 +758,7 @@ def get_mvp_results(match_id):
         "is_open": False,
         "deadline_formatted": deadline.strftime("%d.%m.%Y um %H:%M Uhr"),
         "total_voters": res["total_voters"],
+        "scoring_system": res.get("scoring_system", "legacy_count"),
         "candidates": res["candidates"],
         "ballots": res.get("ballots", []),
     })

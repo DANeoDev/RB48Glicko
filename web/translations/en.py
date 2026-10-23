@@ -386,7 +386,8 @@ TRANSLATIONS_EN = {
     "matches.mvp_rule_no_self_bold": "No self-voting:",
     "matches.mvp_rule_no_self_desc": "You cannot vote for yourself as MVP.",
     "matches.mvp_rule_system_bold": "Weighting system:",
-    "matches.mvp_rule_system_desc": "Rank 1 (Gold / 3 pts) is required, Rank 2 (Silver / 2 pts) and Rank 3 (Bronze / 1 pt) are optional.",
+    "matches.mvp_rule_system_desc": "Rank 1 (Gold / 4 pts) is required, Rank 2 (Silver / 3 pts) and Rank 3 (Bronze / 2 pts) are optional.",
+    "matches.mvp_scoring_badge": "Points Scoring:",
     "matches.mvp_login_action": "Log in now",
     "matches.mvp_settings_action": "Go to Profile / Settings",
     "matches.mvp_tab_summary": "Summary",
@@ -431,7 +432,7 @@ TRANSLATIONS_EN = {
     # FAQ MVP
     "faq.q_mvp_voting": "How does MVP voting and the Medal Table work?",
     "faq.a_mvp_voting_p1": "After each matchday, all participating players can cast anonymous votes for the match's most valuable players until 20:00 on the following day. Each eligible voter can cast up to 3 ranked votes (1st place 🥇, 2nd place 🥈, 3rd place 🥉 for 3 distinct players; casting only 1 or 2 votes is also supported).",
-    "faq.a_mvp_voting_p2": "The MVP (Gold) is the player with the most total votes. Ties are broken by 1st-place votes, then 2nd-place votes, etc. Second place (Silver) and third place (Bronze) are also highlighted on match cards and tracked in the <a href=\"{medals_url}\" style=\"color: #80deea; font-weight: 600;\">MVP Medal Table</a>, filterable by quarters, half-years, and years.",
+    "faq.a_mvp_voting_p2": "Starting October 23, 2026, votes are evaluated with a weighted scoring system: 🥇 1st place (Gold) = 4 points, 🥈 2nd place (Silver) = 3 points, 🥉 3rd place (Bronze) = 2 points. The MVP (Gold) is the player with the highest total score (ties are broken by 1st-place votes, then 2nd-place votes, etc.). Elections held prior to October 23, 2026, remain unchanged under their historical total vote count system. Second place (Silver) and third place (Bronze) are also highlighted on match cards and tracked in the <a href=\"{medals_url}\" style=\"color: #80deea; font-weight: 600;\">MVP Medal Table</a>, filterable by quarters, half-years, and years.",
 
     # Player Profile
     "player.title": "Player Profile: {alias}",

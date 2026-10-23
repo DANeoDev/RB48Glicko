@@ -202,6 +202,82 @@ class TestMVPVotingAndMedals(unittest.TestCase):
             record_match_mvp_votes(self.conn, "M001", u1, [10, 20])
         self.assertIn("selbst", str(ctx.exception))
 
+    def test_legacy_vs_weighted_scoring_systems(self):
+        """
+        Verify that:
+        1. Historical matches (< 2026-10-23): sorted by total_votes first.
+           Player with 4 votes (1G, 1S, 2B) beats player with 3 votes (3G).
+        2. Future matches (>= 2026-10-23): sorted by 4-3-2 points first.
+           Player with 3 votes (3G = 12 pts) beats player with 4 votes (1G, 1S, 2B = 11 pts).
+        3. Equal points tie-break on future matches: rank1 > rank2 > rank3 > total_votes.
+           Player with 1G (4 pts, 1 rank1) beats player with 2B (4 pts, 0 rank1).
+        """
+        u1 = self.create_user(linked_player_id=1)
+        u2 = self.create_user(linked_player_id=2)
+        u3 = self.create_user(linked_player_id=3)
+        u4 = self.create_user(linked_player_id=4)
+        u5 = self.create_user(linked_player_id=5)
+
+        # Player 10: 3 votes, all 1st place (Gold)
+        #   -> Legacy: 3 votes.
+        #   -> Weighted: 3 * 4 = 12 pts.
+        # Player 20: 4 votes (1x 1st, 1x 2nd, 2x 3rd)
+        #   -> Legacy: 4 votes.
+        #   -> Weighted: 1*4 + 1*3 + 2*2 = 11 pts.
+
+        # --- 1. Historical Match: 2026-07-08-1 (Legacy) ---
+        legacy_id = "2026-07-08-1"
+        record_match_mvp_votes(self.conn, legacy_id, u1, [10])
+        record_match_mvp_votes(self.conn, legacy_id, u2, [10])
+        record_match_mvp_votes(self.conn, legacy_id, u3, [10])
+        record_match_mvp_votes(self.conn, legacy_id, u4, [20, 99, 98])
+        record_match_mvp_votes(self.conn, legacy_id, u5, [99, 20, 98])
+
+        # Let's add 2 bronze votes for Player 20 from u1 and u2 in legacy match:
+        # Actually, let's re-record with clean ballots:
+        record_match_mvp_votes(self.conn, legacy_id, u1, [10, 91, 20])  # 10 gets Gold, 20 gets Bronze
+        record_match_mvp_votes(self.conn, legacy_id, u2, [10, 92, 20])  # 10 gets Gold, 20 gets Bronze
+        record_match_mvp_votes(self.conn, legacy_id, u3, [10])          # 10 gets Gold
+        record_match_mvp_votes(self.conn, legacy_id, u4, [20])          # 20 gets Gold
+        record_match_mvp_votes(self.conn, legacy_id, u5, [93, 20])      # 20 gets Silver
+        # Totals for legacy_id:
+        # Player 10: 3 votes (3 rank1) -> 3 votes, 12 pts
+        # Player 20: 4 votes (1 rank1, 1 rank2, 2 rank3) -> 4 votes, 11 pts
+
+        legacy_podium = get_match_mvp_podium(self.conn, [legacy_id])[legacy_id]
+        self.assertEqual(legacy_podium["scoring_system"], "legacy_count")
+        # Under legacy count, 20 (4 votes) beats 10 (3 votes)
+        self.assertEqual(legacy_podium["gold"], [20])
+        self.assertEqual(legacy_podium["silver"], [10])
+
+        # --- 2. Future Match: 2026-10-28-1 (Weighted 4-3-2) ---
+        future_id = "2026-10-28-1"
+        record_match_mvp_votes(self.conn, future_id, u1, [10, 91, 20])
+        record_match_mvp_votes(self.conn, future_id, u2, [10, 92, 20])
+        record_match_mvp_votes(self.conn, future_id, u3, [10])
+        record_match_mvp_votes(self.conn, future_id, u4, [20])
+        record_match_mvp_votes(self.conn, future_id, u5, [93, 20])
+
+        future_podium = get_match_mvp_podium(self.conn, [future_id])[future_id]
+        self.assertEqual(future_podium["scoring_system"], "weighted_4_3_2")
+        # Under 4-3-2 points, 10 (12 pts) beats 20 (11 pts)
+        self.assertEqual(future_podium["gold"], [10])
+        self.assertEqual(future_podium["silver"], [20])
+
+        # --- 3. Tie-breaking on points: 1G (4 pts) vs 2B (4 pts) ---
+        tie_id = "2026-11-01-1"
+        # Player 30 gets 1x Gold (4 pts, 1 rank1)
+        # Player 40 gets 2x Bronze (4 pts, 0 rank1)
+        record_match_mvp_votes(self.conn, tie_id, u1, [30, 99, 40])
+        record_match_mvp_votes(self.conn, tie_id, u2, [99, 98, 40])
+
+        tie_podium = get_match_mvp_podium(self.conn, [tie_id])[tie_id]
+        self.assertEqual(tie_podium["scoring_system"], "weighted_4_3_2")
+        # 30 and 40 both have 4 points, but 30 has 1 rank1 while 40 has 0 rank1 -> 30 wins silver over 40 (or gold after 99)
+        self.assertEqual(tie_podium["gold"], [99])  # 99 has 1G (4) + 1S (3) = 7 pts
+        self.assertEqual(tie_podium["silver"], [30])  # 30 has 4 pts (1G)
+        self.assertEqual(tie_podium["bronze"], [40])  # 40 has 4 pts (2B)
+
 
 if __name__ == "__main__":
     unittest.main()

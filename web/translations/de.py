@@ -399,7 +399,8 @@ TRANSLATIONS_DE = {
     "matches.mvp_rule_no_self_bold": "Keine Selbstwahl:",
     "matches.mvp_rule_no_self_desc": "Du kannst dich nicht selbst zum MVP wählen.",
     "matches.mvp_rule_system_bold": "Gewichtung:",
-    "matches.mvp_rule_system_desc": "Platz 1 (Gold / 3 Pkt) ist Pflicht, Platz 2 (Silber / 2 Pkt) und Platz 3 (Bronze / 1 Pkt) sind optional.",
+    "matches.mvp_rule_system_desc": "Platz 1 (Gold / 4 Pkt) ist Pflicht, Platz 2 (Silber / 3 Pkt) und Platz 3 (Bronze / 2 Pkt) sind optional.",
+    "matches.mvp_scoring_badge": "Punkte-Wertung:",
     "matches.mvp_login_action": "Jetzt einloggen",
     "matches.mvp_settings_action": "Zum Profil / Einstellungen",
     "matches.mvp_tab_summary": "Gesamtergebnis",
@@ -444,7 +445,7 @@ TRANSLATIONS_DE = {
     # FAQ MVP
     "faq.q_mvp_voting": "Wie funktioniert das MVP-Voting und der Medaillenspiegel?",
     "faq.a_mvp_voting_p1": "Nach jedem Spieltag können alle teilnehmenden Spieler bis zum Folgetag um 20:00 Uhr anonym ihre Stimme für die wertvollsten Spieler (MVP) der Partie abgeben. Jeder Stimmberechtigte kann bis zu 3 Stimmen vergeben (1. Platz 🥇, 2. Platz 🥈, 3. Platz 🥉 für 3 verschiedene Personen; optional auch nur 1 oder 2 Stimmen).",
-    "faq.a_mvp_voting_p2": "MVP (Gold) wird der Spieler mit den meisten Stimmen insgesamt. Bei Stimmengleichstand entscheiden die meisten 1.-Platz-Stimmen, danach 2.-Platz-Stimmen usw. Die Plätze 2 (Silber) und 3 (Bronze) werden ebenfalls auf den Matchkarten und im <a href=\"{medals_url}\" style=\"color: #80deea; font-weight: 600;\">MVP-Medaillenspiegel</a> prämiert, der nach Quartalen, Halbjahren und Jahren gefiltert werden kann.",
+    "faq.a_mvp_voting_p2": "Ab dem 23. Oktober 2026 werden Wahlen mit einem gewichteten Punktesystem ausgewertet: 🥇 1. Platz (Gold) = 4 Punkte, 🥈 2. Platz (Silber) = 3 Punkte, 🥉 3. Platz (Bronze) = 2 Punkte. MVP (Gold) wird der Spieler mit der höchsten Gesamtpunktzahl. Bei Punktegleichstand entscheiden die meisten 1.-Platz-Stimmen, danach 2.-Platz-Stimmen usw. Bisherige Wahlen vor dem 23. Oktober 2026 bleiben unverändert nach dem historischen Stimmenanzahl-Modell gewertet. Die Plätze 2 (Silber) und 3 (Bronze) werden ebenfalls auf den Matchkarten und im <a href=\"{medals_url}\" style=\"color: #80deea; font-weight: 600;\">MVP-Medaillenspiegel</a> prämiert, der nach Quartalen, Halbjahren und Jahren gefiltert werden kann.",
 
     # =========================================================================
     # Player Profile

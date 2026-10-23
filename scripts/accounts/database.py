@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import re
 import sqlite3
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs
@@ -1527,7 +1528,44 @@ def get_user_mvp_votes_for_matches(connection, voter_user_id: int, match_ids: li
     return result
 
 
-def get_match_mvp_podium(connection, match_ids: list[str] | None = None) -> dict[str, dict]:
+MVP_WEIGHTED_SYSTEM_START_DATE = "2026-10-23"
+
+
+def get_match_scoring_system(match_id: str, match_date: str | None = None) -> str:
+    """
+    Determine whether a match uses 'weighted_4_3_2' or 'legacy_count' scoring.
+    Matches from 2026-10-23 onwards use 'weighted_4_3_2' (1st=4 pts, 2nd=3 pts, 3rd=2 pts).
+    Matches prior to 2026-10-23 use 'legacy_count' (raw vote totals).
+    """
+    if match_date and str(match_date)[:10] >= MVP_WEIGHTED_SYSTEM_START_DATE:
+        return "weighted_4_3_2"
+
+    m = re.match(r"^(\d{4}-\d{2}-\d{2})", str(match_id))
+    if m:
+        if m.group(1) >= MVP_WEIGHTED_SYSTEM_START_DATE:
+            return "weighted_4_3_2"
+        return "legacy_count"
+
+    try:
+        from scripts.database.database import get_connection as get_main_conn
+        main_conn = get_main_conn()
+        try:
+            row = main_conn.execute("SELECT date FROM matches WHERE match_id = ?", (str(match_id),)).fetchone()
+            if row and row["date"] and str(row["date"])[:10] >= MVP_WEIGHTED_SYSTEM_START_DATE:
+                return "weighted_4_3_2"
+        finally:
+            main_conn.close()
+    except Exception:
+        pass
+
+    return "legacy_count"
+
+
+def get_match_mvp_podium(
+    connection,
+    match_ids: list[str] | None = None,
+    scoring_system: str | None = None,
+) -> dict[str, dict]:
     """
     Calculate and return the MVP podium for matches:
     {
@@ -1535,16 +1573,24 @@ def get_match_mvp_podium(connection, match_ids: list[str] | None = None) -> dict
             "gold": [player_id, ...],
             "silver": [player_id, ...],
             "bronze": [player_id, ...],
+            "scoring_system": str,
             "details": {
-                player_id: {"total": int, "rank1": int, "rank2": int, "rank3": int}
+                player_id: {"total": int, "rank1": int, "rank2": int, "rank3": int, "points": int}
             }
         }
     }
     Sorting / tie-breaking rules:
-    - Primary: Total votes (rank 1 + rank 2 + rank 3)
-    - Tie-breaker 1: More rank 1 votes
-    - Tie-breaker 2: More rank 2 votes
-    - Tie-breaker 3: More rank 3 votes
+    - weighted_4_3_2 (matches from 2026-10-23 onwards):
+        Primary: Points (4 * rank1 + 3 * rank2 + 2 * rank3)
+        Tie-breaker 1: More rank 1 votes
+        Tie-breaker 2: More rank 2 votes
+        Tie-breaker 3: More rank 3 votes
+        Tie-breaker 4: Total votes
+    - legacy_count (matches prior to 2026-10-23):
+        Primary: Total votes (rank 1 + rank 2 + rank 3)
+        Tie-breaker 1: More rank 1 votes
+        Tie-breaker 2: More rank 2 votes
+        Tie-breaker 3: More rank 3 votes
     Medal allocation:
     - Group 1 (highest): Gold
     - If 1 Gold winner: Group 2 gets Silver. If 1 Silver winner, Group 3 gets Bronze.
@@ -1574,7 +1620,7 @@ def get_match_mvp_podium(connection, match_ids: list[str] | None = None) -> dict
         p1 = r["voted_player_id"]
         if p1 is not None and int(p1) > 0:
             pid1 = int(p1)
-            p_entry = stats.setdefault(pid1, {"total": 0, "rank1": 0, "rank2": 0, "rank3": 0})
+            p_entry = stats.setdefault(pid1, {"total": 0, "rank1": 0, "rank2": 0, "rank3": 0, "points": 0})
             p_entry["total"] += 1
             p_entry["rank1"] += 1
 
@@ -1582,7 +1628,7 @@ def get_match_mvp_podium(connection, match_ids: list[str] | None = None) -> dict
         p2 = r["voted_player_id_2"]
         if p2 is not None and int(p2) > 0:
             pid2 = int(p2)
-            p_entry = stats.setdefault(pid2, {"total": 0, "rank1": 0, "rank2": 0, "rank3": 0})
+            p_entry = stats.setdefault(pid2, {"total": 0, "rank1": 0, "rank2": 0, "rank3": 0, "points": 0})
             p_entry["total"] += 1
             p_entry["rank2"] += 1
 
@@ -1590,24 +1636,30 @@ def get_match_mvp_podium(connection, match_ids: list[str] | None = None) -> dict
         p3 = r["voted_player_id_3"]
         if p3 is not None and int(p3) > 0:
             pid3 = int(p3)
-            p_entry = stats.setdefault(pid3, {"total": 0, "rank1": 0, "rank2": 0, "rank3": 0})
+            p_entry = stats.setdefault(pid3, {"total": 0, "rank1": 0, "rank2": 0, "rank3": 0, "points": 0})
             p_entry["total"] += 1
             p_entry["rank3"] += 1
 
     podium_results: dict[str, dict] = {}
 
     for m_id, players_dict in match_player_stats.items():
+        eff_system = scoring_system or get_match_scoring_system(m_id)
         if not players_dict:
-            podium_results[m_id] = {"gold": [], "silver": [], "bronze": [], "details": {}}
+            podium_results[m_id] = {"gold": [], "silver": [], "bronze": [], "scoring_system": eff_system, "details": {}}
             continue
 
         # Group players by their exact tie-break key
-        # key: (total, rank1, rank2, rank3)
-        grouped_by_score: dict[tuple[int, int, int, int], list[int]] = {}
+        grouped_by_score: dict[tuple, list[int]] = {}
         for pid, s in players_dict.items():
             if s["total"] <= 0:
                 continue
-            key = (s["total"], s["rank1"], s["rank2"], s["rank3"])
+            if eff_system == "weighted_4_3_2":
+                points = (4 * s["rank1"]) + (3 * s["rank2"]) + (2 * s["rank3"])
+                s["points"] = points
+                key = (points, s["rank1"], s["rank2"], s["rank3"], s["total"])
+            else:
+                s["points"] = s["total"]
+                key = (s["total"], s["rank1"], s["rank2"], s["rank3"])
             grouped_by_score.setdefault(key, []).append(pid)
 
         # Sort score groups in descending order
@@ -1633,6 +1685,7 @@ def get_match_mvp_podium(connection, match_ids: list[str] | None = None) -> dict
             "gold": gold_list,
             "silver": silver_list,
             "bronze": bronze_list,
+            "scoring_system": eff_system,
             "details": players_dict,
         }
 
@@ -1781,13 +1834,15 @@ def get_match_mvp_results(
     connection,
     match_id: str,
     players_dict: dict | None = None,
-    match_ids: list[str] | None = None
+    match_ids: list[str] | None = None,
+    scoring_system: str | None = None,
 ) -> dict:
     """
     Returns aggregated MVP election results and anonymous individual ballots for a match:
     {
         "match_id": match_id,
         "total_voters": int,
+        "scoring_system": str,
         "candidates": [...],
         "ballots": [
             {
@@ -1810,7 +1865,7 @@ def get_match_mvp_results(
     ).fetchone()
     total_voters = cnt_row["cnt"] if cnt_row else 0
 
-    podium_map = get_match_mvp_podium(connection, match_ids=target_mids)
+    podium_map = get_match_mvp_podium(connection, match_ids=target_mids, scoring_system=scoring_system)
     match_podium = podium_map.get(str(match_id), {})
     if not match_podium.get("details"):
         for m in target_mids:
@@ -1818,6 +1873,7 @@ def get_match_mvp_results(
                 match_podium = podium_map.get(m, {})
                 break
 
+    eff_system = match_podium.get("scoring_system") or scoring_system or get_match_scoring_system(match_id)
     details = match_podium.get("details", {})
     gold_set = set(match_podium.get("gold", []))
     silver_set = set(match_podium.get("silver", []))
@@ -1853,28 +1909,46 @@ def get_match_mvp_results(
             "player_id": pid,
             "player_name": player_name,
             "total_votes": s.get("total", 0),
+            "points": s.get("points", s.get("total", 0)),
             "rank1": s.get("rank1", 0),
             "rank2": s.get("rank2", 0),
             "rank3": s.get("rank3", 0),
             "medal": medal,
         })
 
-    # Sort descending by total votes, rank 1, rank 2, rank 3
-    candidates.sort(
-        key=lambda c: (c["total_votes"], c["rank1"], c["rank2"], c["rank3"]),
-        reverse=True
-    )
-
-    # Assign competitive ranks (handling ties)
-    for i, c in enumerate(candidates):
-        if i > 0:
-            prev = candidates[i - 1]
-            if (c["total_votes"], c["rank1"], c["rank2"], c["rank3"]) == (prev["total_votes"], prev["rank1"], prev["rank2"], prev["rank3"]):
-                c["rank"] = prev["rank"]
+    # Sort descending according to active scoring system
+    if eff_system == "weighted_4_3_2":
+        candidates.sort(
+            key=lambda c: (c["points"], c["rank1"], c["rank2"], c["rank3"], c["total_votes"]),
+            reverse=True
+        )
+        for i, c in enumerate(candidates):
+            if i > 0:
+                prev = candidates[i - 1]
+                if (c["points"], c["rank1"], c["rank2"], c["rank3"], c["total_votes"]) == (
+                    prev["points"], prev["rank1"], prev["rank2"], prev["rank3"], prev["total_votes"]
+                ):
+                    c["rank"] = prev["rank"]
+                else:
+                    c["rank"] = i + 1
             else:
-                c["rank"] = i + 1
-        else:
-            c["rank"] = 1
+                c["rank"] = 1
+    else:
+        candidates.sort(
+            key=lambda c: (c["total_votes"], c["rank1"], c["rank2"], c["rank3"]),
+            reverse=True
+        )
+        for i, c in enumerate(candidates):
+            if i > 0:
+                prev = candidates[i - 1]
+                if (c["total_votes"], c["rank1"], c["rank2"], c["rank3"]) == (
+                    prev["total_votes"], prev["rank1"], prev["rank2"], prev["rank3"]
+                ):
+                    c["rank"] = prev["rank"]
+                else:
+                    c["rank"] = i + 1
+            else:
+                c["rank"] = 1
 
     # Extract unique anonymous ballots per voter_user_id (newest if multiple exist)
     ballot_rows = connection.execute(
@@ -1917,6 +1991,7 @@ def get_match_mvp_results(
     return {
         "match_id": str(match_id),
         "total_voters": total_voters,
+        "scoring_system": eff_system,
         "candidates": candidates,
         "ballots": ballots,
     }
