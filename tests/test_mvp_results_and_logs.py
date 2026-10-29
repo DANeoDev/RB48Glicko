@@ -251,6 +251,20 @@ class MvpResultsAndLogsTests(unittest.TestCase):
         self.assertIn("Match-Wahlergebnisse".encode("utf-8"), res_wm_mvp2.data)
         self.assertNotIn(u_name.encode("utf-8"), res_wm_mvp2.data)
 
+        # Cast votes on a future match (>= 2026-10-23) to verify 4-3-2 points display in admin view
+        future_mid = "2026-10-25-1"
+        conn2 = get_accounts_connection()
+        try:
+            record_match_mvp_votes(conn2, future_mid, u_id, [1, 2])
+        finally:
+            conn2.close()
+
+        res_wm_future = self.client.get("/admin/users?tab=mvp")
+        self.assertEqual(res_wm_future.status_code, 200)
+        html_future = res_wm_future.get_data(as_text=True)
+        self.assertIn("4-3-2 Pkt", html_future)
+        self.assertIn("Pkt", html_future)
+
     def test_medaillenspiegel_excludes_open_voting_matches(self):
         """Matches with voting currently open must NOT show up in MVP-Medaillenspiegel."""
         u_id, _ = self.create_user(role="user")

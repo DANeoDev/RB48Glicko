@@ -81,6 +81,15 @@
                                             {% endif %}
                                         </a>
                                         <span style="font-size: 11px; color: var(--text-muted);">{{ summary.total_voters }} {{ t('admin.mvp_col_voters', 'Wähler') }}</span>
+                                        {% if summary.scoring_system == 'weighted_4_3_2' %}
+                                            <span style="font-size: 10px; font-weight: 700; background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.35); padding: 1px 6px; border-radius: 4px;" title="{{ t('admin.mvp_scoring_weighted_tooltip', 'Gewertet nach 4-3-2 Punkten') }}">
+                                                ⚖️ 4-3-2 Pkt
+                                            </span>
+                                        {% else %}
+                                            <span style="font-size: 10px; font-weight: 600; background: rgba(255, 255, 255, 0.06); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.12); padding: 1px 6px; border-radius: 4px;" title="{{ t('admin.mvp_scoring_legacy_tooltip', 'Historische Wertung nach Stimmenanzahl') }}">
+                                                Historisch
+                                            </span>
+                                        {% endif %}
                                     </div>
                                     <div style="display: flex; align-items: center; gap: 6px;">
                                         {% if summary.gold_names %}
@@ -92,7 +101,13 @@
                                     {% for c in summary.candidates %}
                                         <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; background: {% if c.medal == 'gold' %}rgba(255, 215, 0, 0.12){% elif c.medal == 'silver' %}rgba(192, 192, 192, 0.12){% elif c.medal == 'bronze' %}rgba(205, 127, 50, 0.12){% else %}rgba(255, 255, 255, 0.05){% endif %}; border: 1px solid {% if c.medal == 'gold' %}rgba(255, 215, 0, 0.35){% elif c.medal == 'silver' %}rgba(192, 192, 192, 0.3){% elif c.medal == 'bronze' %}rgba(205, 127, 50, 0.3){% else %}rgba(255, 255, 255, 0.1){% endif %}; padding: 3px 8px; border-radius: 6px; color: #ffffff;">
                                             {% if c.medal == 'gold' %}🥇{% elif c.medal == 'silver' %}🥈{% elif c.medal == 'bronze' %}🥉{% else %}<span style="color: var(--text-muted);">{{ c.rank }}.</span>{% endif %}
-                                            <strong>{{ c.player_name }}</strong>: {{ c.total_votes }} <span style="font-size: 10px; color: var(--text-muted);">({{ c.rank1 }}/{{ c.rank2 }}/{{ c.rank3 }})</span>
+                                            <strong>{{ c.player_name }}</strong>:
+                                            {% if summary.scoring_system == 'weighted_4_3_2' %}
+                                                <strong style="color: #ffd700;">{{ c.points }} Pkt</strong>
+                                                <span style="font-size: 10px; color: var(--text-muted);">({{ c.total_votes }} St. • {{ c.rank1 }}/{{ c.rank2 }}/{{ c.rank3 }})</span>
+                                            {% else %}
+                                                {{ c.total_votes }} <span style="font-size: 10px; color: var(--text-muted);">({{ c.rank1 }}/{{ c.rank2 }}/{{ c.rank3 }})</span>
+                                            {% endif %}
                                         </span>
                                     {% endfor %}
                                 </div>
