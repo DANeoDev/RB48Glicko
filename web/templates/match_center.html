@@ -83,7 +83,8 @@
         searchPlayer: {{ t('match_center.search_player_placeholder', 'Spieler suchen...') | tojson }},
         addGuest: {{ t('match_center.add_guest_btn', '+1 Gastspieler') | tojson }},
         addNewPlayer: {{ t('match_center.add_new_player_btn', '+ Neuer Spieler') | tojson }},
-        noPlayerFound: {{ t('match_center.no_player_found', 'Kein Spieler gefunden') | tojson }}
+        noPlayerFound: {{ t('match_center.no_player_found', 'Kein Spieler gefunden') | tojson }},
+        aliasEmptyError: {{ t('match_center.alias_empty_error', 'Bitte gib einen Alias / Namen ein.') | tojson }}
     };
 </script>
 <script src="{{ url_for('static', filename='match_center.js', v='20261013_planner_v3') }}"></script>

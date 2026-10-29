@@ -428,6 +428,7 @@
         const choiceCreateBtn = document.getElementById('choice-create-player-btn');
         const choiceExternalBtn = document.getElementById('choice-external-player-btn');
         const aliasForm = document.getElementById('alias-form');
+        const aliasTextInput = document.getElementById('alias-text');
         const newForm = document.getElementById('new-form');
         const newAliasInput = document.getElementById('new-alias');
         const newSubmitBtn = document.getElementById('new-submit');
@@ -569,12 +570,19 @@
         document.getElementById('alias-choice')?.addEventListener('click', () => {
             if (choiceDiv) choiceDiv.style.display = 'none';
             if (aliasForm) aliasForm.style.display = 'block';
+            if (aliasTextInput) {
+                aliasTextInput.value = addPlayerName;
+                setTimeout(() => aliasTextInput.focus(), 50);
+            }
         });
 
         document.getElementById('new-choice')?.addEventListener('click', () => {
             if (choiceDiv) choiceDiv.style.display = 'none';
             if (newForm) newForm.style.display = 'block';
-            if (newAliasInput) newAliasInput.value = addPlayerName;
+            if (newAliasInput) {
+                newAliasInput.value = addPlayerName;
+                setTimeout(() => newAliasInput.focus(), 50);
+            }
         });
 
         // ------------------------------------------------------------
@@ -590,12 +598,19 @@
 
         document.getElementById('alias-submit')?.addEventListener('click', () => {
             if (!mcForm) return;
+            const chosenAlias = aliasTextInput ? aliasTextInput.value.trim() : '';
+            if (!chosenAlias) {
+                showModalError(window.matchCenterTranslations?.aliasEmptyError || 'Please enter an alias / name.');
+                aliasTextInput?.focus();
+                return;
+            }
             sessionStorage.setItem("rb48ScrollPosition", String(window.scrollY));
             sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
             sessionStorage.removeItem("rb48ScrollTarget");
             mcForm.append(
                 hidden('action', 'add_parser_alias'),
-                hidden('new_alias', addPlayerName),
+                hidden('new_alias', chosenAlias),
+                hidden('original_alias', addPlayerName),
                 hidden('target_player_id', document.getElementById('alias-id').value)
             );
             mcForm.submit();

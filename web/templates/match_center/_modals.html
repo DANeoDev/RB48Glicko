@@ -133,21 +133,38 @@
             style="display: none;"
         >
 
-            <select id="alias-id">
+            <div style="margin-bottom: 12px;">
+                <label for="alias-text" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text-color, #e0e0e0);">
+                    {{ t('match_center.alias_input_label', 'Alias / Name anpassen:') }}
+                </label>
+                <input
+                    id="alias-text"
+                    type="text"
+                    style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--border-color, #444); background: var(--input-bg, #1e1e1e); color: var(--text-color, #fff);"
+                    placeholder="{{ t('match_center.alias_input_placeholder', 'Alias / Name anpassen...') }}"
+                >
+            </div>
 
-                {% for pid, p in players.items() %}
+            <div style="margin-bottom: 14px;">
+                <label for="alias-id" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text-color, #e0e0e0);">
+                    {{ t('match_center.target_player_label', 'Zuordnen zu Spieler:') }}
+                </label>
+                <select id="alias-id" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--border-color, #444); background: var(--input-bg, #1e1e1e); color: var(--text-color, #fff);">
 
-                    <option value="{{ pid }}">
-                        #{{ pid }} —
-                        {{ p.aliases[0]
-                            if p.aliases
-                            else 'Player ' ~ pid
-                        }}
-                    </option>
+                    {% for pid, p in players.items() %}
 
-                {% endfor %}
+                        <option value="{{ pid }}">
+                            #{{ pid }} —
+                            {{ p.aliases[0]
+                                if p.aliases
+                                else 'Player ' ~ pid
+                            }}
+                        </option>
 
-            </select>
+                    {% endfor %}
+
+                </select>
+            </div>
 
 
             <div class="modal-actions">

@@ -184,6 +184,7 @@ def _handle_add_parser_alias(form, connection, players, selected_ids):
     ignored_aliases = get_ignored_aliases(connection)
     parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
     alias = normalize_player_name(form.get("new_alias", ""))
+    orig_alias = normalize_player_name(form.get("original_alias", ""))
     try:
         player_id = int(form.get("target_player_id", ""))
         lookup = get_alias_lookup(connection)
@@ -201,6 +202,8 @@ def _handle_add_parser_alias(form, connection, players, selected_ids):
         ignored_aliases = get_ignored_aliases(connection)
         parse_result = _rebuild_parser_result(form, players, ignored_aliases=ignored_aliases)
         _remove_resolved_name(parse_result, alias)
+        if orig_alias:
+            _remove_resolved_name(parse_result, orig_alias)
         return players, selected_ids, parse_result, f"Added '{alias}' as an alias and selected the player.", None
     except (ValueError, TypeError) as exc:
         return players, selected_ids, parse_result, None, str(exc)

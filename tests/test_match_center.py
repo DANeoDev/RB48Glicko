@@ -616,6 +616,35 @@ class MatchCenterFrontendTests(unittest.TestCase):
             self.assertIn("Test Matchday", html_after)
             self.assertNotIn("Cancelled Earlier Matchday", html_after)
 
+    def test_add_parser_alias_with_custom_name(self):
+        """Test that an unrecognized player name can be assigned to an existing player under a customized alias."""
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.admin_id
+
+            # Post action=add_parser_alias with customized new_alias and original_alias
+            resp = client.post("/match-center", data={
+                "action": "add_parser_alias",
+                "original_alias": "Thomas (Bernhard +1)",
+                "new_alias": "Thomas B.",
+                "target_player_id": "1",
+                "parsed_kind": "match",
+                "parsed_player": ["Thomas (Bernhard +1)", "Player 2"],
+            })
+            self.assertEqual(resp.status_code, 200)
+            html = resp.get_data(as_text=True)
+            self.assertIn("Added &#39;Thomas B.&#39; as an alias", html)
+
+            # Verify in DB
+            conn = get_connection()
+            try:
+                from scripts.database.db_players import get_player_aliases
+                alias_names = [a["alias"] for a in get_player_aliases(conn, 1)]
+                self.assertIn("Thomas B.", alias_names)
+                self.assertNotIn("Thomas (Bernhard +1)", alias_names)
+            finally:
+                conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()
