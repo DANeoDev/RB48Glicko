@@ -140,7 +140,7 @@ Every player in the RB48 database has three fundamental numbers per track:
 - **Default:** `{DEFAULT_RD:g}` (uncalibrated newcomer) down to `~ 50.0 - 70.0` (established veteran).
 - **What it represents:** The standard deviation (spread) of the skill curve.
 - **Mathematical meaning:** There is a **95% probability** that the player's true skill lies within:
-  $$\\left[ \\text{{Rating}} - 2 \\cdot \\text{{RD}}, \\quad \\text{{Rating}} + 2 \\cdot \\text{{RD}} \\right]$$
+  $$\\\\left[ \\text{{Rating}} - 2 \\cdot \\text{{RD}}, \\quad \\text{{Rating}} + 2 \\cdot \\text{{RD}} \\\\right]$$
   - A newcomer with \\(r = {DEFAULT_RATING:g}, \\text{{RD}} = {DEFAULT_RD:g}\\) has a 95% confidence interval of \\([{DEFAULT_RATING - 2 * DEFAULT_RD:.0f}, {DEFAULT_RATING + 2 * DEFAULT_RD:.0f}]\\) (the system knows almost nothing).
   - A veteran with \\(r = 1600, \\text{{RD}} = 60\\) has an interval of \\([1480, 1720]\\) (the system is confident).
 - **Analogy:** The stiffness of the anchor. A high RD makes the player's rating responsive like a feather in a breeze. A low RD acts like a 10-ton ship anchor embedded in rock.
@@ -165,7 +165,7 @@ Every player in the RB48 database has three fundamental numbers per track:
 
 | Application | How the numbers are used |
 | :--- | :--- |
-| **Match Outcome Prediction** | Using team ratings and opponent RD, the engine computes the exact win probability \\(E \\in (0, 1)\\). |
+| **Match Outcome Prediction** | Using team ratings and opponent RD, the engine computes the exact win probability \\(E \\\in (0, 1)\\). |
 | **Combinatorial Matchmaker** | Evaluates all \\(\\binom{{N}}{{N/2}}\\) combinations of available players to generate teams as close to a 50/50 win probability as possible, balanced by positions. |
 | **Individual Skill Attribution** | Separates a player's genuine contribution from their teammates' quality over time. |
 | **Fair Inactivity Management** | Automatically expands uncertainty (\\(\\text{{RD}}\\) by `+{INACTIVITY_RD_TICK:g}` per date) when players miss games, without artificially altering their rating. |
@@ -240,9 +240,9 @@ Here is the exact step-by-step pipeline executed when a matchday session is proc
 
 ### Step 0: Scale Conversion
 Glicko-2 converts traditional ratings into an internal scale (\\(\\mu, \\phi\\)) centered at \\(0.0\\) using the scaling constant:
-$$c = \\frac{{400}}{{\\ln(10)}} \\approx {GLICKO2_SCALE}$$
+$$c = \\\frac{{400}}{{\\\ln(10)}} \\\approx {GLICKO2_SCALE}$$
 
-$$\\mu = \\frac{{r - {DEFAULT_RATING:g}}}{{{GLICKO2_SCALE}}}, \\qquad \\phi = \\frac{{\\text{{RD}}}}{{{GLICKO2_SCALE}}}$$
+$$\\mu = \\\frac{{r - {DEFAULT_RATING:g}}}{{{GLICKO2_SCALE}}}, \\qquad \\phi = \\\frac{{\\text{{RD}}}}{{{GLICKO2_SCALE}}}$$
 
 ---
 
@@ -250,14 +250,14 @@ $$\\mu = \\frac{{r - {DEFAULT_RATING:g}}}{{{GLICKO2_SCALE}}}, \\qquad \\phi = \\
 
 For a team of \\(N\\) players, where \\(M\\) players are anonymous guests:
 1. **Team Rating (\\(r_{{\\text{{team}}}}\\)):** The simple arithmetic mean of the known active players:
-   $$r_{{\\text{{team}}}} = \\frac{{1}}{{K}} \\sum_{{i=1}}^K r_i$$
+   $$r_{{\\text{{team}}}} = \\\frac{{1}}{{K}} \\\sum_{{i=1}}^K r_i$$
 2. **Team Uncertainty (\\(\\text{{RD}}_{{\\text{{team}}}}\\)):** Calculated via **quadratic mean (root-mean-square) pooling**:
-   $$\\text{{RD}}_{{\\text{{team}}}} = \\sqrt{{\\frac{{\\sum_{{i=1}}^K \\text{{RD}}_i^2 + M \\cdot {IGNORED_RD:g}^2}}{{N}}}}$$
+   $$\\text{{RD}}_{{\\text{{team}}}} = \\\sqrt{{\\\frac{{\\\sum_{{i=1}}^K \\text{{RD}}_i^2 + M \\cdot {IGNORED_RD:g}^2}}{{N}}}}$$
 
 #### Why Quadratic Mean?
-In probability theory, independent variances add linearly (\\(\\text{{Var}}_{{\\text{{sum}}}} = \\sum \\sigma_i^2\\)). If you have five seasoned veterans with \\(\\text{{RD}} = 60\\) and one wild newcomer with \\(\\text{{RD}} = {DEFAULT_RD:g}\\):
-- Arithmetic mean: \\(\\frac{{5 \\times 60 + {DEFAULT_RD:g}}}{{6}} = {(5 * 60 + DEFAULT_RD) / 6:.1f}\\)
-- Quadratic mean: \\(\\sqrt{{\\frac{{5 \\times 60^2 + {DEFAULT_RD:g}^2}}{{6}}}} = {math.sqrt((5 * 3600 + DEFAULT_RD ** 2) / 6):.1f}\\)
+In probability theory, independent variances add linearly (\\(\\text{{Var}}_{{\\text{{sum}}}} = \\\sum \\sigma_i^2\\)). If you have five seasoned veterans with \\(\\text{{RD}} = 60\\) and one wild newcomer with \\(\\text{{RD}} = {DEFAULT_RD:g}\\):
+- Arithmetic mean: \\(\\\frac{{5 \\times 60 + {DEFAULT_RD:g}}}{{6}} = {(5 * 60 + DEFAULT_RD) / 6:.1f}\\)
+- Quadratic mean: \\(\\\sqrt{{\\\frac{{5 \\times 60^2 + {DEFAULT_RD:g}^2}}{{6}}}} = {math.sqrt((5 * 3600 + DEFAULT_RD ** 2) / 6):.1f}\\)
 
 The quadratic mean correctly reflects that **a single unknown wildcard makes the entire team's performance significantly more volatile and harder to predict**.
 
@@ -266,38 +266,38 @@ The quadratic mean correctly reflects that **a single unknown wildcard makes the
 ### Step 2: Expected Win Probabilities & Opponent Impact
 
 Glicko defines an impact function \\(g(\\phi)\\) that shrinks the weight of an outcome if the opponent's skill is uncertain:
-$$g(\\phi_{{\\text{{opp}}}}) = \\frac{{1}}{{\\sqrt{{1 + \\frac{{3 \\phi_{{\\text{{opp}}}}^2}}{{\\pi^2}}}}}}$$
+$$g(\\phi_{{\\text{{opp}}}}) = \\\frac{{1}}{{\\\sqrt{{1 + \\\frac{{3 \\phi_{{\\text{{opp}}}}^2}}{{\\pi^2}}}}}}$$
 
 The expected score \\(E\\) (win probability for Team A) is:
-$$E = \\frac{{1}}{{1 + \\exp\\left( -g(\\phi_{{\\text{{opp}}}}) \\cdot (\\mu_{{\\text{{own}}}} - \\mu_{{\\text{{opp}}}}) \\right)}}$$
+$$E = \\\frac{{1}}{{1 + \\exp\\\\left( -g(\\phi_{{\\text{{opp}}}}) \\cdot (\\mu_{{\\text{{own}}}} - \\mu_{{\\text{{opp}}}}) \\\\right)}}$$
 
 - If the opponent team has \\(\\text{{RD}} \\to 0\\), \\(g(\\phi) \\to 1.0\\), and the win curve has full steepness.
-- If the opponent team is highly uncalibrated (\\(\\text{{RD}} \\to \\infty\\)), \\(g(\\phi) \\to 0\\), and \\(E \\to 0.50\\) (the match approaches a coin toss in information content).
+- If the opponent team is highly uncalibrated (\\(\\text{{RD}} \\to \\\infty\\)), \\(g(\\phi) \\to 0\\), and \\(E \\to 0.50\\) (the match approaches a coin toss in information content).
 
 ---
 
-### Step 3: Bayesian Teammate Clarity & Team Dilution (\\(w_{{\\text{{match}}}} = \\frac{{1}}{{\\sqrt{{N}}}} \\cdot w_{{\\text{{team}}}}\\))
+### Step 3: Bayesian Teammate Clarity & Team Dilution (\\(w_{{\\text{{match}}}} = \\\frac{{1}}{{\\\sqrt{{N}}}} \\cdot w_{{\\text{{team}}}}\\))
 
 A central innovation of the RB48 model is **decoupling personal RD from team RD** while accounting for team size dilution.
 
 In older, naive implementations, an individual's rating update used a combined virtual RD:
-$$\\text{{virtual\\_RD}} = \\sqrt{{\\frac{{\\text{{RD}}_{{\\text{{player}}}}^2 + \\text{{RD}}_{{\\text{{team}}}}^2}}{{2}}}}$$
-This had a disastrous flaw: if an established veteran with \\(\\text{{RD}} = 60\\) played on a team with five rookies (\\(\\text{{RD}} = {DEFAULT_RD:g}\\)), the veteran's virtual RD was inflated to \\(\\approx 250\\), causing their rating to swing wildly by 60–80 points from a single casual match!
+$$\\text{{virtual\\_RD}} = \\\sqrt{{\\\frac{{\\text{{RD}}_{{\\text{{player}}}}^2 + \\text{{RD}}_{{\\text{{team}}}}^2}}{{2}}}}$$
+This had a disastrous flaw: if an established veteran with \\(\\text{{RD}} = 60\\) played on a team with five rookies (\\(\\text{{RD}} = {DEFAULT_RD:g}\\)), the veteran's virtual RD was inflated to \\(\\\approx 250\\), causing their rating to swing wildly by 60–80 points from a single casual match!
 
 #### The Bayesian Teammate Clarity & Central Limit Dilution:
 1. **Teammate Clarity (\\(w_{{\\text{{team}}}}\\)):** We calculate the root-mean-square RD of the player's **teammates**:
-   $$\\text{{RD}}_{{\\text{{teammates}}}} = \\sqrt{{\\frac{{\\sum_{{j \\neq i}} \\text{{RD}}_j^2 + M \\cdot {IGNORED_RD:g}^2}}{{N - 1}}}}$$
+   $$\\text{{RD}}_{{\\text{{teammates}}}} = \\\sqrt{{\\\frac{{\\\sum_{{j \\neq i}} \\text{{RD}}_j^2 + M \\cdot {IGNORED_RD:g}^2}}{{N - 1}}}}$$
    We then apply Glicko's native information clarity function:
-   $$w_{{\\text{{team}}}} = g(\\phi_{{\\text{{teammates}}}}) = \\frac{{1}}{{\\sqrt{{1 + \\frac{{3 \\phi_{{\\text{{teammates}}}}^2}}{{\\pi^2}}}}}}$$
-2. **Team Dilution (\\(\\frac{{1}}{{\\sqrt{{N}}}}\\)):**
-   Under the Central Limit Theorem, the signal-to-noise ratio of an individual's contribution within a team of \\(N\\) players scales with \\(\\frac{{1}}{{\\sqrt{{N}}}}\\).
-   - **1v1 Singles (\\(N=1\\)):** \\(1/\\sqrt{{1}} = 1.0\\) (100% full duel credit)
-   - **5v5 Soccerbox (\\(N=5\\)):** \\(1/\\sqrt{{5}} \\approx 0.447\\) (44.7% credit)
-   - **6v6 Half-Pitch (\\(N=6\\)):** \\(1/\\sqrt{{6}} \\approx 0.408\\) (40.8% credit)
-   - **9v9 Large Match (\\(N=9\\)):** \\(1/\\sqrt{{9}} \\approx 0.333\\) (33.3% credit)
+   $$w_{{\\text{{team}}}} = g(\\phi_{{\\text{{teammates}}}}) = \\\frac{{1}}{{\\\sqrt{{1 + \\\frac{{3 \\phi_{{\\text{{teammates}}}}^2}}{{\\pi^2}}}}}}$$
+2. **Team Dilution (\\(\\\frac{{1}}{{\\\sqrt{{N}}}}\\)):**
+   Under the Central Limit Theorem, the signal-to-noise ratio of an individual's contribution within a team of \\(N\\) players scales with \\(\\\frac{{1}}{{\\\sqrt{{N}}}}\\).
+   - **1v1 Singles (\\(N=1\\)):** \\(1/\\\sqrt{{1}} = 1.0\\) (100% full duel credit)
+   - **5v5 Soccerbox (\\(N=5\\)):** \\(1/\\\sqrt{{5}} \\\approx 0.447\\) (44.7% credit)
+   - **6v6 Half-Pitch (\\(N=6\\)):** \\(1/\\\sqrt{{6}} \\\approx 0.408\\) (40.8% credit)
+   - **9v9 Large Match (\\(N=9\\)):** \\(1/\\\sqrt{{9}} \\\approx 0.333\\) (33.3% credit)
 
 The composite match weighting factor is:
-$$w_{{\\text{{match}}}} = \\frac{{1}}{{\\sqrt{{N}}}} \\cdot w_{{\\text{{team}}}}$$
+$$w_{{\\text{{match}}}} = \\\frac{{1}}{{\\\sqrt{{N}}}} \\cdot w_{{\\text{{team}}}}$$
 
 ---
 
@@ -311,22 +311,22 @@ If Game 1 is processed immediately before Game 2:
 2. **Cold-Start Tracksetter Bias:** For new players, Game 1 caused a massive shift from 1500 to 1690. When Game 2 began, the model falsely believed the player was an established 1690 player, distorting the expectations for Game 2.
 
 #### The Session Batching Formula:
-All matches played on the same calendar date are batched into a single rating period. For each match \\(m \\in \\text{{Session}}\\), we compute:
+All matches played on the same calendar date are batched into a single rating period. For each match \\(m \\\in \\text{{Session}}\\), we compute:
 $$\\text{{match\\_precision}}_m = g(\\phi_{{\\text{{opp}}, m}})^2 \\cdot E_m \\cdot (1 - E_m)$$
 $$\\text{{match\\_difference}}_m = g(\\phi_{{\\text{{opp}}, m}}) \\cdot (s_m - E_m)$$
 
 We accumulate effective precision and surprise across all games of the evening, weighted by teammate clarity and team dilution:
-$$I = \\text{{total\\_effective\\_precision}} = \\sum_{{m}} \\frac{{1}}{{\\sqrt{{N_m}}}} \\cdot w_{{\\text{{team}}, m}} \\cdot \\text{{match\\_precision}}_m$$
-$$\\Delta = \\text{{total\\_effective\\_difference}} = \\sum_{{m}} \\frac{{1}}{{\\sqrt{{N_m}}}} \\cdot w_{{\\text{{team}}, m}} \\cdot \\text{{match\\_difference}}_m$$
+$$I = \\text{{total\\_effective\\_precision}} = \\\sum_{{m}} \\\frac{{1}}{{\\\sqrt{{N_m}}}} \\cdot w_{{\\text{{team}}, m}} \\cdot \\text{{match\\_precision}}_m$$
+$$\\\Delta = \\text{{total\\_effective\\_difference}} = \\\sum_{{m}} \\\frac{{1}}{{\\\sqrt{{N_m}}}} \\cdot w_{{\\text{{team}}, m}} \\cdot \\text{{match\\_difference}}_m$$
 
-The estimated session variance is \\(v = \\frac{{1}}{{I}}\\), and the normalized performance difference is \\(\\frac{{\\Delta}}{{I}}\\).
+The estimated session variance is \\(v = \\\frac{{1}}{{I}}\\), and the normalized performance difference is \\(\\\frac{{\\\Delta}}{{I}}\\).
 
 ---
 
 ### Step 5: Updating Volatility (\\(\\sigma\\)) via the Illinois Method
 
 Glicko-2 updates volatility \\(\\sigma\\) by finding the root of an objective function \\(f(x)\\):
-$$f(x) = \\frac{{e^x (\\Delta^2 / I^2 - \\phi^2 - v - e^x)}}{{2 (\\phi^2 + v + e^x)^2}} - \\frac{{x - \\ln(\\sigma^2)}}{{\\tau^2}}$$
+$$f(x) = \\\frac{{e^x (\\\Delta^2 / I^2 - \\phi^2 - v - e^x)}}{{2 (\\phi^2 + v + e^x)^2}} - \\\frac{{x - \\\ln(\\sigma^2)}}{{\\tau^2}}$$
 where \\(\\tau = {DEFAULT_TAU:g}\\) governs the system volatility limit.
 
 The engine solves \\(f(x) = 0\\) using the **Illinois algorithm** (an improved false-position root-finding technique with bracket halving) down to a convergence tolerance of \\(\\epsilon = {DEFAULT_EPSILON:g}\\). The new volatility is:
@@ -337,11 +337,11 @@ $$\\sigma' = e^{{A / 2}}$$
 ### Step 6: Final Rating & RD Update
 
 1. **Pre-Rating Uncertainty Expansion:**
-   $$\\phi^* = \\sqrt{{\\phi^2 + (\\sigma')^2}}$$
+   $$\\phi^* = \\\sqrt{{\\phi^2 + (\\sigma')^2}}$$
 2. **Posterior Uncertainty Update:**
-   $$\\phi' = \\frac{{1}}{{\\sqrt{{\\frac{{1}}{{(\\phi^*)^2}} + I}}}}$$
+   $$\\phi' = \\\frac{{1}}{{\\\sqrt{{\\\frac{{1}}{{(\\phi^*)^2}} + I}}}}$$
 3. **Posterior Skill Mean Update:**
-   $$\\mu' = \\mu + (\\phi')^2 \\cdot \\Delta$$
+   $$\\mu' = \\mu + (\\phi')^2 \\cdot \\\Delta$$
 4. **Scale Conversion Back to Traditional Scale:**
    $$r' = \\mu' \\cdot {GLICKO2_SCALE} + {DEFAULT_RATING:g}$$
    $$\\text{{RD}}' = \\phi' \\cdot {GLICKO2_SCALE}$$
@@ -374,9 +374,9 @@ Often, recreational groups invite a guest or substitute player who is not regist
 - In RB48, external players are assigned:
   $$\\text{{IGNORED\\_RD}} = {IGNORED_RD:g}$$
 - **Why {IGNORED_RD:g}?**
-  In Glicko's scaled units, \\(\\phi = {IGNORED_RD:g} / {GLICKO2_SCALE} \\approx {ignored_phi:.3f}\\).
+  In Glicko's scaled units, \\(\\phi = {IGNORED_RD:g} / {GLICKO2_SCALE} \\\approx {ignored_phi:.3f}\\).
   The clarity factor for an external player is:
-  $$g({ignored_phi:.3f}) = \\frac{{1}}{{\\sqrt{{1 + \\frac{{3({ignored_phi:.3f}^2)}}{{\\pi^2}}}}}} \\approx {ignored_impact:.2f}$$
+  $$g({ignored_phi:.3f}) = \\\frac{{1}}{{\\\sqrt{{1 + \\\frac{{3({ignored_phi:.3f}^2)}}{{\\pi^2}}}}}} \\\approx {ignored_impact:.2f}$$
   This ensures that guest players absorb noise and widen team variance without artificially inflating or collapsing the ratings of permanent league members.
 
 ---
@@ -394,15 +394,15 @@ This transforms new player creation from an arbitrary default into a **true Baye
 ---
 
 ### Retrospective Prior Recalibration (Option A* Surgical Split)
-In multi-player team sports, uncalibrated newcomers entering at default values ($r = {DEFAULT_RATING:g}, \\mathrm{{RD}} = {DEFAULT_RD:g}$) cause **Newcomer Bleed**:
-1. Their high RD inflates the pooled team RD, which depresses teammate update clarity $w_{{\\mathrm{{team}}}}$ and penalizes established teammates.
+In multi-player team sports, uncalibrated newcomers entering at default values ($r = {DEFAULT_RATING:g}, \\\mathrm{{RD}} = {DEFAULT_RD:g}$) cause **Newcomer Bleed**:
+1. Their high RD inflates the pooled team RD, which depresses teammate update clarity $w_{{\\\mathrm{{team}}}}$ and penalizes established teammates.
 2. Opponents face an inaccurately evaluated squad.
 
 To eliminate Newcomer Bleed while preventing double-counting of initial games, the RB48 engine executes a **Two-Pass Retrospective Prior Recalibration**:
 - **Dual-Criterion Threshold ($T$):**
   - Active players: $T = {CALIBRATION_THRESHOLD}$ games.
   - Historical players inactive for $> {INACTIVITY_RETIREMENT_DAYS}$ days: $T = \\max(1, K)$ (calibrated at their career match count $K$).
-- **Pass 1 (Discovery):** Simulates chronological history from initial priors, recording each player's emergent latent skill $(r_T, \\mathrm{{RD}}_T, \\sigma_T)$ at their exact $T$-th match.
+- **Pass 1 (Discovery):** Simulates chronological history from initial priors, recording each player's emergent latent skill $(r_T, \\\mathrm{{RD}}_T, \\sigma_T)$ at their exact $T$-th match.
 - **Pass 2 (Option A* Surgical Split):** Re-runs chronological history with calibrated priors loaded from match 1. For each calibrated player:
   - Games $1 \\dots T$: Frozen at the calibrated prior (preventing double counting while protecting teammates from newcomer inflation).
   - Transition sessions: Matches up to $T$ are anchored; only matches strictly $> T$ update dynamically.
@@ -412,8 +412,8 @@ To eliminate Newcomer Bleed while preventing double-counting of initial games, t
 ---
 
 ### Order Invariance Proof
-Because session updates compute total precision \\(I = \\sum w_m I_m\\) and total difference \\(\\Delta = \\sum w_m \\Delta_m\\) by summing over games, addition is commutative:
-$$I_1 + I_2 = I_2 + I_1 \\qquad \\text{{and}} \\qquad \\Delta_1 + \\Delta_2 = \\Delta_2 + \\Delta_1$$
+Because session updates compute total precision \\(I = \\\sum w_m I_m\\) and total difference \\(\\\Delta = \\\sum w_m \\\Delta_m\\) by summing over games, addition is commutative:
+$$I_1 + I_2 = I_2 + I_1 \\qquad \\text{{and}} \\qquad \\\Delta_1 + \\\Delta_2 = \\\Delta_2 + \\\Delta_1$$
 
 Swapping the chronological order of two matches on the same date produces the **identical final rating and RD down to 9 decimal places**.
 
@@ -421,65 +421,68 @@ Swapping the chronological order of two matches on the same date produces the **
 
 ## 7. Empirical Model Validation & Diagnostic Methodology
 
-Evaluating whether ratings reflect real player capability in recreational football requires rigorous statistical validation. However, evaluating probabilistic team models presents unique mathematical challenges.
+Evaluating whether skill ratings reflect real player capability in team sports requires rigorous statistical validation. However, evaluating probabilistic team models presents a fundamental symmetry challenge: the **Matchmaker's Paradox**.
+
+This section outlines the diagnostic building blocks implemented in RB48 to evaluate model accuracy, detect individual rating discrepancies, and measure population calibration.
+
+> [!NOTE]
+> For the complete formal proofs, asymptotic normality derivations, and game-theoretic analysis, see the working paper: [`paper/PAPER_DRAFT.md`](../paper/PAPER_DRAFT.md).
 
 ---
 
-### Classical Macro Calibration (Favourite Perspective, 50%?100%)
+### Building Block 1: Classical Macro Calibration ($[0.5, 1.0]$)
 In standard model analysis, every match is oriented toward the **predicted favourite**:
-- If Team A is predicted with $E_A = 65\%$, the favourite prediction is $P_{{\mathrm{{fav}}}} = 0.65$. If Team A was predicted with $35\%$, Team B is the favourite with $P_{{\mathrm{{fav}}}} = 0.65$.
-- Predictions are grouped into quantile probability bins (e.g. 50%?55%, 55%?60%, etc.).
-- For each bin, the average predicted probability $\bar{{P}}_k$ is compared to the actual favourite win rate $\bar{{y}}_k$.
-- **Expected Calibration Error (ECE):**
-  $$\mathrm{{ECE}} = \sum_{{k=1}}^{{K}} \frac{{n_k}}{{N}} \left| \bar{{P}}_k - \bar{{y}}_k \right|$$
-- **Brier Score & Log-Loss:**
-  $$\mathrm{{Brier}} = \frac{{1}}{{N}} \sum (P_i - y_i)^2, \qquad \mathrm{{LogLoss}} = -\frac{{1}}{{N}} \sum \left[ y_i \ln(P_i) + (1 - y_i) \ln(1 - P_i) \right]$$
+- Matches are grouped into quantile probability bins (e.g. 50%–55%, 55%–60%, etc.).
+- The average predicted probability $\\bar{{P}}_k$ is compared against the observed win rate $\\bar{{y}}_k$.
+- **Key Metrics:**
+  - **Expected Calibration Error (ECE):** $\\mathrm{{ECE}} = \\sum_{{k=1}}^{{K}} \\frac{{n_k}}{{N}} \\left| \\bar{{P}}_k - \\bar{{y}}_k \\right|$
+  - **Brier Score:** $\\mathrm{{Brier}} = \\frac{{1}}{{N}} \\sum (P_i - y_i)^2$
+  - **Log-Loss:** $\\mathrm{{LogLoss}} = -\\frac{{1}}{{N}} \\sum \\left[ y_i \\ln(P_i) + (1 - y_i) \\ln(1 - P_i) \\right]$
 
 ---
 
-### The Matchmaker Dilemma (Why 50/50 Matches Carry Zero Diagnostic Information in Macro Views)
-While the favourite calibration curve works well for unbalanced matches, it faces a fundamental theoretical paradox: **The Matchmaker Dilemma**.
-
-1. **Arbitrary Labels:** In an exact 50:50 game, "Team A" and "Team B" have no physical meaning. Whichever side is labeled Team A is an arbitrary coin flip.
-2. **Zero Invalidation Potential:** A prediction of 50% cannot be proven wrong by any individual outcome. Win or lose, the Log-Loss is always $-\ln(0.50) \approx 0.6931$ and the Brier score is $(0.5 - 1.0)^2 = 0.25$.
-3. **The Core Paradox:** The matchmaker deliberately strives to construct **perfect 50:50 matches** to ensure fair, thrilling games. Yet precisely these 50:50 games?which represent the peak of matchmaking success and produce the highest learning gradient in Glicko-2?**must be excluded from macro favourite calibration** because no objective favourite exists.
-
----
-
-### Player-Perspective Calibration & Standardized Residuals (Breaking Symmetry via "Heads")
-To overcome the Matchmaker Dilemma, the RB48 engine introduces **Player-Perspective Residual Tracking**.
-
-Instead of arbitrary team labels, the orientation is anchored to a specific player $X$ ("Heads" = Team of Player $X$):
-1. **Symmetry is Broken:** In every match involving $X$, the outcome $s_X in (0.0, 0.5, 1.0)$ and the pre-match prediction $E_X$ are defined strictly from $X$'s viewpoint.
-2. **Every 50:50 Game Counts:** If the model predicts $E_X = 0.50$ across 10 matches, but $X$'s team wins 8 of them, $X$'s cumulative residual grows by $+3.0$ wins. The model's claim is directly falsifiable.
-3. **Standardized Cumulative Residual ($z_X$):**
-   $$R_X = \sum_{{i=1}}^{{N_X}} (s_{{X,i}} - E_{{X,i}}), \qquad z_X = \frac{{R_X}}{{\sqrt{{\sum_{{i=1}}^{{N_X}} E_{{X,i}}(1 - E_{{X,i}})}}}}$$
-   Under the null hypothesis that $X$'s rating is accurate, $z_X$ asymptotically follows a standard normal distribution $\mathcal{{N}}(0, 1)$. Values $|z_X| > 1.96$ indicate statistically significant under- or overvaluation ($p < 0.05$).
-4. **Isolated 50/50 Sector ($45\% \le E_X \le 55\%$):**
-   Separating out balanced matches provides a pure test of player influence unaffected by curve-scaling distortions at the tails.
+### Building Block 2: The Matchmaker Dilemma
+While macro calibration evaluates unbalanced games, it suffers from a structural paradox in balanced fixtures:
+1. **Arbitrary Labels:** In an exact 50:50 game, assigning "Team A" or "Team B" as the favourite is an arbitrary coin toss.
+2. **Zero Invalidation Potential:** A 50% forecast yields identical Brier score ($0.25$) and Log-Loss ($-\\ln(0.50) \\approx 0.6931$) whether Team A wins or loses. Single-game outcomes cannot challenge the forecast.
+3. **Information Starvation:** The matchmaker's ultimate goal is to create **balanced 50:50 games**. Yet these exact games—which yield the highest Bayesian update gradient in Glicko-2—carry zero diagnostic value in favourite-oriented macro calibration.
 
 ---
 
-### The Omission Test (Leave-One-Out $\Delta$ Log-Loss)
-To measure whether an individual's rating genuinely contributes predictive value or merely adds noise, the engine performs a counterfactual leave-one-out calculation:
-1. Compute match predictions $E_X$ with player $X$'s current pre-match rating.
-2. Compute counterfactual predictions $E_{{X,\mathrm{{without}}}}$ by removing player $X$ from the lineup (treating their slot as an unrated guest).
-3. Evaluate the differential Log-Loss:
-   $$\Delta \mathrm{{LogLoss}}_X = \mathrm{{LogLoss}}_{{\mathrm{{with\ }} X}} - \mathrm{{LogLoss}}_{{\mathrm{{without\ }} X}}$$
-   A negative $\Delta \mathrm{{LogLoss}}_X$ demonstrates that incorporating player $X$'s rating actively sharpens model forecasts compared to a naive substitution.
+### Building Block 3: Player-Perspective Residual Tracking ("Heads" Anchor)
+To break symmetry and make 50:50 games falsifiable, the engine re-anchors match outcomes to individual player reference frames:
+- **Perspective Anchor:** For each match played by player $X$, "Heads" is defined as Team $X$.
+- **Standardized Cumulative Residual ($z_X$):**
+  $$R_X = \\sum_{{i=1}}^{{N_X}} (s_{{X,i}} - E_{{X,i}}), \qquad z_X = \\frac{{R_X}}{{\\sqrt{{\\sum_{{i=1}}^{{N_X}} E_{{X,i}}(1 - E_{{X,i}})}}}}$$
+  Under the null hypothesis that $X$'s rating is accurate, $z_X \\sim \mathcal{{N}}(0, 1)$. Values $|z_X| > 1.96$ indicate statistically significant deviation ($p < 0.05$).
 
 ---
 
-### Aggregated Population Calibration & Dispersion Analysis
-By pooling the player-perspective observations of all established players ($\ge 5$ games), the model analysis constructs an **Aggregated Population Calibration Curve** spanning the entire domain $[0.0, 1.0]$:
+### Building Block 4: The Isolated 50/50 Sector ($E_X \\in [0.45, 0.55]$)
+In practice, global $z$-scores correlate strongly with rating ($r \\approx 0.99$) due to **rating ascent lag** (players climbing from default priors leave positive residuals in their wake) and link-function underconfidence ($k > 1$).
 
-- **Full Domain:** Left of 50%, players participated as underdogs; right of 50%, as favourites.
-- **Dispersion Test (Chi-Squared Residual Check):**
-  Across all qualified players, the population variance of standardized residuals $\mathrm{{Var}}(z)$ is evaluated:
-  $$\mathrm{{Var}}(z) \approx 1.00$$
-  - $\mathrm{{Var}}(z) \gg 1.0$: Player ratings lag behind real performance shifts (insufficient volatility or updating speed).
-  - $\mathrm{{Var}}(z) \ll 1.0$: Ratings are overly suppressed or regularized.
-  - $\mathrm{{Var}}(z) \approx 1.0$: Individual performance fluctuations match pure binomial variance, confirming ideal calibration across the active player pool.
+Isolating the **50/50 Equilibrium Band** ($45\% \\le E_X \\le 55\%$):
+- Strips out rating ascent slope and tail compression distortions.
+- Measures pure player influence in competitively balanced games.
+- Serves as the primary sorting criterion for identifying over- and undervalued players.
+
+---
+
+### Building Block 5: The Counterfactual Omission Test (Leave-One-Out)
+Measures whether incorporating player $X$'s rating improves overall predictive accuracy compared to an unrated replacement:
+$$\\Delta \\mathrm{{LogLoss}}_X = \\mathrm{{LogLoss}}_{{\\mathrm{{with\ }} X}} - \\mathrm{{LogLoss}}_{{\\mathrm{{without\ }} X}}$$
+- $\\Delta \\mathrm{{LogLoss}}_X < 0$: Player $X$'s rating sharpens predictions (informative signal).
+- $\\Delta \\mathrm{{LogLoss}}_X > 0$: Player $X$'s rating degrades predictions (miscalibrated noise).
+
+---
+
+### Building Block 6: Aggregated Population Calibration & Dispersion Test
+By pooling player-anchored forecasts across all qualified players ($\\ge 5$ games), the engine constructs a full $[0.0, 1.0]$ calibration curve:
+- **Full Domain:** Evaluates performance both when playing as underdogs ($< 50\%$) and favourites ($> 50\%$).
+- **Dispersion Test ($\\mathrm{{Var}}(z) \\approx 1.00$):**
+  - $\\mathrm{{Var}}(z) \\gg 1.0$: Ratings are rigid or lag behind true performance drift.
+  - $\\mathrm{{Var}}(z) \\ll 1.0$: Ratings overreact or suffer from excessive volatility.
+  - $\\mathrm{{Var}}(z) \\approx 1.0$: Empirical residual variance matches theoretical binomial noise, confirming optimal population calibration.
 
 ---
 
