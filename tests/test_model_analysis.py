@@ -279,5 +279,25 @@ class TestModelAnalysis(unittest.TestCase):
         self.assertIn('value="balanced" selected', html_wm_player)
 
 
+    def test_population_tab_accessible_to_glicko_user(self):
+        user_id = self.create_user_session(role="user", verified=True, approved=True, psychology_passed=True)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        # 1. Global analysis shows the tab switch
+        resp = self.client.get("/model-analysis")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("tab=population", html)
+
+        # 2. Can access tab=population
+        resp_pop = self.client.get("/model-analysis?tab=population")
+        self.assertEqual(resp_pop.status_code, 200)
+        html_pop = resp_pop.get_data(as_text=True)
+        self.assertIn("z-Score Streuung Var(z)", html_pop)
+        self.assertIn("Gepoolte Beobachtungen", html_pop)
+        self.assertIn("Gepoolte Siegeskalibrierung", html_pop)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -33,9 +33,10 @@
 <h1>{{ t('model_analysis.title', 'Model Analysis') }}</h1>
 <p class="page-intro">{{ t('model_analysis.intro', 'How well do the pre-match Glicko ratings predict the actual result and the closeness of the resulting game? Only information available before each match is used.') }}</p>
 <div class="analysis-switch">
-<a href="{{ url_for('stats.model_analysis', mode='total') }}" class="analysis-switch-button {% if tab != 'player' and mode=='total' %}active{% endif %}">{{ t('model_analysis.switch_total', 'Total rating') }}</a>
-<a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='box') }}" class="analysis-switch-button {% if tab != 'player' and mode=='pitch' %}active{% endif %}">{{ t('model_analysis.switch_pitch', 'Pitch-specific rating') }}</a>
-{% if is_webmaster %}<a href="{{ url_for('stats.model_analysis', tab='player', pitch=pitch, player_id=selected_player_id) }}" class="analysis-switch-button {% if tab == 'player' %}active{% endif %}">{{ t('model_analysis.switch_player', '🔒 Player perspective') }}</a>{% endif %}
+<a href="{{ url_for('stats.model_analysis', mode='total') }}" class="analysis-switch-button {% if tab == 'global' and mode=='total' %}active{% endif %}">{{ t('model_analysis.switch_total', 'Total rating') }}</a>
+<a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='box') }}" class="analysis-switch-button {% if tab == 'global' and mode=='pitch' %}active{% endif %}">{{ t('model_analysis.switch_pitch', 'Pitch-specific rating') }}</a>
+<a href="{{ url_for('stats.model_analysis', tab='population', pitch=pitch) }}" class="analysis-switch-button {% if tab == 'population' %}active{% endif %}">{{ t('model_analysis.switch_population', '?? Player Population Average') }}</a>
+{% if is_webmaster %}<a href="{{ url_for('stats.model_analysis', tab='player', pitch=pitch, player_id=selected_player_id) }}" class="analysis-switch-button {% if tab == 'player' %}active{% endif %}">{{ t('model_analysis.switch_player', '?? Player perspective') }}</a>{% endif %}
 </div>
 {% if tab == 'player' and is_webmaster %}
 <div class="pitch-switch">
@@ -360,6 +361,91 @@
     });
 })();
 </script>
+{% elif tab == 'population' and population_analysis %}
+<div class="pitch-switch">
+<a href="{{ url_for('stats.model_analysis', tab='population', pitch='total') }}" class="pitch-switch-button {% if pitch=='total' %}active{% endif %}">TOTAL</a>
+<a href="{{ url_for('stats.model_analysis', tab='population', pitch='box') }}" class="pitch-switch-button {% if pitch=='box' %}active{% endif %}">BOX</a>
+<a href="{{ url_for('stats.model_analysis', tab='population', pitch='hf') }}" class="pitch-switch-button {% if pitch=='hf' %}active{% endif %}">HF</a>
+</div>
+<section class="analysis-card">
+<h2>{{ t('model_analysis.pop_tab_title', 'Aggregated Player Calibration (Micro-Level)') }} ({{ pitch|upper }})</h2>
+<p class="analysis-description">{{ t('model_analysis.pop_tab_desc', 'Pools match observations anchored to established players across 0% to 100%.', min_games=population_analysis.min_games) }}</p>
+<div class="analysis-metrics">
+<div class="analysis-metric">
+<span class="analysis-metric-label" title="{{ t('model_analysis.pop_metric_var_z_title', 'Variance of player residuals. Target is ~1.00 for ideal calibration.') }}">{{ t('model_analysis.pop_metric_var_z', 'z-Score Dispersion Var(z)') }}</span>
+<span class="analysis-metric-value {% if population_analysis.var_z is not none and population_analysis.var_z <= 1.25 %}val-positive{% else %}val-negative{% endif %}">{{ '%.2f'|format(population_analysis.var_z) if population_analysis.var_z is not none else '?' }}</span>
+<span class="metric-subvalue" style="display:block;font-size:12px;margin-top:4px">Std(z) = {{ '%.2f'|format(population_analysis.std_z) if population_analysis.std_z is not none else '?' }} (Soll ? 1.00)</span>
+</div>
+<div class="analysis-metric">
+<span class="analysis-metric-label" title="{{ t('model_analysis.pop_metric_var_z50_title', 'Variance of standardized residuals isolated to balanced matches.') }}">{{ t('model_analysis.pop_metric_var_z50', '50/50 z-Dispersion Var(z_50)') }}</span>
+<span class="analysis-metric-value {% if population_analysis.var_z50 is not none and population_analysis.var_z50 <= 1.25 %}val-positive{% else %}val-negative{% endif %}">{{ '%.2f'|format(population_analysis.var_z50) if population_analysis.var_z50 is not none else '?' }}</span>
+<span class="metric-subvalue" style="display:block;font-size:12px;margin-top:4px">Std = {{ '%.2f'|format(population_analysis.std_z50) if population_analysis.std_z50 is not none else '?' }} (Soll ? 1.00)</span>
+</div>
+<div class="analysis-metric">
+<span class="analysis-metric-label" title="{{ t('model_analysis.ece_title', 'Expected Calibration Error.') }}">{{ t('model_analysis.ece', 'Calibration error (ECE)') }}</span>
+<span class="analysis-metric-value">{{ '%.1f%%'|format(population_analysis.ece*100) if population_analysis.ece is not none else '?' }}</span>
+</div>
+<div class="analysis-metric">
+<span class="analysis-metric-label">{{ t('model_analysis.pop_metric_players', 'Qualified Players') }}</span>
+<span class="analysis-metric-value">{{ population_analysis.qualified_players_count }}</span>
+<span class="metric-subvalue" style="display:block;font-size:12px;margin-top:4px">? {{ population_analysis.min_games }} Spiele</span>
+</div>
+<div class="analysis-metric">
+<span class="analysis-metric-label">{{ t('model_analysis.pop_metric_obs', 'Pooled Observations') }}</span>
+<span class="analysis-metric-value">{{ population_analysis.total_observations }}</span>
+</div>
+</div>
+<div class="analysis-note">{{ t('model_analysis.pop_note', 'Methodological advantage: Classical macro model analysis only observes favorites and excludes exact 50:50 matches.') }}</div>
+</section>
+
+<section class="analysis-card">
+{% if population_analysis.calibration %}
+{% set graph_left=70 %}{% set graph_right=950 %}{% set graph_top=25 %}{% set graph_bottom=300 %}{% set x_min=0.0 %}{% set x_max=1.0 %}
+<h3 class="graph-section-title" style="margin-top:0">{{ t('model_analysis.pop_calib_title', 'Pooled Win Calibration Across All Players (0% ? 100%)') }}</h3>
+<p class="graph-section-description">{{ t('model_analysis.pop_calib_desc', 'Compares predicted team win probabilities against actual win rates across all player-match combinations.') }}</p>
+<div class="analysis-graph">
+<svg class="calibration-graph" viewBox="0 0 1000 350" role="img" aria-label="{{ t('model_analysis.pop_calib_title', 'Pooled Win Calibration') }}">
+{% for tick in [0.0,0.25,0.5,0.75,1.0] %}{% set x=graph_left+((tick-x_min)/(x_max-x_min))*(graph_right-graph_left) %}<line class="{% if tick==0.5 %}reference-line{% else %}grid-line{% endif %}" x1="{{x}}" y1="{{graph_top}}" x2="{{x}}" y2="{{graph_bottom}}"/><text x="{{x}}" y="325" text-anchor="middle">{{'%.0f%%'|format(tick*100)}}</text>{% endfor %}
+{% for tick in [0,0.25,0.5,0.75,1] %}{% set y=graph_bottom-tick*(graph_bottom-graph_top) %}<line class="grid-line" x1="{{graph_left}}" y1="{{y}}" x2="{{graph_right}}" y2="{{y}}"/><text x="58" y="{{y+4}}" text-anchor="end">{{(tick*100)|int}}%</text>{% endfor %}
+<line class="reference-line" x1="{{graph_left}}" y1="{{graph_bottom}}" x2="{{graph_right}}" y2="{{graph_top}}"/>
+{% set ns=namespace(points=[]) %}{% for point in population_analysis.lowess %}{% if point.predicted>=x_min and point.predicted<=x_max %}{% set x=graph_left+((point.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}{% set y=graph_bottom-point.actual*(graph_bottom-graph_top) %}{% set ns.points=ns.points+[x|string~','~y|string] %}{% endif %}{% endfor %}<polyline class="lowess-line" points="{{ns.points|join(' ')}}"/>
+{% for bucket in population_analysis.calibration %}{% set x=graph_left+((bucket.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}{% set y=graph_bottom-bucket.actual*(graph_bottom-graph_top) %}<circle class="basket-point" cx="{{x}}" cy="{{y}}" r="6"><title>{{bucket.label}}: {{'%.1f%%'|format(bucket.predicted*100)}} {{ t('model_analysis.th_predicted', 'Predicted') }}, {{'%.1f%%'|format(bucket.actual*100)}} {{ t('model_analysis.player_th_actual', 'Actual win rate') }} ({{bucket.count}} {{ t('model_analysis.pop_th_obs', 'Observations') }})</title></circle>{% endfor %}
+<text x="510" y="345" text-anchor="middle">{{ t('model_analysis.pop_axis_pred', 'Pooled Team Win Probability') }}</text>
+<text x="14" y="165" text-anchor="middle" transform="rotate(-90 14 165)">{{ t('model_analysis.pop_axis_actual', 'Actual Team Win Rate') }}</text>
+</svg>
+<div class="graph-legend">
+<span class="graph-legend-item"><span class="graph-legend-line"></span>{{ t('model_analysis.legend_lowess', 'Linear trendline') }}</span>
+<span class="graph-legend-item"><span class="graph-legend-reference"></span>{{ t('model_analysis.legend_perfect', 'Perfect calibration') }}</span>
+</div>
+</div>
+<div class="analysis-table-wrapper">
+<table class="analysis-table">
+<thead>
+<tr>
+<th>{{ t('model_analysis.pop_th_bucket', 'Probability Interval') }}</th>
+<th>{{ t('model_analysis.pop_th_obs', 'Observations') }}</th>
+<th>{{ t('model_analysis.pop_th_pred', 'Avg Predicted') }}</th>
+<th>{{ t('model_analysis.pop_th_actual', 'Actual Win Rate') }}</th>
+<th>{{ t('model_analysis.pop_th_res', 'Residual (Act ? Exp)') }}</th>
+</tr>
+</thead>
+<tbody>
+{% for bucket in population_analysis.calibration %}
+<tr>
+<td>{{ bucket.label }}</td>
+<td>{{ bucket.count }}</td>
+<td>{{ '%.1f%%'|format(bucket.predicted*100) }}</td>
+<td>{{ '%.1f%%'|format(bucket.actual*100) }}</td>
+<td class="{% if bucket.residual > 0.05 %}val-positive{% elif bucket.residual < -0.05 %}val-negative{% endif %}">{{ '%+.1f%%'|format(bucket.residual*100) }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% else %}
+<p>{{ t('model_analysis.no_predictions', 'No predictions are available for this model yet.') }}</p>
+{% endif %}
+</section>
 {% else %}
 {% if mode=='pitch' %}<div class="pitch-switch"><a href="{{ url_for('stats.model_analysis',mode='pitch',pitch='box') }}" class="pitch-switch-button {% if analysis.pitch=='box' %}active{% endif %}">BOX</a><a href="{{ url_for('stats.model_analysis',mode='pitch',pitch='hf') }}" class="pitch-switch-button {% if analysis.pitch=='hf' %}active{% endif %}">HF</a></div>{% endif %}
 <section class="analysis-card">

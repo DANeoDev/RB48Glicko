@@ -857,3 +857,147 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
 
     summary.sort(key=lambda item: item["name"].lower())
     return summary
+
+
+def analyze_aggregate_player_calibration(connection, mode=TOTAL, pitch=None, min_games=5):
+    """
+    Compute population-level calibration and residual dispersion by aggregating
+    all match observations anchored to established players across the full [0.0, 1.0] domain.
+    This resolves the Matchmaker Dilemma (50/50 blindness in favorite-oriented analysis).
+    """
+    if mode not in (TOTAL, "pitch"):
+        raise ValueError("mode must be 'total' or 'pitch'")
+    if pitch not in (None, BOX, HF):
+        raise ValueError("pitch must be None, BOX, or HF")
+
+    matches = get_matches(connection)
+    all_match_players = get_all_match_players(connection)
+    all_match_ratings = get_all_match_ratings(connection)
+    players = get_players(connection)
+    summary = analyze_all_players_summary(connection, mode=mode, pitch=pitch)
+
+    qualified_pids = {p["id"] for p in summary if p["games"] >= min_games}
+    qualified_players_count = len(qualified_pids)
+
+    observations = []
+    for match in matches.values():
+        if pitch is not None and match["pitch"] != pitch:
+            continue
+        rating_type = TOTAL
+        if mode == "pitch":
+            if match["pitch"] == BOX:
+                rating_type = BOX
+            elif match["pitch"] == HF:
+                rating_type = HF
+            else:
+                continue
+
+        mid = match["match_id"]
+        mp_list = all_match_players.get(mid, [])
+        team_a_ids = [p["player_id"] for p in mp_list if p["team"] == "a"]
+        team_b_ids = [p["player_id"] for p in mp_list if p["team"] == "b"]
+        if not team_a_ids or not team_b_ids:
+            continue
+
+        ratings = all_match_ratings.get(mid, {})
+        if any(
+            pid not in ratings or rating_type not in ratings[pid]
+            for pid in team_a_ids + team_b_ids
+        ):
+            continue
+
+        team_a = _team_rating(team_a_ids, match["players_a"], ratings, rating_type)
+        team_b = _team_rating(team_b_ids, match["players_b"], ratings, rating_type)
+        if team_a is None or team_b is None:
+            continue
+
+        raw_pred_a = _expected_score(team_a, team_b)
+        raw_act_a = _actual_score(match)
+
+        for pid in team_a_ids:
+            if pid in qualified_pids:
+                observations.append({
+                    "player_id": pid,
+                    "prediction": raw_pred_a,
+                    "actual": raw_act_a,
+                    "residual": raw_act_a - raw_pred_a,
+                    "variance": raw_pred_a * (1.0 - raw_pred_a),
+                    "pitch": match["pitch"],
+                    "goal_diff": float(match["goals_a"] - match["goals_b"]),
+                })
+
+        pred_b = 1.0 - raw_pred_a
+        act_b = 1.0 - raw_act_a
+        for pid in team_b_ids:
+            if pid in qualified_pids:
+                observations.append({
+                    "player_id": pid,
+                    "prediction": pred_b,
+                    "actual": act_b,
+                    "residual": act_b - pred_b,
+                    "variance": pred_b * (1.0 - pred_b),
+                    "pitch": match["pitch"],
+                    "goal_diff": float(match["goals_b"] - match["goals_a"]),
+                })
+
+    count = len(observations)
+    active_summary = [p for p in summary if p["games"] >= min_games]
+
+    zs = [p["z_score"] for p in active_summary if p["z_score"] is not None]
+    z_50s = [p["balanced_z_score"] for p in active_summary if p["balanced_z_score"] is not None]
+
+    mean_z = (sum(zs) / len(zs)) if zs else 0.0
+    var_z = (sum((z - mean_z) ** 2 for z in zs) / len(zs)) if len(zs) > 1 else (1.0 if zs else 0.0)
+    std_z = math.sqrt(var_z)
+
+    mean_z50 = (sum(z_50s) / len(z_50s)) if z_50s else 0.0
+    var_z50 = (sum((z - mean_z50) ** 2 for z in z_50s) / len(z_50s)) if len(z_50s) > 1 else (1.0 if z_50s else 0.0)
+    std_z50 = math.sqrt(var_z50)
+
+    if not count:
+        return {
+            "mode": mode,
+            "pitch": pitch,
+            "min_games": min_games,
+            "qualified_players_count": qualified_players_count,
+            "total_observations": 0,
+            "ece": None,
+            "brier": None,
+            "log_loss": None,
+            "mean_z": None,
+            "var_z": None,
+            "std_z": None,
+            "mean_z50": None,
+            "var_z50": None,
+            "std_z50": None,
+            "calibration": [],
+            "lowess": [],
+        }
+
+    baskets = _player_calibration_baskets(observations, max_baskets=10)
+    ece = (
+        sum(b["count"] * abs(b["predicted"] - b["actual"]) for b in baskets) / count
+        if baskets
+        else None
+    )
+    brier = sum((o["prediction"] - o["actual"]) ** 2 for o in observations) / count
+    log_loss = sum(_log_loss(o["prediction"], o["actual"]) for o in observations) / count
+
+    return {
+        "mode": mode,
+        "pitch": pitch,
+        "min_games": min_games,
+        "qualified_players_count": qualified_players_count,
+        "total_observations": count,
+        "ece": ece,
+        "brier": brier,
+        "log_loss": log_loss,
+        "mean_z": mean_z,
+        "var_z": var_z,
+        "std_z": std_z,
+        "mean_z50": mean_z50,
+        "var_z50": var_z50,
+        "std_z50": std_z50,
+        "calibration": baskets,
+        "lowess": _linear_trend_full_range(observations, "actual", min_val=0.0, max_val=1.0),
+    }

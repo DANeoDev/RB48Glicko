@@ -33,6 +33,7 @@ from scripts.analysis.history_snapshots import (
     get_matchday_metadata_map,
 )
 from scripts.analysis.model_analysis import (
+    analyze_aggregate_player_calibration,
     analyze_all_players_summary,
     analyze_model,
     analyze_player_perspective,
@@ -948,7 +949,9 @@ def model_analysis():
     is_webmaster = has_tier(Tier.WEBMASTER)
 
     tab = request.args.get("tab", "global").lower()
-    if not is_webmaster or tab not in ("global", "player"):
+    if tab == "player" and not is_webmaster:
+        tab = "global"
+    if tab not in ("global", "player", "population"):
         tab = "global"
 
     connection = get_connection()
@@ -963,6 +966,7 @@ def model_analysis():
         players_summary = []
         selected_player_id = None
         player_analysis = None
+        population_analysis = None
 
         sort_by = request.args.get("sort", "balanced").lower()
         if sort_by not in ("balanced", "z_score", "net_wins", "games", "rating"):
@@ -1019,6 +1023,15 @@ def model_analysis():
                     pitch=pitch_arg,
                 )
 
+        if tab == "population":
+            min_g = request.args.get("min_games", 5, type=int)
+            population_analysis = analyze_aggregate_player_calibration(
+                connection,
+                mode=TOTAL if pitch == "total" else "pitch",
+                pitch=pitch_arg,
+                min_games=min_g,
+            )
+
         return render_template(
             "model_analysis.html",
             analysis=analysis,
@@ -1030,6 +1043,7 @@ def model_analysis():
             players_summary=players_summary,
             selected_player_id=selected_player_id,
             player_analysis=player_analysis,
+            population_analysis=population_analysis,
         )
     finally:
         connection.close()

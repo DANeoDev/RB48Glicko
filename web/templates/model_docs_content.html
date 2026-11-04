@@ -23,7 +23,13 @@
         <a href="#new-player-entry-certainty-calibration-5-step-prior" class="doc-toc-link"><span>&bull;</span> <span>New Player Entry Certainty Calibration (5-Step Prior)</span></a>
         <a href="#retrospective-prior-recalibration-option-a-surgical-split" class="doc-toc-link"><span>&bull;</span> <span>Retrospective Prior Recalibration (Option A* Surgical Split)</span></a>
         <a href="#order-invariance-proof" class="doc-toc-link"><span>&bull;</span> <span>Order Invariance Proof</span></a>
-        <a href="#7-glossary--reference-formulas" class="doc-toc-link"><span>&bull;</span> <span>Glossary & Reference Formulas</span></a>
+        <a href="#7-empirical-model-validation--diagnostic-methodology" class="doc-toc-link"><span>&bull;</span> <span>Empirical Model Validation & Diagnostic Methodology</span></a>
+        <a href="#classical-macro-calibration-favourite-perspective-50100" class="doc-toc-link"><span>&bull;</span> <span>Classical Macro Calibration (Favourite Perspective, 50%?100%)</span></a>
+        <a href="#the-matchmaker-dilemma-why-5050-matches-carry-zero-diagnostic-information-in-macro-views" class="doc-toc-link"><span>&bull;</span> <span>The Matchmaker Dilemma (Why 50/50 Matches Carry Zero Diagnostic Information in Macro Views)</span></a>
+        <a href="#player-perspective-calibration--standardized-residuals-breaking-symmetry-via-heads" class="doc-toc-link"><span>&bull;</span> <span>Player-Perspective Calibration & Standardized Residuals (Breaking Symmetry via "Heads")</span></a>
+        <a href="#the-omission-test-leave-one-out--log-loss" class="doc-toc-link"><span>&bull;</span> <span>The Omission Test (Leave-One-Out ? Log-Loss)</span></a>
+        <a href="#aggregated-population-calibration--dispersion-analysis" class="doc-toc-link"><span>&bull;</span> <span>Aggregated Population Calibration & Dispersion Analysis</span></a>
+        <a href="#8-glossary--reference-formulas" class="doc-toc-link"><span>&bull;</span> <span>Glossary & Reference Formulas</span></a>
 </div></div>
 <section id="1-introduction-why-glicko-2-for-recreational-football" class="doc-section">
 <h2>1. Introduction: Why Glicko-2 for Recreational Football?</h2>
@@ -365,8 +371,74 @@
 <div class="doc-formula-box">$$I_1 + I_2 = I_2 + I_1 \qquad \text{and} \qquad \Delta_1 + \Delta_2 = \Delta_2 + \Delta_1$$</div>
 <p>Swapping the chronological order of two matches on the same date produces the <strong>identical final rating and RD down to 9 decimal places</strong>.</p>
 </section>
-<section id="7-glossary-reference-formulas" class="doc-section">
-<h2>7. Glossary & Reference Formulas</h2>
+<section id="7-empirical-model-validation-diagnostic-methodology" class="doc-section">
+<h2>7. Empirical Model Validation & Diagnostic Methodology</h2>
+<p>Evaluating whether ratings reflect real player capability in recreational football requires rigorous statistical validation. However, evaluating probabilistic team models presents unique mathematical challenges.</p>
+<h3 id="classical-macro-calibration-favourite-perspective-50100">Classical Macro Calibration (Favourite Perspective, 50%?100%)</h3>
+<p>In standard model analysis, every match is oriented toward the <strong>predicted favourite</strong>:</p>
+<ul>
+<li>If Team A is predicted with \(E_A = 65\%\), the favourite prediction is \(P_{\mathrm{fav}} = 0.65\). If Team A was predicted with \(35\%\), Team B is the favourite with \(P_{\mathrm{fav}} = 0.65\).</li>
+<li>Predictions are grouped into quantile probability bins (e.g. 50%?55%, 55%?60%, etc.).</li>
+<li>For each bin, the average predicted probability \(ar{P}_k\) is compared to the actual favourite win rate \(ar{y}_k\).</li>
+<li><strong>Expected Calibration Error (ECE):</strong></li>
+</ul>
+<div class="doc-formula-box">$$\mathrm{ECE} = \sum_{k=1}^{K}
+rac{n_k}{N} \left| ar{P}_k - ar{y}_k
+ight|$$</div>
+<ul>
+<li><strong>Brier Score & Log-Loss:</strong></li>
+</ul>
+<div class="doc-formula-box">$$\mathrm{Brier} =
+rac{1}{N} \sum (P_i - y_i)^2, \qquad \mathrm{LogLoss} = -
+rac{1}{N} \sum \left[ y_i \ln(P_i) + (1 - y_i) \ln(1 - P_i)
+ight]$$</div>
+<h3 id="the-matchmaker-dilemma-why-5050-matches-carry-zero-diagnostic-information-in-macro-views">The Matchmaker Dilemma (Why 50/50 Matches Carry Zero Diagnostic Information in Macro Views)</h3>
+<p>While the favourite calibration curve works well for unbalanced matches, it faces a fundamental theoretical paradox: <strong>The Matchmaker Dilemma</strong>.</p>
+<ol>
+<li><strong>Arbitrary Labels:</strong> In an exact 50:50 game, "Team A" and "Team B" have no physical meaning. Whichever side is labeled Team A is an arbitrary coin flip.</li>
+<li><strong>Zero Invalidation Potential:</strong> A prediction of 50% cannot be proven wrong by any individual outcome. Win or lose, the Log-Loss is always \(-\ln(0.50) pprox 0.6931\) and the Brier score is \((0.5 - 1.0)^2 = 0.25\).</li>
+<li><strong>The Core Paradox:</strong> The matchmaker deliberately strives to construct <strong>perfect 50:50 matches</strong> to ensure fair, thrilling games. Yet precisely these 50:50 games?which represent the peak of matchmaking success and produce the highest learning gradient in Glicko-2?<strong>must be excluded from macro favourite calibration</strong> because no objective favourite exists.</li>
+</ol>
+<h3 id="player-perspective-calibration-standardized-residuals-breaking-symmetry-via-heads">Player-Perspective Calibration & Standardized Residuals (Breaking Symmetry via "Heads")</h3>
+<p>To overcome the Matchmaker Dilemma, the RB48 engine introduces <strong>Player-Perspective Residual Tracking</strong>.</p>
+<p>Instead of arbitrary team labels, the orientation is anchored to a specific player \(X\) ("Heads" = Team of Player \(X\)):</p>
+<ol>
+<li><strong>Symmetry is Broken:</strong> In every match involving \(X\), the outcome \(s_X in (0.0, 0.5, 1.0)\) and the pre-match prediction \(E_X\) are defined strictly from \(X\)'s viewpoint.</li>
+<li><strong>Every 50:50 Game Counts:</strong> If the model predicts \(E_X = 0.50\) across 10 matches, but \(X\)'s team wins 8 of them, \(X\)'s cumulative residual grows by \(+3.0\) wins. The model's claim is directly falsifiable.</li>
+<li><strong>Standardized Cumulative Residual (\(z_X\)):</strong></li>
+</ol>
+<div class="doc-formula-box">$$R_X = \sum_{i=1}^{N_X} (s_{X,i} - E_{X,i}), \qquad z_X =
+rac{R_X}{\sqrt{\sum_{i=1}^{N_X} E_{X,i}(1 - E_{X,i})}}$$</div>
+<p>Under the null hypothesis that \(X\)'s rating is accurate, \(z_X\) asymptotically follows a standard normal distribution \(\mathcal{N}(0, 1)\). Values \(|z_X| > 1.96\) indicate statistically significant under- or overvaluation (\(p < 0.05\)).</p>
+<ol>
+<li><strong>Isolated 50/50 Sector (\(45\% \le E_X \le 55\%\)):</strong></li>
+</ol>
+<p>Separating out balanced matches provides a pure test of player influence unaffected by curve-scaling distortions at the tails.</p>
+<h3 id="the-omission-test-leave-one-out-delta-log-loss">The Omission Test (Leave-One-Out \(\Delta\) Log-Loss)</h3>
+<p>To measure whether an individual's rating genuinely contributes predictive value or merely adds noise, the engine performs a counterfactual leave-one-out calculation:</p>
+<ol>
+<li>Compute match predictions \(E_X\) with player \(X\)'s current pre-match rating.</li>
+<li>Compute counterfactual predictions \(E_{X,\mathrm{without}}\) by removing player \(X\) from the lineup (treating their slot as an unrated guest).</li>
+<li>Evaluate the differential Log-Loss:</li>
+</ol>
+<div class="doc-formula-box">$$\Delta \mathrm{LogLoss}_X = \mathrm{LogLoss}_{\mathrm{with\ } X} - \mathrm{LogLoss}_{\mathrm{without\ } X}$$</div>
+<p>A negative \(\Delta \mathrm{LogLoss}_X\) demonstrates that incorporating player \(X\)'s rating actively sharpens model forecasts compared to a naive substitution.</p>
+<h3 id="aggregated-population-calibration-dispersion-analysis">Aggregated Population Calibration & Dispersion Analysis</h3>
+<p>By pooling the player-perspective observations of all established players (\(\ge 5\) games), the model analysis constructs an <strong>Aggregated Population Calibration Curve</strong> spanning the entire domain \([0.0, 1.0]\):</p>
+<ul>
+<li><strong>Full Domain:</strong> Left of 50%, players participated as underdogs; right of 50%, as favourites.</li>
+<li><strong>Dispersion Test (Chi-Squared Residual Check):</strong></li>
+</ul>
+<p>Across all qualified players, the population variance of standardized residuals \(\mathrm{Var}(z)\) is evaluated:</p>
+<div class="doc-formula-box">$$\mathrm{Var}(z) pprox 1.00$$</div>
+<ul>
+<li>\(\mathrm{Var}(z) \gg 1.0\): Player ratings lag behind real performance shifts (insufficient volatility or updating speed).</li>
+<li>\(\mathrm{Var}(z) \ll 1.0\): Ratings are overly suppressed or regularized.</li>
+<li>\(\mathrm{Var}(z) pprox 1.0\): Individual performance fluctuations match pure binomial variance, confirming ideal calibration across the active player pool.</li>
+</ul>
+</section>
+<section id="8-glossary-reference-formulas" class="doc-section">
+<h2>8. Glossary & Reference Formulas</h2>
 <div style="overflow-x: auto;"><table class="doc-table">
 <thead><tr>
 <th style="text-align: left;">Term</th>
