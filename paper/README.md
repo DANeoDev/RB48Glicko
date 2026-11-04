@@ -1,30 +1,31 @@
-# Academic Research & Paper Drafts
+# Academic Research & Paper Manuscript
 
-This directory contains research papers, formal mathematical proofs, and academic manuscripts stemming from the RB48 Glicko-2 dynamic rating architecture.
+This directory contains the research paper and reproducible simulation script for the diagnostic methodology developed in the RB48 Glicko-2 rating engine.
 
 ---
 
-## Manuscripts
+## Contents
 
-- **[`PAPER_DRAFT.md`](./PAPER_DRAFT.md)**  
-  **Title:** *The Matchmaker's Paradox: Evaluating Bayesian Team Rating Calibration Under Symmetric 50/50 Equilibria*  
-  **Format:** Applied Sports Analytics / Machine Learning Working Paper  
-  **Status:** Version 1.0 (Draft)  
-  **Target Venues:**
-  - *Journal of Quantitative Analysis in Sports (JQAS)*
-  - *MIT Sloan Sports Analytics Conference (Research Track)*
-  - *ACM SIGKDD Workshop on Machine Learning in Sports*
-  - *IEEE Transactions on Games*
+1. **[`PAPER_DRAFT.md`](./PAPER_DRAFT.md)**  
+   **Title:** *Evaluating Team Skill Rating Systems When the Matchmaker Works: Player-Anchored Residuals, Ascent Bias, and Equilibrium Calibration*  
+   **Summary:** A rigorous, accessible statistical paper analyzing why standard favorite-oriented macro calibration fails when a matchmaker actively constructs balanced $50:50$ teams, how player-perspective residual decomposition ("Heads" = Player $i$'s team) resolves this symmetry blindness, why sequential rating updates create an algebraic conservation coupling between lifetime $z$-scores and current ratings ($r = 0.989$), and how isolating the $50/50$ equilibrium sector alongside Leave-One-Out Log-Loss and population dispersion ($\mathrm{Var}(z_{50}) \approx 1.00$) provides a complete diagnostic framework.
+
+2. **[`simulate_experiments.py`](./simulate_experiments.py)**  
+   **Purpose:** Standalone, reproducible Monte Carlo simulation ($800$ 5v5 matches across $40$ players with known ground-truth skills $\theta_i^*$) verifying the large-sample properties reported in Section 5.2 of the paper.
+   **Run command:**
+   ```bash
+   python paper/simulate_experiments.py
+   ```
 
 ---
 
 ## Code & Data Grounding
 
-All mathematical formulations, residual metrics, and empirical results presented in the paper are implemented in the RB48 core engine:
+All empirical tables and equations in `PAPER_DRAFT.md` correspond directly to the live RB48 codebase and database (`data/rb48.db`):
 - **Core Diagnostics:** [`scripts/analysis/model_analysis.py`](../scripts/analysis/model_analysis.py)
-  - `analyze_player_perspective()`: Player-perspective residual tracking & counterfactual leave-one-out testing.
-  - `analyze_all_players_summary()`: Player overview with 50/50 sector isolation.
-  - `analyze_aggregate_player_calibration()`: Population-wide $[0.0, 1.0]$ calibration & Chi-squared dispersion test.
+  - `analyze_model()`: Classical macro favorite calibration ($[50\%, 100\%]$).
+  - `analyze_player_perspective()`: Player-anchored residuals ($R_i, z_i, z_{i,50}$) & counterfactual Leave-One-Out ($\Delta \mathrm{LogLoss}_i$).
+  - `analyze_all_players_summary()`: League-wide diagnostic summary table.
+  - `analyze_aggregate_player_calibration()`: Pooled population calibration ($[0\%, 100\%]$) & dispersion test ($\mathrm{Var}(z), \mathrm{Var}(z_{50})$).
 - **Model Documentation:** [`docs/GLICKO2_TEAM_MODEL.md`](../docs/GLICKO2_TEAM_MODEL.md) (Section 7)
-- **Interactive UI:** `/model-analysis` (Tabs: *Macro*, *Player Perspective*, *Population*)
-- **Test Suite:** [`tests/test_model_analysis.py`](../tests/test_model_analysis.py)
+- **Unit Tests:** [`tests/test_model_analysis.py`](../tests/test_model_analysis.py)
