@@ -2,7 +2,30 @@
 {% block title %}{{ t('model_analysis.title', 'Model Analysis') }} · RB48{% endblock %}
 {% block head %}
 <style>
-.model-analysis-page{max-width:1000px;margin:0 auto}.model-analysis-page h1{margin-bottom:8px}.page-intro,.analysis-description{color:var(--text-muted);line-height:1.6}.analysis-switch,.pitch-switch{display:flex;justify-content:center;margin:28px 0;flex-wrap:wrap}.pitch-switch{margin:-12px 0 28px}.analysis-switch-button,.pitch-switch-button{padding:10px 20px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-muted);font-weight:600;text-decoration:none}.pitch-switch-button{padding:8px 20px}.analysis-switch-button:first-child,.pitch-switch-button:first-child{border-radius:var(--radius) 0 0 var(--radius)}.analysis-switch-button:last-child,.pitch-switch-button:last-child{border-radius:0 var(--radius) var(--radius) 0}.analysis-switch-button.active{background:var(--accent);border-color:var(--accent);color:#fff}.pitch-switch-button.active{background:var(--accent);border-color:var(--accent);color:#fff}.analysis-switch-button:hover,.pitch-switch-button:hover{background:var(--accent-hover);color:#fff}.analysis-card{margin-top:24px;padding:24px;background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius)}.analysis-card h2{margin-top:0}.analysis-metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:24px}.analysis-metric{padding:16px 12px;border:1px solid var(--border);border-radius:var(--radius);text-align:center}.analysis-metric-label{display:block;color:var(--text-muted);font-size:13px;margin-bottom:8px;cursor:help}.analysis-metric-value{display:block;font-size:22px;font-weight:600}.analysis-note{margin-top:20px;padding:12px 14px;border-left:3px solid var(--accent);background:var(--bg-surface-alt);color:var(--text-muted);line-height:1.5;font-size:14px}.analysis-table-wrapper{overflow-x:auto}.analysis-table{width:100%;margin-top:18px}.analysis-table th,.analysis-table td{padding:10px 14px}.analysis-table th{white-space:nowrap}.analysis-graph{margin:28px 0 10px}.calibration-graph{width:100%;height:auto;display:block;overflow:visible}.calibration-graph .grid-line{stroke:var(--border);stroke-width:1}.calibration-graph .reference-line{stroke:var(--text-muted);stroke-width:1.5;stroke-dasharray:6 5}.calibration-graph .lowess-line,.calibration-graph .goal-diff-line{fill:none;stroke:var(--accent);stroke-width:3}.calibration-graph .basket-point,.calibration-graph .goal-diff-point{fill:var(--accent);stroke:var(--card-bg);stroke-width:2;cursor:help}.calibration-graph text{fill:var(--text-muted);font-size:12px}.graph-section-title{margin:30px 0 4px;font-size:16px}.graph-section-description{margin:0 0 12px;color:var(--text-muted);font-size:14px;line-height:1.5}.graph-legend{display:flex;justify-content:center;gap:24px;margin-top:8px;color:var(--text-muted);font-size:13px}.graph-legend-item{display:inline-flex;align-items:center;gap:7px}.graph-legend-line{width:24px;border-top:3px solid var(--accent)}.graph-legend-reference{width:24px;border-top:2px dashed var(--text-muted)}.reference-table{margin-top:10px}.reference-table caption{text-align:left;padding:12px 0 4px;color:var(--text-muted);font-size:14px}.percentile-cell{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}.metric-explainer-details{margin-top:20px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-surface-alt);overflow:hidden}.metric-explainer-summary{padding:12px 16px;font-weight:600;font-size:14px;cursor:pointer;color:var(--text);user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between}.metric-explainer-summary::-webkit-details-marker{display:none}.metric-explainer-summary:hover{color:var(--accent)}.metric-explainer-summary::after{content:'▾';font-size:14px;transition:transform .2s ease;margin-left:8px}.metric-explainer-details[open] .metric-explainer-summary::after{transform:rotate(180deg)}.metric-explainer-body{padding:16px 20px 20px;border-top:1px solid var(--border);font-size:14px;line-height:1.6;color:var(--text-muted)}.metric-explainer-intro{margin:0 0 16px;font-size:13.5px;color:var(--text-muted)}.metric-explainer-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.metric-explainer-card{padding:14px 16px;background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius)}.metric-explainer-card h4{margin:0 0 6px;color:var(--text);font-size:14px;font-weight:600}.metric-explainer-card p{margin:0 0 12px;font-size:13px;line-height:1.45;color:var(--text-muted)}.metric-benchmarks{list-style:none;padding:0;margin:0;font-size:12.5px}.metric-benchmarks li{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed var(--border)}.metric-benchmarks li:last-child{border-bottom:none}.metric-benchmarks .val{font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px}.metric-benchmarks .val-good{color:var(--accent)}.metric-benchmarks .val-baseline{color:var(--text-muted)}.metric-subvalue{font-size:15px;color:var(--text-muted);font-weight:400}@media(max-width:800px){.analysis-metrics{grid-template-columns:repeat(2,1fr)}}@media(max-width:700px){.metric-explainer-grid{grid-template-columns:1fr}}@media(max-width:500px){.analysis-switch-button,.pitch-switch-button{padding:9px 12px}.analysis-metrics{grid-template-columns:1fr}}
+.model-analysis-page{max-width:1000px;margin:0 auto}.model-analysis-page h1{margin-bottom:8px}.page-intro,.analysis-description{color:var(--text-muted);line-height:1.6}.analysis-switch,.pitch-switch{display:flex;justify-content:center;margin:28px 0;flex-wrap:wrap}.pitch-switch{margin:-12px 0 28px}.analysis-switch-button,.pitch-switch-button{padding:10px 20px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-muted);font-weight:600;text-decoration:none}.pitch-switch-button{padding:8px 20px}.analysis-switch-button:first-child,.pitch-switch-button:first-child{border-radius:var(--radius) 0 0 var(--radius)}.analysis-switch-button:last-child,.pitch-switch-button:last-child{border-radius:0 var(--radius) var(--radius) 0}.analysis-switch-button.active{background:var(--accent);border-color:var(--accent);color:#fff}.pitch-switch-button.active{background:var(--accent);border-color:var(--accent);color:#fff}.analysis-switch-button:hover,.pitch-switch-button:hover{background:var(--accent-hover);color:#fff}.analysis-card{margin-top:24px;padding:24px;background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius)}.analysis-card h2{margin-top:0}.analysis-metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:24px}.analysis-metric{padding:16px 12px;border:1px solid var(--border);border-radius:var(--radius);text-align:center}.analysis-metric-label{display:block;color:var(--text-muted);font-size:13px;margin-bottom:8px;cursor:help}.analysis-metric-value{display:block;font-size:22px;font-weight:600}.analysis-note{margin-top:20px;padding:12px 14px;border-left:3px solid var(--accent);background:var(--bg-surface-alt);color:var(--text-muted);line-height:1.5;font-size:14px}.analysis-table-wrapper{overflow-x:auto}.analysis-table{width:100%;margin-top:18px}.analysis-table th,.analysis-table td{padding:10px 14px}.analysis-table th{white-space:nowrap}.analysis-graph{margin:28px 0 10px}.calibration-graph{width:100%;height:auto;display:block;overflow:visible}.calibration-graph .grid-line{stroke:var(--border);stroke-width:1}.calibration-graph .reference-line{stroke:var(--text-muted);stroke-width:1.5;stroke-dasharray:6 5}.calibration-graph .lowess-line,.calibration-graph .goal-diff-line{fill:none;stroke:var(--accent);stroke-width:3}.calibration-graph .ci-funnel-line{fill:none;stroke:var(--text-muted);stroke-width:1.5;stroke-dasharray:4 4;opacity:0.75}.calibration-graph .basket-point,.calibration-graph .goal-diff-point{fill:var(--accent);stroke:var(--card-bg);stroke-width:2;cursor:help}.calibration-graph text{fill:var(--text-muted);font-size:12px}.graph-section-title{margin:30px 0 4px;font-size:16px}.graph-section-description{margin:0 0 12px;color:var(--text-muted);font-size:14px;line-height:1.5}.graph-legend{display:flex;justify-content:center;gap:24px;margin-top:8px;color:var(--text-muted);font-size:13px;flex-wrap:wrap}.graph-legend-item{display:inline-flex;align-items:center;gap:7px}.graph-legend-line{width:24px;border-top:3px solid var(--accent)}.graph-legend-reference{width:24px;border-top:2px dashed var(--text-muted)}.reference-table{margin-top:10px}.reference-table caption{text-align:left;padding:12px 0 4px;color:var(--text-muted);font-size:14px}.percentile-cell{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}.metric-explainer-details{margin-top:20px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-surface-alt);overflow:hidden}.metric-explainer-summary{padding:12px 16px;font-weight:600;font-size:14px;cursor:pointer;color:var(--text);user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between}.metric-explainer-summary::-webkit-details-marker{display:none}.metric-explainer-summary:hover{color:var(--accent)}.metric-explainer-summary::after{content:'▾';font-size:14px;transition:transform .2s ease;margin-left:8px}.metric-explainer-details[open] .metric-explainer-summary::after{transform:rotate(180deg)}.metric-explainer-body{padding:16px 20px 20px;border-top:1px solid var(--border);font-size:14px;line-height:1.6;color:var(--text-muted)}.metric-explainer-intro{margin:0 0 16px;font-size:13.5px;color:var(--text-muted)}.metric-explainer-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.metric-explainer-card{padding:14px 16px;background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius)}.metric-explainer-card h4{margin:0 0 6px;color:var(--text);font-size:14px;font-weight:600}.metric-explainer-card p{margin:0 0 12px;font-size:13px;line-height:1.45;color:var(--text-muted)}.metric-benchmarks{list-style:none;padding:0;margin:0;font-size:12.5px}.metric-benchmarks li{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed var(--border)}.metric-benchmarks li:last-child{border-bottom:none}.metric-benchmarks .val{font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px}.metric-benchmarks .val-good{color:var(--accent)}.metric-benchmarks .val-baseline{color:var(--text-muted)}.metric-subvalue{font-size:15px;color:var(--text-muted);font-weight:400}
+.player-perspective-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.webmaster-badge-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;background:rgba(128,222,234,0.12);color:#80deea;border:1px solid rgba(128,222,234,0.35);margin-bottom:8px}
+.searchable-dropdown{position:relative;min-width:290px}
+.searchable-dropdown-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--accent);border-radius:var(--radius);color:var(--text);font-weight:600;font-size:14px;cursor:pointer;text-align:left;transition:box-shadow .15s ease,border-color .15s ease}
+.searchable-dropdown-trigger:hover,.searchable-dropdown.open .searchable-dropdown-trigger{border-color:#80deea;box-shadow:0 0 0 3px rgba(128,222,234,0.18)}
+.searchable-dropdown-menu{display:none;position:absolute;right:0;left:0;top:calc(100% + 6px);background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 12px 28px rgba(0,0,0,0.45);z-index:60;overflow:hidden}
+.searchable-dropdown.open .searchable-dropdown-menu{display:block}
+.searchable-dropdown-search-wrap{padding:10px;border-bottom:1px solid var(--border);background:var(--bg-surface-alt);position:relative}
+.searchable-dropdown-input{width:100%;box-sizing:border-box;padding:8px 12px 8px 32px;border:1px solid var(--border);border-radius:6px;background:var(--bg-surface);color:var(--text);font-size:13.5px}
+.searchable-dropdown-input:focus{outline:none;border-color:#80deea}
+.searchable-dropdown-icon{position:absolute;left:20px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--text-muted);pointer-events:none}
+.searchable-dropdown-list{list-style:none;margin:0;padding:6px 0;max-height:280px;overflow-y:auto}
+.player-dropdown-option{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px;cursor:pointer;font-size:13.5px;color:var(--text);text-decoration:none;transition:background .12s ease}
+.player-dropdown-option:hover,.player-dropdown-option.active-opt{background:var(--bg-surface-alt)}
+.player-dropdown-option.selected-opt{background:rgba(128,222,234,0.12);font-weight:600}
+.player-opt-meta{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+.z-badge{display:inline-block;padding:2px 7px;border-radius:999px;font-size:11.5px;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+.z-badge-high{background:rgba(76,175,80,0.18);color:#81c784;border:1px solid rgba(76,175,80,0.4)}
+.z-badge-low{background:rgba(255,152,0,0.18);color:#ffb74d;border:1px solid rgba(255,152,0,0.4)}
+.z-badge-ok{background:rgba(128,222,234,0.12);color:var(--text-muted);border:1px solid var(--border)}
+.val-positive{color:#81c784}
+.val-negative{color:#ffb74d}
+@media(max-width:800px){.analysis-metrics{grid-template-columns:repeat(2,1fr)}}@media(max-width:700px){.metric-explainer-grid{grid-template-columns:1fr}.searchable-dropdown{width:100%}}@media(max-width:500px){.analysis-switch-button,.pitch-switch-button{padding:9px 12px}.analysis-metrics{grid-template-columns:1fr}}
 </style>
 {% endblock %}
 {% block content %}
@@ -10,9 +33,320 @@
 <h1>{{ t('model_analysis.title', 'Model Analysis') }}</h1>
 <p class="page-intro">{{ t('model_analysis.intro', 'How well do the pre-match Glicko ratings predict the actual result and the closeness of the resulting game? Only information available before each match is used.') }}</p>
 <div class="analysis-switch">
-<a href="{{ url_for('stats.model_analysis', mode='total') }}" class="analysis-switch-button {% if mode=='total' %}active{% endif %}">{{ t('model_analysis.switch_total', 'Total rating') }}</a>
-<a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='box') }}" class="analysis-switch-button {% if mode=='pitch' %}active{% endif %}">{{ t('model_analysis.switch_pitch', 'Pitch-specific rating') }}</a>
+<a href="{{ url_for('stats.model_analysis', mode='total') }}" class="analysis-switch-button {% if tab != 'player' and mode=='total' %}active{% endif %}">{{ t('model_analysis.switch_total', 'Total rating') }}</a>
+<a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='box') }}" class="analysis-switch-button {% if tab != 'player' and mode=='pitch' %}active{% endif %}">{{ t('model_analysis.switch_pitch', 'Pitch-specific rating') }}</a>
+{% if is_webmaster %}<a href="{{ url_for('stats.model_analysis', tab='player', pitch=pitch, player_id=selected_player_id) }}" class="analysis-switch-button {% if tab == 'player' %}active{% endif %}">{{ t('model_analysis.switch_player', '🔒 Player perspective') }}</a>{% endif %}
 </div>
+{% if tab == 'player' and is_webmaster %}
+<div class="pitch-switch">
+<a href="{{ url_for('stats.model_analysis', tab='player', pitch='total', player_id=selected_player_id) }}" class="pitch-switch-button {% if pitch=='total' %}active{% endif %}">TOTAL</a>
+<a href="{{ url_for('stats.model_analysis', tab='player', pitch='box', player_id=selected_player_id) }}" class="pitch-switch-button {% if pitch=='box' %}active{% endif %}">BOX</a>
+<a href="{{ url_for('stats.model_analysis', tab='player', pitch='hf', player_id=selected_player_id) }}" class="pitch-switch-button {% if pitch=='hf' %}active{% endif %}">HF</a>
+</div>
+{% if player_analysis %}
+<section class="analysis-card">
+<div class="player-perspective-header">
+<div>
+<span class="webmaster-badge-pill">{{ t('model_analysis.player_tab_badge', "🔒 Webmaster Diagnostics · Player Anchor ('Heads')") }}</span>
+<h2>{{ t('model_analysis.player_tab_title', 'Player Calibration: {player}', player=player_analysis.player_name) }} ({{ pitch|upper }})</h2>
+</div>
+<div class="searchable-dropdown" id="player-perspective-dropdown">
+<label for="player-perspective-search-input" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">{{ t('model_analysis.player_select_label', 'Select player:') }}</label>
+<button type="button" class="searchable-dropdown-trigger" id="player-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">
+<span>👤 {{ player_analysis.player_name }}{% if player_analysis.current_rating is not none %} ({{ '%.0f'|format(player_analysis.current_rating) }}){% endif %}</span>
+<span class="player-opt-meta">{{ player_analysis.games }} {{ t('model_analysis.th_games', 'Games') }} · ▾</span>
+</button>
+<div class="searchable-dropdown-menu" id="player-dropdown-menu" role="listbox">
+<div class="searchable-dropdown-search-wrap">
+<span class="searchable-dropdown-icon">🔍</span>
+<input type="text" id="player-perspective-search-input" class="searchable-dropdown-input" placeholder="{{ t('model_analysis.player_search_placeholder', 'Search player (name or alias)...') }}" autocomplete="off">
+</div>
+<ul class="searchable-dropdown-list" id="player-dropdown-list">
+{% for p in players_summary %}
+<li>
+<a href="{{ url_for('stats.model_analysis', tab='player', pitch=pitch, player_id=p.id) }}" class="player-dropdown-option {% if p.id == selected_player_id %}selected-opt{% endif %}" data-search="{{ p.search_text }}" data-player-id="{{ p.id }}">
+<span>{{ p.name }}</span>
+<span class="player-opt-meta">
+<span>{{ p.games }} Sp.</span>
+{% if p.z_score is not none %}
+<span class="z-badge {% if p.z_score > 1.96 %}z-badge-high{% elif p.z_score < -1.96 %}z-badge-low{% else %}z-badge-ok{% endif %}">z={{ '%+.2f'|format(p.z_score) }}</span>
+{% endif %}
+</span>
+</a>
+</li>
+{% endfor %}
+<li id="player-dropdown-no-match" style="display:none;padding:12px 14px;color:var(--text-muted);font-size:13px;text-align:center">{{ t('model_analysis.player_no_match', 'No matching player found') }}</li>
+</ul>
+</div>
+</div>
+</div>
+<p class="analysis-description">{{ t('model_analysis.player_tab_desc', "Every match involving {player} is oriented toward {player}'s team ('Heads' = {player}'s team). This allows balanced 50:50 matchmaker games to be fully evaluated for calibration and residual drift.", player=player_analysis.player_name) }}</p>
+<div class="analysis-metrics">
+<div class="analysis-metric">
+<span class="analysis-metric-label" title="{{ t('model_analysis.player_z_score_title', 'Standardized cumulative residual z = Σ(s − E) / √Σ E(1−E).') }}">{{ t('model_analysis.player_z_score', 'Residual score (z)') }}</span>
+<span class="analysis-metric-value {% if player_analysis.z_score is not none and player_analysis.z_score > 1.96 %}val-positive{% elif player_analysis.z_score is not none and player_analysis.z_score < -1.96 %}val-negative{% endif %}">{{ '%+.2f'|format(player_analysis.z_score) if player_analysis.z_score is not none else '—' }}</span>
+<span class="metric-subvalue" style="display:block;font-size:11.5px;margin-top:4px">
+{% if player_analysis.status == 'underestimated' %}{{ t('model_analysis.status_underestimated', 'Significantly underestimated') }}
+{% elif player_analysis.status == 'slightly_underestimated' %}{{ t('model_analysis.status_slightly_underestimated', 'Slightly underestimated') }}
+{% elif player_analysis.status == 'overestimated' %}{{ t('model_analysis.status_overestimated', 'Significantly overestimated') }}
+{% elif player_analysis.status == 'slightly_overestimated' %}{{ t('model_analysis.status_slightly_overestimated', 'Slightly overestimated') }}
+{% elif player_analysis.status == 'calibrated' %}{{ t('model_analysis.status_calibrated', 'Well calibrated') }}
+{% else %}{{ t('model_analysis.status_no_data', 'No matches') }}{% endif %}
+</span>
+</div>
+<div class="analysis-metric">
+<span class="analysis-metric-label" title="{{ t('model_analysis.player_net_wins_title', 'Cumulative difference Σ(s − E) between actual wins and pre-match win probabilities.') }}">{{ t('model_analysis.player_net_wins', 'Net wins over expected (R)') }}</span>
+<span class="analysis-metric-value">{{ '%+.2f'|format(player_analysis.net_residual_wins) if player_analysis.games else '—' }}</span>
+{% if player_analysis.actual_win_rate is not none and player_analysis.expected_win_rate is not none %}
+<span class="metric-subvalue" style="display:block;font-size:12px;margin-top:4px">{{ '%.1f%%'|format(player_analysis.actual_win_rate*100) }} / {{ '%.1f%%'|format(player_analysis.expected_win_rate*100) }}</span>
+{% endif %}
+</div>
+<div class="analysis-metric">
+<span class="analysis-metric-label" title="{{ t('model_analysis.player_balanced_zone_title', 'Actual vs. expected win rate in tight matchmaker games (45% to 55% prediction).') }}">{{ t('model_analysis.player_balanced_zone', '50/50 zone (45–55%)') }}</span>
+<span class="analysis-metric-value">{% if player_analysis.balanced_actual_win_rate is not none %}{{ '%.1f%%'|format(player_analysis.balanced_actual_win_rate*100) }}{% else %}—{% endif %}</span>
+<span class="metric-subvalue" style="display:block;font-size:12px;margin-top:4px">{{ player_analysis.balanced_games }} {{ t('model_analysis.th_games', 'Games') }}{% if player_analysis.balanced_z_score is not none %} (z={{ '%+.2f'|format(player_analysis.balanced_z_score) }}){% endif %}</span>
+</div>
+<div class="analysis-metric">
+<span class="analysis-metric-label" title="{{ t('model_analysis.player_leave_one_out_title', 'Change in log-loss when the player is included vs. omitted from the team equation.') }}">{{ t('model_analysis.player_leave_one_out', 'Omission test (Δ Log-Loss)') }}</span>
+<span class="analysis-metric-value {% if player_analysis.log_loss_delta is not none and player_analysis.log_loss_delta < 0 %}val-positive{% elif player_analysis.log_loss_delta is not none and player_analysis.log_loss_delta > 0 %}val-negative{% endif %}">{{ '%+.4f'|format(player_analysis.log_loss_delta) if player_analysis.log_loss_delta is not none else '—' }}</span>
+{% if player_analysis.log_loss is not none and player_analysis.log_loss_without is not none %}
+<span class="metric-subvalue" style="display:block;font-size:11.5px;margin-top:4px">{{ '%.4f'|format(player_analysis.log_loss) }} vs. {{ '%.4f'|format(player_analysis.log_loss_without) }}</span>
+{% endif %}
+</div>
+<div class="analysis-metric">
+<span class="analysis-metric-label">{{ t('model_analysis.games_analysed', 'Games analysed') }}</span>
+<span class="analysis-metric-value">{{ player_analysis.games }}</span>
+<span class="metric-subvalue" style="display:block;font-size:12px;margin-top:4px">{{ t('model_analysis.player_record_sub', '{w}W · {d}D · {l}L', w=player_analysis.wins, d=player_analysis.draws, l=player_analysis.losses) }}</span>
+</div>
+</div>
+<div class="analysis-note">{{ t('model_analysis.player_note_heads', 'Methodological background: By anchoring the perspective to a fixed player X, every 50:50 match gains a consistent direction.') }}</div>
+</section>
+
+<section class="analysis-card">
+{% if player_analysis.calibration %}
+{% set graph_left=70 %}{% set graph_right=950 %}{% set graph_top=25 %}{% set graph_bottom=300 %}{% set x_min=0.0 %}{% set x_max=1.0 %}
+<h3 class="graph-section-title" style="margin-top:0">{{ t('model_analysis.player_calib_title', "Win calibration from {player}'s perspective (0% – 100%)", player=player_analysis.player_name) }}</h3>
+<p class="graph-section-description">{{ t('model_analysis.player_calib_desc', "Left of the 50% line, {player}'s team was the underdog; right of it, the favourite.", player=player_analysis.player_name) }}</p>
+<div class="analysis-graph">
+<svg class="calibration-graph" viewBox="0 0 1000 350" role="img" aria-label="{{ t('model_analysis.player_calib_title', 'Player win calibration', player=player_analysis.player_name) }}">
+{% for tick in [0.0,0.25,0.5,0.75,1.0] %}{% set x=graph_left+((tick-x_min)/(x_max-x_min))*(graph_right-graph_left) %}<line class="{% if tick==0.5 %}reference-line{% else %}grid-line{% endif %}" x1="{{x}}" y1="{{graph_top}}" x2="{{x}}" y2="{{graph_bottom}}"/><text x="{{x}}" y="325" text-anchor="middle">{{'%.0f%%'|format(tick*100)}}</text>{% endfor %}
+{% for tick in [0,0.25,0.5,0.75,1] %}{% set y=graph_bottom-tick*(graph_bottom-graph_top) %}<line class="grid-line" x1="{{graph_left}}" y1="{{y}}" x2="{{graph_right}}" y2="{{y}}"/><text x="58" y="{{y+4}}" text-anchor="end">{{(tick*100)|int}}%</text>{% endfor %}
+<line class="reference-line" x1="{{graph_left}}" y1="{{graph_bottom}}" x2="{{graph_right}}" y2="{{graph_top}}"/>
+{% set ns=namespace(points=[]) %}{% for point in player_analysis.lowess %}{% if point.predicted>=x_min and point.predicted<=x_max %}{% set x=graph_left+((point.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}{% set y=graph_bottom-point.actual*(graph_bottom-graph_top) %}{% set ns.points=ns.points+[x|string~','~y|string] %}{% endif %}{% endfor %}<polyline class="lowess-line" points="{{ns.points|join(' ')}}"/>
+{% for bucket in player_analysis.calibration %}{% set x=graph_left+((bucket.predicted-x_min)/(x_max-x_min))*(graph_right-graph_left) %}{% set y=graph_bottom-bucket.actual*(graph_bottom-graph_top) %}<circle class="basket-point" cx="{{x}}" cy="{{y}}" r="6"><title>{{bucket.label}}: {{'%.1f%%'|format(bucket.predicted*100)}} {{ t('model_analysis.th_predicted', 'Predicted') }}, {{'%.1f%%'|format(bucket.actual*100)}} {{ t('model_analysis.player_th_actual', 'Actual win rate') }} ({{bucket.count}} {{ t('model_analysis.th_games', 'Games') }})</title></circle>{% endfor %}
+<text x="510" y="345" text-anchor="middle">{{ t('model_analysis.player_axis_pred', "Predicted win probability for {player}'s team", player=player_analysis.player_name) }}</text>
+<text x="14" y="165" text-anchor="middle" transform="rotate(-90 14 165)">{{ t('model_analysis.player_axis_actual', "Actual win rate of {player}'s team", player=player_analysis.player_name) }}</text>
+</svg>
+<div class="graph-legend">
+<span class="graph-legend-item"><span class="graph-legend-line"></span>{{ t('model_analysis.legend_lowess', 'Linear trendline') }}</span>
+<span class="graph-legend-item"><span class="graph-legend-reference"></span>{{ t('model_analysis.legend_perfect', 'Perfect calibration') }}</span>
+</div>
+</div>
+
+<div class="analysis-table-wrapper">
+<table class="analysis-table">
+<thead>
+<tr>
+<th>{{ t('model_analysis.player_th_bucket', 'Team win probability') }}</th>
+<th>{{ t('model_analysis.th_games', 'Games') }}</th>
+<th>{{ t('model_analysis.player_th_pred_with', 'Predicted (with player)') }}</th>
+<th>{{ t('model_analysis.player_th_pred_without', 'Predicted (without player)') }}</th>
+<th>{{ t('model_analysis.player_th_actual', 'Actual win rate') }}</th>
+<th>{{ t('model_analysis.player_th_residual', 'Avg residual (Actual − Exp)') }}</th>
+<th>{{ t('model_analysis.player_th_goal_diff', 'Avg goal diff') }}</th>
+</tr>
+</thead>
+<tbody>
+{% for bucket in player_analysis.calibration %}
+<tr>
+<td>{{ bucket.label }}</td>
+<td>{{ bucket.count }}</td>
+<td>{{ '%.1f%%'|format(bucket.predicted*100) }}</td>
+<td>{{ '%.1f%%'|format(bucket.predicted_without*100) }}</td>
+<td>{{ '%.1f%%'|format(bucket.actual*100) }}</td>
+<td class="{% if bucket.residual > 0.05 %}val-positive{% elif bucket.residual < -0.05 %}val-negative{% endif %}">{{ '%+.1f%%'|format(bucket.residual*100) }}</td>
+<td>{{ '%+.1f'|format(bucket.avg_goal_diff) }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+{% if player_analysis.residual_history %}
+{% set r_max=player_analysis.residual_y_max %}{% set r_min=-player_analysis.residual_y_max %}{% set n_steps=player_analysis.residual_history|length %}
+<h3 class="graph-section-title">{{ t('model_analysis.player_cum_title', 'Cumulative residual trajectory Σ(s − E) over time') }}</h3>
+<p class="graph-section-description">{{ t('model_analysis.player_cum_desc', "Shows match by match how many cumulative wins {player}'s team achieved above (+) or below (−) expectation.", player=player_analysis.player_name) }}</p>
+<div class="analysis-graph">
+<svg class="calibration-graph" viewBox="0 0 1000 350" role="img" aria-label="{{ t('model_analysis.player_cum_title', 'Cumulative residual trajectory') }}">
+{% for tick in [r_min, r_min/2.0, 0.0, r_max/2.0, r_max] %}{% set y=graph_bottom-((tick-r_min)/(r_max-r_min))*(graph_bottom-graph_top) %}<line class="{% if tick==0.0 %}reference-line{% else %}grid-line{% endif %}" x1="{{graph_left}}" y1="{{y}}" x2="{{graph_right}}" y2="{{y}}"/><text x="58" y="{{y+4}}" text-anchor="end">{{'%+.1f'|format(tick) if tick!=0 else '0'}}</text>{% endfor %}
+{% set ns_ci_up=namespace(points=[]) %}{% set ns_ci_low=namespace(points=[]) %}{% set ns_cum=namespace(points=[]) %}
+{% for item in player_analysis.residual_history %}
+{% set x=graph_left + ((item.step - 1) / (n_steps - 1 if n_steps > 1 else 1)) * (graph_right - graph_left) %}
+{% set y_cum=graph_bottom - ((item.cum_residual - r_min) / (r_max - r_min)) * (graph_bottom - graph_top) %}
+{% set y_up=graph_bottom - ((item.ci_95 - r_min) / (r_max - r_min)) * (graph_bottom - graph_top) %}
+{% set y_low=graph_bottom - (((-item.ci_95) - r_min) / (r_max - r_min)) * (graph_bottom - graph_top) %}
+{% set ns_cum.points=ns_cum.points+[x|string~','~y_cum|string] %}
+{% set ns_ci_up.points=ns_ci_up.points+[x|string~','~y_up|string] %}
+{% set ns_ci_low.points=ns_ci_low.points+[x|string~','~y_low|string] %}
+{% endfor %}
+<polyline class="ci-funnel-line" points="{{ns_ci_up.points|join(' ')}}"/>
+<polyline class="ci-funnel-line" points="{{ns_ci_low.points|join(' ')}}"/>
+<polyline class="lowess-line" points="{{ns_cum.points|join(' ')}}"/>
+{% for item in player_analysis.residual_history %}
+{% set x=graph_left + ((item.step - 1) / (n_steps - 1 if n_steps > 1 else 1)) * (graph_right - graph_left) %}
+{% set y_cum=graph_bottom - ((item.cum_residual - r_min) / (r_max - r_min)) * (graph_bottom - graph_top) %}
+<circle class="basket-point" cx="{{x}}" cy="{{y_cum}}" r="4.5"><title>#{{item.step}} ({{item.date}}, {{item.pitch|upper}}): Prognose {{'%.1f%%'|format(item.prediction*100)}}, Ausgang {{'%.1f'|format(item.actual)}}, Kumuliert R={{'%+.2f'|format(item.cum_residual)}} (z={{'%+.2f'|format(item.z_score)}}, Vorab-Rating {{'%.0f'|format(item.player_rating_before)}})</title></circle>
+{% endfor %}
+<text x="510" y="345" text-anchor="middle">{{ t('model_analysis.player_cum_axis_x', 'Chronological matches of {player}', player=player_analysis.player_name) }} (1 – {{ n_steps }})</text>
+<text x="14" y="165" text-anchor="middle" transform="rotate(-90 14 165)">{{ t('model_analysis.player_cum_axis_y', 'Cumulative net wins Σ(s − E)') }}</text>
+</svg>
+<div class="graph-legend">
+<span class="graph-legend-item"><span class="graph-legend-line"></span>{{ t('model_analysis.player_legend_cum', 'Cumulative residual R_X') }}</span>
+<span class="graph-legend-item"><span class="graph-legend-reference"></span>{{ t('model_analysis.player_legend_ci', '95% noise funnel (±1.96 σ)') }}</span>
+</div>
+</div>
+{% endif %}
+{% else %}
+<p>{{ t('model_analysis.no_predictions', 'No predictions are available for this model yet.') }}</p>
+{% endif %}
+</section>
+
+<section class="analysis-card">
+<h2>{{ t('model_analysis.player_overview_title', 'League-wide Residual & Omission Test Overview (All Players)') }}</h2>
+<p class="analysis-description">{{ t('model_analysis.player_overview_desc', 'All players ranked by absolute residual deviation |z|. Click any player to open their detailed calibration curve.') }}</p>
+<div class="analysis-table-wrapper">
+<table class="analysis-table">
+<thead>
+<tr>
+<th>{{ t('model_analysis.player_th_name', 'Player') }}</th>
+<th>{{ t('model_analysis.th_games', 'Games') }}</th>
+<th>{{ t('model_analysis.player_th_rating', 'Current Rating (±RD)') }}</th>
+<th>{{ t('model_analysis.player_th_winrate', 'Win rate (Actual / Exp)') }}</th>
+<th>{{ t('model_analysis.player_th_balanced', '50/50 zone (Actual)') }}</th>
+<th>{{ t('model_analysis.player_th_net_res', 'Net wins (R)') }}</th>
+<th>{{ t('model_analysis.player_th_z', 'z-score') }}</th>
+<th>{{ t('model_analysis.player_th_loo', 'Δ Log-Loss (Omission)') }}</th>
+</tr>
+</thead>
+<tbody>
+{% for p in players_summary|sort(attribute='net_residual_wins', reverse=True) %}
+{% if p.games > 0 %}
+<tr style="{% if p.id == selected_player_id %}background:rgba(128,222,234,0.1);font-weight:600{% endif %}">
+<td><a href="{{ url_for('stats.model_analysis', tab='player', pitch=pitch, player_id=p.id) }}" style="color:var(--accent);text-decoration:none;font-weight:600">{{ p.name }}</a></td>
+<td>{{ p.games }}</td>
+<td>{% if p.rating is not none %}{{ '%.0f'|format(p.rating) }} <span class="metric-subvalue" style="font-size:12px">±{{ '%.0f'|format(p.rd) }}</span>{% else %}—{% endif %}</td>
+<td>{{ '%.1f%%'|format(p.actual_win_rate*100) }} <span class="metric-subvalue" style="font-size:12px">/ {{ '%.1f%%'|format(p.expected_win_rate*100) }}</span></td>
+<td>{% if p.balanced_actual_win_rate is not none %}{{ '%.1f%%'|format(p.balanced_actual_win_rate*100) }} <span class="metric-subvalue" style="font-size:12px">({{ p.balanced_games }})</span>{% else %}—{% endif %}</td>
+<td class="{% if p.net_residual_wins > 1.0 %}val-positive{% elif p.net_residual_wins < -1.0 %}val-negative{% endif %}">{{ '%+.2f'|format(p.net_residual_wins) }}</td>
+<td><span class="z-badge {% if p.z_score > 1.96 %}z-badge-high{% elif p.z_score < -1.96 %}z-badge-low{% else %}z-badge-ok{% endif %}">{{ '%+.2f'|format(p.z_score) }}</span></td>
+<td class="{% if p.log_loss_delta is not none and p.log_loss_delta < 0 %}val-positive{% elif p.log_loss_delta is not none and p.log_loss_delta > 0 %}val-negative{% endif %}">{{ '%+.4f'|format(p.log_loss_delta) if p.log_loss_delta is not none else '—' }}</td>
+</tr>
+{% endif %}
+{% endfor %}
+</tbody>
+</table>
+</div>
+</section>
+{% endif %}
+
+<script>
+(function() {
+    const dropdown = document.getElementById('player-perspective-dropdown');
+    const trigger = document.getElementById('player-dropdown-trigger');
+    const searchInput = document.getElementById('player-perspective-search-input');
+    const options = Array.from(document.querySelectorAll('.player-dropdown-option'));
+    const noMatch = document.getElementById('player-dropdown-no-match');
+    if (!dropdown || !trigger || !searchInput) return;
+
+    let activeIndex = -1;
+
+    function getVisibleOptions() {
+        return options.filter(opt => opt.parentElement.style.display !== 'none');
+    }
+
+    function updateHighlight(visible) {
+        options.forEach(opt => opt.classList.remove('active-opt'));
+        if (activeIndex >= 0 && activeIndex < visible.length) {
+            visible[activeIndex].classList.add('active-opt');
+            visible[activeIndex].scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    function openDropdown() {
+        dropdown.classList.add('open');
+        trigger.setAttribute('aria-expanded', 'true');
+        setTimeout(() => searchInput.focus(), 10);
+    }
+
+    function closeDropdown() {
+        dropdown.classList.remove('open');
+        trigger.setAttribute('aria-expanded', 'false');
+        activeIndex = -1;
+        options.forEach(opt => opt.classList.remove('active-opt'));
+    }
+
+    trigger.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (dropdown.classList.contains('open')) {
+            closeDropdown();
+        } else {
+            openDropdown();
+        }
+    });
+
+    searchInput.addEventListener('click', function(e) {
+        e.stopPropagation();
+    });
+
+    searchInput.addEventListener('input', function() {
+        const q = (this.value || '').trim().toLowerCase();
+        let visibleCount = 0;
+        options.forEach(opt => {
+            const hay = (opt.getAttribute('data-search') || '').toLowerCase();
+            const match = !q || hay.includes(q);
+            opt.parentElement.style.display = match ? '' : 'none';
+            if (match) visibleCount++;
+        });
+        if (noMatch) {
+            noMatch.style.display = visibleCount === 0 ? '' : 'none';
+        }
+        activeIndex = visibleCount > 0 ? 0 : -1;
+        updateHighlight(getVisibleOptions());
+    });
+
+    searchInput.addEventListener('keydown', function(e) {
+        const visible = getVisibleOptions();
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (visible.length) {
+                activeIndex = (activeIndex + 1) % visible.length;
+                updateHighlight(visible);
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (visible.length) {
+                activeIndex = (activeIndex - 1 + visible.length) % visible.length;
+                updateHighlight(visible);
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const target = (activeIndex >= 0 && activeIndex < visible.length) ? visible[activeIndex] : visible[0];
+            if (target && target.href) {
+                window.location.href = target.href;
+            }
+        } else if (e.key === 'Escape') {
+            closeDropdown();
+        }
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!dropdown.contains(e.target)) {
+            closeDropdown();
+        }
+    });
+})();
+</script>
+{% else %}
 {% if mode=='pitch' %}<div class="pitch-switch"><a href="{{ url_for('stats.model_analysis',mode='pitch',pitch='box') }}" class="pitch-switch-button {% if analysis.pitch=='box' %}active{% endif %}">BOX</a><a href="{{ url_for('stats.model_analysis',mode='pitch',pitch='hf') }}" class="pitch-switch-button {% if analysis.pitch=='hf' %}active{% endif %}">HF</a></div>{% endif %}
 <section class="analysis-card">
 <h2>{% if mode=='total' %}{{ t('model_analysis.card_total_title', 'Total rating model') }}{% else %}{{ t('model_analysis.card_pitch_title', '{pitch} rating model', pitch=('BOX' if analysis.pitch=='box' else 'HF')) }}{% endif %}</h2>
@@ -42,7 +376,7 @@
 </div>
 <div class="metric-explainer-card">
 <h4>{{ t('model_analysis.log_loss', 'Log loss') }}</h4>
-<p>{{ t('model_analysis.log_loss_expl_desc', 'Logarithmic cross-entropy. Heavily penalizes wrong predictions made with high confidence.') }}</p>
+<p>{{ t('model_analysis.log_loss_expl_desc', 'Logarithmische Kreuzentropie. Heavily penalizes wrong predictions made with high confidence.') }}</p>
 <ul class="metric-benchmarks">
 <li><span>{{ t('model_analysis.bm_perfect', 'Theoretical optimum') }}</span><span class="val val-good">0.0000</span></li>
 <li><span>{{ t('model_analysis.bm_solid', 'Strong sports model') }}</span><span class="val val-good">&lt; 0.6500</span></li>
@@ -94,5 +428,7 @@
 <h3 class="graph-section-title">{{ t('model_analysis.goal_diff_table_title', 'Goal difference by favourite probability') }}</h3><p class="graph-section-description">{{ t('model_analysis.goal_diff_table_desc', 'Average favourite goal difference broken down across the 10 dynamic probability intervals.') }}</p>
 <div class="analysis-table-wrapper"><table class="analysis-table goal-diff-table"><thead><tr><th>{{ t('model_analysis.th_bucket', 'Favourite probability') }}</th><th>{{ t('model_analysis.th_games', 'Games') }}</th><th>{{ t('model_analysis.th_predicted', 'Predicted') }}</th><th title="{% if mode=='total' %}{{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results (winner scaled to 10 goals)') }}{% else %}{{ t('model_analysis.goal_diff_hover_actual', 'Actual average goal difference of the favourite') }}{% endif %}">{{ t('model_analysis.th_avg_goal_diff', 'Avg goal diff') }}</th></tr></thead><tbody>{% for bucket in analysis.calibration %}<tr><td>{{bucket.label}}</td><td>{{bucket.count}}</td><td>{{'%.1f%%'|format(bucket.predicted*100)}}</td><td class="percentile-cell" title="{{'%+.1f'|format(bucket.avg_goal_diff)}} {% if mode=='total' %}({{ t('model_analysis.goal_diff_hover_scaled', 'HF results are scaled to Box results') }}){% else %}({{ t('model_analysis.goal_diff_hover_actual', 'Actual average goal difference of the favourite') }}){% endif %}">{{'%+.1f'|format(bucket.avg_goal_diff)}}</td></tr>{% endfor %}</tbody></table></div>
 {% else %}<p>{{ t('model_analysis.no_predictions', 'No predictions are available for this model yet.') }}</p>{% endif %}
-</section></div>
+</section>
+{% endif %}
+</div>
 {% endblock %}

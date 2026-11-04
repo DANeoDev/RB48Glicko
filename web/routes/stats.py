@@ -32,7 +32,11 @@ from scripts.analysis.achievements import get_player_achievements
 from scripts.analysis.history_snapshots import (
     get_matchday_metadata_map,
 )
-from scripts.analysis.model_analysis import analyze_model
+from scripts.analysis.model_analysis import (
+    analyze_all_players_summary,
+    analyze_model,
+    analyze_player_perspective,
+)
 from scripts.analysis.synergies import get_community_synergies, filter_synergies_by_excluded_players
 from scripts.database.database import get_connection
 from scripts.database.db_matches import (
@@ -940,6 +944,13 @@ def model_analysis():
         pitch = "total"
 
     mode = "total" if pitch == "total" else "pitch"
+    pitch_arg = None if pitch == "total" else (BOX if pitch == "box" else HF)
+    is_webmaster = has_tier(Tier.WEBMASTER)
+
+    tab = request.args.get("tab", "global").lower()
+    if not is_webmaster or tab not in ("global", "player"):
+        tab = "global"
+
     connection = get_connection()
     try:
         if pitch == "total":
@@ -949,11 +960,47 @@ def model_analysis():
         else:
             analysis = analyze_model(connection, mode="pitch", pitch=HF)
 
+        players_summary = []
+        selected_player_id = None
+        player_analysis = None
+
+        if is_webmaster:
+            players_summary = analyze_all_players_summary(
+                connection,
+                mode=TOTAL if pitch == "total" else "pitch",
+                pitch=pitch_arg,
+            )
+            valid_ids = {p["id"] for p in players_summary}
+            req_pid = request.args.get("player_id", type=int)
+            if req_pid in valid_ids:
+                selected_player_id = req_pid
+            else:
+                curr_user = get_current_user()
+                user_pid = curr_user.get("player_id") if curr_user else None
+                if user_pid in valid_ids:
+                    selected_player_id = user_pid
+                elif players_summary:
+                    most_active = max(players_summary, key=lambda p: (p["games"], -p["id"]))
+                    selected_player_id = most_active["id"]
+
+            if tab == "player" and selected_player_id is not None:
+                player_analysis = analyze_player_perspective(
+                    connection,
+                    selected_player_id,
+                    mode=TOTAL if pitch == "total" else "pitch",
+                    pitch=pitch_arg,
+                )
+
         return render_template(
             "model_analysis.html",
             analysis=analysis,
             mode=mode,
             pitch=pitch,
+            tab=tab,
+            is_webmaster=is_webmaster,
+            players_summary=players_summary,
+            selected_player_id=selected_player_id,
+            player_analysis=player_analysis,
         )
     finally:
         connection.close()

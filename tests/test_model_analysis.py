@@ -13,7 +13,9 @@ from scripts.analysis.model_analysis import (
     _calibration_baskets,
     _goal_diff_distribution,
     _lowess,
+    analyze_all_players_summary,
     analyze_model,
+    analyze_player_perspective,
 )
 from scripts.database.database import get_connection
 from scripts.glicko.glicko2 import BOX, HF, TOTAL
@@ -221,6 +223,57 @@ class TestModelAnalysis(unittest.TestCase):
         self.assertEqual(resp_g_hf.status_code, 200)
         html_g_hf = resp_g_hf.get_data(as_text=True)
         self.assertIn("Modell: Glicko-2 (HF)", html_g_hf)
+
+    def test_analyze_player_perspective_and_all_players_summary(self):
+        conn = get_connection()
+        try:
+            summary = analyze_all_players_summary(conn, mode=TOTAL)
+            self.assertGreater(len(summary), 0)
+            active = [p for p in summary if p["games"] > 0]
+            self.assertGreater(len(active), 0)
+
+            sample = active[0]
+            detail = analyze_player_perspective(conn, sample["id"], mode=TOTAL)
+            self.assertEqual(detail["player_id"], sample["id"])
+            self.assertEqual(detail["games"], sample["games"])
+            self.assertAlmostEqual(detail["z_score"], sample["z_score"], places=6)
+            self.assertAlmostEqual(detail["net_residual_wins"], sample["net_residual_wins"], places=6)
+            self.assertAlmostEqual(detail["log_loss_delta"], sample["log_loss_delta"], places=6)
+            self.assertEqual(len(detail["residual_history"]), sample["games"])
+            self.assertGreater(len(detail["calibration"]), 0)
+        finally:
+            conn.close()
+
+    def test_webmaster_only_player_perspective_tab_and_searchable_dropdown(self):
+        # 1. Standard Glicko user cannot see or open the player perspective tab
+        regular_id = self.create_user_session(role="user", verified=True, approved=True, psychology_passed=True)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = regular_id
+
+        resp_reg = self.client.get("/model-analysis?tab=player&player_id=1")
+        self.assertEqual(resp_reg.status_code, 200)
+        html_reg = resp_reg.get_data(as_text=True)
+        self.assertNotIn('id="player-perspective-dropdown"', html_reg)
+        self.assertNotIn("tab=player", html_reg)
+
+        # 2. Webmaster sees the tab and can inspect any player via the searchable dropdown
+        wm_id = self.create_user_session(role="webmaster", verified=True, approved=True, psychology_passed=True)
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = wm_id
+
+        resp_wm_default = self.client.get("/model-analysis")
+        self.assertEqual(resp_wm_default.status_code, 200)
+        html_wm_default = resp_wm_default.get_data(as_text=True)
+        self.assertIn("tab=player", html_wm_default)
+
+        resp_wm_player = self.client.get("/model-analysis?tab=player&player_id=1")
+        self.assertEqual(resp_wm_player.status_code, 200)
+        html_wm_player = resp_wm_player.get_data(as_text=True)
+        self.assertIn('id="player-perspective-dropdown"', html_wm_player)
+        self.assertIn('id="player-perspective-search-input"', html_wm_player)
+        self.assertIn("player-dropdown-option", html_wm_player)
+        self.assertIn("Residuen-Score (z)", html_wm_player)
+        self.assertIn("Streich-Test", html_wm_player)
 
 
 if __name__ == "__main__":
