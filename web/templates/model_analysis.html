@@ -212,34 +212,48 @@
 </section>
 
 <section class="analysis-card">
-<h2>{{ t('model_analysis.player_overview_title', 'League-wide Residual & Omission Test Overview (All Players)') }}</h2>
-<p class="analysis-description">{{ t('model_analysis.player_overview_desc', 'All players ranked by absolute residual deviation |z|. Click any player to open their detailed calibration curve.') }}</p>
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:8px">
+<div>
+<h2 style="margin:0">{{ t('model_analysis.player_overview_title', 'League-wide Residual & Omission Test Overview (All Players)') }}</h2>
+<p class="analysis-description" style="margin:4px 0 0">{{ t('model_analysis.player_overview_desc', 'All players ranked by calibration performance. Click any player to open their detailed calibration curve.') }}</p>
+</div>
+<div style="display:flex;align-items:center;gap:8px">
+<label for="overview-sort-select" style="font-size:13px;color:var(--text-muted);font-weight:600">{{ t('model_analysis.sort_label', 'Sort by:') }}</label>
+<select id="overview-sort-select" style="background:var(--bg-surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:13px;font-weight:600" onchange="location.href='{{ url_for('stats.model_analysis', tab='player', pitch=pitch, player_id=selected_player_id) }}&sort=' + this.value">
+<option value="balanced" {% if sort_by=='balanced' %}selected{% endif %}>{{ t('model_analysis.sort_balanced', '?? 50/50 Score (z_50 / Winrate)') }}</option>
+<option value="z_score" {% if sort_by=='z_score' %}selected{% endif %}>{{ t('model_analysis.sort_z_score', 'Total z-score (|z|)') }}</option>
+<option value="net_wins" {% if sort_by=='net_wins' %}selected{% endif %}>{{ t('model_analysis.sort_net_wins', 'Net wins (R)') }}</option>
+<option value="games" {% if sort_by=='games' %}selected{% endif %}>{{ t('model_analysis.sort_games', 'Matches played') }}</option>
+<option value="rating" {% if sort_by=='rating' %}selected{% endif %}>{{ t('model_analysis.sort_rating', 'Rating') }}</option>
+</select>
+</div>
+</div>
 <div class="analysis-table-wrapper">
 <table class="analysis-table">
 <thead>
 <tr>
 <th>{{ t('model_analysis.player_th_name', 'Player') }}</th>
 <th>{{ t('model_analysis.th_games', 'Games') }}</th>
-<th>{{ t('model_analysis.player_th_rating', 'Current Rating (±RD)') }}</th>
-<th>{{ t('model_analysis.player_th_winrate', 'Win rate (Actual / Exp)') }}</th>
+<th>{{ t('model_analysis.player_th_rating', 'Current Rating (?RD)') }}</th>
 <th>{{ t('model_analysis.player_th_balanced', '50/50 zone (Actual)') }}</th>
-<th>{{ t('model_analysis.player_th_net_res', 'Net wins (R)') }}</th>
-<th>{{ t('model_analysis.player_th_z', 'z-score') }}</th>
-<th>{{ t('model_analysis.player_th_loo', 'Δ Log-Loss (Omission)') }}</th>
+<th>{{ t('model_analysis.player_th_balanced_z', '50/50 z-Score') }}</th>
+<th>{{ t('model_analysis.player_th_winrate', 'Total Win rate (Actual / Exp)') }}</th>
+<th>{{ t('model_analysis.player_th_z', 'Total z-Score') }}</th>
+<th>{{ t('model_analysis.player_th_loo', '? Log-Loss (Omission)') }}</th>
 </tr>
 </thead>
 <tbody>
-{% for p in players_summary|sort(attribute='net_residual_wins', reverse=True) %}
+{% for p in players_summary %}
 {% if p.games > 0 %}
 <tr style="{% if p.id == selected_player_id %}background:rgba(128,222,234,0.1);font-weight:600{% endif %}">
-<td><a href="{{ url_for('stats.model_analysis', tab='player', pitch=pitch, player_id=p.id) }}" style="color:var(--accent);text-decoration:none;font-weight:600">{{ p.name }}</a></td>
+<td><a href="{{ url_for('stats.model_analysis', tab='player', pitch=pitch, player_id=p.id, sort=sort_by) }}" style="color:var(--accent);text-decoration:none;font-weight:600">{{ p.name }}</a></td>
 <td>{{ p.games }}</td>
-<td>{% if p.rating is not none %}{{ '%.0f'|format(p.rating) }} <span class="metric-subvalue" style="font-size:12px">±{{ '%.0f'|format(p.rd) }}</span>{% else %}—{% endif %}</td>
+<td>{% if p.rating is not none %}{{ '%.0f'|format(p.rating) }} <span class="metric-subvalue" style="font-size:12px">?{{ '%.0f'|format(p.rd) }}</span>{% else %}?{% endif %}</td>
+<td>{% if p.balanced_actual_win_rate is not none %}<span class="{% if p.balanced_actual_win_rate > 0.55 %}val-positive{% elif p.balanced_actual_win_rate < 0.45 %}val-negative{% endif %}">{{ '%.1f%%'|format(p.balanced_actual_win_rate*100) }}</span> <span class="metric-subvalue" style="font-size:12px">({{ p.balanced_games }} Sp.)</span>{% else %}?{% endif %}</td>
+<td>{% if p.balanced_z_score is not none %}<span class="z-badge {% if p.balanced_z_score > 1.0 %}z-badge-high{% elif p.balanced_z_score < -1.0 %}z-badge-low{% else %}z-badge-ok{% endif %}">{{ '%+.2f'|format(p.balanced_z_score) }}</span>{% else %}?{% endif %}</td>
 <td>{{ '%.1f%%'|format(p.actual_win_rate*100) }} <span class="metric-subvalue" style="font-size:12px">/ {{ '%.1f%%'|format(p.expected_win_rate*100) }}</span></td>
-<td>{% if p.balanced_actual_win_rate is not none %}{{ '%.1f%%'|format(p.balanced_actual_win_rate*100) }} <span class="metric-subvalue" style="font-size:12px">({{ p.balanced_games }})</span>{% else %}—{% endif %}</td>
-<td class="{% if p.net_residual_wins > 1.0 %}val-positive{% elif p.net_residual_wins < -1.0 %}val-negative{% endif %}">{{ '%+.2f'|format(p.net_residual_wins) }}</td>
 <td><span class="z-badge {% if p.z_score > 1.96 %}z-badge-high{% elif p.z_score < -1.96 %}z-badge-low{% else %}z-badge-ok{% endif %}">{{ '%+.2f'|format(p.z_score) }}</span></td>
-<td class="{% if p.log_loss_delta is not none and p.log_loss_delta < 0 %}val-positive{% elif p.log_loss_delta is not none and p.log_loss_delta > 0 %}val-negative{% endif %}">{{ '%+.4f'|format(p.log_loss_delta) if p.log_loss_delta is not none else '—' }}</td>
+<td class="{% if p.log_loss_delta is not none and p.log_loss_delta < 0 %}val-positive{% elif p.log_loss_delta is not none and p.log_loss_delta > 0 %}val-negative{% endif %}">{{ '%+.4f'|format(p.log_loss_delta) if p.log_loss_delta is not none else '?' }}</td>
 </tr>
 {% endif %}
 {% endfor %}

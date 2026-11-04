@@ -964,12 +964,40 @@ def model_analysis():
         selected_player_id = None
         player_analysis = None
 
+        sort_by = request.args.get("sort", "balanced").lower()
+        if sort_by not in ("balanced", "z_score", "net_wins", "games", "rating"):
+            sort_by = "balanced"
+
         if is_webmaster:
             players_summary = analyze_all_players_summary(
                 connection,
                 mode=TOTAL if pitch == "total" else "pitch",
                 pitch=pitch_arg,
             )
+            def _summary_sort_key(p):
+                if sort_by == "balanced":
+                    b_z = p["balanced_z_score"]
+                    b_wr = p["balanced_actual_win_rate"]
+                    return (
+                        b_z is not None,
+                        b_z if b_z is not None else -999.0,
+                        b_wr if b_wr is not None else -999.0,
+                        p["balanced_games"],
+                        p["games"],
+                    )
+                elif sort_by == "z_score":
+                    z = p["z_score"]
+                    return (z is not None, abs(z) if z is not None else -999.0, p["games"])
+                elif sort_by == "net_wins":
+                    return (p["net_residual_wins"] if p["net_residual_wins"] is not None else -999.0, p["games"])
+                elif sort_by == "games":
+                    return (p["games"], p["balanced_games"])
+                elif sort_by == "rating":
+                    r = p["rating"]
+                    return (r is not None, r if r is not None else -999.0)
+                return (p["name"].lower(),)
+
+            players_summary.sort(key=_summary_sort_key, reverse=True)
             valid_ids = {p["id"] for p in players_summary}
             req_pid = request.args.get("player_id", type=int)
             if req_pid in valid_ids:
@@ -997,6 +1025,7 @@ def model_analysis():
             mode=mode,
             pitch=pitch,
             tab=tab,
+            sort_by=sort_by,
             is_webmaster=is_webmaster,
             players_summary=players_summary,
             selected_player_id=selected_player_id,

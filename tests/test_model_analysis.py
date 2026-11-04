@@ -274,6 +274,9 @@ class TestModelAnalysis(unittest.TestCase):
         self.assertIn("player-dropdown-option", html_wm_player)
         self.assertIn("Residuen-Score (z)", html_wm_player)
         self.assertIn("Streich-Test", html_wm_player)
+        self.assertIn("50/50 z-Score", html_wm_player)
+        self.assertIn('id="overview-sort-select"', html_wm_player)
+        self.assertIn('value="balanced" selected', html_wm_player)
 
 
 if __name__ == "__main__":

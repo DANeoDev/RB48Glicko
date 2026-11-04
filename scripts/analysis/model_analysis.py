@@ -723,6 +723,7 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
             "balanced_games": 0,
             "balanced_act": 0.0,
             "balanced_pred": 0.0,
+            "balanced_var": 0.0,
             "sum_ll_with": 0.0,
             "sum_ll_without": 0.0,
         }
@@ -780,6 +781,7 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
                 st["balanced_games"] += 1
                 st["balanced_pred"] += raw_pred_a
                 st["balanced_act"] += raw_act_a
+                st["balanced_var"] += raw_pred_a * (1.0 - raw_pred_a)
 
         pred_b = 1.0 - raw_pred_a
         act_b = 1.0 - raw_act_a
@@ -800,6 +802,7 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
                 st["balanced_games"] += 1
                 st["balanced_pred"] += pred_b
                 st["balanced_act"] += act_b
+                st["balanced_var"] += pred_b * (1.0 - pred_b)
 
     summary = []
     for pid, p_info in players.items():
@@ -814,13 +817,23 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
             exp_wr = st["sum_pred"] / games
             act_wr = st["sum_act"] / games
             ll_delta = (st["sum_ll_with"] - st["sum_ll_without"]) / games
-            bal_act = (st["balanced_act"] / st["balanced_games"]) if st["balanced_games"] else None
+            if st["balanced_games"] > 0:
+                bal_act = st["balanced_act"] / st["balanced_games"]
+                bal_net = st["balanced_act"] - st["balanced_pred"]
+                bal_std = math.sqrt(st["balanced_var"]) if st["balanced_var"] > 0 else 0.0
+                bal_z = (bal_net / bal_std) if bal_std > 1e-12 else 0.0
+            else:
+                bal_act = None
+                bal_net = 0.0
+                bal_z = None
         else:
             z_val = None
             exp_wr = None
             act_wr = None
             ll_delta = None
             bal_act = None
+            bal_net = 0.0
+            bal_z = None
 
         summary.append({
             "id": pid,
@@ -837,6 +850,8 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
             "status": _classify_residual_status(z_val),
             "balanced_games": st["balanced_games"],
             "balanced_actual_win_rate": bal_act,
+            "balanced_net_residual": bal_net,
+            "balanced_z_score": bal_z,
             "log_loss_delta": ll_delta,
         })
 
