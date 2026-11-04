@@ -35,8 +35,8 @@
 <div class="analysis-switch">
 <a href="{{ url_for('stats.model_analysis', mode='total') }}" class="analysis-switch-button {% if tab == 'global' and mode=='total' %}active{% endif %}">{{ t('model_analysis.switch_total', 'Total rating') }}</a>
 <a href="{{ url_for('stats.model_analysis', mode='pitch', pitch='box') }}" class="analysis-switch-button {% if tab == 'global' and mode=='pitch' %}active{% endif %}">{{ t('model_analysis.switch_pitch', 'Pitch-specific rating') }}</a>
-<a href="{{ url_for('stats.model_analysis', tab='population', pitch=pitch) }}" class="analysis-switch-button {% if tab == 'population' %}active{% endif %}">{{ t('model_analysis.switch_population', '?? Player Population Average') }}</a>
-{% if is_webmaster %}<a href="{{ url_for('stats.model_analysis', tab='player', pitch=pitch, player_id=selected_player_id) }}" class="analysis-switch-button {% if tab == 'player' %}active{% endif %}">{{ t('model_analysis.switch_player', '?? Player perspective') }}</a>{% endif %}
+<a href="{{ url_for('stats.model_analysis', tab='population', pitch=pitch) }}" class="analysis-switch-button {% if tab == 'population' %}active{% endif %}">{{ t('model_analysis.switch_population', '👥 Player Population Average') }}</a>
+{% if is_webmaster %}<a href="{{ url_for('stats.model_analysis', tab='player', pitch=pitch, player_id=selected_player_id) }}" class="analysis-switch-button {% if tab == 'player' %}active{% endif %}">{{ t('model_analysis.switch_player', '🔒 Player perspective') }}</a>{% endif %}
 </div>
 {% if tab == 'player' and is_webmaster %}
 <div class="pitch-switch">
@@ -221,7 +221,7 @@
 <div style="display:flex;align-items:center;gap:8px">
 <label for="overview-sort-select" style="font-size:13px;color:var(--text-muted);font-weight:600">{{ t('model_analysis.sort_label', 'Sort by:') }}</label>
 <select id="overview-sort-select" style="background:var(--bg-surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:13px;font-weight:600" onchange="location.href='{{ url_for('stats.model_analysis', tab='player', pitch=pitch, player_id=selected_player_id) }}&sort=' + this.value">
-<option value="balanced" {% if sort_by=='balanced' %}selected{% endif %}>{{ t('model_analysis.sort_balanced', '?? 50/50 Score (z_50 / Winrate)') }}</option>
+<option value="balanced" {% if sort_by=='balanced' %}selected{% endif %}>{{ t('model_analysis.sort_balanced', '⚖️ 50/50 Score (z_50 / Winrate)') }}</option>
 <option value="z_score" {% if sort_by=='z_score' %}selected{% endif %}>{{ t('model_analysis.sort_z_score', 'Total z-score (|z|)') }}</option>
 <option value="net_wins" {% if sort_by=='net_wins' %}selected{% endif %}>{{ t('model_analysis.sort_net_wins', 'Net wins (R)') }}</option>
 <option value="games" {% if sort_by=='games' %}selected{% endif %}>{{ t('model_analysis.sort_games', 'Matches played') }}</option>
@@ -374,12 +374,12 @@
 <div class="analysis-metric">
 <span class="analysis-metric-label" title="{{ t('model_analysis.pop_metric_var_z_title', 'Variance of player residuals. Target is ~1.00 for ideal calibration.') }}">{{ t('model_analysis.pop_metric_var_z', 'z-Score Dispersion Var(z)') }}</span>
 <span class="analysis-metric-value {% if population_analysis.var_z is not none and population_analysis.var_z <= 1.25 %}val-positive{% else %}val-negative{% endif %}">{{ '%.2f'|format(population_analysis.var_z) if population_analysis.var_z is not none else '?' }}</span>
-<span class="metric-subvalue" style="display:block;font-size:12px;margin-top:4px">Std(z) = {{ '%.2f'|format(population_analysis.std_z) if population_analysis.std_z is not none else '?' }} (Soll ? 1.00)</span>
+<span class="metric-subvalue" style="display:block;font-size:12px;margin-top:4px">Std(z) = {{ '%.2f'|format(population_analysis.std_z) if population_analysis.std_z is not none else '—' }} (Soll ≈ 1.00)</span>
 </div>
 <div class="analysis-metric">
 <span class="analysis-metric-label" title="{{ t('model_analysis.pop_metric_var_z50_title', 'Variance of standardized residuals isolated to balanced matches.') }}">{{ t('model_analysis.pop_metric_var_z50', '50/50 z-Dispersion Var(z_50)') }}</span>
 <span class="analysis-metric-value {% if population_analysis.var_z50 is not none and population_analysis.var_z50 <= 1.25 %}val-positive{% else %}val-negative{% endif %}">{{ '%.2f'|format(population_analysis.var_z50) if population_analysis.var_z50 is not none else '?' }}</span>
-<span class="metric-subvalue" style="display:block;font-size:12px;margin-top:4px">Std = {{ '%.2f'|format(population_analysis.std_z50) if population_analysis.std_z50 is not none else '?' }} (Soll ? 1.00)</span>
+<span class="metric-subvalue" style="display:block;font-size:12px;margin-top:4px">Std = {{ '%.2f'|format(population_analysis.std_z50) if population_analysis.std_z50 is not none else '—' }} (Soll ≈ 1.00)</span>
 </div>
 <div class="analysis-metric">
 <span class="analysis-metric-label" title="{{ t('model_analysis.ece_title', 'Expected Calibration Error.') }}">{{ t('model_analysis.ece', 'Calibration error (ECE)') }}</span>
@@ -401,7 +401,7 @@
 <section class="analysis-card">
 {% if population_analysis.calibration %}
 {% set graph_left=70 %}{% set graph_right=950 %}{% set graph_top=25 %}{% set graph_bottom=300 %}{% set x_min=0.0 %}{% set x_max=1.0 %}
-<h3 class="graph-section-title" style="margin-top:0">{{ t('model_analysis.pop_calib_title', 'Pooled Win Calibration Across All Players (0% ? 100%)') }}</h3>
+<h3 class="graph-section-title" style="margin-top:0">{{ t('model_analysis.pop_calib_title', 'Pooled Win Calibration Across All Players (0% – 100%)') }}</h3>
 <p class="graph-section-description">{{ t('model_analysis.pop_calib_desc', 'Compares predicted team win probabilities against actual win rates across all player-match combinations.') }}</p>
 <div class="analysis-graph">
 <svg class="calibration-graph" viewBox="0 0 1000 350" role="img" aria-label="{{ t('model_analysis.pop_calib_title', 'Pooled Win Calibration') }}">
@@ -426,7 +426,7 @@
 <th>{{ t('model_analysis.pop_th_obs', 'Observations') }}</th>
 <th>{{ t('model_analysis.pop_th_pred', 'Avg Predicted') }}</th>
 <th>{{ t('model_analysis.pop_th_actual', 'Actual Win Rate') }}</th>
-<th>{{ t('model_analysis.pop_th_res', 'Residual (Act ? Exp)') }}</th>
+<th>{{ t('model_analysis.pop_th_res', 'Residual (Act − Exp)') }}</th>
 </tr>
 </thead>
 <tbody>
