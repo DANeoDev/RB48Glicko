@@ -18,12 +18,28 @@ from scripts.glicko.glicko2 import (
 
 
 def _expected_score(team_a, team_b):
-    """Return Glicko-2 expected score for two team ratings."""
+    """Return Glicko-2 expected score for two team ratings, scaled by sqrt(team_size)."""
     mu_a = (team_a["rating"] - 1500.0) / GLICKO2_SCALE
     mu_b = (team_b["rating"] - 1500.0) / GLICKO2_SCALE
     phi_b = team_b["rd"] / GLICKO2_SCALE
     impact = 1 / math.sqrt(1 + (3 * phi_b ** 2) / (math.pi ** 2))
-    return 1 / (1 + math.exp(-impact * (mu_a - mu_b)))
+    size = max(team_a.get("size", 1), team_b.get("size", 1), 1)
+    scale = math.sqrt(size)
+    return 1 / (1 + math.exp(-scale * impact * (mu_a - mu_b)))
+
+
+def _adaptive_equilibrium_delta(games: int) -> float:
+    """Return the non-linear half-width delta around 50% for a given sample size.
+
+    Follows the central limit theorem standard error scaling SE ~ 1/sqrt(N):
+    delta = max(0.005, min(0.050, 0.10 / sqrt(max(1, N))))
+    - At N <= 4 games: delta = 0.050 (45.0% - 55.0%)
+    - At N = 11 games: delta = 0.030 (47.0% - 53.0%)
+    - At N = 25 games: delta = 0.020 (48.0% - 52.0%)
+    - At N = 100 games: delta = 0.010 (49.0% - 51.0%)
+    - At N >= 400 games: delta = 0.005 (49.5% - 50.5%)
+    """
+    return max(0.005, min(0.050, 0.10 / math.sqrt(max(1, games))))
 
 
 def _team_rating(player_ids, total_players, ratings, rating_type):
@@ -40,7 +56,7 @@ def _team_rating(player_ids, total_players, ratings, rating_type):
         (sum(ratings[player][rating_type]["sigma"] ** 2 for player in player_ids) + DEFAULT_SIGMA ** 2 * ignored_players)
         / total_players
     )
-    return {"rating": average_rating, "rd": average_rd, "sigma": average_sigma}
+    return {"rating": average_rating, "rd": average_rd, "sigma": average_sigma, "size": total_players}
 
 
 def _actual_score(match):
@@ -434,7 +450,7 @@ def _team_rating_without_player(player_ids, total_players, ratings, rating_type,
     """Compute team rating when one specific player is removed (treated as an unrated slot)."""
     remaining_ids = [pid for pid in player_ids if pid != excluded_player_id]
     if not remaining_ids:
-        return {"rating": 1500.0, "rd": IGNORED_RD, "sigma": DEFAULT_SIGMA}
+        return {"rating": 1500.0, "rd": IGNORED_RD, "sigma": DEFAULT_SIGMA, "size": total_players}
     return _team_rating(remaining_ids, total_players, ratings, rating_type)
 
 
@@ -615,8 +631,12 @@ def analyze_player_perspective(connection, player_id, mode=TOTAL, pitch=None):
     residual_std = math.sqrt(cum_variance) if cum_variance > 0 else 0.0
     z_score = (cum_residual / residual_std) if residual_std > 1e-12 else 0.0
 
-    # Isolate balanced Matchmaker games (48% <= E_X <= 52%)
-    balanced_obs = [o for o in observations if 0.48 <= o["prediction"] <= 0.52]
+    # Isolate balanced Matchmaker games using non-linear adaptive equilibrium zone
+    balanced_delta = _adaptive_equilibrium_delta(count)
+    balanced_obs = [
+        o for o in observations
+        if (0.50 - balanced_delta) <= o["prediction"] <= (0.50 + balanced_delta)
+    ]
     balanced_games = len(balanced_obs)
     if balanced_games:
         balanced_expected = sum(o["prediction"] for o in balanced_obs) / balanced_games
@@ -670,6 +690,8 @@ def analyze_player_perspective(connection, player_id, mode=TOTAL, pitch=None):
         "residual_std": residual_std,
         "z_score": z_score,
         "status": _classify_residual_status(z_score),
+        "balanced_delta": balanced_delta,
+        "balanced_window_label": f"{(0.50 - balanced_delta) * 100:.1f}–{(0.50 + balanced_delta) * 100:.1f} %",
         "balanced_games": balanced_games,
         "balanced_expected_win_rate": balanced_expected,
         "balanced_actual_win_rate": balanced_actual,
@@ -720,10 +742,7 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
             "sum_act": 0.0,
             "sum_res": 0.0,
             "sum_var": 0.0,
-            "balanced_games": 0,
-            "balanced_act": 0.0,
-            "balanced_pred": 0.0,
-            "balanced_var": 0.0,
+            "obs": [],
             "sum_ll_with": 0.0,
             "sum_ll_without": 0.0,
         }
@@ -777,11 +796,7 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
             st["sum_var"] += raw_pred_a * (1.0 - raw_pred_a)
             st["sum_ll_with"] += _log_loss(raw_pred_a, raw_act_a)
             st["sum_ll_without"] += _log_loss(pred_wo, raw_act_a)
-            if 0.48 <= raw_pred_a <= 0.52:
-                st["balanced_games"] += 1
-                st["balanced_pred"] += raw_pred_a
-                st["balanced_act"] += raw_act_a
-                st["balanced_var"] += raw_pred_a * (1.0 - raw_pred_a)
+            st["obs"].append((raw_pred_a, raw_act_a))
 
         pred_b = 1.0 - raw_pred_a
         act_b = 1.0 - raw_act_a
@@ -798,11 +813,7 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
             st["sum_var"] += pred_b * (1.0 - pred_b)
             st["sum_ll_with"] += _log_loss(pred_b, act_b)
             st["sum_ll_without"] += _log_loss(pred_wo, act_b)
-            if 0.48 <= pred_b <= 0.52:
-                st["balanced_games"] += 1
-                st["balanced_pred"] += pred_b
-                st["balanced_act"] += act_b
-                st["balanced_var"] += pred_b * (1.0 - pred_b)
+            st["obs"].append((pred_b, act_b))
 
     summary = []
     for pid, p_info in players.items():
@@ -817,23 +828,37 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
             exp_wr = st["sum_pred"] / games
             act_wr = st["sum_act"] / games
             ll_delta = (st["sum_ll_with"] - st["sum_ll_without"]) / games
-            if st["balanced_games"] > 0:
-                bal_act = st["balanced_act"] / st["balanced_games"]
-                bal_net = st["balanced_act"] - st["balanced_pred"]
-                bal_std = math.sqrt(st["balanced_var"]) if st["balanced_var"] > 0 else 0.0
+
+            bal_delta = _adaptive_equilibrium_delta(games)
+            bal_obs = [
+                (p, a) for p, a in st["obs"]
+                if (0.50 - bal_delta) <= p <= (0.50 + bal_delta)
+            ]
+            bal_games = len(bal_obs)
+            if bal_games > 0:
+                bal_pred_sum = sum(p for p, a in bal_obs)
+                bal_act_sum = sum(a for p, a in bal_obs)
+                bal_var_sum = sum(p * (1.0 - p) for p, a in bal_obs)
+                bal_act = bal_act_sum / bal_games
+                bal_net = bal_act_sum - bal_pred_sum
+                bal_std = math.sqrt(bal_var_sum) if bal_var_sum > 0 else 0.0
                 bal_z = (bal_net / bal_std) if bal_std > 1e-12 else 0.0
             else:
                 bal_act = None
                 bal_net = 0.0
                 bal_z = None
+            bal_label = f"{(0.50 - bal_delta) * 100:.1f}–{(0.50 + bal_delta) * 100:.1f} %"
         else:
             z_val = None
             exp_wr = None
             act_wr = None
             ll_delta = None
+            bal_games = 0
             bal_act = None
             bal_net = 0.0
             bal_z = None
+            bal_delta = 0.05
+            bal_label = "45.0–55.0 %"
 
         summary.append({
             "id": pid,
@@ -848,10 +873,12 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
             "net_residual_wins": st["sum_res"],
             "z_score": z_val,
             "status": _classify_residual_status(z_val),
-            "balanced_games": st["balanced_games"],
+            "balanced_games": bal_games,
             "balanced_actual_win_rate": bal_act,
             "balanced_net_residual": bal_net,
             "balanced_z_score": bal_z,
+            "balanced_delta": bal_delta,
+            "balanced_window_label": bal_label,
             "log_loss_delta": ll_delta,
         })
 

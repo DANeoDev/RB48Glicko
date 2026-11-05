@@ -635,8 +635,11 @@ def g(rd: float) -> float:
     return 1 / math.sqrt(1 + (3 * Q**2 * rd**2) / math.pi**2)
 
 
-def expected_score(rating: float, opponent_rating: float, opponent_rd: float) -> float:
-    """Expected score against an opponent.
+def expected_score(rating: float, opponent_rating: float, opponent_rd: float, team_size: int = 1) -> float:
+    """Expected score against an opponent or opponent team.
+
+    When team_size > 1, scales the rating difference by sqrt(team_size) to account for
+    collective team-level multi-duel accumulation (TrueSkill-style team scaling).
 
     Returns a value between 0 and 1:
     1.0 = expected win
@@ -644,7 +647,8 @@ def expected_score(rating: float, opponent_rating: float, opponent_rd: float) ->
     0.0 = expected loss
     """
     g_value = g(opponent_rd)
+    scale = math.sqrt(max(1, team_size))
 
     return 1 / (
-        1 + 10 ** (-g_value * (rating - opponent_rating) / 400)
+        1 + 10 ** (-scale * g_value * (rating - opponent_rating) / 400)
     )

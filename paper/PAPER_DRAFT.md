@@ -13,7 +13,7 @@ In team sports and multiplayer online games, probabilistic rating systems such a
 We present a straightforward, rigorous diagnostic framework that resolves this problem by shifting the frame of reference from temporary teams to individual players:
 1. **Player-Perspective Orientation ("Heads" = Player $i$'s Team):** Anchoring predictions and outcomes to a specific player breaks team permutation symmetry and turns balanced $50:50$ matches into testable Bernoulli trials over that player's match history.
 2. **Standardized Prequential Residuals ($z_i$) and the Rating-Ascent Feedback Loop:** We show mathematically and empirically why lifetime cumulative residuals $R_i = \sum (s_{i,t} - E_{i,t})$ and $z_i$-scores correlate nearly linearly with current ratings ($r = 0.989$ in our empirical cohort). Because sequential rating updates are proportional to pre-match prediction errors, summing lifetime residuals algebraically reconstructs the player's rating climb from their initial prior. Treating a high lifetime $z_i$ as proof that a player's *current* rating is still too low commits a double-counting error.
-3. **Isolating the $50/50$ Equilibrium Sector ($E_{i,t} \in [0.48, 0.52]$):** Restricting residual analysis to competitively balanced matches (combined with burn-in filtering) removes lopsided mismatch noise and link-function tail distortion, isolating whether a player's teams systematically outperform expectations when matched evenly.
+3. **The Adaptive $50/50$ Equilibrium Zone ($\delta(N_i) \sim 1/\sqrt{N_i}$):** Restricting residual analysis to an adaptive competitive window around $50\%$ that contracts non-linearly with match experience (from $\pm 5.0\%$ down to $\pm 0.5\%$) removes lopsided mismatch noise and tail distortion while preserving statistical power across players of varying tenure.
 4. **Counterfactual Leave-One-Out ($\Delta \mathrm{LogLoss}_i$) and Population Dispersion ($\mathrm{Var}(z)$):** We supplement residual tracking with an omission test that measures the marginal predictive value of a player's rating against an unrated baseline, and we pool player-anchored observations across the league to recover a full $[0\%, 100\%]$ calibration curve alongside a Chi-squared dispersion check ($\mathrm{Var}(z) \approx 1.00$).
 
 We illustrate and validate the framework on both a real longitudinal cohort of recreational association football ($16$ matches, $34$ players, $154$ player-match observations) and a reproducible Monte Carlo simulation ($800$ matches, $40$ players).
@@ -111,8 +111,10 @@ $$
 (and analogously for Team $B$). From the perspective of a player $i \in A$, let $\mathrm{own} = A$ and $\mathrm{opp} = B$. The pre-match win probability for player $i$'s team is attenuated by the opposing team's pooled uncertainty $\phi_{\mathrm{opp}}$:
 
 $$
-g(\phi) = \frac{1}{\sqrt{1 + \frac{3\phi^2}{\pi^2}}}, \qquad E_{i,m} = \frac{1}{1 + \exp\left(-g(\phi_{\mathrm{opp}})(\mu_{\mathrm{own}} - \mu_{\mathrm{opp}})\right)}
+g(\phi) = \frac{1}{\sqrt{1 + \frac{3\phi^2}{\pi^2}}}, \qquad E_{i,m} = \frac{1}{1 + \exp\left(-\sqrt{k} \cdot g(\phi_{\mathrm{opp}})(\mu_{\mathrm{own}} - \mu_{\mathrm{opp}})\right)}
 $$
+
+where $\sqrt{k} = \sqrt{|A|}$ scales the difference in team means to account for collective advantage accumulation across multi-duel team matches (analogous to Microsoft TrueSkill, where team margin scales as $k(\bar{\mu}_A - \bar{\mu}_B)/\sqrt{k}\sigma = \sqrt{k}\Delta\mu/\sigma$). This eliminates link-function underconfidence while preserving rating update dilution ($1/\sqrt{k}$).
 
 To update player $i$'s rating across a session of matches $m \in \mathcal{S}_i$ played on the same date, the RB48 engine weights each match by a team-size dilution factor $1/\sqrt{|A_m|}$ and a Bayesian teammate clarity factor $g(\phi_{\mathrm{tm}, m})$, where $\phi_{\mathrm{tm}, m}$ is the root-mean-square uncertainty of player $i$'s teammates:
 
@@ -215,11 +217,15 @@ In addition to this conservation identity, a second factor can amplify global $z
 
 To evaluate whether a player is currently over- or undervalued *without* being misled by their historical climb or by lopsided matches, we introduce two complementary filters:
 
-1. **The $50/50$ Equilibrium Sector ($\mathcal{M}_{i,50}$):**  
-   We restrict the residual calculation to matches where the pre-match forecast fell within a narrow competitive band $[0.50 - \delta, 0.50 + \delta]$ around $50\%$ (in production, $\delta = 0.02$, i.e., $[0.48, 0.52]$; in very small early-season samples, a wider exploratory band $\delta = 0.05$, i.e., $[0.45, 0.55]$, can be inspected to trade bias against sample size):
+1. **The Adaptive $50/50$ Equilibrium Zone ($\mathcal{M}_{i,50}$):**  
+   To resolve the bias-variance trade-off across players with differing match counts, we employ an **Adaptive Equilibrium Window** $\delta(N_i)$ that tightens non-linearly according to the central limit theorem standard error scaling ($\mathrm{SE} \sim 1/\sqrt{N_i}$):
 
 $$
-\mathcal{M}_{i,50} = \left\{ m \in \mathcal{M}_i : 0.48 \le E_{i,m} \le 0.52 \right\}
+\delta(N_i) = \max\left(0.005, \, \min\left(0.050, \, \frac{0.10}{\sqrt{N_i}}\right)\right)
+$$
+
+$$
+\mathcal{M}_{i,50} = \left\{ m \in \mathcal{M}_i : 0.50 - \delta(N_i) \le E_{i,m} \le 0.50 + \delta(N_i) \right\}
 $$
 
    In this sector, the standardized score is:
@@ -227,6 +233,10 @@ $$
 $$
 R_{i,50} = \sum_{m \in \mathcal{M}_{i,50}} (s_{i,m} - E_{i,m}), \qquad z_{i,50} = \frac{R_{i,50}}{\sqrt{\sum_{m \in \mathcal{M}_{i,50}} E_{i,m}(1 - E_{i,m})}}
 $$
+
+   Why is an adaptive non-linear window so effective?
+   - **Sample Size Fairness:** Newcomers ($N \le 4$) receive the full $[0.45, 0.55]$ ($\pm 5.0\%$) window to prevent zero-sample starvation. Moderate regulars ($N = 25$) settle into the core $[0.48, 0.52]$ ($\pm 2.0\%$) band. Veteran cohorts ($N \ge 400$) converge toward the ultra-pure $[0.495, 0.505]$ ($\pm 0.5\%$) coin-toss benchmark.
+   - **Quadratic Precision Requirement:** Because statistical error scales as $1/\sqrt{N}$, tightening the band by $1\%$ from $51\%$ to $50.5\%$ requires quadratically more evidence than moving from $55\%$ to $54\%$.
 
    Why is a tight $50/50$ sector ($[0.48, 0.52]$) so informative?
    - **Eliminates Link-Slope Distortion:** As seen in empirical team calibration curves, when the win-probability link function is underconfident (actual win rates rise steeper than predicted probabilities away from $50\%$), even moderate favorites at $54\%\text{--}55\%$ may empirically win $65\%\text{--}75\%$ of the time. Narrowing the band to $[0.48, 0.52]$ keeps evaluation pinned to the $(50\%, 50\%)$ fixed point where any scaling error in the logistic slope vanishes because $\sigma(0) = 0.50$.

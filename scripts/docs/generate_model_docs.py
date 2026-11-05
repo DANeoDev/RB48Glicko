@@ -78,7 +78,7 @@ def generate_markdown() -> str:
 5. [How the Numbers Are Derived: Mathematical Architecture](#5-how-the-numbers-are-derived-mathematical-architecture)
    - [Scale Conversion (Standard to Glicko-2)](#step-0-scale-conversion)
    - [Step 1: Team Uncertainty & Quadratic Mean Pooling](#step-1-team-uncertainty--quadratic-mean-pooling)
-   - [Step 2: Expected Win Probabilities & Opponent Impact](#step-2-expected-win-probabilities--opponent-impact)
+   - [Step 2: Expected Win Probabilities, Team Scaling (\(\sqrt{{k}}\)) & Opponent Impact](#step-2-expected-win-probabilities--opponent-impact)
    - [Step 3: Bayesian Teammate Clarity Dampening (\\(w_{{\\text{{team}}}}\\))](#step-3-bayesian-teammate-clarity-dampening-w_textteam)
    - [Step 4: Session (Same-Day) Batching](#step-4-session-same-day-batching)
    - [Step 5: Updating Volatility (\\(\\sigma\\)) via the Illinois Method](#step-5-updating-volatility-sigma-via-the-illinois-method)
@@ -263,16 +263,18 @@ The quadratic mean correctly reflects that **a single unknown wildcard makes the
 
 ---
 
-### Step 2: Expected Win Probabilities & Opponent Impact
+### Step 2: Expected Win Probabilities, Team Scaling (\(\sqrt{{k}}\)) & Opponent Impact
 
-Glicko defines an impact function \\(g(\\phi)\\) that shrinks the weight of an outcome if the opponent's skill is uncertain:
-$$g(\\phi_{{\\text{{opp}}}}) = \\\frac{{1}}{{\\\sqrt{{1 + \\\frac{{3 \\phi_{{\\text{{opp}}}}^2}}{{\\pi^2}}}}}}$$
+Glicko defines an impact function \(g(\phi)\) that shrinks the weight of an outcome if the opponent's skill is uncertain:
+$$g(\phi_{{\text{{opp}}}}) = \frac{{1}}{{\sqrt{{1 + \frac{{3 \phi_{{\text{{opp}}}}^2}}{{\pi^2}}}}}}$$
 
-The expected score \\(E\\) (win probability for Team A) is:
-$$E = \\\frac{{1}}{{1 + \\exp\\\\left( -g(\\phi_{{\\text{{opp}}}}) \\cdot (\\mu_{{\\text{{own}}}} - \\mu_{{\\text{{opp}}}}) \\\\right)}}$$
+In 1v1 duels, the win probability is governed solely by the skill difference. In multi-player team sports (such as 5v5 recreational soccer played to 10 goals), however, match outcomes represent the collective accumulation of dozens of micro-duels. Following the principles of paired-comparison team models (such as Microsoft TrueSkill), the team's expected win probability scales with the square root of team size \(\sqrt{{k}}\):
 
-- If the opponent team has \\(\\text{{RD}} \\to 0\\), \\(g(\\phi) \\to 1.0\\), and the win curve has full steepness.
-- If the opponent team is highly uncalibrated (\\(\\text{{RD}} \\to \\\infty\\)), \\(g(\\phi) \\to 0\\), and \\(E \\to 0.50\\) (the match approaches a coin toss in information content).
+$$E = \frac{{1}}{{1 + \exp\left( -\sqrt{{k}} \cdot g(\phi_{{\text{{opp}}}}) \cdot (\mu_{{\text{{own}}}} - \mu_{{\text{{opp}}}}) \right)}}$$
+
+- **Why \(\sqrt{{k}}\) team scaling?** If Team A has a mean rating advantage of \(+60\) points in a 5v5 match, the total collective advantage across all 5 players is \(+300\) points. While a 1v1 chess formula sees only \(+60\) points and outputs a timid \(\sim 56\%\) win chance, on a small-sided football pitch with 10 goals the superior team prevails substantially more often (\(\approx 70\%\)). Multiplying by \(\sqrt{{k}} \approx 2.24\) eliminates link-function underconfidence.
+- If the opponent team has \(\text{{RD}} \to 0\), \(g(\phi) \to 1.0\), and the win curve has full steepness.
+- If the opponent team is highly uncalibrated (\(\text{{RD}} \to \infty\)), \(g(\phi) \to 0\), and \(E \to 0.50\) (the match approaches a coin toss in information content).
 
 ---
 
@@ -458,13 +460,21 @@ To break symmetry and make 50:50 games falsifiable, the engine re-anchors match 
 
 ---
 
-### Building Block 4: The Isolated 50/50 Sector ($E_X \\in [0.48, 0.52]$)
-In practice, global $z$-scores correlate strongly with rating ($r \\approx 0.99$) due to **rating ascent lag** (players climbing from default priors leave positive residuals in their wake) and link-function underconfidence ($k > 1$).
+### Building Block 4: The Adaptive 50/50 Equilibrium Zone (\(\delta(N_i) \sim 1/\sqrt{{N_i}}\))
+In practice, global $z$-scores correlate strongly with rating ($r \approx 0.99$) due to **rating ascent lag** (players climbing from default priors leave positive residuals in their wake).
 
-Isolating the **50/50 Equilibrium Band** ($48\% \\le E_X \\le 52\%$):
-- Strips out rating ascent slope and tail compression distortions.
-- Measures pure player influence in competitively balanced games.
-- Serves as the primary sorting criterion for identifying over- and undervalued players.
+Isolating the **50/50 Equilibrium Band** removes rating ascent slope and tail compression distortions, measuring pure player influence in competitively balanced games.
+
+To resolve the bias-variance tradeoff across varying player attendance, RB48 employs an **Adaptive Equilibrium Window** that narrows non-linearly according to the central limit theorem standard error scaling (\(\mathrm{{SE}} \sim 1/\sqrt{{N}}\)):
+
+$$\delta(N_i) = \max\left(0.005, \, \min\left(0.050, \, \frac{{0.10}}{{\sqrt{{N_i}}}}\right)\right)$$
+
+$$[0.50 - \delta(N_i), \, 0.50 + \delta(N_i)]$$
+
+- **Small samples (\(N \le 4\) games):** Wide band \(\pm 5.0\%\) (\([45.0\%, 55.0\%]\)) to gather initial balanced trials.
+- **Moderate samples (\(N = 25\) games):** Core band \(\pm 2.0\%\) (\([48.0\%, 52.0\%]\)).
+- **Large longitudinal samples (\(N \ge 400\) games):** Ultra-tight coin-toss band \(\pm 0.5\%\) (\([49.5\%, 50.5\%]\)).
+- The quadratic requirement (\(N \propto 1/\delta^2\)) ensures the band only contracts when sufficient statistical power exists to distinguish true equilibrium drift from binomial noise.
 
 ---
 
