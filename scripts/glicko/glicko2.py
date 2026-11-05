@@ -144,13 +144,17 @@ class Glicko2:
         player: _GlickoRating,
         opponent: _GlickoRating,
         impact: float,
+        team_size: int = 1,
     ) -> float:
         """
-        Calculate expected score against an opponent.
+        Calculate expected score against an opponent or opponent team.
+        When team_size > 1, scales the skill difference by sqrt(team_size) to account for
+        collective multi-duel advantage accumulation.
         """
+        scale = math.sqrt(max(1, team_size))
         return 1 / (
             1 + math.exp(
-                -impact * (player.mu - opponent.mu)
+                -scale * impact * (player.mu - opponent.mu)
             )
         )
 
@@ -409,6 +413,7 @@ class Glicko2:
             team_scaled,
             opponent_scaled,
             opponent_impact,
+            team_size=team_size,
         )
 
         match_precision = (
@@ -490,6 +495,7 @@ class Glicko2:
                 own_scaled,
                 opp_scaled,
                 opp_impact,
+                team_size=team_size,
             )
 
             match_precision = (
