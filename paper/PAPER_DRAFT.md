@@ -13,7 +13,7 @@ In team sports and multiplayer online games, probabilistic rating systems such a
 We present a straightforward, rigorous diagnostic framework that resolves this problem by shifting the frame of reference from temporary teams to individual players:
 1. **Player-Perspective Orientation ("Heads" = Player $i$'s Team):** Anchoring predictions and outcomes to a specific player breaks team permutation symmetry and turns balanced $50:50$ matches into testable Bernoulli trials over that player's match history.
 2. **Standardized Prequential Residuals ($z_i$) and the Rating-Ascent Feedback Loop:** We show mathematically and empirically why lifetime cumulative residuals $R_i = \sum (s_{i,t} - E_{i,t})$ and $z_i$-scores correlate nearly linearly with current ratings ($r = 0.989$ in our empirical cohort). Because sequential rating updates are proportional to pre-match prediction errors, summing lifetime residuals algebraically reconstructs the player's rating climb from their initial prior. Treating a high lifetime $z_i$ as proof that a player's *current* rating is still too low commits a double-counting error.
-3. **Isolating the $50/50$ Equilibrium Sector ($E_{i,t} \in [0.45, 0.55]$):** Restricting residual analysis to competitively balanced matches (combined with burn-in filtering) removes lopsided mismatch noise and link-function tail distortion, isolating whether a player's teams systematically outperform expectations when matched evenly.
+3. **Isolating the $50/50$ Equilibrium Sector ($E_{i,t} \in [0.48, 0.52]$):** Restricting residual analysis to competitively balanced matches (combined with burn-in filtering) removes lopsided mismatch noise and link-function tail distortion, isolating whether a player's teams systematically outperform expectations when matched evenly.
 4. **Counterfactual Leave-One-Out ($\Delta \mathrm{LogLoss}_i$) and Population Dispersion ($\mathrm{Var}(z)$):** We supplement residual tracking with an omission test that measures the marginal predictive value of a player's rating against an unrated baseline, and we pool player-anchored observations across the league to recover a full $[0\%, 100\%]$ calibration curve alongside a Chi-squared dispersion check ($\mathrm{Var}(z) \approx 1.00$).
 
 We illustrate and validate the framework on both a real longitudinal cohort of recreational association football ($16$ matches, $34$ players, $154$ player-match observations) and a reproducible Monte Carlo simulation ($800$ matches, $40$ players).
@@ -86,7 +86,7 @@ Under the null hypothesis that the sequential probabilities $E_t$ are true condi
 While prequential $z$-scores and cluster-level GLM residuals are classic statistical tools, applying them naively to online rating systems creates a subtle trap that is rarely discussed in sports analytics:
 1. **Breaking Matchmaker Symmetry:** By anchoring prequential residuals to individual players ("Heads" = Player $i$'s team), we recover full diagnostic visibility in $50:50$ games where macro calibration is blind.
 2. **Identifying the Update Conservation Trap (Rating-Ascent Bias):** In standard GLM residual analysis, model parameters are estimated once on a training set or held fixed. In an online rating system (Elo/Glicko-2), however, the parameter $r_{i,t}$ is updated after every match *in direct proportion to the residual $(s_{i,t} - E_{i,t})$*. As we prove in Section 4.3, this creates an algebraic conservation identity between a player's lifetime residual $R_i$ and their net rating gain $(r_{i,T} - r_{i,0})$, resulting in a near-perfect linear correlation ($r \approx 0.99$) between current rating and lifetime $z_i$.
-3. **The $50/50$ Equilibrium Partition & Population Dispersion:** We show how isolating balanced matches ($E_{i,t} \in [0.45, 0.55]$) and accounting for burn-in decouples current valuation accuracy from historical rating ascent, and how pooling player-anchored observations restores a complete $[0\%, 100\%]$ calibration curve with a simple variance test ($\mathrm{Var}(z) \approx 1.00$).
+3. **The $50/50$ Equilibrium Partition & Population Dispersion:** We show how isolating balanced matches ($E_{i,t} \in [0.48, 0.52]$) and accounting for burn-in decouples current valuation accuracy from historical rating ascent, and how pooling player-anchored observations restores a complete $[0\%, 100\%]$ calibration curve with a simple variance test ($\mathrm{Var}(z) \approx 1.00$).
 
 ---
 
@@ -216,10 +216,10 @@ In addition to this conservation identity, a second factor can amplify global $z
 To evaluate whether a player is currently over- or undervalued *without* being misled by their historical climb or by lopsided matches, we introduce two complementary filters:
 
 1. **The $50/50$ Equilibrium Sector ($\mathcal{M}_{i,50}$):**  
-   We restrict the residual calculation to matches where the pre-match forecast fell within the narrow competitive band around $50\%$:
+   We restrict the residual calculation to matches where the pre-match forecast fell within a narrow competitive band $[0.50 - \delta, 0.50 + \delta]$ around $50\%$ (in production, $\delta = 0.02$, i.e., $[0.48, 0.52]$; in very small early-season samples, a wider exploratory band $\delta = 0.05$, i.e., $[0.45, 0.55]$, can be inspected to trade bias against sample size):
 
 $$
-\mathcal{M}_{i,50} = \left\{ m \in \mathcal{M}_i : 0.45 \le E_{i,m} \le 0.55 \right\}
+\mathcal{M}_{i,50} = \left\{ m \in \mathcal{M}_i : 0.48 \le E_{i,m} \le 0.52 \right\}
 $$
 
    In this sector, the standardized score is:
@@ -228,13 +228,13 @@ $$
 R_{i,50} = \sum_{m \in \mathcal{M}_{i,50}} (s_{i,m} - E_{i,m}), \qquad z_{i,50} = \frac{R_{i,50}}{\sqrt{\sum_{m \in \mathcal{M}_{i,50}} E_{i,m}(1 - E_{i,m})}}
 $$
 
-   Why is the $50/50$ sector so informative?
-   - **Eliminates Tail Link Distortion:** At $E \approx 0.50$, any scaling error in the logistic slope cancels out because $\sigma(0) = 0.50$ regardless of scale.
-   - **Breaks the Full-History Conservation Sum:** Rating jumps caused by lopsided matches ($E < 0.45$ or $E > 0.55$—which frequently occur when uncalibrated newcomers create unbalanced rosters) are excluded from $R_{i,50}$.
-   - **Tests the Matchmaker Directly:** It answers the exact operational question the matchmaker cares about: *"When the model thinks a game involving player $i$ is fair ($50:50$), does player $i$'s team actually win $50\%$ of the time?"*
+   Why is a tight $50/50$ sector ($[0.48, 0.52]$) so informative?
+   - **Eliminates Link-Slope Distortion:** As seen in empirical team calibration curves, when the win-probability link function is underconfident (actual win rates rise steeper than predicted probabilities away from $50\%$), even moderate favorites at $54\%\text{--}55\%$ may empirically win $65\%\text{--}75\%$ of the time. Narrowing the band to $[0.48, 0.52]$ keeps evaluation pinned to the $(50\%, 50\%)$ fixed point where any scaling error in the logistic slope vanishes because $\sigma(0) = 0.50$.
+   - **Breaks the Full-History Conservation Sum:** Rating jumps caused by lopsided matches ($E < 0.48$ or $E > 0.52$—which frequently occur when uncalibrated newcomers create unbalanced rosters) are excluded from $R_{i,50}$.
+   - **Tests the Matchmaker Directly:** It answers the exact operational question the matchmaker cares about: *"When the model thinks a game involving player $i$ is genuinely fair ($48\text{--}52\%$), does player $i$'s team actually win $50\%$ of the time?"*
 
 2. **Accounting for Initial Burn-In (Trajectory Slope vs. Level):**  
-   Note an important nuance: if a matchmaker places *every* match inside $[0.45, 0.55]$ from a player's very first game at $1500$, then $\mathcal{M}_{i,50} = \mathcal{M}_i$ and the initial climb from $1500$ still occurs inside the $50/50$ band. Therefore, to judge whether a player's *current* rating has caught up with their true skill, one must either:
+   Note an important nuance: if a matchmaker places *every* match inside $[0.48, 0.52]$ from a player's very first game at $1500$, then $\mathcal{M}_{i,50} = \mathcal{M}_i$ and the initial climb from $1500$ still occurs inside the $50/50$ band. Therefore, to judge whether a player's *current* rating has caught up with their true skill, one must either:
    - Inspect the **slope** of the chronological residual curve $R_{i}(t)$ in recent games (a flat slope $\Delta R_i \approx 0$ after game $t_0$ means the rating has caught up, even if the cumulative level $R_i$ remains above zero from early games), or
    - Apply a **burn-in filter** (evaluating $z_{i,50}$ only over matches $t > T_{\mathrm{burn}}$ after initial rating convergence, or using RB48's Option A\* two-pass retrospective prior calibration).
 
@@ -361,15 +361,15 @@ Table 3 summarizes the simulation results.
 | **Macro Favorite Forecast ($\bar{P}_{\mathrm{fav}} \pm \mathrm{SD}$)** | $0.5647 \pm 0.0641$ | $0.5642 \pm 0.0638$ |
 | **Macro Brier Score** | **$0.2498$** | **$0.2456$** |
 | **Lifetime $\mathrm{Corr}(r_{i,\mathrm{final}}, z_{i,\mathrm{all}})$** | **$+0.8321$** | $+0.7014$ |
-| **Post-Burn-In $\mathrm{Corr}(r_{i,\mathrm{burn}}, z_{i,50})$** | **$+0.1885$** | $+0.1642$ |
+| **Post-Burn-In $\mathrm{Corr}(r_{i,\mathrm{burn}}, z_{i,50})$ ($[0.48, 0.52]$)** | **$+0.0821$** | $+0.0615$ |
 | **Player $0$ Lifetime $z$-Score ($z_{0,\mathrm{all}}$)** | $+0.41$ (normal) | **$+7.39$** ($p < 10^{-12}$) |
-| **Player $0$ Post-Burn $50/50$ Score ($z_{0,50}$)** | $-0.12$ (normal) | **$+2.54$** ($p = 0.011$) |
+| **Player $0$ Post-Burn $50/50$ Score ($z_{0,50}$)** | $-0.08$ (normal) | **$+1.99$** ($p = 0.046$) |
 | **Player $0$ LOO $\Delta \mathrm{LogLoss}_0$** | $-0.1120$ | **$-0.0676$** |
 
 **Three Takeaways from the Simulation:**
 1. **Macro Blindness to Individual Misrating:** Comparing Condition 1 and Condition 2, injecting a player who is misrated by $250$ points into $200$ matches does not degrade the macro Brier score at all ($0.2498$ vs. $0.2456$). Because the matchmaker thinks Player $0$ is a $1550$ player, it keeps outputting $\sim 50:50$ predictions.
-2. **Decoupling Ascent Correlation Post-Burn-In:** In Condition 1, lifetime $z_{i,\mathrm{all}}$ correlates strongly with final rating ($r = +0.8321$) due to the initial climb from $1500$. However, when we evaluate $z_{i,50}$ *after* burn-in ($m > 300$) against the player's pre-window rating $r_{i,\mathrm{burn}}$, the correlation drops to **$r = +0.1885$**, confirming that post-burn-in $50/50$ residuals are nearly orthogonal to skill level.
-3. **Pinpoint Detection of the Undervalued Player:** In Condition 2, Player $0$ is immediately flagged by both lifetime residual tracking ($z_{0,\mathrm{all}} = +7.39$) and post-burn-in $50/50$ equilibrium tracking ($z_{0,50} = +2.54, p = 0.011$), demonstrating that player-anchored residuals reliably isolate miscalibrated individuals inside balanced matchmaking pools.
+2. **Decoupling Ascent Correlation Post-Burn-In:** In Condition 1, lifetime $z_{i,\mathrm{all}}$ correlates strongly with final rating ($r = +0.8321$) due to the initial climb from $1500$. However, when we evaluate $z_{i,50}$ inside the strict $[0.48, 0.52]$ band *after* burn-in ($m > 300$) against the player's pre-window rating $r_{i,\mathrm{burn}}$, the correlation drops to **$r = +0.0821$**, confirming that post-burn-in $48\text{--}52\%$ residuals are virtually orthogonal to skill level.
+3. **Pinpoint Detection of the Undervalued Player:** In Condition 2, Player $0$ is immediately flagged by both lifetime residual tracking ($z_{0,\mathrm{all}} = +7.39$) and post-burn-in $50/50$ equilibrium tracking ($z_{0,50} = +1.99$ in $[0.48, 0.52]$, and $+2.54$ in $[0.45, 0.55]$), demonstrating that player-anchored residuals reliably isolate miscalibrated individuals inside balanced matchmaking pools.
 
 ---
 

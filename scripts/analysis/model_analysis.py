@@ -615,8 +615,8 @@ def analyze_player_perspective(connection, player_id, mode=TOTAL, pitch=None):
     residual_std = math.sqrt(cum_variance) if cum_variance > 0 else 0.0
     z_score = (cum_residual / residual_std) if residual_std > 1e-12 else 0.0
 
-    # Isolate balanced Matchmaker games (45% <= E_X <= 55%)
-    balanced_obs = [o for o in observations if 0.45 <= o["prediction"] <= 0.55]
+    # Isolate balanced Matchmaker games (48% <= E_X <= 52%)
+    balanced_obs = [o for o in observations if 0.48 <= o["prediction"] <= 0.52]
     balanced_games = len(balanced_obs)
     if balanced_games:
         balanced_expected = sum(o["prediction"] for o in balanced_obs) / balanced_games
@@ -777,7 +777,7 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
             st["sum_var"] += raw_pred_a * (1.0 - raw_pred_a)
             st["sum_ll_with"] += _log_loss(raw_pred_a, raw_act_a)
             st["sum_ll_without"] += _log_loss(pred_wo, raw_act_a)
-            if 0.45 <= raw_pred_a <= 0.55:
+            if 0.48 <= raw_pred_a <= 0.52:
                 st["balanced_games"] += 1
                 st["balanced_pred"] += raw_pred_a
                 st["balanced_act"] += raw_act_a
@@ -798,7 +798,7 @@ def analyze_all_players_summary(connection, mode=TOTAL, pitch=None):
             st["sum_var"] += pred_b * (1.0 - pred_b)
             st["sum_ll_with"] += _log_loss(pred_b, act_b)
             st["sum_ll_without"] += _log_loss(pred_wo, act_b)
-            if 0.45 <= pred_b <= 0.55:
+            if 0.48 <= pred_b <= 0.52:
                 st["balanced_games"] += 1
                 st["balanced_pred"] += pred_b
                 st["balanced_act"] += act_b

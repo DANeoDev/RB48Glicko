@@ -458,10 +458,10 @@ To break symmetry and make 50:50 games falsifiable, the engine re-anchors match 
 
 ---
 
-### Building Block 4: The Isolated 50/50 Sector ($E_X \\in [0.45, 0.55]$)
+### Building Block 4: The Isolated 50/50 Sector ($E_X \\in [0.48, 0.52]$)
 In practice, global $z$-scores correlate strongly with rating ($r \\approx 0.99$) due to **rating ascent lag** (players climbing from default priors leave positive residuals in their wake) and link-function underconfidence ($k > 1$).
 
-Isolating the **50/50 Equilibrium Band** ($45\% \\le E_X \\le 55\%$):
+Isolating the **50/50 Equilibrium Band** ($48\% \\le E_X \\le 52\%$):
 - Strips out rating ascent slope and tail compression distortions.
 - Measures pure player influence in competitively balanced games.
 - Serves as the primary sorting criterion for identifying over- and undervalued players.

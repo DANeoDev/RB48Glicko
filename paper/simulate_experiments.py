@@ -133,7 +133,7 @@ def run_simulation(
             h["loo_ll_with"].append(ll_with)
             h["loo_ll_without"].append(ll_without)
 
-            if m_idx >= burn_in_matches and 0.45 <= e_p <= 0.55:
+            if m_idx >= burn_in_matches and 0.48 <= e_p <= 0.52:
                 h["steady_50_s"].append(s_p)
                 h["steady_50_e"].append(e_p)
 

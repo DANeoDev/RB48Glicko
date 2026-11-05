@@ -103,7 +103,7 @@
 {% endif %}
 </div>
 <div class="analysis-metric">
-<span class="analysis-metric-label" title="{{ t('model_analysis.player_balanced_zone_title', 'Actual vs. expected win rate in tight matchmaker games (45% to 55% prediction).') }}">{{ t('model_analysis.player_balanced_zone', '50/50 zone (45–55%)') }}</span>
+<span class="analysis-metric-label" title="{{ t('model_analysis.player_balanced_zone_title', 'Actual vs. expected win rate in tight matchmaker games (48% to 52% prediction).') }}">{{ t('model_analysis.player_balanced_zone', '50/50 zone (48–52%)') }}</span>
 <span class="analysis-metric-value">{% if player_analysis.balanced_actual_win_rate is not none %}{{ '%.1f%%'|format(player_analysis.balanced_actual_win_rate*100) }}{% else %}—{% endif %}</span>
 <span class="metric-subvalue" style="display:block;font-size:12px;margin-top:4px">{{ player_analysis.balanced_games }} {{ t('model_analysis.th_games', 'Games') }}{% if player_analysis.balanced_z_score is not none %} (z={{ '%+.2f'|format(player_analysis.balanced_z_score) }}){% endif %}</span>
 </div>
