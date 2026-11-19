@@ -13,6 +13,13 @@ from scripts.frontend.view_models import build_leaderboard, compute_leaderboard_
 _cache_lock = threading.RLock()
 _stats_cache = None
 _match_history_cache = {}
+_stats_cache_version = 0
+
+
+def get_stats_cache_version() -> int:
+    """Return current cache version counter (incremented on invalidation)."""
+    with _cache_lock:
+        return _stats_cache_version
 
 
 def get_cached_stats_data(connection=None):
@@ -175,7 +182,8 @@ def get_cached_match_history(rating_type="total", connection=None):
 
 def invalidate_stats_cache():
     """Clear all cached statistics and match history data."""
-    global _stats_cache, _match_history_cache
+    global _stats_cache, _match_history_cache, _stats_cache_version
     with _cache_lock:
         _stats_cache = None
         _match_history_cache = {}
+        _stats_cache_version += 1

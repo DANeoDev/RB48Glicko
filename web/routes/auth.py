@@ -75,7 +75,8 @@ from scripts.planner.database import (
     get_planner_connection,
     update_user_attendee_names,
 )
-from web.services.cache import invalidate_stats_cache
+from scripts.analysis.achievements import get_all_achievements_overview
+from web.services.cache import get_cached_stats_data, invalidate_stats_cache
 from web.services.email_service import is_smtp_configured, send_verification_email
 from web.services.translations import get_current_lang
 from web.services.security import (
@@ -275,7 +276,7 @@ def admin_users(default_tab="users"):
     """User management dashboard to review and approve registrations, player links, and aliases."""
     curr_user = get_current_user()
     active_tab = request.args.get("tab", default_tab).strip().lower()
-    if active_tab not in ("users", "mvp", "aliases"):
+    if active_tab not in ("users", "mvp", "aliases", "achievements"):
         active_tab = "users"
     connection = get_accounts_connection()
     main_conn = get_main_connection()
@@ -354,6 +355,16 @@ def admin_users(default_tab="users"):
             })
         players_list.sort(key=lambda p: p["name"].lower())
 
+        achievements_overview = []
+        if active_tab == "achievements":
+            cached_stats = get_cached_stats_data(main_conn)
+            historical_snapshots = cached_stats.get("historical_snapshots") if cached_stats else None
+            achievements_overview = get_all_achievements_overview(
+                main_conn,
+                accounts_connection=connection,
+                historical_snapshots=historical_snapshots,
+            )
+
         return render_template(
             "admin_users.html",
             active_tab=active_tab,
@@ -364,6 +375,7 @@ def admin_users(default_tab="users"):
             unseen_notifications_count=unseen_notifications_count,
             mvp_match_summaries=mvp_match_summaries,
             mvp_votable_sessions=mvp_votable_sessions,
+            achievements_overview=achievements_overview,
         )
     finally:
         connection.close()
@@ -537,6 +549,13 @@ def manage_player_aliases(player_id):
 def admin_mvp_logs():
     """Direct route to the MVP-Logs tab in User Management dashboard."""
     return admin_users(default_tab="mvp")
+
+
+@auth_bp.route("/admin/achievements")
+@require_webmaster
+def admin_achievements():
+    """Direct route to the Achievements Overview tab in User Management dashboard."""
+    return admin_users(default_tab="achievements")
 
 
 @auth_bp.route("/admin/attendance-logs")
@@ -1189,6 +1208,16 @@ def submit_feedback():
             screen_res=screen_res,
             touch_support=touch_support,
             user_agent=user_agent,
+        )
+        cat_label = "Mobile Handling" if category == "mobile_handling" else "Allgemein"
+        page_info = f" ({page_url})" if page_url else ""
+        preview = message[:100] + ("..." if len(message) > 100 else "")
+        record_webmaster_notification(
+            conn,
+            "feedback_submitted",
+            user_id,
+            username or "Gast",
+            f"[{cat_label}]{page_info}: {preview}",
         )
     finally:
         conn.close()

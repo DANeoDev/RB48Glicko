@@ -340,6 +340,9 @@
                         <option value="{{ pid }}" {% if pid == player_id %}selected{% endif %}>{{ pname }}</option>
                     {% endfor %}
                 </select>
+                <a href="{{ url_for('auth.admin_users', tab='achievements') }}" class="secondary" style="padding: 7px 12px; font-size: 12.5px; text-decoration: none; border-radius: 8px; border: 1px solid #7B52C5; color: #ffd700; font-weight: 600;" title="{{ t('admin.achievements_tab_title', 'Achievements-Übersicht (Alle Spieler)') }}">
+                    🏅 {{ t('admin.nav_achievements', 'Achievements') }}
+                </a>
             </div>
             {% endif %}
             <div class="achievements-progress-pill">

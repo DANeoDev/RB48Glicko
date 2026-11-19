@@ -53,12 +53,29 @@ def create_app():
         user = get_current_user()
         lang = get_current_lang()
 
-        unseen_achievements_count = session.get("unseen_achievements_count", 0)
-        if user and user.get("player_id") and "unseen_achievements_count" not in session:
+        unseen_achievements_count = 0
+        if user and user.get("player_id"):
             try:
-                from scripts.analysis.achievements import get_user_unseen_achievements_count
-                unseen_achievements_count = get_user_unseen_achievements_count(user["id"], user["player_id"])
-                session["unseen_achievements_count"] = unseen_achievements_count
+                from web.services.cache import get_cached_stats_data, get_stats_cache_version
+                ach_token = f"{get_stats_cache_version()}:{user.get('player_id')}:{int(has_tier(Tier.GLICKO_USER))}:{get_cologne_now().strftime('%Y-%m-%d-%H')}"
+                if "unseen_achievements_count" not in session or session.get("unseen_achievements_token") != ach_token:
+                    from scripts.analysis.achievements import get_user_unseen_achievements_count
+                    cached_stats = None
+                    try:
+                        cached_stats = get_cached_stats_data()
+                    except Exception:
+                        cached_stats = None
+                    historical_snapshots = cached_stats.get("historical_snapshots") if cached_stats else None
+                    unseen_achievements_count = get_user_unseen_achievements_count(
+                        user["id"],
+                        user["player_id"],
+                        user_has_glicko_tier=has_tier(Tier.GLICKO_USER),
+                        historical_snapshots=historical_snapshots,
+                    )
+                    session["unseen_achievements_count"] = unseen_achievements_count
+                    session["unseen_achievements_token"] = ach_token
+                else:
+                    unseen_achievements_count = session.get("unseen_achievements_count", 0)
             except Exception:
                 unseen_achievements_count = 0
 

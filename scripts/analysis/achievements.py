@@ -1107,7 +1107,14 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
                 pass
 
 
-def get_user_unseen_achievements_count(user_id: int, player_id: int, accounts_connection=None, primary_connection=None) -> int:
+def get_user_unseen_achievements_count(
+    user_id: int,
+    player_id: int,
+    accounts_connection=None,
+    primary_connection=None,
+    user_has_glicko_tier: bool = True,
+    historical_snapshots=None,
+) -> int:
     """Compute how many unlocked achievements the user has not yet viewed."""
     if not player_id:
         return 0
@@ -1127,8 +1134,9 @@ def get_user_unseen_achievements_count(user_id: int, player_id: int, accounts_co
         achievements = get_player_achievements(
             primary_connection,
             player_id,
-            user_has_glicko_tier=True,
-            accounts_connection=accounts_connection
+            user_has_glicko_tier=user_has_glicko_tier,
+            accounts_connection=accounts_connection,
+            historical_snapshots=historical_snapshots,
         )
         unseen = 0
         for ach in achievements:
@@ -1142,3 +1150,155 @@ def get_user_unseen_achievements_count(user_id: int, player_id: int, accounts_co
             accounts_connection.close()
         if close_prim:
             primary_connection.close()
+
+
+_MULTI_PARTNER_PREFIXES = (
+    "cursebreaker",
+    "buddies",
+    "golden_duo",
+    "thick_and_thin",
+    "underdog_duo",
+)
+
+
+def _resolve_canonical_achievement_meta(ach: dict) -> tuple[str, str, str]:
+    """Map single or multi-partner achievement card metadata to its canonical category."""
+    ach_id = str(ach.get("id", ""))
+    for prefix in _MULTI_PARTNER_PREFIXES:
+        if ach_id == f"{prefix}_placeholder" or ach_id.startswith(f"{prefix}_"):
+            return (
+                prefix,
+                f"achievements.{prefix}_title",
+                f"achievements.{prefix}_desc",
+            )
+    return (
+        ach_id,
+        ach.get("title_key", ""),
+        ach.get("description_key", ""),
+    )
+
+
+def get_all_achievements_overview(
+    connection,
+    accounts_connection=None,
+    historical_snapshots=None,
+) -> list[dict]:
+    """
+    Aggregate all canonical achievements across all players, sorted from most fulfilled
+    to least fulfilled, listing every player who unlocked each achievement.
+    """
+    players = get_players(connection)
+    if not players:
+        return []
+
+    if historical_snapshots is None:
+        from scripts.analysis.history_snapshots import compute_historical_snapshots
+        historical_snapshots = compute_historical_snapshots(connection)
+
+    close_acc = False
+    acc_conn_to_use = accounts_connection
+    if acc_conn_to_use is None:
+        try:
+            acc_conn_to_use = get_accounts_connection()
+            close_acc = True
+        except Exception:
+            acc_conn_to_use = None
+
+    tier_rank = {"platin": 4, "gold": 3, "silver": 2, "bronze": 1, "neutral": 0}
+    total_players = len(players)
+    categories = {}
+
+    try:
+        for pid, pdata in players.items():
+            primary_name = pdata["aliases"][0] if pdata.get("aliases") else f"Player {pid}"
+            player_cards = get_player_achievements(
+                connection,
+                pid,
+                user_has_glicko_tier=True,
+                accounts_connection=acc_conn_to_use,
+                historical_snapshots=historical_snapshots,
+            )
+
+            grouped_for_player = {}
+            for card in player_cards:
+                cat_id, title_key, desc_key = _resolve_canonical_achievement_meta(card)
+                if cat_id not in categories:
+                    categories[cat_id] = {
+                        "id": cat_id,
+                        "icon": card.get("icon", "🏆"),
+                        "title_key": title_key,
+                        "description_key": desc_key,
+                        "total_unlock_instances": 0,
+                        "tier_counts": {"platin": 0, "gold": 0, "silver": 0, "bronze": 0, "neutral": 0},
+                        "unlocked_players": [],
+                    }
+                grouped_for_player.setdefault(cat_id, []).append(card)
+
+            for cat_id, cards in grouped_for_player.items():
+                unlocked_cards = [c for c in cards if c.get("unlocked")]
+                if not unlocked_cards:
+                    continue
+
+                best_card = max(unlocked_cards, key=lambda c: tier_rank.get(str(c.get("tier", "")).lower(), -1))
+                best_tier = str(best_card.get("tier", "bronze")).lower()
+                is_multi = cat_id in _MULTI_PARTNER_PREFIXES
+
+                if is_multi:
+                    partner_summaries = []
+                    detail_parts = []
+                    for uc in unlocked_cards:
+                        partner_name = (uc.get("title_params") or {}).get("partner") or uc.get("title") or ""
+                        if partner_name:
+                            partner_summaries.append(f"{partner_name} ({uc.get('progress_text', '')})" if len(unlocked_cards) == 1 else partner_name)
+                        if uc.get("detail_text"):
+                            detail_parts.append(uc["detail_text"])
+                    if len(unlocked_cards) == 1:
+                        progress_text = partner_summaries[0] if partner_summaries else unlocked_cards[0].get("progress_text", "")
+                    else:
+                        preview = ", ".join(partner_summaries[:3]) + ("..." if len(partner_summaries) > 3 else "")
+                        progress_text = f"{len(unlocked_cards)}× ({preview})" if preview else f"{len(unlocked_cards)}×"
+                    detail_text = " | ".join(detail_parts)
+                else:
+                    progress_text = best_card.get("progress_text", "")
+                    detail_text = best_card.get("detail_text", "")
+
+                categories[cat_id]["total_unlock_instances"] += len(unlocked_cards)
+                if best_tier in categories[cat_id]["tier_counts"]:
+                    categories[cat_id]["tier_counts"][best_tier] += 1
+
+                categories[cat_id]["unlocked_players"].append({
+                    "player_id": pid,
+                    "player_name": primary_name,
+                    "tier": best_tier,
+                    "sub_count": len(unlocked_cards),
+                    "progress_text": progress_text,
+                    "detail_text": detail_text,
+                })
+
+        result = []
+        for cat in categories.values():
+            unlocked_players = cat["unlocked_players"]
+            unlocked_players.sort(key=lambda p: (-tier_rank.get(p["tier"], -1), -p["sub_count"], p["player_name"].lower()))
+            unlocked_count = len(unlocked_players)
+            cat["unlocked_count"] = unlocked_count
+            cat["total_players"] = total_players
+            cat["completion_pct"] = round((unlocked_count / total_players) * 100, 1) if total_players > 0 else 0.0
+            result.append(cat)
+
+        result.sort(
+            key=lambda c: (
+                -c["unlocked_count"],
+                -c["total_unlock_instances"],
+                -c["tier_counts"]["platin"],
+                -c["tier_counts"]["gold"],
+                -c["tier_counts"]["silver"],
+                -c["tier_counts"]["bronze"],
+            )
+        )
+        return result
+    finally:
+        if close_acc and acc_conn_to_use is not None:
+            try:
+                acc_conn_to_use.close()
+            except Exception:
+                pass

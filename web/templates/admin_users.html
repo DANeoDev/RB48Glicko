@@ -17,6 +17,11 @@
                         <span>🏷️</span> {{ t('admin.alias_mgmt_title', 'Spieler-Aliase & Hauptalias') }}
                     </h1>
                     <p class="muted" style="margin-top: 4px;">{{ t('admin.alias_mgmt_subtitle', 'Verwalte Aliase und lege den offiziellen Hauptalias (Anzeigename) für jeden Datenbankspieler fest.') }}</p>
+                {% elif active_tab == 'achievements' %}
+                    <h1 style="margin: 0; color: #ffd700; display: flex; align-items: center; gap: 8px;">
+                        <span>🏅</span> {{ t('admin.achievements_tab_title', 'Achievements-Übersicht (Alle Spieler)') }}
+                    </h1>
+                    <p class="muted" style="margin-top: 4px;">{{ t('admin.achievements_tab_subtitle', 'Alle Auszeichnungen sortiert nach Häufigkeit — mit allen Spielern, die das jeweilige Achievement erreicht haben.') }}</p>
                 {% else %}
                     <h1 style="margin: 0; color: #ffffff;">{{ t('auth.admin_users_heading', 'User Management') }}</h1>
                     <p class="muted" style="margin-top: 4px;">{{ t('auth.admin_users_sub', 'Review registered accounts, approve memberships, manage player links, and manage account records.') }}</p>
@@ -42,6 +47,9 @@
                     </a>
                     <a href="{{ url_for('auth.admin_mvp_logs') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; {% if active_tab == 'mvp' %}background: var(--accent); color: #ffffff;{% else %}color: var(--text-muted);{% endif %} border-radius: 4px; transition: all .15s ease;">
                         🏆 {{ t('admin.nav_mvp_logs', 'MVP-Ergebnisse') }}
+                    </a>
+                    <a href="{{ url_for('auth.admin_users', tab='achievements') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; {% if active_tab == 'achievements' %}background: var(--accent); color: #ffffff;{% else %}color: var(--text-muted);{% endif %} border-radius: 4px; transition: all .15s ease;">
+                        🏅 {{ t('admin.nav_achievements', 'Achievements') }}
                     </a>
                     {% endif %}
                     <a href="{{ url_for('auth.admin_feedback') }}" style="padding: 6px 14px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-muted); border-radius: 4px; transition: all .15s ease;">
@@ -347,6 +355,76 @@
             </table>
         </div>
 
+        {% elif active_tab == 'achievements' %}
+        <!-- Webmaster Achievements Overview Tab (Sorted Most -> Least Fulfilled) -->
+        <div style="display: flex; flex-direction: column; gap: 12px;" id="webmaster-achievements-overview">
+            {% if achievements_overview %}
+                {% for ach in achievements_overview %}
+                <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; background: rgba(255, 255, 255, 0.025); border: 1px solid {% if ach.unlocked_count > 0 %}rgba(123, 82, 197, 0.45){% else %}var(--border){% endif %}; border-radius: 10px; padding: 14px 18px;">
+                    <!-- Left Column: Achievement Info & Fulfillment Count -->
+                    <div style="flex: 1 1 300px; min-width: 240px; display: flex; align-items: flex-start; gap: 12px;">
+                        <span style="font-family: monospace; font-size: 12px; font-weight: 700; color: var(--text-muted); min-width: 24px; padding-top: 8px;">#{{ loop.index }}</span>
+                        <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(123, 82, 197, 0.18); border: 1px solid rgba(123, 82, 197, 0.4); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+                            {{ ach.icon }}
+                        </div>
+                        <div style="min-width: 0; flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
+                                <strong style="color: #ffffff; font-size: 14.5px;">{{ t(ach.title_key) }}</strong>
+                                <span style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; {% if ach.unlocked_count > 0 %}background: rgba(0, 230, 118, 0.14); color: #88ff88; border: 1px solid rgba(0, 230, 118, 0.35);{% else %}background: rgba(255, 255, 255, 0.06); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.12);{% endif %}">
+                                    {{ ach.unlocked_count }} / {{ ach.total_players }} Spieler · {{ ach.completion_pct }}%
+                                </span>
+                            </div>
+                            <p style="margin: 0 0 8px 0; font-size: 12px; color: #c9c2d8; line-height: 1.4;">
+                                {{ t(ach.description_key) }}
+                            </p>
+                            {% if ach.unlocked_count > 0 %}
+                                <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                                    {% if ach.tier_counts.platin > 0 %}
+                                        <span style="font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px; background: rgba(229, 228, 226, 0.22); color: #ffffff; border: 1px solid rgba(229, 228, 226, 0.5);">Platin: {{ ach.tier_counts.platin }}</span>
+                                    {% endif %}
+                                    {% if ach.tier_counts.gold > 0 %}
+                                        <span style="font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px; background: rgba(255, 215, 0, 0.18); color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.4);">Gold: {{ ach.tier_counts.gold }}</span>
+                                    {% endif %}
+                                    {% if ach.tier_counts.silver > 0 %}
+                                        <span style="font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px; background: rgba(192, 192, 192, 0.18); color: #e0e0e0; border: 1px solid rgba(192, 192, 192, 0.4);">Silber: {{ ach.tier_counts.silver }}</span>
+                                    {% endif %}
+                                    {% if ach.tier_counts.bronze > 0 %}
+                                        <span style="font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px; background: rgba(205, 127, 50, 0.18); color: #ffb74d; border: 1px solid rgba(205, 127, 50, 0.4);">Bronze: {{ ach.tier_counts.bronze }}</span>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Right Column: List of Players Who Unlocked This Achievement -->
+                    <div style="flex: 2 1 360px; min-width: 260px; display: flex; flex-wrap: wrap; gap: 7px; align-items: center; min-height: 42px;">
+                        {% if ach.unlocked_players %}
+                            {% for p in ach.unlocked_players %}
+                                <a href="{{ url_for('stats.player_achievements', player_id=p.player_id) }}"
+                                   title="{{ p.detail_text or p.progress_text }}"
+                                   style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 7px; font-size: 12px; text-decoration: none; color: #ffffff; transition: transform 0.12s ease; {% if p.tier == 'platin' %}background: rgba(229, 228, 226, 0.18); border: 1px solid rgba(229, 228, 226, 0.65);{% elif p.tier == 'gold' %}background: rgba(255, 215, 0, 0.14); border: 1px solid rgba(255, 215, 0, 0.5);{% elif p.tier == 'silver' %}background: rgba(192, 192, 192, 0.14); border: 1px solid rgba(192, 192, 192, 0.45);{% elif p.tier == 'bronze' %}background: rgba(205, 127, 50, 0.15); border: 1px solid rgba(205, 127, 50, 0.45);{% else %}background: rgba(156, 110, 240, 0.15); border: 1px solid rgba(156, 110, 240, 0.45);{% endif %}">
+                                    <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; {% if p.tier == 'platin' %}color: #ffffff;{% elif p.tier == 'gold' %}color: #ffd700;{% elif p.tier == 'silver' %}color: #e0e0e0;{% elif p.tier == 'bronze' %}color: #ffb74d;{% else %}color: #c4a7fc;{% endif %}">
+                                        {% if p.tier == 'platin' %}💎 PLATIN{% elif p.tier == 'gold' %}🥇 GOLD{% elif p.tier == 'silver' %}🥈 SILBER{% elif p.tier == 'bronze' %}🥉 BRONZE{% else %}● AKTIV{% endif %}
+                                    </span>
+                                    <strong>{{ p.player_name }}</strong>
+                                    {% if p.progress_text %}
+                                        <span style="font-size: 11px; color: #c9c2d8;">· {{ p.progress_text }}</span>
+                                    {% endif %}
+                                </a>
+                            {% endfor %}
+                        {% else %}
+                            <span style="font-size: 12px; color: var(--text-muted); font-style: italic;">
+                                {{ t('admin.achievements_none_unlocked', 'Noch von keinem Spieler erreicht') }}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="muted" style="margin: 12px 0; font-size: 13px;">Keine Spieler in der Datenbank vorhanden.</p>
+            {% endif %}
+        </div>
+
         {% else %}
         <!-- User Management Tab -->
 
@@ -391,6 +469,8 @@
                                     <span style="background: rgba(123, 82, 197, 0.35); color: #c9c2d8; border: 1px solid rgba(123, 82, 197, 0.6); font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px;">🔗 {{ t('auth.event_link', 'Verknüpfung') }}</span>
                                 {% elif n.event_type == 'psychology_passed' %}
                                     <span style="background: rgba(128, 222, 234, 0.25); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.5); font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px;">🧠 Glicko-Test</span>
+                                {% elif n.event_type == 'feedback_submitted' %}
+                                    <a href="{{ url_for('auth.admin_feedback') }}" style="text-decoration: none; background: rgba(255, 152, 0, 0.25); color: #ffb74d; border: 1px solid rgba(255, 152, 0, 0.5); font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px;" title="{{ t('admin.view_feedback_logs', 'Zu den Feedback-Logs') }}">💬 {{ t('auth.event_feedback', 'Feedback') }}</a>
                                 {% else %}
                                     <span style="background: rgba(255, 255, 255, 0.1); color: #ffffff; font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px;">📝 Info</span>
                                 {% endif %}

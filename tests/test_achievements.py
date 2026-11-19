@@ -18,6 +18,7 @@ from scripts.accounts.database import (
     mark_user_achievements_seen,
 )
 from scripts.analysis.achievements import (
+    get_all_achievements_overview,
     get_player_achievements,
     get_user_unseen_achievements_count,
 )
@@ -81,6 +82,12 @@ class TestAchievements(unittest.TestCase):
             "achievements.tier_neutral",
             "achievements.badge_new",
             "achievements.new_notification",
+            "admin.nav_achievements",
+            "admin.achievements_tab_title",
+            "admin.achievements_tab_subtitle",
+            "admin.achievements_none_unlocked",
+            "admin.view_feedback_logs",
+            "auth.event_feedback",
         ]
         for key in keys:
             res_de = t(key, lang="de", partner="Max", count=10, streak=4)
@@ -620,6 +627,36 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         self.assertEqual(mvp_ach["progress_text"], "10 MVP-Wahlen gewonnen!")
         self.assertEqual(mvp_ach["detail_text"], "10x zum MVP gewählt (1. Platz)")
 
+    def test_get_all_achievements_overview_sorted(self):
+        self.add_warmup_5_matches()
+
+        # Player 1 & Player 2 win 3 matches with clean sheets (both unlock weisse_wand)
+        self.add_match("2026-02-01", [1, 2], [3, 4], 3, 0)
+        self.add_match("2026-02-02", [1, 2], [3, 4], 4, 1)
+        self.add_match("2026-02-03", [1, 2], [3, 4], 2, 1)
+        # Player 1 wins a 4th consecutive match with Player 5 (only Player 1 unlocks winning_streak)
+        self.add_match("2026-02-04", [1, 5], [3, 4], 5, 1)
+
+        overview = get_all_achievements_overview(self.conn, accounts_connection=self.acc_conn)
+        self.assertEqual(len(overview), 17)
+
+        # Sorted descending by unlocked_count (most fulfilled -> least fulfilled)
+        counts = [item["unlocked_count"] for item in overview]
+        self.assertEqual(counts, sorted(counts, reverse=True))
+
+        by_id = {item["id"]: item for item in overview}
+        self.assertEqual(by_id["weisse_wand"]["unlocked_count"], 2)
+        self.assertEqual(
+            {p["player_id"] for p in by_id["weisse_wand"]["unlocked_players"]},
+            {1, 2},
+        )
+        self.assertEqual(by_id["winning_streak"]["unlocked_count"], 1)
+        self.assertEqual(by_id["winning_streak"]["unlocked_players"][0]["player_id"], 1)
+
+        weisse_idx = next(i for i, item in enumerate(overview) if item["id"] == "weisse_wand")
+        streak_idx = next(i for i, item in enumerate(overview) if item["id"] == "winning_streak")
+        self.assertLess(weisse_idx, streak_idx)
+
 
 
 import os
@@ -684,6 +721,122 @@ class TestAchievementsRoute(unittest.TestCase):
         self.assertIn('class="graphs"', html)
         self.assertIn("new Chart", html)
         self.assertIn("totalChart", html)
+
+    def test_webmaster_achievements_tab_and_route(self):
+        from scripts.accounts.database import set_user_access_level
+        wm_id, _ = register_user("wm_ach", "wm_ach@example.com", "password123")
+        user_id, _ = register_user("norm_ach", "norm_ach@example.com", "password123")
+        conn = get_accounts_connection()
+        try:
+            mark_email_verified(conn, wm_id)
+            approve_user(conn, wm_id, approved=True)
+            set_user_access_level(conn, wm_id, "webmaster")
+            mark_email_verified(conn, user_id)
+            approve_user(conn, user_id, approved=True)
+        finally:
+            conn.close()
+
+        # Non-webmaster cannot access /admin/achievements
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+        resp_denied = self.client.get("/admin/achievements")
+        self.assertIn(resp_denied.status_code, (302, 403))
+
+        # Webmaster can access /admin/users?tab=achievements and /admin/achievements
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = wm_id
+        for url in ("/admin/users?tab=achievements", "/admin/achievements"):
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, 200)
+            html = resp.get_data(as_text=True)
+            self.assertIn('id="webmaster-achievements-overview"', html)
+            self.assertIn("Achievements", html)
+
+    def test_feedback_triggers_webmaster_notification(self):
+        from scripts.accounts.database import (
+            get_unseen_webmaster_notifications_count,
+            get_webmaster_notifications,
+            mark_webmaster_notifications_seen,
+            set_user_access_level,
+        )
+        wm_id, _ = register_user("wm_fb", "wm_fb@example.com", "password123")
+        conn = get_accounts_connection()
+        try:
+            mark_email_verified(conn, wm_id)
+            approve_user(conn, wm_id, approved=True)
+            set_user_access_level(conn, wm_id, "webmaster")
+            mark_webmaster_notifications_seen(conn, wm_id)
+        finally:
+            conn.close()
+
+        resp = self.client.post(
+            "/api/feedback",
+            json={
+                "category": "mobile_handling",
+                "message": "Button zu klein auf iPhone",
+                "page_url": "/stats",
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.get_json()["success"])
+
+        conn = get_accounts_connection()
+        try:
+            unseen = get_unseen_webmaster_notifications_count(conn, wm_id)
+            self.assertEqual(unseen, 1)
+            notifs = get_webmaster_notifications(conn, wm_id)
+            fb_notifs = [n for n in notifs if n["event_type"] == "feedback_submitted"]
+            self.assertEqual(len(fb_notifs), 1)
+            self.assertIn("Button zu klein auf iPhone", fb_notifs[0]["details"])
+        finally:
+            conn.close()
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = wm_id
+        resp_admin = self.client.get("/admin/users")
+        self.assertEqual(resp_admin.status_code, 200)
+        html = resp_admin.get_data(as_text=True)
+        self.assertIn("Button zu klein auf iPhone", html)
+        self.assertIn("/admin/feedback", html)
+
+    def test_achievement_notification_refreshes_after_cache_invalidation(self):
+        from web.services.cache import invalidate_stats_cache
+        user_id, _ = register_user("notif_u", "notif_u@example.com", "password123")
+        conn = get_accounts_connection()
+        try:
+            mark_email_verified(conn, user_id)
+            approve_user(conn, user_id, approved=True)
+            link_user_to_player(conn, user_id, 29)
+        finally:
+            conn.close()
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        # Initial load detects unlocked unseen achievement(s) (e.g. iron_man)
+        resp1 = self.client.get("/about")
+        self.assertEqual(resp1.status_code, 200)
+        self.assertIn('class="profile-button glowing-profile-btn"', resp1.get_data(as_text=True))
+
+        # Visiting own achievements marks them seen & clears badge
+        resp_ach = self.client.get("/achievements/29")
+        self.assertEqual(resp_ach.status_code, 200)
+
+        resp2 = self.client.get("/about")
+        self.assertNotIn('class="profile-button glowing-profile-btn"', resp2.get_data(as_text=True))
+
+        # Simulate a newly unlocked achievement (remove seen record) & invalidate stats cache
+        conn = get_accounts_connection()
+        try:
+            conn.execute("DELETE FROM user_seen_achievements WHERE user_id = ?", (user_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
+        invalidate_stats_cache()
+        resp3 = self.client.get("/about")
+        self.assertEqual(resp3.status_code, 200)
+        self.assertIn('class="profile-button glowing-profile-btn"', resp3.get_data(as_text=True))
 
 
 if __name__ == "__main__":
