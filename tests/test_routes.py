@@ -383,6 +383,161 @@ class RouteTests(unittest.TestCase):
         self.assertNotIn(".nav-mobile-toggle {\n    display: none !important;", css_text)
         self.assertIn("display: inline-flex !important;", css_text)
 
+    def test_update_match_pitch_endpoint_and_recalculation(self):
+        import csv
+        import json
+        from scripts.database.database import get_connection
+        from scripts.database.db_players import get_players
+        from scripts.glicko.glicko2_calculator import recalculate_glicko2_ratings
+        from scripts.matches.match_entry import add_match
+
+        test_matches_dir = Path(self.temp_dir.name) / "matches"
+        test_backup_dir = Path(self.temp_dir.name) / "match_backups"
+        old_matches_dir = os.environ.get("RB48_MATCHES_DIR")
+        old_backup_dir = os.environ.get("RB48_MATCH_BACKUP_DIR")
+        os.environ["RB48_MATCHES_DIR"] = str(test_matches_dir)
+        os.environ["RB48_MATCH_BACKUP_DIR"] = str(test_backup_dir)
+
+        try:
+            conn = get_connection()
+            try:
+                players = get_players(conn)
+                pids = list(players.keys())[:2]
+                match_id = add_match(
+                    conn,
+                    "2026-12-05",
+                    "box",
+                    [pids[0]],
+                    [pids[1]],
+                    5,
+                    3,
+                )
+                recalculate_glicko2_ratings(connection=conn, create_backup=False)
+
+                ratings_before = {
+                    r["rating_type"]: r["rating"]
+                    for r in conn.execute(
+                        "SELECT rating_type, rating FROM ratings WHERE player_id = ?",
+                        (pids[0],),
+                    ).fetchall()
+                }
+                self.assertEqual(set(ratings_before.keys()), {"box", "hf", "total"})
+            finally:
+                conn.close()
+
+            # 1. Regular user does not see pitch edit UI and cannot POST /matches/update-pitch
+            user_id = self.create_user_session(role="user")
+            with self.client.session_transaction() as sess:
+                sess["user_id"] = user_id
+
+            resp_user_page = self.client.get("/matches")
+            html_user = resp_user_page.get_data(as_text=True)
+            self.assertNotIn('class="match-pitch-btn"', html_user)
+            self.assertNotIn('id="change-pitch-modal"', html_user)
+
+            res_forbidden = self.client.post(
+                "/matches/update-pitch",
+                data=json.dumps({"match_id": match_id, "pitch": "hf"}),
+                content_type="application/json",
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
+            self.assertIn(res_forbidden.status_code, (302, 403))
+
+            # 2. Admin sees pitch edit button/modal and can switch box -> hf
+            admin_id = self.create_user_session(role="admin")
+            with self.client.session_transaction() as sess:
+                sess["user_id"] = admin_id
+
+            resp_admin_page = self.client.get("/matches")
+            html_admin = resp_admin_page.get_data(as_text=True)
+            self.assertIn('class="match-pitch-btn"', html_admin)
+            self.assertIn('id="change-pitch-modal"', html_admin)
+
+            res_admin = self.client.post(
+                "/matches/update-pitch",
+                data=json.dumps({"match_id": match_id, "pitch": "hf"}),
+                content_type="application/json",
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
+            self.assertEqual(res_admin.status_code, 200)
+            data_admin = res_admin.get_json()
+            self.assertTrue(data_admin.get("success"))
+            self.assertTrue(data_admin.get("changed"))
+            self.assertEqual(data_admin.get("old_pitch"), "box")
+            self.assertEqual(data_admin.get("new_pitch"), "hf")
+            self.assertIsNotNone(data_admin.get("backup_file"))
+            self.assertTrue((test_backup_dir / data_admin["backup_file"]).exists())
+
+            # Verify DB pitch and recalculated rating tracks (box decreases, hf increases, total unchanged)
+            conn = get_connection()
+            try:
+                m_row = conn.execute(
+                    "SELECT pitch FROM matches WHERE match_id = ?",
+                    (match_id,),
+                ).fetchone()
+                self.assertEqual(m_row["pitch"], "hf")
+
+                ratings_after = {
+                    r["rating_type"]: r["rating"]
+                    for r in conn.execute(
+                        "SELECT rating_type, rating FROM ratings WHERE player_id = ?",
+                        (pids[0],),
+                    ).fetchall()
+                }
+                self.assertLess(ratings_after["box"], ratings_before["box"])
+                self.assertGreater(ratings_after["hf"], ratings_before["hf"])
+                self.assertAlmostEqual(ratings_after["total"], ratings_before["total"], places=6)
+            finally:
+                conn.close()
+
+            # Verify CSV source file was updated to 'hf'
+            csv_path = test_matches_dir / "2026-12-05.csv"
+            with csv_path.open("r", encoding="utf-8-sig", newline="") as f:
+                csv_rows = list(csv.reader(f))
+            matched_rows = [r for r in csv_rows if r and r[0] == match_id]
+            self.assertEqual(len(matched_rows), 1)
+            self.assertEqual(matched_rows[0][1], "hf")
+
+            # 3. Webmaster can switch hf -> box and tracks return to original values
+            wm_id = self.create_user_session(role="webmaster")
+            with self.client.session_transaction() as sess:
+                sess["user_id"] = wm_id
+
+            res_wm = self.client.post(
+                "/matches/update-pitch",
+                data=json.dumps({"match_id": match_id, "pitch": "box"}),
+                content_type="application/json",
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
+            self.assertEqual(res_wm.status_code, 200)
+            data_wm = res_wm.get_json()
+            self.assertTrue(data_wm.get("success"))
+            self.assertEqual(data_wm.get("new_pitch"), "box")
+
+            conn = get_connection()
+            try:
+                ratings_back = {
+                    r["rating_type"]: r["rating"]
+                    for r in conn.execute(
+                        "SELECT rating_type, rating FROM ratings WHERE player_id = ?",
+                        (pids[0],),
+                    ).fetchall()
+                }
+                self.assertAlmostEqual(ratings_back["box"], ratings_before["box"], places=6)
+                self.assertAlmostEqual(ratings_back["hf"], ratings_before["hf"], places=6)
+                self.assertAlmostEqual(ratings_back["total"], ratings_before["total"], places=6)
+            finally:
+                conn.close()
+        finally:
+            if old_matches_dir is None:
+                os.environ.pop("RB48_MATCHES_DIR", None)
+            else:
+                os.environ["RB48_MATCHES_DIR"] = old_matches_dir
+            if old_backup_dir is None:
+                os.environ.pop("RB48_MATCH_BACKUP_DIR", None)
+            else:
+                os.environ["RB48_MATCH_BACKUP_DIR"] = old_backup_dir
+
 
 if __name__ == "__main__":
     unittest.main()

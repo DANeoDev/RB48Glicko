@@ -42,6 +42,26 @@
     .pagination-btn { padding: 5px 10px; font-size: 12px; }
 }
 
+.match-pitch-btn {
+    background: transparent;
+    border: 1px solid rgba(128, 222, 234, 0.3);
+    color: #80deea;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.match-pitch-btn:hover {
+    background: rgba(128, 222, 234, 0.16);
+    border-color: rgba(128, 222, 234, 0.55);
+    color: #b2ebf2;
+    transform: translateY(-1px);
+}
 .match-delete-btn {
     background: transparent;
     border: 1px solid rgba(255, 100, 100, 0.25);
@@ -201,6 +221,16 @@
                             </button>
                         {% endif %}
                         {% if has_tier('admin') %}
+                            <button
+                                type="button"
+                                class="match-pitch-btn"
+                                data-match-id="{{ match['match_id'] }}"
+                                data-current-pitch="{{ match['pitch'] | lower }}"
+                                title="{{ t('matches.change_pitch_title', 'Platztyp (BOX/HF) ändern & Glicko-Tracks neu berechnen') }}"
+                                onclick="event.stopPropagation(); window.confirmChangePitch && window.confirmChangePitch('{{ match['match_id'] }}', '{{ match['pitch'] | lower }}');"
+                            >
+                                🏟️ {{ match['pitch'] | upper }} ⇄ {{ 'HF' if (match['pitch'] | lower) == 'box' else 'BOX' }}
+                            </button>
                             <button
                                 type="button"
                                 class="match-delete-btn"
@@ -389,6 +419,35 @@
             <button type="button" class="secondary" id="btn-cancel-delete">{{ t('common.cancel', 'Abbrechen') }}</button>
             <button type="button" class="primary" id="btn-confirm-delete" style="background: #d32f2f; border-color: #d32f2f; color: #ffffff;">
                 {{ t('matches.delete_btn', 'Unwiderruflich löschen') }}
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="delete-match-modal-bg modal-bg" id="change-pitch-modal" style="display: none;">
+    <div class="delete-match-modal-card modal">
+        <h3 style="color: #80deea; display: flex; align-items: center; gap: 8px; margin-top: 0;">
+            <span>🏟️</span> {{ t('matches.change_pitch_modal_title', 'Platztyp ändern') }}
+        </h3>
+        <div id="change-pitch-match-info" style="font-size: 13.5px; font-weight: 700; color: #ffd700; margin-bottom: 8px;"></div>
+        <p class="muted" style="font-size: 13.5px; line-height: 1.5; margin: 8px 0 14px;">
+            {{ t('matches.change_pitch_modal_desc', 'Wähle den neuen Platztyp für dieses Match. Das Match sowie alle relevanten Glicko-Rating-Tracks (BOX, HF, Gesamt) werden anschließend automatisch neu berechnet.') }}
+        </p>
+        <div style="display: flex; gap: 12px; margin-bottom: 14px;">
+            <label style="flex: 1; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(128, 222, 234, 0.25); background: rgba(255, 255, 255, 0.03); cursor: pointer; font-weight: 600;">
+                <input type="radio" name="change_pitch_value" value="box">
+                <span>BOX (Kleinfeld / Halle)</span>
+            </label>
+            <label style="flex: 1; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(128, 222, 234, 0.25); background: rgba(255, 255, 255, 0.03); cursor: pointer; font-weight: 600;">
+                <input type="radio" name="change_pitch_value" value="hf">
+                <span>HF (Half-Field / Großfeld)</span>
+            </label>
+        </div>
+        <div id="change-pitch-error" style="display: none; color: #ff8888; background: rgba(255, 100, 100, 0.1); border: 1px solid rgba(255, 100, 100, 0.3); padding: 8px 12px; border-radius: var(--radius); margin-bottom: 12px; font-size: 13px;"></div>
+        <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="secondary" id="btn-cancel-pitch">{{ t('common.cancel', 'Abbrechen') }}</button>
+            <button type="button" class="primary" id="btn-confirm-pitch" style="background: linear-gradient(135deg, #00838f, #006064); border-color: rgba(128, 222, 234, 0.45); color: #ffffff;">
+                {{ t('matches.change_pitch_confirm_btn', 'Platztyp speichern & neu berechnen') }}
             </button>
         </div>
     </div>
@@ -658,6 +717,109 @@
     confirmBtn?.addEventListener('click', () => {
         if (pendingMatchId) {
             executeDelete(pendingMatchId);
+        }
+    });
+
+    // Change Pitch Type Modal
+    let pendingPitchMatchId = null;
+    const pitchModal = document.getElementById('change-pitch-modal');
+    const pitchInfoEl = document.getElementById('change-pitch-match-info');
+    const cancelPitchBtn = document.getElementById('btn-cancel-pitch');
+    const confirmPitchBtn = document.getElementById('btn-confirm-pitch');
+    const pitchErrorBox = document.getElementById('change-pitch-error');
+
+    function openPitchModal(matchId, currentPitch) {
+        pendingPitchMatchId = matchId;
+        const curr = (currentPitch || '').toLowerCase();
+        const targetPitch = curr === 'box' ? 'hf' : 'box';
+        if (pitchInfoEl) {
+            pitchInfoEl.textContent = `Match ${matchId} (Aktuell: ${(curr || '?').toUpperCase()})`;
+        }
+        const radios = document.querySelectorAll('input[name="change_pitch_value"]');
+        radios.forEach(r => {
+            r.checked = (r.value === targetPitch);
+        });
+        if (pitchErrorBox) {
+            pitchErrorBox.style.display = 'none';
+            pitchErrorBox.textContent = '';
+        }
+        if (pitchModal) {
+            pitchModal.classList.add('active');
+            pitchModal.style.display = 'flex';
+        }
+    }
+
+    function closePitchModal() {
+        if (pitchModal) {
+            pitchModal.classList.remove('active');
+            pitchModal.style.display = 'none';
+        }
+        pendingPitchMatchId = null;
+    }
+
+    window.confirmChangePitch = openPitchModal;
+
+    cancelPitchBtn?.addEventListener('click', closePitchModal);
+    pitchModal?.addEventListener('click', (e) => {
+        if (e.target === pitchModal) {
+            closePitchModal();
+        }
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && pitchModal && pitchModal.classList.contains('active')) {
+            closePitchModal();
+        }
+    });
+
+    confirmPitchBtn?.addEventListener('click', async () => {
+        if (!pendingPitchMatchId) return;
+        const selected = document.querySelector('input[name="change_pitch_value"]:checked')?.value;
+        if (!selected) return;
+
+        if (confirmPitchBtn) {
+            confirmPitchBtn.disabled = true;
+            confirmPitchBtn.textContent = 'Speichere & berechne neu...';
+        }
+        if (pitchErrorBox) {
+            pitchErrorBox.style.display = 'none';
+            pitchErrorBox.textContent = '';
+        }
+
+        try {
+            const resp = await fetch('/matches/update-pitch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ match_id: pendingPitchMatchId, pitch: selected })
+            });
+            const data = await resp.json();
+            if (resp.ok && data.success) {
+                sessionStorage.setItem("rb48ScrollPosition", String(window.scrollY));
+                sessionStorage.setItem("rb48ScrollPath", window.location.pathname);
+                window.location.reload();
+            } else {
+                if (pitchErrorBox) {
+                    pitchErrorBox.textContent = data.error || 'Fehler beim Ändern des Platztyps.';
+                    pitchErrorBox.style.display = 'block';
+                } else {
+                    alert(data.error || 'Fehler beim Ändern des Platztyps.');
+                }
+            }
+        } catch (err) {
+            console.error('Pitch update error:', err);
+            if (pitchErrorBox) {
+                pitchErrorBox.textContent = 'Netzwerkfehler beim Ändern des Platztyps.';
+                pitchErrorBox.style.display = 'block';
+            } else {
+                alert('Netzwerkfehler beim Ändern des Platztyps.');
+            }
+        } finally {
+            if (confirmPitchBtn) {
+                confirmPitchBtn.disabled = false;
+                confirmPitchBtn.textContent = '{{ t('matches.change_pitch_confirm_btn', 'Platztyp speichern & neu berechnen') }}';
+            }
         }
     });
 })();

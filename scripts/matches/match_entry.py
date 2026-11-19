@@ -412,3 +412,80 @@ def delete_match(connection, match_id):
         "match_id": match_id,
         "backup_file": backup_filename,
     }
+
+
+def update_match_pitch(connection, match_id, new_pitch):
+    """
+    Update a match's pitch type ('box' or 'hf') in both SQLite and its matchday CSV file,
+    creating a CSV backup first, then recalculate all Glicko-2 rating tracks.
+    Returns a dict with update metadata.
+    """
+    new_pitch = (new_pitch or "").strip().lower()
+    if new_pitch not in ("box", "hf"):
+        raise ValueError(f"Invalid pitch type '{new_pitch}'. Must be 'box' or 'hf'.")
+
+    row = connection.execute(
+        "SELECT date, pitch FROM matches WHERE match_id = ?",
+        (match_id,),
+    ).fetchone()
+    if not row:
+        raise ValueError(f"Match '{match_id}' not found.")
+
+    match_date = row["date"]
+    old_pitch = (row["pitch"] or "").strip().lower()
+    if old_pitch == new_pitch:
+        return {
+            "success": True,
+            "match_id": match_id,
+            "old_pitch": old_pitch,
+            "new_pitch": new_pitch,
+            "changed": False,
+            "backup_file": None,
+        }
+
+    # 1. Update the matchday CSV file (source of truth) with backup
+    matches_dir = get_matches_dir()
+    backup_dir = get_match_backup_dir()
+    csv_file = matches_dir / f"{match_date}.csv"
+    backup_filename = None
+
+    if csv_file.exists():
+        with csv_file.open("r", encoding="utf-8-sig", newline="") as f:
+            rows = list(csv.reader(f))
+
+        timestamp = get_cologne_file_timestamp()
+        backup_filename = f"{match_date}_{timestamp}_before_pitch_{match_id}.csv"
+        backup_path = backup_dir / backup_filename
+        shutil.copy2(csv_file, backup_path)
+
+        for r in rows:
+            if r and r[0].strip() == match_id and len(r) > 1:
+                r[1] = new_pitch
+
+        with csv_file.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerows(rows)
+
+    # 2. Update pitch in SQLite
+    connection.execute("BEGIN")
+    try:
+        connection.execute(
+            "UPDATE matches SET pitch = ? WHERE match_id = ?",
+            (new_pitch, match_id),
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+
+    # 3. Recalculate all Glicko-2 rating tracks from scratch
+    recalculate_glicko2_ratings(connection=connection, create_backup=False)
+
+    return {
+        "success": True,
+        "match_id": match_id,
+        "old_pitch": old_pitch,
+        "new_pitch": new_pitch,
+        "changed": True,
+        "backup_file": backup_filename,
+    }

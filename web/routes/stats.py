@@ -902,6 +902,69 @@ def delete_match_endpoint():
     return redirect(url_for("stats.match_history"))
 
 
+@stats_bp.route("/matches/update-pitch", methods=["POST"])
+@require_tier(Tier.ADMIN)
+def update_match_pitch_endpoint():
+    match_id = None
+    new_pitch = None
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+        match_id = data.get("match_id")
+        new_pitch = data.get("pitch") or data.get("new_pitch")
+    if not match_id:
+        match_id = request.form.get("match_id")
+    if not new_pitch:
+        new_pitch = request.form.get("pitch") or request.form.get("new_pitch")
+
+    is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json
+
+    if not match_id or not new_pitch:
+        msg = "Match ID and pitch type are required."
+        if is_xhr:
+            return jsonify({"success": False, "error": msg}), 400
+        flash(msg, "error")
+        return redirect(url_for("stats.match_history"))
+
+    from scripts.matches.match_entry import update_match_pitch
+    from web.services.cache import invalidate_stats_cache
+
+    connection = get_connection()
+    try:
+        res = update_match_pitch(connection, match_id, new_pitch)
+        invalidate_stats_cache()
+    except (ValueError, Exception) as exc:
+        if is_xhr:
+            return jsonify({"success": False, "error": str(exc)}), 400
+        flash(str(exc), "error")
+        return redirect(url_for("stats.match_history"))
+    finally:
+        connection.close()
+
+    if res.get("changed"):
+        backup_info = ""
+        if res.get("backup_file"):
+            backup_info = f" (Matchday CSV-Backup: data/backups/matches/{res['backup_file']})"
+        success_msg = (
+            f"Platztyp für Match '{match_id}' wurde von {res['old_pitch'].upper()} auf {res['new_pitch'].upper()} geändert "
+            f"und alle Glicko-Ratings wurden neu berechnet.{backup_info}"
+        )
+    else:
+        success_msg = f"Platztyp für Match '{match_id}' ist bereits {res['new_pitch'].upper()}."
+
+    if is_xhr:
+        return jsonify({
+            "success": True,
+            "message": success_msg,
+            "match_id": match_id,
+            "old_pitch": res.get("old_pitch"),
+            "new_pitch": res.get("new_pitch"),
+            "changed": res.get("changed", False),
+            "backup_file": res.get("backup_file"),
+        })
+    flash(success_msg, "success" if res.get("changed") else "info")
+    return redirect(url_for("stats.match_history"))
+
+
 @stats_bp.route("/admin/recalculate-glicko", methods=["POST"])
 @require_tier(Tier.WEBMASTER)
 def recalculate_glicko_endpoint():
