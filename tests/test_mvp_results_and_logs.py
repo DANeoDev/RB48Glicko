@@ -327,6 +327,93 @@ class MvpResultsAndLogsTests(unittest.TestCase):
         self.assertIn(b"openMvpResultsModal", res.data)
         self.assertIn(b"match-mvp-btn results", res.data)
 
+    def test_webmaster_manual_mvp_vote_entry(self):
+        """Webmaster can manually enter an MVP ballot on behalf of linked or unlinked players without leaking usernames or polluting User Management."""
+        from scripts.database.db_matches import create_match, add_match_player
+
+        future_mid = "2026-10-25-1"
+        main_conn = get_connection()
+        try:
+            create_match(main_conn, future_mid, "2026-10-25", "box", 3, 2, 5, 3)
+            for pid in (20, 4, 32):
+                add_match_player(main_conn, future_mid, pid, "a")
+            for pid in (1, 15):
+                add_match_player(main_conn, future_mid, pid, "b")
+            main_conn.commit()
+        finally:
+            main_conn.close()
+
+        # Linked user for player 20, plus regular user and webmaster
+        _, u20_name = self.create_user(role="user", linked_player_id=20)
+        u_reg_id, _ = self.create_user(role="user")
+        wm_id, _ = self.create_user(role="webmaster")
+
+        # 1. Regular user cannot POST /admin/mvp-votes/add
+        self.login_user(u_reg_id)
+        res_forbidden = self.client.post("/admin/mvp-votes/add", data={
+            "match_id": future_mid,
+            "voter_player_id": "20",
+            "rank1_player_id": "4",
+        })
+        self.assertIn(res_forbidden.status_code, (302, 403))
+
+        # 2. Webmaster sees the manual entry form on /admin/users?tab=mvp (without leaking user account usernames)
+        self.login_user(wm_id)
+        res_tab = self.client.get("/admin/users?tab=mvp")
+        self.assertEqual(res_tab.status_code, 200)
+        html_tab = res_tab.get_data(as_text=True)
+        self.assertIn('id="admin-manual-mvp-form"', html_tab)
+        self.assertIn(future_mid, html_tab)
+        self.assertNotIn(u20_name, html_tab)
+
+        # 3. Webmaster submits ballot on behalf of linked player 20 with [4, 32, 1]
+        res_add_linked = self.client.post("/admin/mvp-votes/add", data={
+            "match_id": future_mid,
+            "voter_player_id": "20",
+            "rank1_player_id": "4",
+            "rank2_player_id": "32",
+            "rank3_player_id": "1",
+        }, follow_redirects=True)
+        self.assertEqual(res_add_linked.status_code, 200)
+        self.assertIn("erfolgreich gespeichert", res_add_linked.get_data(as_text=True))
+
+        # 4. Webmaster submits ballot on behalf of unlinked database player 15 (no user account in users table)
+        res_add_unlinked = self.client.post("/admin/mvp-votes/add", data={
+            "match_id": future_mid,
+            "voter_player_id": "15",
+            "rank1_player_id": "32",
+            "rank2_player_id": "4",
+            "rank3_player_id": "1",
+        }, follow_redirects=True)
+        self.assertEqual(res_add_unlinked.status_code, 200)
+        self.assertIn("erfolgreich gespeichert", res_add_unlinked.get_data(as_text=True))
+
+        # 5. Internal proxy user for player 15 must NOT appear in /admin/users User Management table
+        res_users_page = self.client.get("/admin/users")
+        self.assertEqual(res_users_page.status_code, 200)
+        html_users = res_users_page.get_data(as_text=True)
+        self.assertNotIn("_mvp_proxy_p15", html_users)
+        self.assertNotIn("@mvp-proxy.internal", html_users)
+
+        # 6. Verify aggregated results & 4-3-2 points reflect both ballots
+        acc_conn = get_accounts_connection()
+        main_conn = get_connection()
+        try:
+            players = get_players(main_conn)
+            results = get_match_mvp_results(acc_conn, future_mid, players_dict=players)
+            self.assertEqual(results["scoring_system"], "weighted_4_3_2")
+            self.assertEqual(results["total_voters"], 2)
+            by_pid = {c["player_id"]: c for c in results["candidates"]}
+            # Player 4: 1x Gold (4) + 1x Silver (3) = 7 pts
+            # Player 32: 1x Silver (3) + 1x Gold (4) = 7 pts
+            # Player 1: 2x Bronze (2 + 2) = 4 pts
+            self.assertEqual(by_pid[4]["points"], 7)
+            self.assertEqual(by_pid[32]["points"], 7)
+            self.assertEqual(by_pid[1]["points"], 4)
+        finally:
+            acc_conn.close()
+            main_conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()

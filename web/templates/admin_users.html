@@ -58,6 +58,150 @@
             {{ t('admin.mvp_secret_ballot_notice', '🔒 Vollständiges Stimmgeheimnis gewahrt: Es wird nicht angezeigt, wer wann oder für wen abgestimmt hat. Auch Webmaster sehen ausschließlich die anonymen Wahlergebnisse und Stimmverteilungen.') }}
         </div>
 
+        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(128, 222, 234, 0.25); border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 6px 0; font-size: 16px; color: #80deea; display: flex; align-items: center; gap: 8px;">
+                <span>🗳️</span> MVP-Stimmzettel nachtragen / manuell erfassen
+            </h3>
+            <p style="margin: 0 0 16px 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.45;">
+                Hier kannst du als Webmaster einen Stimmzettel stellvertretend für einen Spieler erfassen oder aktualisieren (z. B. bei Rückmeldung per WhatsApp, nach Fristablauf um 20:00 Uhr oder falls das Login/Voting auf dem Gerät hakt).
+            </p>
+
+            {% if mvp_votable_sessions %}
+                <form method="post" action="{{ url_for('auth.admin_add_mvp_vote') }}" id="admin-manual-mvp-form">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 14px;">
+                        <div style="grid-column: 1 / -1;">
+                            <label for="admin-mvp-match-select" style="display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px;">
+                                Match / Box-Abend *
+                            </label>
+                            <select name="match_id" id="admin-mvp-match-select" required style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: #24194A; color: #ffffff; font-size: 13px;">
+                                {% for s in mvp_votable_sessions %}
+                                    <option value="{{ s.match_id }}" data-participants="{{ s.participant_ids | tojson }}">
+                                        {{ s.label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="admin-mvp-voter-select" style="display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px;">
+                                Stimmzettel von Spieler *
+                            </label>
+                            <select name="voter_player_id" id="admin-mvp-voter-select" required style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: #24194A; color: #ffffff; font-size: 13px;">
+                                <option value="">-- Spieler wählen --</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="admin-mvp-rank1-select" style="display: block; font-size: 12px; font-weight: 600; color: #ffd700; margin-bottom: 5px;">
+                                🥇 1. Platz (Gold — 4 Pkt) *
+                            </label>
+                            <select name="rank1_player_id" id="admin-mvp-rank1-select" required style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(255, 215, 0, 0.45); background: #24194A; color: #ffffff; font-size: 13px;">
+                                <option value="">-- Spieler wählen --</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="admin-mvp-rank2-select" style="display: block; font-size: 12px; font-weight: 600; color: #e2e8f0; margin-bottom: 5px;">
+                                🥈 2. Platz (Silber — 3 Pkt) (Optional)
+                            </label>
+                            <select name="rank2_player_id" id="admin-mvp-rank2-select" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: #24194A; color: #ffffff; font-size: 13px;">
+                                <option value="">-- Optional --</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="admin-mvp-rank3-select" style="display: block; font-size: 12px; font-weight: 600; color: #e29d62; margin-bottom: 5px;">
+                                🥉 3. Platz (Bronze — 2 Pkt) (Optional)
+                            </label>
+                            <select name="rank3_player_id" id="admin-mvp-rank3-select" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: #24194A; color: #ffffff; font-size: 13px;">
+                                <option value="">-- Optional --</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end;">
+                        <button type="submit" class="primary" style="padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer;">
+                            ⭐ Stimmzettel speichern
+                        </button>
+                    </div>
+                </form>
+
+                <script>
+                (function() {
+                    const allPlayers = {{ players_list | tojson }};
+                    const matchSelect = document.getElementById('admin-mvp-match-select');
+                    const voterSelect = document.getElementById('admin-mvp-voter-select');
+                    const rank1Select = document.getElementById('admin-mvp-rank1-select');
+                    const rank2Select = document.getElementById('admin-mvp-rank2-select');
+                    const rank3Select = document.getElementById('admin-mvp-rank3-select');
+
+                    if (!matchSelect || !voterSelect || !rank1Select || !rank2Select || !rank3Select) return;
+
+                    function escapeHtml(text) {
+                        const div = document.createElement('div');
+                        div.textContent = text || '';
+                        return div.innerHTML;
+                    }
+
+                    function populateSelect(selectEl, participantSet, placeholder) {
+                        const prevVal = selectEl.value;
+                        const participants = [];
+                        const others = [];
+                        allPlayers.forEach(p => {
+                            if (participantSet.has(Number(p.player_id))) {
+                                participants.push(p);
+                            } else {
+                                others.push(p);
+                            }
+                        });
+
+                        let html = `<option value="">-- ${escapeHtml(placeholder)} --</option>`;
+                        if (participants.length > 0) {
+                            html += `<optgroup label="⚽ Teilnehmer dieses Spieltags">`;
+                            participants.forEach(p => {
+                                html += `<option value="${p.player_id}">${escapeHtml(p.name)}</option>`;
+                            });
+                            html += `</optgroup>`;
+                        }
+                        if (others.length > 0) {
+                            html += `<optgroup label="Weitere Spieler in der Datenbank">`;
+                            others.forEach(p => {
+                                html += `<option value="${p.player_id}">${escapeHtml(p.name)}</option>`;
+                            });
+                            html += `</optgroup>`;
+                        }
+                        selectEl.innerHTML = html;
+                        if (prevVal) {
+                            selectEl.value = prevVal;
+                        }
+                    }
+
+                    function refreshPlayerDropdowns() {
+                        const selectedOption = matchSelect.options[matchSelect.selectedIndex];
+                        let participantIds = [];
+                        if (selectedOption) {
+                            try {
+                                participantIds = JSON.parse(selectedOption.getAttribute('data-participants') || '[]').map(Number);
+                            } catch (e) {
+                                participantIds = [];
+                            }
+                        }
+                        const participantSet = new Set(participantIds);
+                        populateSelect(voterSelect, participantSet, 'Spieler wählen');
+                        populateSelect(rank1Select, participantSet, 'Spieler wählen');
+                        populateSelect(rank2Select, participantSet, 'Optional');
+                        populateSelect(rank3Select, participantSet, 'Optional');
+                    }
+
+                    matchSelect.addEventListener('change', refreshPlayerDropdowns);
+                    refreshPlayerDropdowns();
+                })();
+                </script>
+            {% else %}
+                <p class="muted" style="margin: 0; font-size: 13px;">Keine Spiele in der Datenbank vorhanden.</p>
+            {% endif %}
+        </div>
+
         <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h3 style="margin: 0; font-size: 16px; color: #ffffff; display: flex; align-items: center; gap: 8px;">

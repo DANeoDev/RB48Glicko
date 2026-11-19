@@ -34,8 +34,10 @@ from scripts.accounts.database import (
     link_user_to_player,
     mark_webmaster_notifications_seen,
     record_webmaster_notification,
+    record_match_mvp_votes,
     reject_player_link,
     request_player_link,
+    resolve_or_create_mvp_voter_user_id,
     set_user_access_level,
     set_user_persona,
     unlink_player,
@@ -50,7 +52,12 @@ from scripts.accounts.psychology import (
     get_psychology_personas,
 )
 from scripts.database.database import get_connection as get_main_connection
-from scripts.database.db_matches import get_matches
+from scripts.database.db_matches import (
+    get_all_match_players,
+    get_box_session_matches,
+    get_matches,
+    natural_match_sort_key,
+)
 from scripts.database.db_players import (
     get_players,
     set_player_positions,
@@ -281,9 +288,58 @@ def admin_users(default_tab="users"):
                 u["verification_url"] = url_for("auth.verify_email", token=token, _external=True)
         players = get_players(main_conn)
         matches = get_matches(main_conn)
+        all_match_players = get_all_match_players(main_conn)
         notifications = get_webmaster_notifications(connection, curr_user["id"], limit=40)
         unseen_notifications_count = get_unseen_webmaster_notifications_count(connection, curr_user["id"])
         mvp_match_summaries = get_all_matches_mvp_summaries(connection, players_dict=players, matches_dict=matches)
+
+        date_box_groups = {}
+        non_box_matches = []
+        for m in matches.values():
+            if str(m.get("pitch", "")).lower() == "box":
+                date_box_groups.setdefault(m.get("date", ""), []).append(m)
+            else:
+                non_box_matches.append(m)
+
+        mvp_votable_sessions = []
+        for m_date, session_list in date_box_groups.items():
+            sorted_sess = sorted(session_list, key=natural_match_sort_key)
+            canonical_id = sorted_sess[-1]["match_id"]
+            session_mids = [m["match_id"] for m in sorted_sess]
+            participant_ids = sorted({
+                int(p["player_id"])
+                for mid in session_mids
+                for p in all_match_players.get(mid, [])
+            })
+            if len(sorted_sess) > 1:
+                label = f"Box-Abend {m_date} ({', '.join(session_mids)})"
+            else:
+                label = f"{canonical_id} — {sorted_sess[-1].get('pitch', '').upper()} ({m_date})"
+            mvp_votable_sessions.append({
+                "match_id": canonical_id,
+                "date": m_date,
+                "pitch": str(sorted_sess[-1].get("pitch", "")).lower(),
+                "is_box_session": True,
+                "session_mids": session_mids,
+                "participant_ids": participant_ids,
+                "label": label,
+            })
+
+        for m in non_box_matches:
+            mid = m["match_id"]
+            m_date = m.get("date", "")
+            participant_ids = sorted({int(p["player_id"]) for p in all_match_players.get(mid, [])})
+            mvp_votable_sessions.append({
+                "match_id": mid,
+                "date": m_date,
+                "pitch": str(m.get("pitch", "")).lower(),
+                "is_box_session": False,
+                "session_mids": [mid],
+                "participant_ids": participant_ids,
+                "label": f"{mid} — {str(m.get('pitch', '')).upper()} ({m_date})",
+            })
+
+        mvp_votable_sessions.sort(key=lambda s: (s["date"], natural_match_sort_key(s)), reverse=True)
 
         players_list = []
         for pid, pdata in players.items():
@@ -307,10 +363,81 @@ def admin_users(default_tab="users"):
             notifications=notifications,
             unseen_notifications_count=unseen_notifications_count,
             mvp_match_summaries=mvp_match_summaries,
+            mvp_votable_sessions=mvp_votable_sessions,
         )
     finally:
         connection.close()
         main_conn.close()
+
+
+@auth_bp.route("/admin/mvp-votes/add", methods=["POST"])
+@require_webmaster
+def admin_add_mvp_vote():
+    """Webmaster endpoint to manually record or update an MVP ballot on behalf of a player."""
+    match_id = (request.form.get("match_id") or "").strip()
+    voter_player_id = request.form.get("voter_player_id", type=int)
+    rank1_id = request.form.get("rank1_player_id", type=int)
+    rank2_id = request.form.get("rank2_player_id", type=int)
+    rank3_id = request.form.get("rank3_player_id", type=int)
+
+    if not match_id or not voter_player_id or not rank1_id:
+        flash("Bitte Match, Wähler und mindestens 1. Platz (Gold) angeben.", "danger")
+        return redirect(url_for("auth.admin_users", tab="mvp"))
+
+    voted_player_ids = [pid for pid in (rank1_id, rank2_id, rank3_id) if pid is not None and pid > 0]
+    if not voted_player_ids:
+        flash("Bitte mindestens einen gültigen Spieler für den 1. Platz wählen.", "danger")
+        return redirect(url_for("auth.admin_users", tab="mvp"))
+
+    if len(voted_player_ids) != len(set(voted_player_ids)):
+        flash("Die Stimmen müssen an verschiedene Spieler vergeben werden.", "danger")
+        return redirect(url_for("auth.admin_users", tab="mvp"))
+
+    if voter_player_id in voted_player_ids:
+        flash("Ein Spieler darf sich nicht selbst zum MVP wählen.", "danger")
+        return redirect(url_for("auth.admin_users", tab="mvp"))
+
+    main_conn = get_main_connection()
+    connection = get_accounts_connection()
+    try:
+        matches = get_matches(main_conn)
+        match = matches.get(match_id)
+        if not match:
+            flash(f"Match '{match_id}' wurde nicht gefunden.", "danger")
+            return redirect(url_for("auth.admin_users", tab="mvp"))
+
+        players = get_players(main_conn)
+        if voter_player_id not in players:
+            flash("Der ausgewählte Wähler existiert nicht in der Datenbank.", "danger")
+            return redirect(url_for("auth.admin_users", tab="mvp"))
+        for pid in voted_player_ids:
+            if pid not in players:
+                flash(f"Ausgewählter Spieler (#{pid}) existiert nicht in der Datenbank.", "danger")
+                return redirect(url_for("auth.admin_users", tab="mvp"))
+
+        is_box = str(match.get("pitch", "")).lower() == "box"
+        box_matches = get_box_session_matches(matches, match_id) if is_box else [match]
+        canonical_match_id = box_matches[-1]["match_id"] if box_matches else match_id
+        session_mids = [m["match_id"] for m in box_matches] if box_matches else [match_id]
+
+        voter_aliases = players[voter_player_id].get("aliases", [])
+        voter_user_id = resolve_or_create_mvp_voter_user_id(connection, voter_player_id, voter_aliases)
+        record_match_mvp_votes(
+            connection,
+            canonical_match_id,
+            voter_user_id,
+            voted_player_ids,
+            session_match_ids=session_mids,
+        )
+        invalidate_stats_cache()
+        flash(f"MVP-Stimmzettel für Match '{canonical_match_id}' wurde erfolgreich gespeichert.", "success")
+    except ValueError as exc:
+        flash(str(exc), "danger")
+    finally:
+        connection.close()
+        main_conn.close()
+
+    return redirect(url_for("auth.admin_users", tab="mvp"))
 
 
 @auth_bp.route("/admin/player-aliases")

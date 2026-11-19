@@ -373,6 +373,7 @@ def get_all_users(connection):
             stats_opt_out,
             created_at
         FROM users
+        WHERE email NOT LIKE '%@mvp-proxy.internal'
         ORDER BY id DESC
         """
     ).fetchall()
@@ -1486,6 +1487,84 @@ def record_match_mvp_votes(
     p2 = voted_player_ids[1] if len(voted_player_ids) > 1 else None
     p3 = voted_player_ids[2] if len(voted_player_ids) > 2 else None
     return record_match_mvp_vote(connection, match_id, voter_user_id, p1, p2, p3, session_match_ids=session_match_ids)
+
+
+def resolve_or_create_mvp_voter_user_id(
+    connection,
+    voter_player_id: int,
+    player_aliases: list[str] | None = None,
+) -> int:
+    """
+    Resolve an accounts.db user_id for a given database player_id when recording an MVP vote.
+    Falls back to matching pending links, alias matches on unlinked accounts, or an internal proxy user.
+    """
+    voter_player_id = int(voter_player_id)
+
+    # Step A: Existing linked user
+    row = connection.execute(
+        "SELECT id FROM users WHERE player_id = ? LIMIT 1",
+        (voter_player_id,),
+    ).fetchone()
+    if row:
+        return int(row["id"])
+
+    # Step B: Pending link for this player
+    row = connection.execute(
+        "SELECT id, player_id FROM users WHERE pending_player_id = ? LIMIT 1",
+        (voter_player_id,),
+    ).fetchone()
+    if row:
+        if not row["player_id"]:
+            connection.execute(
+                "UPDATE users SET player_id = ?, pending_player_id = NULL WHERE id = ?",
+                (voter_player_id, int(row["id"])),
+            )
+            connection.commit()
+        return int(row["id"])
+
+    # Step C: Unlinked account whose username or attendance_name matches a known player alias
+    if player_aliases:
+        norm_aliases = list(dict.fromkeys(a.strip().lower() for a in player_aliases if a and a.strip()))
+        if norm_aliases:
+            placeholders = ",".join("?" for _ in norm_aliases)
+            row = connection.execute(
+                f"""
+                SELECT id, player_id FROM users
+                WHERE (LOWER(username) IN ({placeholders}) OR LOWER(attendance_name) IN ({placeholders}))
+                  AND (player_id IS NULL OR player_id = ?)
+                LIMIT 1
+                """,
+                norm_aliases + norm_aliases + [voter_player_id],
+            ).fetchone()
+            if row:
+                if row["player_id"] is None:
+                    connection.execute(
+                        "UPDATE users SET player_id = ? WHERE id = ?",
+                        (voter_player_id, int(row["id"])),
+                    )
+                    connection.commit()
+                return int(row["id"])
+
+    # Step D: Fallback proxy account for database players without a registered user account
+    proxy_username = f"_mvp_proxy_p{voter_player_id}"
+    proxy_email = f"{proxy_username}@mvp-proxy.internal"
+    row = connection.execute(
+        "SELECT id FROM users WHERE username = ? LIMIT 1",
+        (proxy_username,),
+    ).fetchone()
+    if row:
+        return int(row["id"])
+
+    now_iso = get_cologne_timestamp_str()
+    cur = connection.execute(
+        """
+        INSERT INTO users (username, email, password_hash, role, email_verified, is_approved, player_id, created_at)
+        VALUES (?, ?, '!', 'user', 1, 1, ?, ?)
+        """,
+        (proxy_username, proxy_email, voter_player_id, now_iso),
+    )
+    connection.commit()
+    return int(cur.lastrowid)
 
 
 def get_user_match_mvp_votes(connection, match_id: str, voter_user_id: int) -> list[int]:
