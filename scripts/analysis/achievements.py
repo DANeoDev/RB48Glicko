@@ -1,10 +1,12 @@
 """Analysis module for computing player achievements and milestones."""
 
+import math
 from datetime import date, datetime
 from scripts.database.database import get_connection
 from scripts.database.db_players import get_players
 from scripts.database.db_matches import get_matches
 from scripts.database.db_ratings import get_player_rating_history
+from scripts.glicko.glicko2 import GLICKO2_SCALE, IGNORED_RD
 from scripts.accounts.database import (
     get_accounts_connection,
     get_approved_linked_players,
@@ -21,12 +23,60 @@ MONTH_NAMES_DE = {
 
 TIER_ORDER = {"platin": 4, "gold": 3, "silver": 2, "bronze": 1}
 
+STREAK_TIERS_BY_PITCH = {
+    "total": [(16, "platin"), (11, "gold"), (7, "silver"), (4, "bronze")],
+    "box": [(18, "platin"), (12, "gold"), (8, "silver"), (4, "bronze")],
+    "hf": [(13, "platin"), (9, "gold"), (6, "silver"), (3, "bronze")],
+}
+
+
+def _team_expected_win_prob(own_pids, opp_pids, own_total, opp_total, m_ratings):
+    """Compute pre-match win probability using the RB48 Team Glicko-2 expected score formula."""
+    if not own_pids or not opp_pids:
+        return 0.5
+
+    own_vals = [m_ratings[pid] for pid in own_pids if pid in m_ratings]
+    opp_vals = [m_ratings[pid] for pid in opp_pids if pid in m_ratings]
+
+    if not own_vals and not opp_vals:
+        return 0.5
+
+    avg_own_r = sum(v["rating"] for v in own_vals) / len(own_vals) if own_vals else 1500.0
+    avg_opp_r = sum(v["rating"] for v in opp_vals) / len(opp_vals) if opp_vals else 1500.0
+
+    try:
+        opp_total_int = int(opp_total) if opp_total is not None else 0
+    except (TypeError, ValueError):
+        opp_total_int = 0
+    try:
+        own_total_int = int(own_total) if own_total is not None else 0
+    except (TypeError, ValueError):
+        own_total_int = 0
+
+    opp_size = max(opp_total_int, len(opp_pids), 1)
+    ignored_opp = max(0, opp_size - len(opp_vals))
+    if opp_vals or ignored_opp > 0:
+        opp_rd_sq = sum(v["rd"] ** 2 for v in opp_vals) + (IGNORED_RD ** 2) * ignored_opp
+        avg_opp_rd = math.sqrt(opp_rd_sq / opp_size)
+    else:
+        avg_opp_rd = 50.0
+
+    mu_own = (avg_own_r - 1500.0) / GLICKO2_SCALE
+    mu_opp = (avg_opp_r - 1500.0) / GLICKO2_SCALE
+    phi_opp = avg_opp_rd / GLICKO2_SCALE
+    impact = 1.0 / math.sqrt(1.0 + (3.0 * (phi_opp ** 2)) / (math.pi ** 2))
+    own_size = max(own_total_int, len(own_pids), 1)
+    size = max(own_size, opp_size, 1)
+    scale = math.sqrt(size)
+    exponent = max(-60.0, min(60.0, -scale * impact * (mu_own - mu_opp)))
+    return 1.0 / (1.0 + math.exp(exponent))
+
 
 def _load_player_matches(connection, player_id):
-    """Fetch and prepare active matches and expectation data for the player."""
+    """Fetch and prepare match history and Team Glicko-2 expectation data for the player."""
     rows = connection.execute("""
-        SELECT m.match_id, m.date, m.goals_a, m.goals_b,
-               mp.player_id, mp.team
+        SELECT m.match_id, m.date, m.pitch, m.players_a, m.players_b,
+               m.goals_a, m.goals_b, mp.player_id, mp.team
         FROM matches m
         JOIN match_players mp ON m.match_id = mp.match_id
         ORDER BY m.date ASC, m.match_id ASC
@@ -39,8 +89,11 @@ def _load_player_matches(connection, player_id):
             matches[mid] = {
                 "match_id": mid,
                 "date": r["date"],
-                "goals_a": r["goals_a"],
-                "goals_b": r["goals_b"],
+                "pitch": str(r["pitch"] or "").strip().lower(),
+                "players_a": int(r["players_a"]) if r["players_a"] is not None else 0,
+                "players_b": int(r["players_b"]) if r["players_b"] is not None else 0,
+                "goals_a": int(r["goals_a"]),
+                "goals_b": int(r["goals_b"]),
                 "team_a": [],
                 "team_b": []
             }
@@ -49,21 +102,22 @@ def _load_player_matches(connection, player_id):
         else:
             matches[mid]["team_b"].append(r["player_id"])
 
-    # Ignore the first 5 matches of the global match history
-    sorted_mids = sorted(matches.keys(), key=lambda mid: (matches[mid]["date"], matches[mid]["match_id"]))
-    ignored_global_mids = set(sorted_mids[:5])
-    active_global_matches = {mid: m for mid, m in matches.items() if mid not in ignored_global_mids}
+    active_global_matches = matches
 
-    # Fetch match ratings for all players to compute team ratings and expectations
+    # Fetch pre-match ratings and RD for all players to compute Team Glicko-2 expectations
     mr_rows = connection.execute("""
-        SELECT match_id, player_id, rating
+        SELECT match_id, player_id, rating, rd
         FROM match_ratings
         WHERE rating_type = 'total'
     """).fetchall()
 
     match_player_ratings = {}
     for mr in mr_rows:
-        match_player_ratings.setdefault(mr["match_id"], {})[mr["player_id"]] = mr["rating"]
+        rd_val = mr["rd"] if mr["rd"] is not None else 50.0
+        match_player_ratings.setdefault(mr["match_id"], {})[mr["player_id"]] = {
+            "rating": float(mr["rating"]),
+            "rd": float(rd_val),
+        }
 
     player_matches = []
     for mid, m in sorted(active_global_matches.items(), key=lambda item: (item[1]["date"], item[1]["match_id"])):
@@ -75,26 +129,24 @@ def _load_player_matches(connection, player_id):
             is_loss = own_goals < opp_goals
             is_draw = own_goals == opp_goals
 
-            # Compute estimated win prob from team average ratings in that match
-            m_ratings = match_player_ratings.get(m["match_id"], {})
-            team_a_r = [m_ratings[pid] for pid in m["team_a"] if pid in m_ratings]
-            team_b_r = [m_ratings[pid] for pid in m["team_b"] if pid in m_ratings]
-
-            avg_a = sum(team_a_r) / len(team_a_r) if team_a_r else 1500.0
-            avg_b = sum(team_b_r) / len(team_b_r) if team_b_r else 1500.0
-
-            own_avg = avg_a if is_team_a else avg_b
-            opp_avg = avg_b if is_team_a else avg_a
-
-            # Logistic expectation
-            expected_win = 1.0 / (1.0 + 10.0 ** ((opp_avg - own_avg) / 400.0))
-
             own_team_ids = m["team_a"] if is_team_a else m["team_b"]
             opp_team_ids = m["team_b"] if is_team_a else m["team_a"]
+            own_total = m["players_a"] if is_team_a else m["players_b"]
+            opp_total = m["players_b"] if is_team_a else m["players_a"]
+
+            m_ratings = match_player_ratings.get(m["match_id"], {})
+            expected_win = _team_expected_win_prob(
+                own_team_ids,
+                opp_team_ids,
+                own_total,
+                opp_total,
+                m_ratings,
+            )
 
             player_matches.append({
                 "match_id": m["match_id"],
                 "date": m["date"],
+                "pitch": m["pitch"],
                 "is_win": is_win,
                 "is_loss": is_loss,
                 "is_draw": is_draw,
@@ -130,10 +182,20 @@ def _eval_century_club(total_games: int) -> dict:
     }
 
 
-def _eval_winning_streak(active_matches: list) -> dict:
+def _next_streak_target(max_streak: int, tiers_desc: list) -> int:
+    for i, (req, _) in enumerate(tiers_desc):
+        if max_streak >= req:
+            return tiers_desc[0][0] if i == 0 else tiers_desc[i - 1][0]
+    return tiers_desc[-1][0]
+
+
+def _eval_winning_streak(active_matches: list, pitch: str = "total") -> dict:
+    pitch_key = pitch if pitch in STREAK_TIERS_BY_PITCH else "total"
+    scoped_matches = active_matches if pitch_key == "total" else [m for m in active_matches if m.get("pitch") == pitch_key]
+
     current_w_streak = 0
     max_w_streak = 0
-    for m in active_matches:
+    for m in scoped_matches:
         if m["is_win"]:
             current_w_streak += 1
             if current_w_streak > max_w_streak:
@@ -141,40 +203,35 @@ def _eval_winning_streak(active_matches: list) -> dict:
         else:
             current_w_streak = 0
 
-    ws_tiers = [(20, "platin"), (12, "gold"), (8, "silver"), (4, "bronze")]
+    ws_tiers = STREAK_TIERS_BY_PITCH[pitch_key]
+    platin_req = ws_tiers[0][0]
     ws_unlocked_tier = None
     for target, tier in ws_tiers:
         if max_w_streak >= target:
             ws_unlocked_tier = tier
             break
 
-    if max_w_streak >= 20:
-        ws_target = 20
-    elif max_w_streak >= 12:
-        ws_target = 20
-    elif max_w_streak >= 8:
-        ws_target = 12
-    elif max_w_streak >= 4:
-        ws_target = 8
-    else:
-        ws_target = 4
+    ws_target = _next_streak_target(max_w_streak, ws_tiers)
 
     return {
-        "id": "winning_streak",
+        "id": f"winning_streak_{pitch_key}",
         "icon": "🔥",
-        "title_key": "achievements.winning_streak_title",
+        "title_key": f"achievements.winning_streak_{pitch_key}_title",
         "tier": ws_unlocked_tier if ws_unlocked_tier else "locked",
         "unlocked": ws_unlocked_tier is not None,
-        "progress_text": f"{max_w_streak} / {ws_target} Siege in Folge" if not ws_unlocked_tier or max_w_streak < 20 else f"{max_w_streak} Siege in Folge erreicht!",
-        "description_key": "achievements.winning_streak_desc",
+        "progress_text": f"{max_w_streak} / {ws_target} Siege in Folge" if max_w_streak < platin_req else f"{max_w_streak} Siege in Folge erreicht!",
+        "description_key": f"achievements.winning_streak_{pitch_key}_desc",
         "detail_text": f"Rekord-Siegesserie: {max_w_streak} Siege in Folge (aktuell: {current_w_streak})" if ws_unlocked_tier else f"Aktuelle Serie: {current_w_streak} Siege (Rekord: {max_w_streak})"
     }
 
 
-def _eval_unbeaten_streak(active_matches: list) -> dict:
+def _eval_unbeaten_streak(active_matches: list, pitch: str = "total") -> dict:
+    pitch_key = pitch if pitch in STREAK_TIERS_BY_PITCH else "total"
+    scoped_matches = active_matches if pitch_key == "total" else [m for m in active_matches if m.get("pitch") == pitch_key]
+
     current_u_streak = 0
     max_u_streak = 0
-    for m in active_matches:
+    for m in scoped_matches:
         if not m["is_loss"]:
             current_u_streak += 1
             if current_u_streak > max_u_streak:
@@ -182,32 +239,24 @@ def _eval_unbeaten_streak(active_matches: list) -> dict:
         else:
             current_u_streak = 0
 
-    ub_tiers = [(20, "platin"), (12, "gold"), (8, "silver"), (4, "bronze")]
+    ub_tiers = STREAK_TIERS_BY_PITCH[pitch_key]
+    platin_req = ub_tiers[0][0]
     ub_unlocked_tier = None
     for target, tier in ub_tiers:
         if max_u_streak >= target:
             ub_unlocked_tier = tier
             break
 
-    if max_u_streak >= 20:
-        ub_target = 20
-    elif max_u_streak >= 12:
-        ub_target = 20
-    elif max_u_streak >= 8:
-        ub_target = 12
-    elif max_u_streak >= 4:
-        ub_target = 8
-    else:
-        ub_target = 4
+    ub_target = _next_streak_target(max_u_streak, ub_tiers)
 
     return {
-        "id": "unbeaten_streak",
+        "id": f"unbeaten_streak_{pitch_key}",
         "icon": "🦾",
-        "title_key": "achievements.unbeaten_streak_title",
+        "title_key": f"achievements.unbeaten_streak_{pitch_key}_title",
         "tier": ub_unlocked_tier if ub_unlocked_tier else "locked",
         "unlocked": ub_unlocked_tier is not None,
-        "progress_text": f"{max_u_streak} / {ub_target} Spiele ungeschlagen" if not ub_unlocked_tier or max_u_streak < 20 else f"{max_u_streak} Spiele ungeschlagen erreicht!",
-        "description_key": "achievements.unbeaten_streak_desc",
+        "progress_text": f"{max_u_streak} / {ub_target} Spiele ungeschlagen" if max_u_streak < platin_req else f"{max_u_streak} Spiele ungeschlagen erreicht!",
+        "description_key": f"achievements.unbeaten_streak_{pitch_key}_desc",
         "detail_text": f"Rekord-Serie: {max_u_streak} Spiele in Folge ungeschlagen (aktuell: {current_u_streak})" if ub_unlocked_tier else f"Aktuelle Serie: {current_u_streak} ungeschlagen (Rekord: {max_u_streak})"
     }
 
@@ -606,24 +655,12 @@ def _eval_cursebreaker(partner_games: dict, players: dict, tier_order: dict) -> 
                 loss_streak += 1
             elif g["is_win"]:
                 if loss_streak >= 4:
-                    is_underdog = g["expected_win_prob"] <= 0.50
-                    if loss_streak >= 6 and is_underdog:
-                        tier = "platin"
-                    elif loss_streak >= 6:
-                        tier = "gold"
-                    elif loss_streak == 5:
-                        tier = "silver"
-                    else:
-                        tier = "bronze"
-
                     cur_event = {
                         "streak": loss_streak,
-                        "tier": tier,
-                        "is_underdog": is_underdog,
                         "date": g["date"],
                         "match_id": g["match_id"]
                     }
-                    if best_curse is None or (tier_order[tier], loss_streak) > (tier_order[best_curse["tier"]], best_curse["streak"]):
+                    if best_curse is None or loss_streak > best_curse["streak"]:
                         best_curse = cur_event
                 loss_streak = 0
             else:
@@ -634,44 +671,45 @@ def _eval_cursebreaker(partner_games: dict, players: dict, tier_order: dict) -> 
             partner_broken_curses.append({
                 "partner_id": tm_id,
                 "partner_name": tm_name,
-                "tier": best_curse["tier"],
                 "streak": best_curse["streak"],
-                "is_underdog": best_curse["is_underdog"],
-                "date": best_curse["date"]
+                "date": best_curse["date"],
             })
 
-    partner_broken_curses.sort(key=lambda x: (-tier_order[x["tier"]], -x["streak"]))
+    partner_broken_curses.sort(key=lambda x: (-x["streak"], x["partner_name"].lower()))
+    curse_count = len(partner_broken_curses)
 
-    results = []
-    if partner_broken_curses:
-        for p_info in partner_broken_curses:
-            underdog_note = " (als Underdog)" if p_info["is_underdog"] else ""
-            results.append({
-                "id": f"cursebreaker_{p_info['partner_id']}",
-                "icon": "⚡",
-                "title": f"Fluchbrecher: {p_info['partner_name']}",
-                "title_key": "achievements.cursebreaker_partner_title",
-                "title_params": {"partner": p_info["partner_name"]},
-                "tier": p_info["tier"],
-                "unlocked": True,
-                "progress_text": f"{p_info['streak']} Niederlagen in Folge beendet",
-                "description_key": "achievements.cursebreaker_desc",
-                "detail_text": f"Fluch mit {p_info['partner_name']} nach {p_info['streak']} gemeinsamen Niederlagen gebrochen!{underdog_note}",
-                "detail_key": "achievements.cursebreaker_partner_detail",
-                "detail_params": {"partner": p_info["partner_name"], "streak": p_info["streak"]}
-            })
+    cb_tiers = [(10, "platin"), (6, "gold"), (3, "silver"), (1, "bronze")]
+    unlocked_tier = None
+    for target, tier in cb_tiers:
+        if curse_count >= target:
+            unlocked_tier = tier
+            break
+
+    next_target = _next_streak_target(curse_count, cb_tiers)
+
+    if unlocked_tier:
+        partners_desc = ", ".join(f"{p['partner_name']} ({p['streak']})" for p in partner_broken_curses)
+        return [{
+            "id": "cursebreaker",
+            "icon": "⚡",
+            "title_key": "achievements.cursebreaker_title",
+            "tier": unlocked_tier,
+            "unlocked": True,
+            "progress_text": f"{curse_count} / {next_target} Flüche gebrochen" if curse_count < 10 else f"{curse_count} Flüche gebrochen!",
+            "description_key": "achievements.cursebreaker_desc",
+            "detail_text": f"Gebrochene Flüche ({curse_count}): {partners_desc}",
+        }]
     else:
-        results.append({
-            "id": "cursebreaker_placeholder",
+        return [{
+            "id": "cursebreaker",
             "icon": "⚡",
             "title_key": "achievements.cursebreaker_title",
             "tier": "locked",
             "unlocked": False,
-            "progress_text": "Kein gebrochener Fluch",
+            "progress_text": "0 / 1 Fluch gebrochen",
             "description_key": "achievements.cursebreaker_desc",
-            "detail_text": "Mindestens 4 gemeinsame Niederlagen in Folge mit einem Partner, dann gemeinsam gewonnen."
-        })
-    return results
+            "detail_text": "Beende eine Serie von ≥ 4 gemeinsamen Niederlagen mit 1, 3, 6 oder 10 verschiedenen Partnern durch einen Sieg.",
+        }]
 
 
 def _eval_buddies(partner_games: dict, players: dict, tier_order: dict) -> list:
@@ -1076,8 +1114,12 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
 
         achievements = [
             _eval_century_club(total_games),
-            _eval_winning_streak(active_matches),
-            _eval_unbeaten_streak(active_matches),
+            _eval_winning_streak(active_matches, "total"),
+            _eval_winning_streak(active_matches, "box"),
+            _eval_winning_streak(active_matches, "hf"),
+            _eval_unbeaten_streak(active_matches, "total"),
+            _eval_unbeaten_streak(active_matches, "box"),
+            _eval_unbeaten_streak(active_matches, "hf"),
             _eval_iron_man(active_matches, active_global_matches),
             _eval_underdog_hero(active_matches),
             _eval_weisse_wand(active_matches),
@@ -1153,7 +1195,6 @@ def get_user_unseen_achievements_count(
 
 
 _MULTI_PARTNER_PREFIXES = (
-    "cursebreaker",
     "buddies",
     "golden_duo",
     "thick_and_thin",

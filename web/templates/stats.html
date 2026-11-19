@@ -119,6 +119,69 @@
     background: var(--accent);
     color: #ffffff;
 }
+.strk-section-block {
+    margin-bottom: 18px;
+}
+.strk-section-title {
+    margin: 0 0 10px 0;
+    font-size: 13.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+details.strk-loss-card {
+    background: rgba(220, 53, 69, 0.045);
+    border: 1px solid rgba(220, 53, 69, 0.28);
+    border-radius: 10px;
+    margin-top: 16px;
+    overflow: hidden;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+details.strk-loss-card[open] {
+    border-color: rgba(255, 136, 136, 0.5);
+    background: rgba(220, 53, 69, 0.075);
+}
+summary.strk-loss-summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 11px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    user-select: none;
+    color: #ff9e9e;
+    font-size: 13px;
+    font-weight: 700;
+}
+summary.strk-loss-summary::-webkit-details-marker {
+    display: none;
+}
+summary.strk-loss-summary:hover {
+    background: rgba(220, 53, 69, 0.08);
+}
+.strk-loss-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+.strk-loss-chevron {
+    display: inline-block;
+    transition: transform 0.18s ease;
+    font-size: 10px;
+    color: #ff9e9e;
+}
+details.strk-loss-card[open] .strk-loss-chevron {
+    transform: rotate(90deg);
+}
+.strk-loss-body {
+    padding: 12px 14px 14px 14px;
+    border-top: 1px solid rgba(220, 53, 69, 0.18);
+}
 </style>
 {% endblock %}
 
@@ -282,9 +345,6 @@
         <button type="button" class="corr-tab-btn" id="strk-tab-record" onclick="switchStreakTab('record')">
             🏆 {{ t('dashboard.all_time_streaks', 'Rekordserien') }}
         </button>
-        <button type="button" class="corr-tab-btn" id="strk-tab-unbeaten" onclick="switchStreakTab('unbeaten')">
-            🛡️ {{ t('dashboard.unbeaten_streaks', 'Ungeschlagen') }}
-        </button>
         <button type="button" class="corr-tab-btn" id="strk-tab-surge" onclick="switchStreakTab('surge')">
             📈 {{ t('dashboard.month_surge', '30T Aufwind') }}
         </button>
@@ -292,89 +352,137 @@
 
     {% set streaks_by_pitch = streaks.by_pitch if (streaks and streaks.by_pitch) else {'total': (streaks or {}), 'box': {}, 'hf': {}} %}
     <div class="corr-modal-body" style="padding: 20px;">
-        <!-- Tab 1: Active Win Streaks -->
+        <!-- Tab 1: Active Streaks (Win, Unbeaten & Collapsible Loss) -->
         <div class="strk-tab-pane" id="strk-pane-active">
             {% for pkey in ['total', 'box', 'hf'] %}
             {% set p_streaks = streaks_by_pitch.get(pkey, {}) %}
             <div class="strk-pitch-group" data-streak-pitch-group="{{ pkey }}" style="{% if pkey != 'total' %}display: none;{% endif %}">
-                {% if p_streaks and p_streaks.active_win_streaks %}
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
-                    {% for s in p_streaks.active_win_streaks %}
-                    <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(0, 230, 118, 0.08); border: 1px solid rgba(0, 230, 118, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
-                        <span style="font-weight: 700; color: #fff; font-size: 14px;">{{ s.name }}</span>
-                        <span style="background: rgba(0, 230, 118, 0.2); color: #00e676; border: 1px solid rgba(0, 230, 118, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">{{ s.count }} Siege 🔥</span>
-                    </a>
-                    {% endfor %}
+                <div class="strk-section-block">
+                    <h4 class="strk-section-title" style="color: #00e676;">{{ t('dashboard.active_win_streaks', '🔥 Aktuelle Siegserien') }}</h4>
+                    {% if p_streaks and p_streaks.active_win_streaks %}
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
+                        {% for s in p_streaks.active_win_streaks %}
+                        <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(0, 230, 118, 0.08); border: 1px solid rgba(0, 230, 118, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
+                            <span style="font-weight: 700; color: #fff; font-size: 14px;">{{ s.name }}</span>
+                            <span style="background: rgba(0, 230, 118, 0.2); color: #00e676; border: 1px solid rgba(0, 230, 118, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">{{ s.count }} Siege 🔥</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="muted" style="text-align: center; padding: 12px; margin: 0;">{{ t('dashboard.no_active_streaks', 'Aktuell keine aktive Siegesserie (min. 2 Siege).') }}</p>
+                    {% endif %}
                 </div>
-                {% else %}
-                <p class="muted" style="text-align: center; padding: 20px;">{{ t('dashboard.no_active_streaks', 'Aktuell keine aktive Siegesserie (min. 2 Siege).') }}</p>
-                {% endif %}
+
+                <div class="strk-section-block" style="margin-bottom: 0;">
+                    <h4 class="strk-section-title" style="color: #80deea;">{{ t('dashboard.active_unbeaten_streaks', '🛡️ Aktive Ungeschlagen-Serien') }}</h4>
+                    {% if p_streaks and p_streaks.active_unbeaten_streaks %}
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
+                        {% for s in p_streaks.active_unbeaten_streaks %}
+                        <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(128, 222, 234, 0.08); border: 1px solid rgba(128, 222, 234, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
+                            <span style="font-weight: 700; color: #fff; font-size: 14px;">{{ s.name }}</span>
+                            <span style="background: rgba(128, 222, 234, 0.2); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">{{ s.count }} ungeschlagen 🛡️</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="muted" style="text-align: center; padding: 12px; margin: 0;">{{ t('dashboard.no_active_unbeaten_streaks', 'Aktuell keine aktive Ungeschlagen-Serie (mind. 2 Spiele).') }}</p>
+                    {% endif %}
+                </div>
+
+                <details class="strk-loss-card">
+                    <summary class="strk-loss-summary">
+                        <span>{{ t('dashboard.active_loss_streaks', '🌧️ Aktive Niederlagenserien') }}</span>
+                        <span class="strk-loss-meta">
+                            <span>{{ t('dashboard.loss_streaks_toggle_hint', 'Klicken zum Anzeigen') }}</span>
+                            <span style="background: rgba(220, 53, 69, 0.22); color: #ff9e9e; border: 1px solid rgba(220, 53, 69, 0.4); padding: 1px 7px; border-radius: 10px;">{{ (p_streaks.active_loss_streaks | length) if (p_streaks and p_streaks.active_loss_streaks) else 0 }}</span>
+                            <span class="strk-loss-chevron">▶</span>
+                        </span>
+                    </summary>
+                    <div class="strk-loss-body">
+                        {% if p_streaks and p_streaks.active_loss_streaks %}
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
+                            {% for s in p_streaks.active_loss_streaks %}
+                            <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(220, 53, 69, 0.08); border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
+                                <span style="font-weight: 700; color: #fff; font-size: 14px;">{{ s.name }}</span>
+                                <span style="background: rgba(220, 53, 69, 0.2); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">{{ s.count }} Niederlagen 🌧️</span>
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="muted" style="text-align: center; padding: 8px; margin: 0;">{{ t('dashboard.no_active_loss_streaks', 'Aktuell keine aktive Niederlagenserie (mind. 2 Niederlagen).') }}</p>
+                        {% endif %}
+                    </div>
+                </details>
             </div>
             {% endfor %}
         </div>
 
-        <!-- Tab 2: Record Win Streaks -->
+        <!-- Tab 2: Record Streaks (Win, Unbeaten & Collapsible Loss) -->
         <div class="strk-tab-pane" id="strk-pane-record" style="display: none;">
             {% for pkey in ['total', 'box', 'hf'] %}
             {% set p_streaks = streaks_by_pitch.get(pkey, {}) %}
             <div class="strk-pitch-group" data-streak-pitch-group="{{ pkey }}" style="{% if pkey != 'total' %}display: none;{% endif %}">
-                {% if p_streaks and p_streaks.all_time_win_streaks %}
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
-                    {% for s in p_streaks.all_time_win_streaks %}
-                    <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(255, 215, 0, 0.08); border: 1px solid rgba(255, 215, 0, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
-                        <span style="font-weight: 700; color: #fff; font-size: 14px;">{{ s.name }}</span>
-                        <span style="background: rgba(255, 215, 0, 0.2); color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">{{ s.count }} Rekordsiege 🏆</span>
-                    </a>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <p class="muted" style="text-align: center; padding: 20px;">{{ t('dashboard.no_data', 'Noch keine Rekordserien erfasst.') }}</p>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-
-        <!-- Tab 3: Unbeaten Streaks (Active & All-Time) -->
-        <div class="strk-tab-pane" id="strk-pane-unbeaten" style="display: none;">
-            {% for pkey in ['total', 'box', 'hf'] %}
-            {% set p_streaks = streaks_by_pitch.get(pkey, {}) %}
-            <div class="strk-pitch-group" data-streak-pitch-group="{{ pkey }}" style="{% if pkey != 'total' %}display: none;{% endif %}">
-                <div style="margin-bottom: 18px;">
-                    <h4 style="margin: 0 0 10px 0; font-size: 13.5px; color: #80deea;">{{ t('dashboard.active_unbeaten_streaks', '🛡️ Aktive Ungeschlagen-Serien') }}</h4>
-                    {% if p_streaks and p_streaks.active_unbeaten_streaks %}
+                <div class="strk-section-block">
+                    <h4 class="strk-section-title" style="color: #ffd700;">{{ t('dashboard.all_time_win_streaks', '⭐ Rekord-Siegserien (All-Time)') }}</h4>
+                    {% if p_streaks and p_streaks.all_time_win_streaks %}
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
-                        {% for s in p_streaks.active_unbeaten_streaks %}
-                        <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(0, 230, 118, 0.08); border: 1px solid rgba(0, 230, 118, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
+                        {% for s in p_streaks.all_time_win_streaks %}
+                        <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(255, 215, 0, 0.08); border: 1px solid rgba(255, 215, 0, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
                             <span style="font-weight: 700; color: #fff; font-size: 14px;">{{ s.name }}</span>
-                            <span style="background: rgba(0, 230, 118, 0.2); color: #00e676; border: 1px solid rgba(0, 230, 118, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">{{ s.count }} ungeschlagen 🛡️</span>
+                            <span style="background: rgba(255, 215, 0, 0.2); color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">{{ s.count }} Rekordsiege 🏆</span>
                         </a>
                         {% endfor %}
                     </div>
                     {% else %}
-                    <p class="muted" style="text-align: center; padding: 12px;">{{ t('dashboard.no_active_unbeaten_streaks', 'Aktuell keine aktive Ungeschlagen-Serie (mind. 2 Spiele).') }}</p>
+                    <p class="muted" style="text-align: center; padding: 12px; margin: 0;">{{ t('dashboard.no_data', 'Noch keine Rekordserien erfasst.') }}</p>
                     {% endif %}
                 </div>
 
-                <div>
-                    <h4 style="margin: 0 0 10px 0; font-size: 13.5px; color: #ffd700;">{{ t('dashboard.all_time_unbeaten_streaks', '🏆 Rekord-Ungeschlagen-Serien (All-Time)') }}</h4>
+                <div class="strk-section-block" style="margin-bottom: 0;">
+                    <h4 class="strk-section-title" style="color: #ffd700;">{{ t('dashboard.all_time_unbeaten_streaks', '🏆 Rekord-Ungeschlagen-Serien (All-Time)') }}</h4>
                     {% if p_streaks and p_streaks.all_time_unbeaten_streaks %}
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
                         {% for s in p_streaks.all_time_unbeaten_streaks %}
-                        <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(255, 215, 0, 0.08); border: 1px solid rgba(255, 215, 0, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
+                        <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(128, 222, 234, 0.08); border: 1px solid rgba(128, 222, 234, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
                             <span style="font-weight: 700; color: #fff; font-size: 14px;">{{ s.name }}</span>
-                            <span style="background: rgba(255, 215, 0, 0.2); color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">{{ s.count }} Spiele ungeschlagen 🏆</span>
+                            <span style="background: rgba(128, 222, 234, 0.2); color: #80deea; border: 1px solid rgba(128, 222, 234, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">{{ s.count }} Spiele ungeschlagen 🛡️</span>
                         </a>
                         {% endfor %}
                     </div>
                     {% else %}
-                    <p class="muted" style="text-align: center; padding: 12px;">{{ t('dashboard.no_record_unbeaten_streaks', 'Noch keine Rekord-Ungeschlagen-Serien (mind. 3 Spiele).') }}</p>
+                    <p class="muted" style="text-align: center; padding: 12px; margin: 0;">{{ t('dashboard.no_record_unbeaten_streaks', 'Noch keine Rekord-Ungeschlagen-Serien (mind. 3 Spiele).') }}</p>
                     {% endif %}
                 </div>
+
+                <details class="strk-loss-card">
+                    <summary class="strk-loss-summary">
+                        <span>{{ t('dashboard.all_time_loss_streaks', '🌧️ Rekord-Niederlagenserien (All-Time)') }}</span>
+                        <span class="strk-loss-meta">
+                            <span>{{ t('dashboard.loss_streaks_toggle_hint', 'Klicken zum Anzeigen') }}</span>
+                            <span style="background: rgba(220, 53, 69, 0.22); color: #ff9e9e; border: 1px solid rgba(220, 53, 69, 0.4); padding: 1px 7px; border-radius: 10px;">{{ (p_streaks.all_time_loss_streaks | length) if (p_streaks and p_streaks.all_time_loss_streaks) else 0 }}</span>
+                            <span class="strk-loss-chevron">▶</span>
+                        </span>
+                    </summary>
+                    <div class="strk-loss-body">
+                        {% if p_streaks and p_streaks.all_time_loss_streaks %}
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">
+                            {% for s in p_streaks.all_time_loss_streaks %}
+                            <a href="{{ url_for('stats.player_profile', player_id=s.player_id) }}" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; background: rgba(220, 53, 69, 0.08); border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 8px; padding: 12px 14px; transition: transform 0.15s ease;">
+                                <span style="font-weight: 700; color: #fff; font-size: 14px;">{{ s.name }}</span>
+                                <span style="background: rgba(220, 53, 69, 0.2); color: #ff8888; border: 1px solid rgba(220, 53, 69, 0.4); font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">{{ s.count }} Rekordniederlagen 🌧️</span>
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="muted" style="text-align: center; padding: 8px; margin: 0;">{{ t('dashboard.no_record_loss_streaks', 'Noch keine Rekord-Niederlagenserien (mind. 3 Niederlagen).') }}</p>
+                        {% endif %}
+                    </div>
+                </details>
             </div>
             {% endfor %}
         </div>
 
-        <!-- Tab 4: 30D Surge -->
+        <!-- Tab 3: 30D Surge -->
         <div class="strk-tab-pane" id="strk-pane-surge" style="display: none;">
             {% for pkey in ['total', 'box', 'hf'] %}
             {% set p_streaks = streaks_by_pitch.get(pkey, {}) %}
@@ -988,7 +1096,7 @@ function closeStreaksModal() {
     document.body.style.overflow = "";
 }
 function switchStreakTab(tab) {
-    ["active", "record", "unbeaten", "surge"].forEach(t => {
+    ["active", "record", "surge"].forEach(t => {
         const btn = document.getElementById(`strk-tab-${t}`);
         const pane = document.getElementById(`strk-pane-${t}`);
         if (btn) btn.classList.toggle("active", t === tab);

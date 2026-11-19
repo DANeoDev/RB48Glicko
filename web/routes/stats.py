@@ -112,6 +112,8 @@ def stats():
                 "all_time_win_streaks": [s for s in bucket.get("all_time_win_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
                 "active_unbeaten_streaks": [s for s in bucket.get("active_unbeaten_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
                 "all_time_unbeaten_streaks": [s for s in bucket.get("all_time_unbeaten_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
+                "active_loss_streaks": [s for s in bucket.get("active_loss_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
+                "all_time_loss_streaks": [s for s in bucket.get("all_time_loss_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
                 "most_improved": bucket.get("most_improved", []),
             }
 

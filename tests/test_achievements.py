@@ -76,6 +76,18 @@ class TestAchievements(unittest.TestCase):
             "achievements.comeback_king_desc",
             "achievements.unbeaten_streak_title",
             "achievements.unbeaten_streak_desc",
+            "achievements.winning_streak_total_title",
+            "achievements.winning_streak_total_desc",
+            "achievements.winning_streak_box_title",
+            "achievements.winning_streak_box_desc",
+            "achievements.winning_streak_hf_title",
+            "achievements.winning_streak_hf_desc",
+            "achievements.unbeaten_streak_total_title",
+            "achievements.unbeaten_streak_total_desc",
+            "achievements.unbeaten_streak_box_title",
+            "achievements.unbeaten_streak_box_desc",
+            "achievements.unbeaten_streak_hf_title",
+            "achievements.unbeaten_streak_hf_desc",
             "achievements.mvp_title",
             "achievements.mvp_desc",
             "achievements.tier_platin",
@@ -128,12 +140,12 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         self.conn.close()
         self.acc_conn.close()
 
-    def add_match(self, date_str, team_a, team_b, goals_a, goals_b, ratings_map=None):
+    def add_match(self, date_str, team_a, team_b, goals_a, goals_b, ratings_map=None, pitch="box"):
         mid = f"m_{self.match_id_counter}"
         self.match_id_counter += 1
         self.conn.execute(
-            "INSERT INTO matches (match_id, date, pitch, players_a, players_b, goals_a, goals_b) VALUES (?, ?, 'box', ?, ?, ?, ?)",
-            (mid, date_str, len(team_a), len(team_b), goals_a, goals_b)
+            "INSERT INTO matches (match_id, date, pitch, players_a, players_b, goals_a, goals_b) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (mid, date_str, pitch, len(team_a), len(team_b), goals_a, goals_b)
         )
         for pid in team_a:
             self.conn.execute("INSERT INTO match_players (match_id, player_id, team) VALUES (?, ?, 'a')", (mid, pid))
@@ -150,27 +162,28 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         return mid
 
     def add_warmup_5_matches(self):
-        """Add first 5 global matches that must be ignored by achievement calculations."""
-        for i in range(1, 6):
-            self.add_match(f"2026-01-0{i}", [1, 2], [3, 4], 10, 0, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
+        """Legacy helper: all matches now count from Match #1 without warmup exclusion."""
+        pass
 
-    def test_first_5_global_matches_ignored(self):
-        # 1. Add 5 matches where player 1 wins with clean sheet
-        self.add_warmup_5_matches()
-
+    def test_first_matches_count_from_match_one(self):
+        # 1. Very first clean-sheet match counts immediately (no 5-match warmup skip)
+        self.add_match("2026-02-01", [1, 2], [3, 4], 5, 0, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
         ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
         clean_sheet = [a for a in ach if a["id"] == "weisse_wand"][0]
-        self.assertFalse(clean_sheet["unlocked"])
+        self.assertTrue(clean_sheet["unlocked"])
+        self.assertEqual(clean_sheet["tier"], "bronze")
         century = [a for a in ach if a["id"] == "century_club"][0]
         self.assertFalse(century["unlocked"])
-        self.assertIn("0 / 25 Spiele", century["progress_text"])
+        self.assertIn("1 / 25 Spiele", century["progress_text"])
 
-        # 2. Add match 6 (won with clean sheet) -> now active_matches has 1 match
-        self.add_match("2026-02-01", [1, 2], [3, 4], 5, 0, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
-        ach2 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
-        clean_sheet2 = [a for a in ach2 if a["id"] == "weisse_wand"][0]
-        self.assertTrue(clean_sheet2["unlocked"])
-        self.assertEqual(clean_sheet2["tier"], "bronze")
+        # 2. Add 24 more matches -> 25 total -> Century Club Bronze unlocked!
+        for i in range(2, 26):
+            self.add_match(f"2026-02-{i:02d}", [1, 2], [3, 4], 3, 2)
+        ach25 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        century25 = [a for a in ach25 if a["id"] == "century_club"][0]
+        self.assertTrue(century25["unlocked"])
+        self.assertEqual(century25["tier"], "bronze")
+        self.assertIn("25 / 25 Spiele", century25["progress_text"])
 
     def test_ironman_thresholds(self):
         self.add_warmup_5_matches()
@@ -194,17 +207,14 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         self.assertEqual(iron10["tier"], "silver")
 
     def test_underdog_threshold_32_percent(self):
-        self.add_warmup_5_matches()
-
-        # Win with 35% win probability (team A: 1400 vs team B: 1510 -> expected ~0.347)
-        # Should NOT count for underdog hero (requires < 32%)
-        self.add_match("2026-03-01", [1, 2], [3, 4], 4, 2, {1: 1400, 2: 1400, 3: 1510, 4: 1510})
+        # Using RB48 Team Glicko-2 sqrt(team_size) expectation:
+        # 2v2 with 1450 vs 1510 (RD=50) -> expected ~0.381 (> 32%) -> must NOT count for underdog hero
+        self.add_match("2026-03-01", [1, 2], [3, 4], 4, 2, {1: 1450, 2: 1450, 3: 1510, 4: 1510})
         ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
         ud = [a for a in ach if a["id"] == "underdog_hero"][0]
         self.assertFalse(ud["unlocked"])
 
-        # Win with 25% win probability (team A: 1300 vs team B: 1550 -> expected ~0.19 < 0.32)
-        # Should count as underdog victory!
+        # 2v2 with 1300 vs 1550 (RD=50) -> expected ~0.118 (< 32%) -> must count as underdog victory!
         self.add_match("2026-03-05", [1, 2], [3, 4], 4, 3, {1: 1300, 2: 1300, 3: 1550, 4: 1550})
         ach2 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
         ud2 = [a for a in ach2 if a["id"] == "underdog_hero"][0]
@@ -272,71 +282,159 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         self.assertIn("Februar 2026", pm2["detail_text"])
 
     def test_winning_streak(self):
-        self.add_warmup_5_matches()
-
-        # 3 wins in a row -> not unlocked
+        # 3 HF wins -> winning_streak_hf Bronze (3), while winning_streak_total (4) & winning_streak_box (4) remain locked
         for i in range(1, 4):
-            self.add_match(f"2026-02-{i:02d}", [1, 2], [3, 4], 5, 2)
-        ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
-        ws = [a for a in ach if a["id"] == "winning_streak"][0]
-        self.assertFalse(ws["unlocked"])
+            self.add_match(f"2026-02-{i:02d}", [1, 2], [3, 4], 5, 2, pitch="hf")
+        ach3 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ws_hf3 = [a for a in ach3 if a["id"] == "winning_streak_hf"][0]
+        ws_tot3 = [a for a in ach3 if a["id"] == "winning_streak_total"][0]
+        ws_box3 = [a for a in ach3 if a["id"] == "winning_streak_box"][0]
+        self.assertTrue(ws_hf3["unlocked"])
+        self.assertEqual(ws_hf3["tier"], "bronze")
+        self.assertFalse(ws_tot3["unlocked"])
+        self.assertFalse(ws_box3["unlocked"])
 
-        # 4th win in a row -> Bronze
-        self.add_match("2026-02-04", [1, 2], [3, 4], 5, 2)
+        # 4th consecutive win on Box -> Total reaches 4 (Bronze), Box is 1 (locked), HF stays 3 (Bronze)
+        self.add_match("2026-02-04", [1, 2], [3, 4], 5, 2, pitch="box")
         ach4 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
-        ws4 = [a for a in ach4 if a["id"] == "winning_streak"][0]
-        self.assertTrue(ws4["unlocked"])
-        self.assertEqual(ws4["tier"], "bronze")
+        ws_tot4 = [a for a in ach4 if a["id"] == "winning_streak_total"][0]
+        ws_box4 = [a for a in ach4 if a["id"] == "winning_streak_box"][0]
+        self.assertTrue(ws_tot4["unlocked"])
+        self.assertEqual(ws_tot4["tier"], "bronze")
+        self.assertFalse(ws_box4["unlocked"])
 
-        # 4 more wins (total 8) -> Silver
-        for i in range(5, 9):
-            self.add_match(f"2026-02-{i:02d}", [1, 2], [3, 4], 5, 2)
-        ach8 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
-        ws8 = [a for a in ach8 if a["id"] == "winning_streak"][0]
-        self.assertEqual(ws8["tier"], "silver")
+        # 3 more Box wins -> Total reaches 7 (Silver = 7), Box reaches 4 (Bronze = 4)
+        for i in range(5, 8):
+            self.add_match(f"2026-02-{i:02d}", [1, 2], [3, 4], 5, 2, pitch="box")
+        ach7 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ws_tot7 = [a for a in ach7 if a["id"] == "winning_streak_total"][0]
+        ws_box7 = [a for a in ach7 if a["id"] == "winning_streak_box"][0]
+        self.assertEqual(ws_tot7["tier"], "silver")
+        self.assertEqual(ws_box7["tier"], "bronze")
 
-        # A loss resets active streak, but record streak stays at 8 (Silver)
-        self.add_match("2026-02-09", [1, 2], [3, 4], 1, 4)
+        # 4 more Box wins -> Total reaches 11 (Gold = 11), Box reaches 8 (Silver = 8)
+        for i in range(8, 12):
+            self.add_match(f"2026-02-{i:02d}", [1, 2], [3, 4], 5, 2, pitch="box")
+        ach11 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ws_tot11 = [a for a in ach11 if a["id"] == "winning_streak_total"][0]
+        ws_box11 = [a for a in ach11 if a["id"] == "winning_streak_box"][0]
+        self.assertEqual(ws_tot11["tier"], "gold")
+        self.assertEqual(ws_box11["tier"], "silver")
+
+        # Loss on HF resets active Total & HF streaks while keeping Box untouched & records intact
+        self.add_match("2026-02-12", [1, 2], [3, 4], 1, 4, pitch="hf")
         ach_loss = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
-        ws_loss = [a for a in ach_loss if a["id"] == "winning_streak"][0]
-        self.assertEqual(ws_loss["tier"], "silver")
-        self.assertTrue(ws_loss["unlocked"])
-        self.assertIn("aktuell: 0", ws_loss["detail_text"])
+        ws_tot_loss = [a for a in ach_loss if a["id"] == "winning_streak_total"][0]
+        ws_box_loss = [a for a in ach_loss if a["id"] == "winning_streak_box"][0]
+        self.assertEqual(ws_tot_loss["tier"], "gold")
+        self.assertIn("aktuell: 0", ws_tot_loss["detail_text"])
+        self.assertIn("aktuell: 8", ws_box_loss["detail_text"])
 
     def test_unbeaten_streak(self):
-        self.add_warmup_5_matches()
+        # 2 wins + 1 draw on HF = 3 unbeaten -> unbeaten_streak_hf Bronze (3), Total (4) & Box (4) locked
+        self.add_match("2026-02-01", [1, 2], [3, 4], 5, 2, pitch="hf")
+        self.add_match("2026-02-02", [1, 2], [3, 4], 4, 4, pitch="hf")
+        self.add_match("2026-02-03", [1, 2], [3, 4], 3, 1, pitch="hf")
 
-        # 2 wins + 2 draws = 4 unbeaten -> Bronze (while winning_streak stays locked!)
-        self.add_match("2026-02-01", [1, 2], [3, 4], 5, 2)
-        self.add_match("2026-02-02", [1, 2], [3, 4], 4, 4)
-        self.add_match("2026-02-03", [1, 2], [3, 4], 3, 1)
-        self.add_match("2026-02-04", [1, 2], [3, 4], 2, 2)
+        ach3 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ub_hf3 = [a for a in ach3 if a["id"] == "unbeaten_streak_hf"][0]
+        ub_tot3 = [a for a in ach3 if a["id"] == "unbeaten_streak_total"][0]
+        self.assertTrue(ub_hf3["unlocked"])
+        self.assertEqual(ub_hf3["tier"], "bronze")
+        self.assertFalse(ub_tot3["unlocked"])
 
+        # Add 1 draw on Box -> Total reaches 4 unbeaten (Bronze), winning_streak_total still locked
+        self.add_match("2026-02-04", [1, 2], [3, 4], 2, 2, pitch="box")
         ach4 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
-        ub4 = [a for a in ach4 if a["id"] == "unbeaten_streak"][0]
-        ws4 = [a for a in ach4 if a["id"] == "winning_streak"][0]
-        self.assertTrue(ub4["unlocked"])
-        self.assertEqual(ub4["tier"], "bronze")
-        self.assertFalse(ws4["unlocked"])
+        ub_tot4 = [a for a in ach4 if a["id"] == "unbeaten_streak_total"][0]
+        ws_tot4 = [a for a in ach4 if a["id"] == "winning_streak_total"][0]
+        self.assertTrue(ub_tot4["unlocked"])
+        self.assertEqual(ub_tot4["tier"], "bronze")
+        self.assertFalse(ws_tot4["unlocked"])
 
-        # 4 more unbeaten (2 wins + 2 draws = total 8) -> Silver
-        self.add_match("2026-02-05", [1, 2], [3, 4], 6, 3)
-        self.add_match("2026-02-06", [1, 2], [3, 4], 1, 1)
-        self.add_match("2026-02-07", [1, 2], [3, 4], 0, 0)
-        self.add_match("2026-02-08", [1, 2], [3, 4], 5, 1)
+        # 3 more unbeaten on Box -> Total reaches 7 (Silver), Box reaches 4 (Bronze)
+        self.add_match("2026-02-05", [1, 2], [3, 4], 6, 3, pitch="box")
+        self.add_match("2026-02-06", [1, 2], [3, 4], 1, 1, pitch="box")
+        self.add_match("2026-02-07", [1, 2], [3, 4], 0, 0, pitch="box")
 
-        ach8 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
-        ub8 = [a for a in ach8 if a["id"] == "unbeaten_streak"][0]
-        self.assertTrue(ub8["unlocked"])
-        self.assertEqual(ub8["tier"], "silver")
+        ach7 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ub_tot7 = [a for a in ach7 if a["id"] == "unbeaten_streak_total"][0]
+        ub_box7 = [a for a in ach7 if a["id"] == "unbeaten_streak_box"][0]
+        self.assertEqual(ub_tot7["tier"], "silver")
+        self.assertEqual(ub_box7["tier"], "bronze")
 
-        # A loss resets active unbeaten streak to 0 while keeping record tier Silver
-        self.add_match("2026-02-09", [1, 2], [3, 4], 1, 4)
+        # 6 more unbeaten on HF -> HF reaches 9 unbeaten (Gold = 9), Total reaches 13 (Gold = 11)
+        for i in range(8, 14):
+            self.add_match(f"2026-02-{i:02d}", [1, 2], [3, 4], 2, 2, pitch="hf")
+        ach_hf = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ub_hf9 = [a for a in ach_hf if a["id"] == "unbeaten_streak_hf"][0]
+        self.assertEqual(ub_hf9["tier"], "gold")
+
+        # Loss on Box resets active Total & Box streaks while keeping record Silver (Box) / Gold (Total)
+        self.add_match("2026-02-14", [1, 2], [3, 4], 1, 4, pitch="box")
         ach_loss = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
-        ub_loss = [a for a in ach_loss if a["id"] == "unbeaten_streak"][0]
-        self.assertEqual(ub_loss["tier"], "silver")
-        self.assertTrue(ub_loss["unlocked"])
-        self.assertIn("aktuell: 0", ub_loss["detail_text"])
+        ub_tot_loss = [a for a in ach_loss if a["id"] == "unbeaten_streak_total"][0]
+        ub_box_loss = [a for a in ach_loss if a["id"] == "unbeaten_streak_box"][0]
+        self.assertEqual(ub_tot_loss["tier"], "gold")
+        self.assertEqual(ub_box_loss["tier"], "bronze")
+        self.assertIn("aktuell: 0", ub_tot_loss["detail_text"])
+        self.assertIn("aktuell: 0", ub_box_loss["detail_text"])
+
+    def test_cursebreaker_partner_scaling(self):
+        day = 1
+        def break_curse_with(partner_id):
+            nonlocal day
+            for _ in range(4):
+                self.add_match(f"2026-06-{day:02d}", [1, partner_id], [20, 21], 1, 4)
+                day += 1
+            self.add_match(f"2026-06-{day:02d}", [1, partner_id], [20, 21], 4, 1)
+            day += 1
+
+        # 0 partners -> locked
+        ach0 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        cb0 = [a for a in ach0 if a["id"] == "cursebreaker"][0]
+        self.assertFalse(cb0["unlocked"])
+        self.assertEqual(cb0["tier"], "locked")
+
+        # 1 partner -> Bronze
+        break_curse_with(2)
+        cb1 = [a for a in get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn) if a["id"] == "cursebreaker"][0]
+        self.assertTrue(cb1["unlocked"])
+        self.assertEqual(cb1["tier"], "bronze")
+        self.assertEqual(cb1["progress_text"], "1 / 3 Flüche gebrochen")
+
+        # Repeating a second curse with same partner (2) must NOT double-count
+        break_curse_with(2)
+        cb1_dup = [a for a in get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn) if a["id"] == "cursebreaker"][0]
+        self.assertEqual(cb1_dup["tier"], "bronze")
+        self.assertEqual(cb1_dup["progress_text"], "1 / 3 Flüche gebrochen")
+
+        # Use distinct months cleanly for remaining partners 3..11
+        day = 1
+        month = 7
+        for p in range(3, 12):
+            for _ in range(4):
+                self.add_match(f"2026-{month:02d}-{day:02d}", [1, p], [20, 21], 1, 4)
+                day += 1
+                if day > 28:
+                    day = 1
+                    month += 1
+            self.add_match(f"2026-{month:02d}-{day:02d}", [1, p], [20, 21], 4, 1)
+            day += 1
+            if day > 28:
+                day = 1
+                month += 1
+
+            cb_curr = [a for a in get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn) if a["id"] == "cursebreaker"][0]
+            if p == 4:  # 3 partners total (2, 3, 4)
+                self.assertEqual(cb_curr["tier"], "silver")
+                self.assertEqual(cb_curr["progress_text"], "3 / 6 Flüche gebrochen")
+            elif p == 7:  # 6 partners total (2..7)
+                self.assertEqual(cb_curr["tier"], "gold")
+                self.assertEqual(cb_curr["progress_text"], "6 / 10 Flüche gebrochen")
+            elif p == 11:  # 10 partners total (2..11)
+                self.assertEqual(cb_curr["tier"], "platin")
+                self.assertEqual(cb_curr["progress_text"], "10 Flüche gebrochen!")
 
     def test_teammate_achievements_buddies_duos(self):
         self.add_warmup_5_matches()
@@ -638,7 +736,7 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         self.add_match("2026-02-04", [1, 5], [3, 4], 5, 1)
 
         overview = get_all_achievements_overview(self.conn, accounts_connection=self.acc_conn)
-        self.assertEqual(len(overview), 17)
+        self.assertEqual(len(overview), 21)
 
         # Sorted descending by unlocked_count (most fulfilled -> least fulfilled)
         counts = [item["unlocked_count"] for item in overview]
@@ -650,11 +748,13 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
             {p["player_id"] for p in by_id["weisse_wand"]["unlocked_players"]},
             {1, 2},
         )
-        self.assertEqual(by_id["winning_streak"]["unlocked_count"], 1)
-        self.assertEqual(by_id["winning_streak"]["unlocked_players"][0]["player_id"], 1)
+        self.assertEqual(by_id["winning_streak_total"]["unlocked_count"], 1)
+        self.assertEqual(by_id["winning_streak_total"]["unlocked_players"][0]["player_id"], 1)
+        self.assertEqual(by_id["winning_streak_box"]["unlocked_count"], 1)
+        self.assertEqual(by_id["winning_streak_hf"]["unlocked_count"], 0)
 
         weisse_idx = next(i for i, item in enumerate(overview) if item["id"] == "weisse_wand")
-        streak_idx = next(i for i, item in enumerate(overview) if item["id"] == "winning_streak")
+        streak_idx = next(i for i, item in enumerate(overview) if item["id"] == "winning_streak_total")
         self.assertLess(weisse_idx, streak_idx)
 
 

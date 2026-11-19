@@ -27,7 +27,14 @@ def get_dashboard_streaks(connection):
     pitch_keys = ("total", "box", "hf")
     player_streaks = {
         pkey: {
-            pid: {"win_curr": 0, "win_max": 0, "unbeaten_curr": 0, "unbeaten_max": 0}
+            pid: {
+                "win_curr": 0,
+                "win_max": 0,
+                "unbeaten_curr": 0,
+                "unbeaten_max": 0,
+                "loss_curr": 0,
+                "loss_max": 0,
+            }
             for pid in players
         }
         for pkey in pitch_keys
@@ -51,7 +58,14 @@ def get_dashboard_streaks(connection):
 
             p_map = player_streaks[pkey]
             if pid not in p_map:
-                p_map[pid] = {"win_curr": 0, "win_max": 0, "unbeaten_curr": 0, "unbeaten_max": 0}
+                p_map[pid] = {
+                    "win_curr": 0,
+                    "win_max": 0,
+                    "unbeaten_curr": 0,
+                    "unbeaten_max": 0,
+                    "loss_curr": 0,
+                    "loss_max": 0,
+                }
             ps = p_map[pid]
 
             if is_win:
@@ -68,6 +82,13 @@ def get_dashboard_streaks(connection):
             else:
                 ps["unbeaten_curr"] = 0
 
+            if is_loss:
+                ps["loss_curr"] += 1
+                if ps["loss_curr"] > ps["loss_max"]:
+                    ps["loss_max"] = ps["loss_curr"]
+            else:
+                ps["loss_curr"] = 0
+
     ratings = get_ratings(connection)
     rating_histories = {pid: get_player_rating_history(connection, pid) for pid in players}
 
@@ -81,6 +102,8 @@ def get_dashboard_streaks(connection):
         all_time_win = []
         active_unbeaten = []
         all_time_unbeaten = []
+        active_loss = []
+        all_time_loss = []
 
         for pid, ps in p_map.items():
             alias = players[pid]["aliases"][0] if pid in players and players[pid].get("aliases") else f"Player #{pid}"
@@ -92,14 +115,21 @@ def get_dashboard_streaks(connection):
                 active_unbeaten.append({"player_id": pid, "name": alias, "count": ps["unbeaten_curr"]})
             if ps["unbeaten_max"] >= 3:
                 all_time_unbeaten.append({"player_id": pid, "name": alias, "count": ps["unbeaten_max"]})
+            if ps["loss_curr"] >= 2:
+                active_loss.append({"player_id": pid, "name": alias, "count": ps["loss_curr"]})
+            if ps["loss_max"] >= 3:
+                all_time_loss.append({"player_id": pid, "name": alias, "count": ps["loss_max"]})
 
         active_win.sort(key=lambda s: (-s["count"], s["name"].lower()))
         all_time_win.sort(key=lambda s: (-s["count"], s["name"].lower()))
         active_unbeaten.sort(key=lambda s: (-s["count"], s["name"].lower()))
         all_time_unbeaten.sort(key=lambda s: (-s["count"], s["name"].lower()))
+        active_loss.sort(key=lambda s: (-s["count"], s["name"].lower()))
+        all_time_loss.sort(key=lambda s: (-s["count"], s["name"].lower()))
 
         all_time_win = _cap_all_time_streaks(all_time_win)
         all_time_unbeaten = _cap_all_time_streaks(all_time_unbeaten)
+        all_time_loss = _cap_all_time_streaks(all_time_loss)
 
         # Most improved player in past 30 days (anchored to latest match date for this pitch or overall)
         anchor_str = latest_dates[pkey] or overall_latest
@@ -146,6 +176,8 @@ def get_dashboard_streaks(connection):
             "all_time_win_streaks": all_time_win,
             "active_unbeaten_streaks": active_unbeaten,
             "all_time_unbeaten_streaks": all_time_unbeaten,
+            "active_loss_streaks": active_loss,
+            "all_time_loss_streaks": all_time_loss,
             "most_improved": improved_list[:5],
         }
 
@@ -154,6 +186,8 @@ def get_dashboard_streaks(connection):
         "all_time_win_streaks": by_pitch["total"]["all_time_win_streaks"],
         "active_unbeaten_streaks": by_pitch["total"]["active_unbeaten_streaks"],
         "all_time_unbeaten_streaks": by_pitch["total"]["all_time_unbeaten_streaks"],
+        "active_loss_streaks": by_pitch["total"]["active_loss_streaks"],
+        "all_time_loss_streaks": by_pitch["total"]["all_time_loss_streaks"],
         "most_improved": by_pitch["total"]["most_improved"],
         "by_pitch": by_pitch,
     }
