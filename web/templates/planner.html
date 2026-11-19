@@ -115,10 +115,10 @@
                                         </span>
                                     </div>
                                     <form method="post" action="{{ url_for('planner.rsvp_event', event_id=event.id) }}" style="display: inline-flex; gap: 6px; margin: 0;">
-                                        <button type="submit" name="status" value="attending" class="planner-rsvp-btn btn-attend {% if event.user_rsvp == 'attending' %}active{% endif %}">
+                                        <button type="submit" name="status" value="attending" class="planner-rsvp-btn btn-attend {% if event.user_rsvp == 'attending' %}active{% endif %}" {% if event.user_rsvp == 'attending' %}disabled title="{{ t('planner.already_attending_tooltip', 'Du bist bereits für diesen Spieltag eingetragen.') }}"{% endif %}>
                                             {{ t('planner.attend', '👍 Attend') }}
                                         </button>
-                                        <button type="submit" name="status" value="declined" class="planner-rsvp-btn btn-decline {% if event.user_rsvp == 'declined' %}active{% endif %}">
+                                        <button type="submit" name="status" value="declined" class="planner-rsvp-btn btn-decline {% if event.user_rsvp == 'declined' %}active{% endif %}" {% if event.user_rsvp == 'declined' %}disabled title="{{ t('planner.already_declined_tooltip', 'Du bist für diesen Spieltag abgemeldet.') }}"{% endif %}>
                                             {{ t('planner.decline', '👎 Decline') }}
                                         </button>
                                     </form>

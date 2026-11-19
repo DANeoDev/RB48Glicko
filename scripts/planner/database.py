@@ -420,7 +420,7 @@ def get_attendance_logs_count(connection, event_id=None, action=None):
 
 
 def set_user_rsvp(connection, event_id, user_id, display_name, status):
-    """Set or update a member's direct attendance status (attending or declined)."""
+    """Set or update a member's direct attendance status (attending or declined). Returns True if status changed/inserted, False if unchanged."""
     if status not in ("attending", "declined"):
         raise ValueError(f"Invalid status: {status}")
 
@@ -428,6 +428,21 @@ def set_user_rsvp(connection, event_id, user_id, display_name, status):
     existing = get_user_event_rsvp(connection, event_id, user_id)
 
     if existing:
+        if existing["status"] == status:
+            # User already has this status (e.g. already attending).
+            # Do NOT update created_at so their spot in the roster/queue is preserved!
+            if existing["name"] != display_name:
+                connection.execute(
+                    """
+                    UPDATE attendees
+                    SET name = ?
+                    WHERE id = ?
+                    """,
+                    (display_name, existing["id"]),
+                )
+                connection.commit()
+            return False
+
         connection.execute(
             """
             UPDATE attendees
@@ -454,6 +469,7 @@ def set_user_rsvp(connection, event_id, user_id, display_name, status):
         actor_name=display_name,
         created_at=now,
     )
+    return True
 
 
 def cancel_user_rsvp(connection, event_id, user_id, actor_name=None):

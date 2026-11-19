@@ -411,6 +411,9 @@
     cursor: pointer;
     transition: all 0.15s ease;
 }
+.planner-rsvp-btn:disabled {
+    cursor: default;
+}
 
 .btn-attend {
     background: rgba(40, 167, 69, 0.2);
@@ -422,6 +425,12 @@
     color: #ffffff;
     border-color: #28a745;
 }
+.btn-attend.active:disabled {
+    background: #28a745;
+    color: #ffffff;
+    border-color: #28a745;
+    opacity: 1;
+}
 
 .btn-decline {
     background: rgba(220, 53, 69, 0.2);
@@ -432,6 +441,12 @@
     background: #dc3545;
     color: #ffffff;
     border-color: #dc3545;
+}
+.btn-decline.active:disabled {
+    background: #dc3545;
+    color: #ffffff;
+    border-color: #dc3545;
+    opacity: 1;
 }
 
 .btn-cancel-rsvp {

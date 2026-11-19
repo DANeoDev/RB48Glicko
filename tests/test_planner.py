@@ -737,6 +737,67 @@ class PlannerTests(unittest.TestCase):
         self.assertIn("Moritz (NewAwesomeName +2)", updated_names)
         self.assertNotIn("OldName", updated_names)
 
+    def test_re_clicking_attending_preserves_queue_position_and_timestamp(self):
+        """When an already attending user submits 'attending' again, their position and created_at timestamp must NOT change."""
+        event_id = create_event(self.conn, "2099-07-01 18:30", "box", max_players=2)
+
+        # Player 1 signs up first
+        res1 = set_user_rsvp(self.conn, event_id, user_id=1, display_name="Player 1", status="attending")
+        self.assertTrue(res1)
+        time.sleep(0.02)
+
+        # Player 2 signs up second
+        res2 = set_user_rsvp(self.conn, event_id, user_id=2, display_name="Player 2", status="attending")
+        self.assertTrue(res2)
+        time.sleep(0.02)
+
+        # Player 3 signs up third (goes to waiting list)
+        res3 = set_user_rsvp(self.conn, event_id, user_id=3, display_name="Player 3", status="attending")
+        self.assertTrue(res3)
+
+        initial_attendees = [dict(a) for a in get_event_attendees(self.conn, event_id)]
+        p1_initial_created_at = initial_attendees[0]["created_at"]
+        self.assertEqual([a["name"] for a in initial_attendees], ["Player 1", "Player 2", "Player 3"])
+
+        # Player 1 accidentally or repeatedly clicks "Dabei" again after some time!
+        time.sleep(0.02)
+        res1_repeat = set_user_rsvp(self.conn, event_id, user_id=1, display_name="Player 1", status="attending")
+        self.assertFalse(res1_repeat)  # Returns False indicating no status change
+
+        after_attendees = [dict(a) for a in get_event_attendees(self.conn, event_id)]
+        # Player 1 MUST still be in first position! Not bumped behind Player 2 or to the waiting list!
+        self.assertEqual([a["name"] for a in after_attendees], ["Player 1", "Player 2", "Player 3"])
+        self.assertEqual(after_attendees[0]["created_at"], p1_initial_created_at)
+
+        # Activity log should only have the 3 original registrations, not a duplicate for Player 1
+        cursor = self.conn.execute("SELECT COUNT(*) FROM attendance_logs WHERE event_id = ? AND action = 'registered'", (event_id,))
+        self.assertEqual(cursor.fetchone()[0], 3)
+
+        # Test route behavior and disabled button in HTML
+        user_id, _ = register_user("testuser_repeat", "repeat@example.com", "SecretPass123!")
+        acc_conn = get_accounts_connection()
+        try:
+            mark_email_verified(acc_conn, user_id)
+            approve_user(acc_conn, user_id, approved=True)
+            update_user_role(acc_conn, user_id, "user")
+        finally:
+            acc_conn.close()
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+            sess["user_role"] = "user"
+
+        # Register self.user_id
+        self.client.post(f"/planner/{event_id}/rsvp", data={"status": "attending"})
+        resp = self.client.get("/planner")
+        html = resp.get_data(as_text=True)
+        # Button for 'attending' must be marked disabled when user is already attending
+        self.assertIn('btn-attend active" disabled', html)
+
+        # POST 'attending' again via route -> should flash info message and not change position
+        resp_again = self.client.post(f"/planner/{event_id}/rsvp", data={"status": "attending"}, follow_redirects=True)
+        self.assertEqual(resp_again.status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -247,9 +247,13 @@ def rsvp_event(event_id):
             else:
                 flash(t("planner.cannot_cancel_direct", "Deregistration is only possible by choosing 'Nicht dabei' (Declined)."), "warning")
         elif action in ("attending", "declined"):
-            set_user_rsvp(connection, event_id, user["id"], display_name, action)
-            msg = "You are marked as attending!" if action == "attending" else "You are marked as declined."
-            flash(msg, "success" if action == "attending" else "info")
+            changed = set_user_rsvp(connection, event_id, user["id"], display_name, action)
+            if changed:
+                msg = t("planner.rsvp_success_attending", "You are marked as attending!") if action == "attending" else t("planner.rsvp_success_declined", "You are marked as declined.")
+                flash(msg, "success" if action == "attending" else "info")
+            else:
+                msg = t("planner.rsvp_already_attending", "You are already marked as attending.") if action == "attending" else t("planner.rsvp_already_declined", "You are already marked as declined.")
+                flash(msg, "info")
         else:
             flash("Invalid RSVP status.", "danger")
     finally:
