@@ -96,6 +96,7 @@ def _compute_single_game_delta(
                 "rd": 0.0,
                 "games": 0,
                 "wins": 0,
+                "draws": 0,
                 "losses": 0,
                 "win_percent": 0.0,
                 "is_inactivity": False,
@@ -139,6 +140,7 @@ def _compute_single_game_delta(
                 "rd": delta_rd,
                 "games": g,
                 "wins": w,
+                "draws": draws,
                 "losses": losses,
                 "win_percent": wp,
                 "is_inactivity": False,
@@ -157,6 +159,7 @@ def _compute_single_game_delta(
                 "rd": delta_rd,
                 "games": 0,
                 "wins": 0,
+                "draws": 0,
                 "losses": 0,
                 "win_percent": 0.0,
                 "is_inactivity": True,
@@ -170,6 +173,7 @@ def _compute_single_game_delta(
             "rd": 0.0,
             "games": 0,
             "wins": 0,
+            "draws": 0,
             "losses": 0,
             "win_percent": 0.0,
             "is_inactivity": False,
@@ -198,6 +202,7 @@ def _compute_single_game_delta(
         "rd": game_delta_rd,
         "games": 1,
         "wins": 1 if is_win else 0,
+        "draws": 1 if is_draw else 0,
         "losses": 1 if is_loss else 0,
         "win_percent": 100.0 if is_win else (50.0 if is_draw else 0.0),
         "is_inactivity": False,
@@ -250,6 +255,7 @@ def _compute_period_delta(
         "rd": delta_rd,
         "games": g,
         "wins": w,
+        "draws": draws,
         "losses": losses,
         "win_percent": wp,
     }
@@ -354,10 +360,10 @@ def build_leaderboard(
     calibrated_priors = calibrated_priors or {}
     player_thresholds = player_thresholds or {}
     default_deltas = {
-        "game": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
-        "month": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
-        "quarter": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
-        "year": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
+        "game": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "draws": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
+        "month": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "draws": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
+        "quarter": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "draws": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
+        "year": {"conservative": 0.0, "rating": 0.0, "rd": 0.0, "games": 0, "wins": 0, "draws": 0, "losses": 0, "win_percent": 0.0, "is_inactivity": False, "tooltip": ""},
     }
     leaderboard = []
     for player_id, rating in ratings.items():

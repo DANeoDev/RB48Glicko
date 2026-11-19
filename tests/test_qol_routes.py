@@ -70,12 +70,20 @@ class TestQOLRoutes(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b'id="synergies-modal"', resp.data)
         self.assertIn(b'id="streaks-modal"', resp.data)
+        self.assertIn(b'id="strk-tab-unbeaten"', resp.data)
+        self.assertIn(b'id="strk-pane-unbeaten"', resp.data)
+        self.assertIn(b'data-streak-pitch="box"', resp.data)
+        self.assertIn(b'data-base-column="draws"', resp.data)
         self.assertIn(b'id="open-streaks-modal-btn"', resp.data)
         self.assertIn(b'id="open-synergies-modal-btn"', resp.data)
         self.assertIn(b"openStreaksModal", resp.data)
         self.assertIn(b"openSynergiesModal", resp.data)
         self.assertIn(b"glicko-blur", resp.data)
         self.assertIn("Basiert auf der internen Ratingentwicklung".encode("utf-8"), resp.data)
+
+        resp_player = self.client.get("/player/1")
+        self.assertEqual(resp_player.status_code, 200)
+        self.assertIn(b"<th>Remis</th>", resp_player.data)
 
     def test_stats_streaks_modal_glicko_user_no_blur(self):
         with self.client.session_transaction() as sess:

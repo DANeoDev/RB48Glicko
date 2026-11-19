@@ -29,9 +29,21 @@ class TestSynergiesAndStreaks(unittest.TestCase):
         streaks = get_dashboard_streaks(self.conn)
         self.assertIn("active_win_streaks", streaks)
         self.assertIn("all_time_win_streaks", streaks)
+        self.assertIn("active_unbeaten_streaks", streaks)
+        self.assertIn("all_time_unbeaten_streaks", streaks)
         self.assertIn("most_improved", streaks)
+        self.assertIn("by_pitch", streaks)
+        for pkey in ("total", "box", "hf"):
+            self.assertIn(pkey, streaks["by_pitch"])
+            self.assertIn("active_win_streaks", streaks["by_pitch"][pkey])
+            self.assertIn("all_time_win_streaks", streaks["by_pitch"][pkey])
+            self.assertIn("active_unbeaten_streaks", streaks["by_pitch"][pkey])
+            self.assertIn("all_time_unbeaten_streaks", streaks["by_pitch"][pkey])
+            self.assertIn("most_improved", streaks["by_pitch"][pkey])
 
         for s in streaks["active_win_streaks"]:
+            self.assertGreaterEqual(s["count"], 2)
+        for s in streaks["active_unbeaten_streaks"]:
             self.assertGreaterEqual(s["count"], 2)
 
         # Check that all-time records include ties

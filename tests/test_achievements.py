@@ -73,6 +73,8 @@ class TestAchievements(unittest.TestCase):
             "achievements.cursebreaker_desc",
             "achievements.comeback_king_title",
             "achievements.comeback_king_desc",
+            "achievements.unbeaten_streak_title",
+            "achievements.unbeaten_streak_desc",
             "achievements.mvp_title",
             "achievements.mvp_desc",
             "achievements.tier_platin",
@@ -293,6 +295,41 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         self.assertEqual(ws_loss["tier"], "silver")
         self.assertTrue(ws_loss["unlocked"])
         self.assertIn("aktuell: 0", ws_loss["detail_text"])
+
+    def test_unbeaten_streak(self):
+        self.add_warmup_5_matches()
+
+        # 2 wins + 2 draws = 4 unbeaten -> Bronze (while winning_streak stays locked!)
+        self.add_match("2026-02-01", [1, 2], [3, 4], 5, 2)
+        self.add_match("2026-02-02", [1, 2], [3, 4], 4, 4)
+        self.add_match("2026-02-03", [1, 2], [3, 4], 3, 1)
+        self.add_match("2026-02-04", [1, 2], [3, 4], 2, 2)
+
+        ach4 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ub4 = [a for a in ach4 if a["id"] == "unbeaten_streak"][0]
+        ws4 = [a for a in ach4 if a["id"] == "winning_streak"][0]
+        self.assertTrue(ub4["unlocked"])
+        self.assertEqual(ub4["tier"], "bronze")
+        self.assertFalse(ws4["unlocked"])
+
+        # 4 more unbeaten (2 wins + 2 draws = total 8) -> Silver
+        self.add_match("2026-02-05", [1, 2], [3, 4], 6, 3)
+        self.add_match("2026-02-06", [1, 2], [3, 4], 1, 1)
+        self.add_match("2026-02-07", [1, 2], [3, 4], 0, 0)
+        self.add_match("2026-02-08", [1, 2], [3, 4], 5, 1)
+
+        ach8 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ub8 = [a for a in ach8 if a["id"] == "unbeaten_streak"][0]
+        self.assertTrue(ub8["unlocked"])
+        self.assertEqual(ub8["tier"], "silver")
+
+        # A loss resets active unbeaten streak to 0 while keeping record tier Silver
+        self.add_match("2026-02-09", [1, 2], [3, 4], 1, 4)
+        ach_loss = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ub_loss = [a for a in ach_loss if a["id"] == "unbeaten_streak"][0]
+        self.assertEqual(ub_loss["tier"], "silver")
+        self.assertTrue(ub_loss["unlocked"])
+        self.assertIn("aktuell: 0", ub_loss["detail_text"])
 
     def test_teammate_achievements_buddies_duos(self):
         self.add_warmup_5_matches()

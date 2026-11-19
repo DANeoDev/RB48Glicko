@@ -106,11 +106,21 @@ def stats():
 
     synergies = filter_synergies_by_excluded_players(cached["synergies"], stats_opted_out_player_ids)
     if stats_opted_out_player_ids:
-        streaks = {
-            "active_win_streaks": [s for s in streaks.get("active_win_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
-            "all_time_win_streaks": [s for s in streaks.get("all_time_win_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
-            "most_improved": streaks.get("most_improved", [])
+        def _filter_streak_bucket(bucket):
+            return {
+                "active_win_streaks": [s for s in bucket.get("active_win_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
+                "all_time_win_streaks": [s for s in bucket.get("all_time_win_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
+                "active_unbeaten_streaks": [s for s in bucket.get("active_unbeaten_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
+                "all_time_unbeaten_streaks": [s for s in bucket.get("all_time_unbeaten_streaks", []) if s["player_id"] not in stats_opted_out_player_ids],
+                "most_improved": bucket.get("most_improved", []),
+            }
+
+        filtered_streaks = _filter_streak_bucket(streaks)
+        filtered_streaks["by_pitch"] = {
+            pkey: _filter_streak_bucket(pdata)
+            for pkey, pdata in streaks.get("by_pitch", {}).items()
         }
+        streaks = filtered_streaks
 
     user_has_opt_out = bool(curr_user and curr_user.get("glicko_opt_out"))
 

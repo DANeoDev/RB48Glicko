@@ -127,6 +127,7 @@ def _compute_snapshot_deltas(
             "rd": delta_rd,
             "games": g,
             "wins": w,
+            "draws": draws,
             "losses": losses,
             "win_percent": wp,
         }
@@ -298,6 +299,7 @@ def compute_historical_snapshots(connection):
                     "conservative": round(c_val, 1),
                     "games": g,
                     "wins": w,
+                    "draws": s_item.get("draws", 0),
                     "losses": losses,
                     "win_percent": wp,
                     "deltas": deltas,

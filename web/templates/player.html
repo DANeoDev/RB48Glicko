@@ -112,6 +112,7 @@
 {% endif %}
 <th>{{ t('stats.games', 'Games') }}</th>
 <th>{{ t('stats.wins', 'Ws') }}</th>
+<th>{{ t('stats.draws', 'Remis') }}</th>
 <th>{{ t('stats.losses', 'Ls') }}</th>
 <th title="{{ t('stats.th_win_percent_title', 'Erfolgsquote: (Siege + 0,5 × Unentschieden) / Spiele.') }}">{{ t('stats.win_rate', 'W%') }}</th>
 </tr>
@@ -126,6 +127,7 @@
 {% endif %}
 <td>{{ stats[rating_type]["games"] }}</td>
 <td>{% if is_player_stats_opted_out %}—{% else %}{{ stats[rating_type]["wins"] }}{% endif %}</td>
+<td>{% if is_player_stats_opted_out %}—{% else %}{{ stats[rating_type].get("draws", 0) }}{% endif %}</td>
 <td>{% if is_player_stats_opted_out %}—{% else %}{{ stats[rating_type]["losses"] }}{% endif %}</td>
 <td title="{{ t('stats.th_win_percent_title', 'Erfolgsquote: (Siege + 0,5 × Unentschieden) / Spiele.') }}">{% if is_player_stats_opted_out %}—{% else %}{{ stats[rating_type]["win_percent"] | round(1) }}%{% endif %}</td>
 </tr>

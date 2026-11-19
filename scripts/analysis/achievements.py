@@ -171,6 +171,47 @@ def _eval_winning_streak(active_matches: list) -> dict:
     }
 
 
+def _eval_unbeaten_streak(active_matches: list) -> dict:
+    current_u_streak = 0
+    max_u_streak = 0
+    for m in active_matches:
+        if not m["is_loss"]:
+            current_u_streak += 1
+            if current_u_streak > max_u_streak:
+                max_u_streak = current_u_streak
+        else:
+            current_u_streak = 0
+
+    ub_tiers = [(20, "platin"), (12, "gold"), (8, "silver"), (4, "bronze")]
+    ub_unlocked_tier = None
+    for target, tier in ub_tiers:
+        if max_u_streak >= target:
+            ub_unlocked_tier = tier
+            break
+
+    if max_u_streak >= 20:
+        ub_target = 20
+    elif max_u_streak >= 12:
+        ub_target = 20
+    elif max_u_streak >= 8:
+        ub_target = 12
+    elif max_u_streak >= 4:
+        ub_target = 8
+    else:
+        ub_target = 4
+
+    return {
+        "id": "unbeaten_streak",
+        "icon": "🦾",
+        "title_key": "achievements.unbeaten_streak_title",
+        "tier": ub_unlocked_tier if ub_unlocked_tier else "locked",
+        "unlocked": ub_unlocked_tier is not None,
+        "progress_text": f"{max_u_streak} / {ub_target} Spiele ungeschlagen" if not ub_unlocked_tier or max_u_streak < 20 else f"{max_u_streak} Spiele ungeschlagen erreicht!",
+        "description_key": "achievements.unbeaten_streak_desc",
+        "detail_text": f"Rekord-Serie: {max_u_streak} Spiele in Folge ungeschlagen (aktuell: {current_u_streak})" if ub_unlocked_tier else f"Aktuelle Serie: {current_u_streak} ungeschlagen (Rekord: {max_u_streak})"
+    }
+
+
 def _eval_iron_man(active_matches: list, active_global_matches: dict) -> dict:
     distinct_dates = sorted(list(set(m["date"] for m in active_global_matches.values())))
     player_dates = set(m["date"] for m in active_matches)
@@ -1036,6 +1077,7 @@ def get_player_achievements(connection, player_id, user_has_glicko_tier=True, ac
         achievements = [
             _eval_century_club(total_games),
             _eval_winning_streak(active_matches),
+            _eval_unbeaten_streak(active_matches),
             _eval_iron_man(active_matches, active_global_matches),
             _eval_underdog_hero(active_matches),
             _eval_weisse_wand(active_matches),
