@@ -6,8 +6,20 @@
 
         <details id="matchmaker-details" {% if not has_tier('admin') or selected_ids or result %}open{% endif %}>
 
-            <summary>
+            <summary style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                 <strong>{{ t('match_center.matchmaker_title', 'Matchmaker') }}</strong>
+                <button
+                    type="button"
+                    id="matchmaker-options-toggle"
+                    class="secondary"
+                    onclick="event.preventDefault(); event.stopPropagation(); toggleMatchmakerOptions();"
+                    title="{{ t('match_center.options_title', 'Matchmaker-Optionen (Anzahl Teams)') }}"
+                    aria-label="{{ t('match_center.options_title', 'Matchmaker-Optionen (Anzahl Teams)') }}"
+                    style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; font-size: 11.5px; font-weight: 700; border-radius: 999px; cursor: pointer; {% if num_teams and num_teams > 2 %}background: rgba(128, 222, 234, 0.16); border-color: rgba(128, 222, 234, 0.55); color: #80deea;{% endif %}"
+                >
+                    <span>⚙️</span>
+                    <span id="matchmaker-teams-badge">{{ num_teams or 2 }} Teams</span>
+                </button>
             </summary>
 
             <p class="muted">
@@ -33,6 +45,94 @@
 
 
             <form method="post" data-scroll-target="#suggested-teams">
+                <input type="hidden" name="num_teams" id="matchmaker-num-teams" value="{{ num_teams or 2 }}">
+
+                <div
+                    id="matchmaker-options-panel"
+                    style="display: {% if num_teams and num_teams > 2 %}flex{% else %}none{% endif %}; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; padding: 10px 14px; background: rgba(128, 222, 234, 0.08); border: 1px solid rgba(128, 222, 234, 0.28); border-radius: 8px;"
+                >
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span style="font-size: 12.5px; font-weight: 700; color: #80deea;">
+                            ⚙️ {{ t('match_center.team_count_label', 'Anzahl Teams:') }}
+                        </span>
+                        <div style="display: inline-flex; gap: 5px; align-items: center;">
+                            {% for preset in [2, 3, 4] %}
+                            <button
+                                type="button"
+                                class="secondary matchmaker-team-preset {% if (num_teams or 2) == preset %}active-preset{% endif %}"
+                                data-team-count="{{ preset }}"
+                                onclick="setMatchmakerTeamCount({{ preset }})"
+                                style="padding: 4px 10px; font-size: 12px; font-weight: 700; border-radius: 6px; cursor: pointer; {% if (num_teams or 2) == preset %}background: var(--accent); border-color: var(--accent); color: #ffffff;{% endif %}"
+                            >
+                                {{ preset }}
+                            </button>
+                            {% endfor %}
+                        </div>
+                        <input
+                            type="number"
+                            id="matchmaker-num-teams-input"
+                            min="2"
+                            max="10"
+                            value="{{ num_teams or 2 }}"
+                            onchange="setMatchmakerTeamCount(this.value)"
+                            oninput="setMatchmakerTeamCount(this.value)"
+                            aria-label="{{ t('match_center.team_count_label', 'Anzahl Teams:') }}"
+                            style="width: 58px; padding: 4px 8px; font-size: 12.5px; font-weight: 700; border-radius: 6px; text-align: center;"
+                        >
+                    </div>
+                    <span class="muted" style="font-size: 11.5px;">
+                        {{ t('match_center.team_count_hint', 'Standard: 2 Teams · Turniermodus: 3+ faire Teams') }}
+                    </span>
+                </div>
+
+                <script>
+                function toggleMatchmakerOptions() {
+                    var details = document.getElementById('matchmaker-details');
+                    var panel = document.getElementById('matchmaker-options-panel');
+                    if (!panel) return;
+                    if (details && !details.open) {
+                        details.open = true;
+                        panel.style.display = 'flex';
+                        return;
+                    }
+                    panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'flex' : 'none';
+                }
+
+                function setMatchmakerTeamCount(val) {
+                    var count = parseInt(val, 10);
+                    if (isNaN(count) || count < 2) count = 2;
+                    if (count > 10) count = 10;
+
+                    var hidden = document.getElementById('matchmaker-num-teams');
+                    var input = document.getElementById('matchmaker-num-teams-input');
+                    var badge = document.getElementById('matchmaker-teams-badge');
+                    var toggleBtn = document.getElementById('matchmaker-options-toggle');
+
+                    if (hidden) hidden.value = String(count);
+                    if (input && String(input.value) !== String(count)) input.value = String(count);
+                    if (badge) badge.textContent = count + ' Teams';
+
+                    if (toggleBtn) {
+                        if (count > 2) {
+                            toggleBtn.style.background = 'rgba(128, 222, 234, 0.16)';
+                            toggleBtn.style.borderColor = 'rgba(128, 222, 234, 0.55)';
+                            toggleBtn.style.color = '#80deea';
+                        } else {
+                            toggleBtn.style.background = '';
+                            toggleBtn.style.borderColor = '';
+                            toggleBtn.style.color = '';
+                        }
+                    }
+
+                    document.querySelectorAll('.matchmaker-team-preset').forEach(function(btn) {
+                        var isMatch = parseInt(btn.getAttribute('data-team-count'), 10) === count;
+                        btn.classList.toggle('active-preset', isMatch);
+                        btn.style.background = isMatch ? 'var(--accent)' : '';
+                        btn.style.borderColor = isMatch ? 'var(--accent)' : '';
+                        btn.style.color = isMatch ? '#ffffff' : '';
+                    });
+                }
+                </script>
 
                 {% if current_planner_event and current_planner_event.player_ids %}
                 <div class="matchmaker-quick-actions" style="margin-bottom: 16px; background: rgba(123, 82, 197, 0.12); border: 1px solid rgba(123, 82, 197, 0.35); border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">

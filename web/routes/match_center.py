@@ -513,6 +513,11 @@ def match_center():
         pitch = request.form.get("pitch", request.args.get("pitch", "box"))
         pitch = pitch if pitch in ("box", "hf") else "box"
         rating_type = "total" if mode == "total" else pitch
+        try:
+            num_teams = int(request.form.get("num_teams", request.args.get("num_teams", 2)) or 2)
+        except (TypeError, ValueError):
+            num_teams = 2
+        num_teams = max(2, min(10, num_teams))
 
         raw_players = request.form.getlist("players") or request.args.getlist("players")
         if len(raw_players) == 1 and "," in raw_players[0]:
@@ -597,8 +602,10 @@ def match_center():
                     seed = int(request.form.get("seed")) if request.form.get("seed") is not None else None
                 except ValueError:
                     seed = None
-                if len(selected_ids) >= 2:
-                    result = generate_match(selected_ids, players, ratings, rating_type, seed=seed)
+                if len(selected_ids) >= num_teams:
+                    result = generate_match(selected_ids, players, ratings, rating_type, seed=seed, num_teams=num_teams)
+                else:
+                    error = f"Für {num_teams} Teams müssen mindestens {num_teams} Spieler ausgewählt sein."
 
         match_date = imported_planner_date or request.form.get("date", request.args.get("date", request.form.get("parsed_match_date", get_cologne_date_str())))
         if parse_result and parse_result.get("match_date"):
@@ -673,6 +680,7 @@ def match_center():
             result=result,
             mode=mode,
             pitch=pitch,
+            num_teams=num_teams,
             seed=seed,
             match_date=match_date,
             next_match_id=next_id,

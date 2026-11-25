@@ -18,6 +18,7 @@
                 <input type="hidden" name="action" value="reroll">
                 <input type="hidden" name="mode" value="{{ mode }}">
                 <input type="hidden" name="pitch" value="{{ pitch }}">
+                <input type="hidden" name="num_teams" value="{{ num_teams or 2 }}">
                 <input type="hidden" name="date" value="{{ match_date }}">
                 <input type="hidden" name="engine" value="{{ active_engine }}">
                 {% for pid in selected_ids %}
@@ -38,17 +39,16 @@
         </div>
 
 
-        <div class="teams">
+        <div class="teams" {% if result.num_teams and result.num_teams > 2 %}style="grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));"{% endif %}>
 
-            <!-- Team A -->
-
+            {% for team_info in result.teams %}
             <div class="team">
 
-                <h3>{{ t('matches.team_a', 'Team A') }}</h3>
+                <h3>{{ team_info.label }}</h3>
 
                 <ul>
 
-                    {% for pid in result.team_a %}
+                    {% for pid in team_info.players %}
 
                         <li>
 
@@ -64,7 +64,7 @@
                                 class="position-info"
                                 title="The position shown is the position the matchmaker considered for this player in this suggested team. It is based on the player's registered position capabilities and the other players on the team; it does not change the player's stored positions."
                             >
-                                ({{ result.considered_positions_a[pid] }})
+                                ({{ team_info.considered_positions[pid] }})
                             </span>
 
                         </li>
@@ -77,65 +77,17 @@
                 <div class="muted">
 
                     <strong>{{ t('player.current_rating', 'Rating') }}:</strong>
-                    {{ '%.1f' | format(result.rating_a.rating) }}
+                    {{ '%.1f' | format(team_info.rating.rating) }}
 
                     ·
 
                     <strong>{{ t('stats.rd', 'RD') }}:</strong>
-                    {{ '%.1f' | format(result.rating_a.rd) }}
+                    {{ '%.1f' | format(team_info.rating.rd) }}
 
                 </div>
 
             </div>
-
-
-            <!-- Team B -->
-
-            <div class="team">
-
-                <h3>{{ t('matches.team_b', 'Team B') }}</h3>
-
-                <ul>
-
-                    {% for pid in result.team_b %}
-
-                        <li>
-
-                            {{ players[pid].aliases[0]
-                                if players[pid].aliases
-                                else 'Player ' ~ pid
-                            }}
-                            {% if players[pid].get('is_provisional') and has_tier('webmaster') %}
-                                <span class="provisional-badge" style="font-size: 11px; margin-left: 2px; cursor: help; opacity: 0.85; color: #ffca28;" title="{{ t('match_center.provisional_tooltip', progress=players[pid].get('calibration_progress', 0), threshold=players[pid].get('calibration_threshold', 15)) }}">⏳</span>
-                            {% endif %}
-
-                            <span
-                                class="position-info"
-                                title="The position shown is the position the matchmaker considered for this player in this suggested team. It is based on the player's registered position capabilities and the other players on the team; it does not change the player's stored positions."
-                            >
-                                ({{ result.considered_positions_b[pid] }})
-                            </span>
-
-                        </li>
-
-                    {% endfor %}
-
-                </ul>
-
-
-                <div class="muted">
-
-                    <strong>{{ t('player.current_rating', 'Rating') }}:</strong>
-                    {{ '%.1f' | format(result.rating_b.rating) }}
-
-                    ·
-
-                    <strong>{{ t('stats.rd', 'RD') }}:</strong>
-                    {{ '%.1f' | format(result.rating_b.rd) }}
-
-                </div>
-
-            </div>
+            {% endfor %}
 
         </div>
 
@@ -151,7 +103,7 @@
 
             <span
                 class="position-evaluation"
-                title="Lower is better. The score compares how evenly both teams cover GK, DEF, MID and ATT based on players' registered position capabilities. A score of 0 means the positional capability counts are equal. An additional large penalty is applied if all GK-capable players end up on the same team."
+                title="Lower is better. The score compares how evenly teams cover GK, DEF, MID and ATT based on players' registered position capabilities. A score of 0 means the positional capability counts are equal. An additional large penalty is applied if GK-capable players are concentrated unevenly."
             >
                 ⓘ
                 {{ '%.1f' | format(result.position_penalty) }}
@@ -162,6 +114,7 @@
 
         {% if has_tier('admin') %}
         <div class="actions" style="margin-top: 18px;">
+            {% if not result.num_teams or result.num_teams == 2 %}
             <button
                 type="button"
                 class="primary"
@@ -169,6 +122,11 @@
             >
                 {{ t('match_center.use_teams_btn', '↓ Use these teams in Match Entry') }}
             </button>
+            {% else %}
+            <span class="muted" style="font-size: 12.5px;">
+                🏆 {{ t('match_center.tournament_transfer_hint', 'Turniermodus ({n} Teams): Trage die einzelnen Begegnungen unten im Spielformular ein.', n=result.num_teams) }}
+            </span>
+            {% endif %}
         </div>
         {% endif %}
 

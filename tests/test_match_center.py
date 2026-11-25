@@ -207,9 +207,80 @@ class MatchCenterFrontendTests(unittest.TestCase):
         }
         result = generate_match([1, 2, 3, 4], players, ratings, TOTAL, seed=42)
         self.assertIsNotNone(result)
+        self.assertEqual(result["num_teams"], 2)
+        self.assertEqual(len(result["teams"]), 2)
         self.assertEqual(len(result["team_a"]) + len(result["team_b"]), 4)
         self.assertIn("rating_difference", result)
         self.assertIn("position_penalty", result)
+
+    def test_matchmaker_multi_team_generation(self):
+        # 9 players -> 3 balanced teams of 3, 3 GKs split 1 per team
+        players = {
+            1: {"aliases": ["P1"], "positions": ["GK"]},
+            2: {"aliases": ["P2"], "positions": ["GK"]},
+            3: {"aliases": ["P3"], "positions": ["GK"]},
+            4: {"aliases": ["P4"], "positions": ["DEF"]},
+            5: {"aliases": ["P5"], "positions": ["DEF"]},
+            6: {"aliases": ["P6"], "positions": ["DEF"]},
+            7: {"aliases": ["P7"], "positions": ["ATT"]},
+            8: {"aliases": ["P8"], "positions": ["ATT"]},
+            9: {"aliases": ["P9"], "positions": ["ATT"]},
+        }
+        ratings = {
+            pid: {TOTAL: {"rating": 1400.0 + (pid * 25.0), "rd": 100.0, "sigma": 0.06}}
+            for pid in players
+        }
+        res3 = generate_match(list(players.keys()), players, ratings, TOTAL, seed=7, calibrations={}, num_teams=3)
+        self.assertIsNotNone(res3)
+        self.assertEqual(res3["num_teams"], 3)
+        self.assertEqual([t["label"] for t in res3["teams"]], ["Team A", "Team B", "Team C"])
+        self.assertEqual([len(t["players"]) for t in res3["teams"]], [3, 3, 3])
+        all_pids = [pid for t in res3["teams"] for pid in t["players"]]
+        self.assertEqual(sorted(all_pids), list(range(1, 10)))
+
+        # Fewer players than teams returns None
+        self.assertIsNone(generate_match([1, 2], players, ratings, TOTAL, seed=7, calibrations={}, num_teams=3))
+
+        # 16 players -> 4 balanced teams of 4 (exercises hill-climbing path)
+        players16 = {pid: {"aliases": [f"P{pid}"], "positions": ["MID"]} for pid in range(1, 17)}
+        ratings16 = {pid: {TOTAL: {"rating": 1400.0 + pid * 15.0, "rd": 80.0, "sigma": 0.06}} for pid in range(1, 17)}
+        res4 = generate_match(list(players16.keys()), players16, ratings16, TOTAL, seed=11, calibrations={}, num_teams=4)
+        self.assertIsNotNone(res4)
+        self.assertEqual(res4["num_teams"], 4)
+        self.assertEqual([t["label"] for t in res4["teams"]], ["Team A", "Team B", "Team C", "Team D"])
+        self.assertEqual([len(t["players"]) for t in res4["teams"]], [4, 4, 4, 4])
+
+    def test_match_center_post_generate_three_teams(self):
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.user_id
+
+            resp = client.post("/match-center", data={
+                "action": "generate",
+                "mode": "total",
+                "pitch": "box",
+                "num_teams": "3",
+                "players": [str(i) for i in range(1, 10)],
+            })
+            self.assertEqual(resp.status_code, 200)
+            html = resp.get_data(as_text=True)
+            self.assertIn("matchmaker-options-toggle", html)
+            self.assertIn("3 Teams", html)
+            self.assertIn("<h3>Team A</h3>", html)
+            self.assertIn("<h3>Team B</h3>", html)
+            self.assertIn("<h3>Team C</h3>", html)
+            self.assertIn('name="num_teams" value="3"', html)
+
+            # Selecting fewer players than requested teams shows validation message
+            resp_err = client.post("/match-center", data={
+                "action": "generate",
+                "mode": "total",
+                "pitch": "box",
+                "num_teams": "3",
+                "players": ["1", "2"],
+            })
+            self.assertEqual(resp_err.status_code, 200)
+            self.assertIn("mindestens 3 Spieler", resp_err.get_data(as_text=True))
 
     def test_create_player_with_main_position(self):
         from scripts.database.database import get_connection
