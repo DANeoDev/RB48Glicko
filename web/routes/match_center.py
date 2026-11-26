@@ -317,10 +317,13 @@ def _get_current_planner_event_info(connection):
         ev = dict(ev_row)
         attendees = [dict(a) for a in get_event_attendees(p_conn, ev["id"])]
         alias_lookup = get_alias_lookup(connection)
-        active_roster = [a for a in attendees if a.get("status") == "attending"][:ev.get("max_players", 12)]
+        all_attending = [a for a in attendees if a.get("status") == "attending"]
+        active_roster = all_attending[:ev.get("max_players", 12)]
         matched_ids = resolve_active_roster_player_ids(active_roster, alias_lookup, a_conn)
+        all_matched_ids = resolve_active_roster_player_ids(all_attending, alias_lookup, a_conn)
 
         unmatched_count = max(0, len(active_roster) - len(matched_ids))
+        all_unmatched_count = max(0, len(all_attending) - len(all_matched_ids))
 
         formatted_date = ev["event_date"][:10]
         try:
@@ -338,8 +341,11 @@ def _get_current_planner_event_info(connection):
             "pitch": (ev.get("pitch") or "box").lower(),
             "max_players": ev.get("max_players", 12),
             "player_ids": matched_ids,
+            "all_player_ids": all_matched_ids,
             "attending_count": len(active_roster),
+            "all_attending_count": len(all_attending),
             "unmatched_count": unmatched_count,
+            "all_unmatched_count": all_unmatched_count,
         }
     except Exception:
         return None
@@ -539,7 +545,12 @@ def match_center():
 
         current_planner_event = _get_current_planner_event_info(connection)
         if request.args.get("apply_current_planner") and current_planner_event and current_planner_event.get("player_ids"):
-            selected_ids = [int(pid) for pid in current_planner_event["player_ids"] if int(pid) in players]
+            planner_pids = (
+                current_planner_event.get("all_player_ids") or current_planner_event["player_ids"]
+                if num_teams >= 3
+                else current_planner_event["player_ids"]
+            )
+            selected_ids = [int(pid) for pid in planner_pids if int(pid) in players]
             if current_planner_event.get("pitch") in ("box", "hf"):
                 pitch = current_planner_event["pitch"]
                 if mode != "total":
@@ -580,7 +591,12 @@ def match_center():
 
             elif action == "apply_current_planner":
                 if current_planner_event and current_planner_event.get("player_ids"):
-                    selected_ids = [int(pid) for pid in current_planner_event["player_ids"] if int(pid) in players]
+                    planner_pids = (
+                        current_planner_event.get("all_player_ids") or current_planner_event["player_ids"]
+                        if num_teams >= 3
+                        else current_planner_event["player_ids"]
+                    )
+                    selected_ids = [int(pid) for pid in planner_pids if int(pid) in players]
                     if current_planner_event.get("pitch") in ("box", "hf"):
                         pitch = current_planner_event["pitch"]
                         if mode != "total":

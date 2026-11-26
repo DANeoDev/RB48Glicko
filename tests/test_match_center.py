@@ -282,6 +282,45 @@ class MatchCenterFrontendTests(unittest.TestCase):
             self.assertEqual(resp_err.status_code, 200)
             self.assertIn("mindestens 3 Spieler", resp_err.get_data(as_text=True))
 
+    def test_apply_current_planner_includes_waitlist_for_three_or_more_teams(self):
+        from scripts.database.database import get_connection
+        from scripts.database.db_players import get_players
+        from scripts.planner.database import add_guest_rsvp, create_event, get_planner_connection
+
+        main_conn = get_connection()
+        try:
+            players = get_players(main_conn)
+            pids = sorted(players.keys())[:6]
+            self.assertEqual(len(pids), 6)
+            p_names = [players[pid]["aliases"][0] for pid in pids]
+        finally:
+            main_conn.close()
+
+        p_conn = get_planner_connection()
+        try:
+            ev_id = create_event(p_conn, "2099-12-31 19:00", "box", max_players=4, title="Turnierabend")
+            for pname in p_names:
+                add_guest_rsvp(p_conn, ev_id, pname)
+        finally:
+            p_conn.close()
+
+        with self.app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["user_id"] = self.user_id
+
+            # 2 teams -> only active roster (4 players)
+            resp2 = client.post("/match-center", data={"action": "apply_current_planner", "num_teams": "2"})
+            self.assertEqual(resp2.status_code, 200)
+            html2 = resp2.get_data(as_text=True)
+            self.assertIn("4 Spieler markiert", html2)
+            self.assertIn("data-all-player-ids", html2)
+
+            # 3 teams -> all attending players including waitlist (6 players)
+            resp3 = client.post("/match-center", data={"action": "apply_current_planner", "num_teams": "3"})
+            self.assertEqual(resp3.status_code, 200)
+            html3 = resp3.get_data(as_text=True)
+            self.assertIn("6 Spieler markiert", html3)
+
     def test_create_player_with_main_position(self):
         from scripts.database.database import get_connection
         from scripts.database.db_players import get_players
@@ -715,6 +754,25 @@ class MatchCenterFrontendTests(unittest.TestCase):
                 self.assertNotIn("Thomas (Bernhard +1)", alias_names)
             finally:
                 conn.close()
+
+    def test_delete_match_with_discovery_ratings_succeeds(self):
+        from scripts.database.db_ratings import ensure_player_discovery_ratings_table, save_player_discovery_ratings
+        from scripts.matches.match_entry import add_match, delete_match, process_new_matches
+
+        conn = get_connection()
+        try:
+            pid_new, _ = create_new_player(conn, f"Guest_{int(time.time() * 1000000)}", ["MID"], calibration_level="average")
+            mid = add_match(conn, "2026-11-26", "box", [pid_new, 1], [2, 3], 5, 3)
+            process_new_matches(conn)
+            ensure_player_discovery_ratings_table(conn)
+            save_player_discovery_ratings(conn, [(pid_new, mid, "total", 1510.0, 220.0, 0.03)])
+
+            res = delete_match(conn, mid)
+            self.assertTrue(res["success"])
+            self.assertIsNone(conn.execute("SELECT 1 FROM matches WHERE match_id = ?", (mid,)).fetchone())
+            self.assertIsNone(conn.execute("SELECT 1 FROM player_discovery_ratings WHERE match_id = ?", (mid,)).fetchone())
+        finally:
+            conn.close()
 
 
 if __name__ == "__main__":

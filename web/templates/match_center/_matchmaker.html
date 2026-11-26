@@ -163,6 +163,7 @@
                             id="apply-current-event-btn"
                             class="secondary"
                             data-player-ids="{{ current_planner_event.player_ids | tojson }}"
+                            data-all-player-ids="{{ (current_planner_event.all_player_ids or current_planner_event.player_ids) | tojson }}"
                             data-event-title="{{ current_planner_event.title }}"
                             onclick="return handleApplyCurrentPlannerClick(event);"
                             style="font-size: 13px; font-weight: 600; padding: 7px 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;"
@@ -178,7 +179,11 @@
                     try {
                         var btn = document.getElementById('apply-current-event-btn');
                         if (!btn) return true;
-                        var raw = btn.getAttribute('data-player-ids') || (btn.dataset ? btn.dataset.playerIds : null);
+                        var numTeamsEl = document.getElementById('matchmaker-num-teams');
+                        var numTeams = numTeamsEl ? (parseInt(numTeamsEl.value, 10) || 2) : 2;
+                        var raw = (numTeams >= 3)
+                            ? (btn.getAttribute('data-all-player-ids') || btn.getAttribute('data-player-ids'))
+                            : (btn.getAttribute('data-player-ids') || (btn.dataset ? btn.dataset.playerIds : null));
                         if (!raw) return true;
                         var parsed = JSON.parse(raw);
                         if (!Array.isArray(parsed) || parsed.length === 0) {

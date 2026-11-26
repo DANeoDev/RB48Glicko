@@ -388,8 +388,14 @@ def delete_match(connection, match_id):
                     writer.writerows(remaining_rows)
 
     # 2. Delete from SQLite (child tables first to satisfy foreign key constraints)
+    has_discovery_table = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='player_discovery_ratings'"
+    ).fetchone() is not None
+
     connection.execute("BEGIN")
     try:
+        if has_discovery_table:
+            connection.execute("DELETE FROM player_discovery_ratings WHERE match_id = ?", (match_id,))
         connection.execute("DELETE FROM match_ratings WHERE match_id = ?", (match_id,))
         connection.execute("DELETE FROM match_players WHERE match_id = ?", (match_id,))
         connection.execute("DELETE FROM matches WHERE match_id = ?", (match_id,))
