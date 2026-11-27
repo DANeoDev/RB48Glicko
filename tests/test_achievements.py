@@ -206,16 +206,16 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         iron10 = [a for a in ach10 if a["id"] == "iron_man"][0]
         self.assertEqual(iron10["tier"], "silver")
 
-    def test_underdog_threshold_32_percent(self):
+    def test_underdog_threshold_41_percent(self):
         # Using RB48 Team Glicko-2 sqrt(team_size) expectation:
-        # 2v2 with 1450 vs 1510 (RD=50) -> expected ~0.381 (> 32%) -> must NOT count for underdog hero
-        self.add_match("2026-03-01", [1, 2], [3, 4], 4, 2, {1: 1450, 2: 1450, 3: 1510, 4: 1510})
+        # 2v2 with 1470 vs 1510 (RD=50) -> expected ~0.420 (> 41%) -> must NOT count for underdog hero
+        self.add_match("2026-03-01", [1, 2], [3, 4], 4, 2, {1: 1470, 2: 1470, 3: 1510, 4: 1510})
         ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
         ud = [a for a in ach if a["id"] == "underdog_hero"][0]
         self.assertFalse(ud["unlocked"])
 
-        # 2v2 with 1300 vs 1550 (RD=50) -> expected ~0.118 (< 32%) -> must count as underdog victory!
-        self.add_match("2026-03-05", [1, 2], [3, 4], 4, 3, {1: 1300, 2: 1300, 3: 1550, 4: 1550})
+        # 2v2 with 1450 vs 1510 (RD=50) -> expected ~0.381 (< 41%) -> must count as underdog victory!
+        self.add_match("2026-03-05", [1, 2], [3, 4], 4, 3, {1: 1450, 2: 1450, 3: 1510, 4: 1510})
         ach2 = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
         ud2 = [a for a in ach2 if a["id"] == "underdog_hero"][0]
         self.assertTrue(ud2["unlocked"])
@@ -453,17 +453,21 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
 
         ach = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
 
-        # Buddies 2: 10 games -> bronze
+        # Buddies 2: 10 games -> bronze; Underdog Duo 2: 2 underdog wins (<41%) -> bronze!
         buddies = [a for a in ach if a["id"] == "buddies_2"]
         self.assertEqual(len(buddies), 1)
         self.assertEqual(buddies[0]["tier"], "bronze")
         self.assertIn("Player_2", buddies[0]["title"])
 
+        ud_duo_initial = [a for a in ach if a["id"] == "underdog_duo_2"]
+        self.assertEqual(len(ud_duo_initial), 1)
+        self.assertEqual(ud_duo_initial[0]["tier"], "bronze")
+
         # Golden duo: only 7 wins, needs 10 for bronze -> not unlocked
         gd = [a for a in ach if a["id"] == "golden_duo_2"]
         self.assertEqual(len(gd), 0)
 
-        # Add 3 more wins with Player 2 (total 10 wins, 1 underdog) -> Golden Duo Bronze, Underdog Duo 3 -> Bronze!
+        # Add 3 more wins with Player 2 (total 10 wins, 3 underdog -> still Bronze) -> Golden Duo Bronze
         self.add_match("2026-07-15", [1, 2], [3, 4], 4, 1, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
         self.add_match("2026-07-16", [1, 2], [3, 4], 4, 1, {1: 1500, 2: 1500, 3: 1500, 4: 1500})
         self.add_match("2026-07-17", [1, 2], [3, 4], 4, 1, {1: 1300, 2: 1300, 3: 1600, 4: 1600})  # underdog
@@ -476,6 +480,13 @@ class TestAchievementsLogicSynthetic(unittest.TestCase):
         ud_duo = [a for a in ach2 if a["id"] == "underdog_duo_2"]
         self.assertEqual(len(ud_duo), 1)
         self.assertEqual(ud_duo[0]["tier"], "bronze")
+
+        # 2 more underdog wins (total 5) -> Underdog Duo Silver!
+        self.add_match("2026-07-18", [1, 2], [3, 4], 4, 1, {1: 1450, 2: 1450, 3: 1510, 4: 1510})
+        self.add_match("2026-07-19", [1, 2], [3, 4], 4, 1, {1: 1450, 2: 1450, 3: 1510, 4: 1510})
+        ach2b = get_player_achievements(self.conn, 1, accounts_connection=self.acc_conn)
+        ud_duo_silver = [a for a in ach2b if a["id"] == "underdog_duo_2"]
+        self.assertEqual(ud_duo_silver[0]["tier"], "silver")
 
         # Durch Dick und Dünn: 3 losses, needs 10 -> not unlocked
         ddd = [a for a in ach2 if a["id"] == "thick_and_thin_2"]

@@ -297,7 +297,7 @@ def _eval_iron_man(active_matches: list, active_global_matches: dict) -> dict:
 
 
 def _eval_underdog_hero(active_matches: list) -> dict:
-    underdog_wins = [m for m in active_matches if m["is_win"] and m["expected_win_prob"] < 0.32]
+    underdog_wins = [m for m in active_matches if m["is_win"] and m["expected_win_prob"] < 0.41]
     underdog_tier = "gold" if len(underdog_wins) >= 3 else ("silver" if len(underdog_wins) >= 2 else ("bronze" if len(underdog_wins) >= 1 else "locked"))
     return {
         "id": "underdog_hero",
@@ -305,9 +305,9 @@ def _eval_underdog_hero(active_matches: list) -> dict:
         "title_key": "achievements.underdog_title",
         "tier": underdog_tier,
         "unlocked": len(underdog_wins) > 0,
-        "progress_text": f"{len(underdog_wins)} Underdog-Siege (<32% Chance)",
+        "progress_text": f"{len(underdog_wins)} Underdog-Siege (<41% Chance)",
         "description_key": "achievements.underdog_desc",
-        "detail_text": f"{len(underdog_wins)}x gegen statistische Quoten (< 32%) gewonnen"
+        "detail_text": f"{len(underdog_wins)}x gegen statistische Quoten (< 41%) gewonnen"
     }
 
 
@@ -838,9 +838,9 @@ def _eval_thick_and_thin(partner_games: dict, players: dict, tier_order: dict) -
 def _eval_underdog_duo(partner_games: dict, players: dict, tier_order: dict) -> list:
     underdog_duo_unlocked = []
     for tm_id, g_list in partner_games.items():
-        ud_wins = len([g for g in g_list if g["is_win"] and g["expected_win_prob"] < 0.32])
-        if ud_wins >= 3:
-            tier = "platin" if ud_wins >= 15 else ("gold" if ud_wins >= 9 else ("silver" if ud_wins >= 6 else "bronze"))
+        ud_wins = len([g for g in g_list if g["is_win"] and g["expected_win_prob"] < 0.41])
+        if ud_wins >= 2:
+            tier = "platin" if ud_wins >= 12 else ("gold" if ud_wins >= 8 else ("silver" if ud_wins >= 5 else "bronze"))
             tm_name = players[tm_id]["aliases"][0] if tm_id in players else f"Spieler {tm_id}"
             underdog_duo_unlocked.append((tm_id, tm_name, ud_wins, tier))
 
@@ -856,11 +856,11 @@ def _eval_underdog_duo(partner_games: dict, players: dict, tier_order: dict) -> 
                 "title_params": {"partner": tm_name},
                 "tier": tier,
                 "unlocked": True,
-                "progress_text": f"{ud_cnt} Underdog-Siege (<32%)",
+                "progress_text": f"{ud_cnt} Underdog-Siege (<41%)",
                 "description_key": "achievements.underdog_duo_desc",
                 "detail_key": "achievements.underdog_duo_partner_detail",
                 "detail_params": {"partner": tm_name, "count": ud_cnt},
-                "detail_text": f"{ud_cnt} Underdog-Siege (< 32% Siegwahrscheinlichkeit) zusammen mit {tm_name}"
+                "detail_text": f"{ud_cnt} Underdog-Siege (< 41% Siegwahrscheinlichkeit) zusammen mit {tm_name}"
             })
     else:
         results.append({
@@ -869,9 +869,9 @@ def _eval_underdog_duo(partner_games: dict, players: dict, tier_order: dict) -> 
             "title_key": "achievements.underdog_duo_title",
             "tier": "locked",
             "unlocked": False,
-            "progress_text": "Noch keine 3 Underdog-Siege als Duo",
+            "progress_text": "Noch keine 2 Underdog-Siege als Duo",
             "description_key": "achievements.underdog_duo_desc",
-            "detail_text": "Erringe 3, 6, 9 oder 15 Underdog-Siege (< 32%) gemeinsam mit einem Mitspieler."
+            "detail_text": "Erringe 2, 5, 8 oder 12 Underdog-Siege (< 41%) gemeinsam mit einem Mitspieler."
         })
     return results
 
